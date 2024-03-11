@@ -18,7 +18,7 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 
 ## Tech stack
 
-We use [https://github.com/flutter/flutter](Flutter) for the UI and [https://github.com/rust-lang/rust](Rust) for the inference pipeline
+We use [Flutter](https://github.com/flutter/flutter) for the UI and [Rust](https://github.com/rust-lang/rust) for the inference pipeline
 
 ## Open source?
 
