@@ -22,7 +22,7 @@ We use [Flutter](https://github.com/flutter/flutter) for the UI and [Rust](https
 
 ## Open source?
 
-In the future we'll be fully open source. Right now, you can see the UI code.
+In the future, we'll be fully open source. Right now, you can see the UI code.
 
 ## List of Runtimes
 
@@ -30,7 +30,7 @@ We're just starting, but these are the goals:
 
 | Runtime   | Description                                                                        | Requirements                                                        | Available? |
 |-----------|------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------|
-| CPU      | Your average CPU                    | Having a CPU            | ✅|
+| cpu      | Your average CPU                    | Having a CPU            | ✅|
 | cuda      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | Requires CUDA v11.6+                                               | On the way  |
 | tensorrt  | TensorRT execution provider for NVIDIA GPUs (GeForce 9xx series and above)         | Requires CUDA v11.4+ and TensorRT v8.4+                             |On the way |
 | openvino  | OpenVINO execution provider for Intel Core CPUs (6th generation and above)        |                                                                     |On the way|
