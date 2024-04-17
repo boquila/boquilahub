@@ -27,7 +27,7 @@ class _MyHomePageState extends State<MyHomePage> {
   String foundImagesText = "";
   late String jpgFile;
   late List<String> jpgFiles;
-  late List<AnimalData> animalDataList;
+  late List<BBox> animalDataList;
 
   void selectFolder() async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
@@ -177,7 +177,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     List<dynamic> jsonList = json.decode(results);
                     print(jsonList);
                     animalDataList = jsonList
-                        .map((json) => AnimalData.fromJson(json))
+                        .map((json) => BBox.fromJson(json))
                         .toList();
 
                     analyzecomplete = true;
@@ -197,11 +197,11 @@ class _MyHomePageState extends State<MyHomePage> {
               height: MediaQuery.of(context).size.height * 0.58,
               child: Center(
                 child:
-                    BoxImg(file: File(jpgFile), listAnimalData: animalDataList),
+                    BoxImg(file: File(jpgFile), listBBox: animalDataList),
               )),
         // child: BoxImage(
         //     image: Image.file(File(filePath)),
-        //     listAnimalData: animalDataList))),
+        //     listBBox: animalDataList))),
         const SizedBox(height: 10),
         if (isfileselected & analyzecomplete)
           ElevatedButton(
@@ -236,15 +236,15 @@ final ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
   ),
 );
 
-class AnimalData {
+class BBox {
   double x1, y1, x2, y2;
   String label;
   double confidence;
 
-  AnimalData(this.x1, this.y1, this.x2, this.y2, this.label, this.confidence);
+  BBox(this.x1, this.y1, this.x2, this.y2, this.label, this.confidence);
 
-  factory AnimalData.fromJson(List<dynamic> json) {
-    return AnimalData(
+  factory BBox.fromJson(List<dynamic> json) {
+    return BBox(
       json[0].toDouble(),
       json[1].toDouble(),
       json[2].toDouble(),
@@ -256,10 +256,10 @@ class AnimalData {
 }
 
 // class BoxImage extends StatelessWidget {
-//   final List<AnimalData> listAnimalData;
+//   final List<BBox> listBBox;
 //   final Image image;
 
-//   const BoxImage({required this.listAnimalData, required this.image, Key? key})
+//   const BoxImage({required this.listBBox, required this.image, Key? key})
 //       : super(key: key);
 
 //   @override
@@ -267,7 +267,7 @@ class AnimalData {
 //     return Stack(
 //       children: [
 //         image,
-//         for (var data in listAnimalData)
+//         for (var data in listBBox)
 //           Positioned(
 //             left: data.x1,
 //             top: data.y1,
@@ -300,10 +300,10 @@ class AnimalData {
 // }
 
 // class BoxImage2 extends StatelessWidget {
-//   final List<AnimalData> listAnimalData;
+//   final List<BBox> listBBox;
 //   final Image image;
 
-//   const BoxImage2({required this.listAnimalData, required this.image, Key? key})
+//   const BoxImage2({required this.listBBox, required this.image, Key? key})
 //       : super(key: key);
 
 //   Future<Size> getsize(Image image) {
@@ -348,7 +348,7 @@ class AnimalData {
 //             child: Stack(
 //               children: [
 //                 image,
-//                 for (var data in listAnimalData)
+//                 for (var data in listBBox)
 //                   Positioned(
 //                     // actually, you need to divide by the SCALE of the image,
 //                     // if you can show 100% of the image, then the scale is 1.00 and you divide by 1.00
@@ -384,8 +384,8 @@ class AnimalData {
 
 class BoxImg extends StatefulWidget {
   final File file;
-  final List<AnimalData> listAnimalData;
-  const BoxImg({super.key, required this.file, required this.listAnimalData});
+  final List<BBox> listBBox;
+  const BoxImg({super.key, required this.file, required this.listBBox});
 
   @override
   State<BoxImg> createState() => _BoxImgState();
@@ -476,7 +476,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                 return Stack(
                   children: [
                     img,
-                    for (var data in widget.listAnimalData)
+                    for (var data in widget.listBBox)
                       Positioned(
                         left: data.x1 * ratioW,
                         top: data.y1 * ratioH,
@@ -507,8 +507,8 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
 
 // class BoxImg2 extends StatefulWidget {
 //   final Image img;
-//   final List<AnimalData> listAnimalData;
-//   const BoxImg2({super.key, required this.img, required this.listAnimalData});
+//   final List<BBox> listBBox;
+//   const BoxImg2({super.key, required this.img, required this.listBBox});
 
 //   @override
 //   State<BoxImg2> createState() => _BoxImg2State();
@@ -590,7 +590,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
 //                   // print(ratioW);
 //                   return Stack(
 //                     children: [
-//                       for (var data in widget.listAnimalData)
+//                       for (var data in widget.listBBox)
 //                         Positioned(
 //                           left: data.x1 * ratioW,
 //                           top: data.y1 * ratioH,
@@ -620,7 +620,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
 //   }
 // }
 
-// getPositon(AnimalData data) {
+// getPositon(BBox data) {
 //   Map<String, double> position = {
 //     'x': (data.x1 + data.x2) / 2,
 //     'y': (data.y1 + data.y2) / 2,
@@ -631,7 +631,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
 //   return position;
 // }
 
-// getNPosition(AnimalData data, c) {
+// getNPosition(BBox data, c) {
 //   double screenWidth = MediaQuery.of(c).size.width;
 //   double screenHeight = MediaQuery.of(c).size.height;
 
