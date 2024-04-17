@@ -10,14 +10,15 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 | --------------------------------- | ------------ | ------------ |
 | Generic animal detection          | Image       | ✅ |
 | Chilean fauna classification    |  Image       |✅  |
-| Wildfire detection                | Image  |✅   |
+| European fauna classification                | Image  |✅   |
 | MegaDetector (animals, vehicles, people) |  Image  | ✅   |
-| Chilean fauna classification                | Image  |✅   |
+| Wildfire detection                | Image  |✅   |
 | Bird detection |  Audio | On the way |
 | Chilean birds classification |  Audio | On the way |
 | Automated marine acoustics |  Audio | On the way |
 
-Image = Image files, video files, video feed
+Image = Image files, video files, video feed.
+
 Audio = .wav, .mp3
 
 ## Tech stack
