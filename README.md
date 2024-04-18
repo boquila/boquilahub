@@ -6,32 +6,30 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 
 ## List of AIs:
 
-| AI Name                           |  Input Type   | Available?   |
-| --------------------------------- | ------------ | ------------ |
-| Generic animal detection          | Image       | ✅ |
-| Chilean fauna classification    |  Image       |✅  |
-| European fauna classification                | Image  |✅   |
-| MegaDetector (animals, vehicles, people) |  Image  | ✅   |
-| Wildfire detection                | Image  |✅   |
-| Bird detection |  Audio | On the way |
-| Chilean birds classification |  Audio | On the way |
-| Automated marine acoustics |  Audio | On the way |
+| AI Name                           | Description                           |  Input Type   | Available?   |
+| --------------------------------- | --------------------------------- | ------------ | ------------ |
+|boquilanet-gen | Generic animal detection          | Image       | ✅ |
+|boquilanet-cl | Chilean fauna classification    |  Image       |✅  |
+|boquilanet-eu | European fauna classification                | Image  |✅   |
+|megadetector v5a | MegaDetector (animals, vehicles, people) |  Image  | ✅   |
+|boquila-fire | Wildfire detection                | Image  |✅   |
+|unnamed | Bird detection |  Audio | On the way |
+|unnamed | Chilean birds classification |  Audio | On the way |
+|unnamed | Automated marine acoustics |  Audio | On the way |
 
 Image = Image files, video files, video feed.
 
-Audio = .wav, .mp3
+## List of Platforms
 
-## Tech stack
-
-We use [Flutter](https://github.com/flutter/flutter) for the UI and [Rust](https://github.com/rust-lang/rust) for the inference pipeline
-
-## Open source?
-
-In the future, we'll be fully open source. Right now, you can see the UI code.
+| Platform                           |  Production ready  |
+| --------------------------------- |------------ |
+| Windows          | ✅ |
+| Android          | On the way |
+| Linux          | On the way |
+| MacOS          | Not soon |
+| iOS          | Not soon |
 
 ## List of Runtimes
-
-We're just starting, but these are the goals:
 
 | Runtime   | Description                                                                        | Requirements                                                        | Available? |
 |-----------|------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------|
@@ -43,4 +41,10 @@ We're just starting, but these are the goals:
 | directml  | DirectML execution provider for Windows x86/x64 targets with dedicated GPUs       | Requires DirectX 12 support and dedicated GPUs                     |On the way |
 | qnn       | Qualcomm AI Engine Direct SDK execution provider for Qualcomm chipsets            |                                                                     |On the way  |
 
+## Tech stack
 
+We use [Flutter](https://github.com/flutter/flutter) for the UI and [Rust](https://github.com/rust-lang/rust) for the inference pipeline
+
+## Open source?
+
+In the future, we'll be fully open source. Right now, you can see the UI code.
