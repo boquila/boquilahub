@@ -16,6 +16,7 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 |unnamed | Bird detection |  Audio | On the way |
 |unnamed | Chilean birds classification |  Audio | On the way |
 |unnamed | Automated marine acoustics |  Audio | On the way |
+|unnamed | Tiny LLM |  Text | On the way |
 
 Image = Image files, video files, video feed.
 
