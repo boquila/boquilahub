@@ -7,18 +7,14 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/simple.dart';
 import 'package:boquilahub/src/resources/objects.dart';
-import 'package:boquilahub/src/resources/utils.dart';
 
 class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
   final AI currentAI;
   const ProcessingPage(
       {super.key,
-      required this.currentAI,
       required this.currentcolors,
-      required this.title});
-
-  final String title;
+      required this.currentAI,});
 
   @override
   State<ProcessingPage> createState() => _ProcessingPageState();
@@ -34,7 +30,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String foundImagesText = "";
   late String jpgFile;
   late List<String> jpgFiles;
-  late List<BBox> animalDataList;
   late PredImg predimg;
 
   void selectFolder() async {
@@ -205,11 +200,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
                   if (results != null) {
                     List<dynamic> jsonList = json.decode(results);
                     print(jsonList);
-                    animalDataList =
-                        jsonList.map((json) => BBox.fromJson(json,widget.currentAI)).toList();
+                    List<BBox> imgpreds = jsonList
+                        .map((json) => BBox.fromJson(json, widget.currentAI))
+                        .toList();
 
-                    predimg = PredImg(File(jpgFile), animalDataList);
-                    
+                    predimg = PredImg(jpgFile, imgpreds);
 
                     analyzecomplete = true;
                   }
@@ -227,12 +222,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
               width: MediaQuery.of(context).size.width * 0.8,
               height: MediaQuery.of(context).size.height * 0.58,
               child: Center(
-                child: predimg.render(),
+                child: predimg.render(widget.currentAI),
               )),
-        // child: BoxImage(
-        //     image: Image.file(File(filePath)),
-        //     listBBox: animalDataList))),
         const SizedBox(height: 10),
+
+        // AI predicitons are done here
         if (isfileselected & analyzecomplete)
           ElevatedButton(
               onPressed: () {

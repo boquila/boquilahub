@@ -132,7 +132,6 @@ class _CoreAppState extends State<CoreApp> {
                     ),
                     Text("Selecciona una", style: textito),
                     ProcessingPage(
-                      title: 'BoquilaHub',
                       currentcolors: currentcolors,
                       currentAI: currentAI
                     )

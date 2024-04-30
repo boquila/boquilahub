@@ -1,0 +1,5 @@
+File Path,X1,Y1,X2,Y2,Label,Confidence
+path/to/image1.jpg,10.0,20.0,30.0,40.0,car,0.85
+path/to/image1.jpg,50.0,60.0,70.0,80.0,person,0.92
+path/to/image2.jpg,90.0,100.0,110.0,120.0,bicycle,0.78
+path/to/image2.jpg,130.0,140.0,150.0,160.0,truck,0.91
