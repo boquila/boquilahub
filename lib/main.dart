@@ -23,12 +23,6 @@ Future<void> main() async {
 }
 
 const borderColor = Color(0xFF805306);
-Color sidebarColor = currentcolors[1];
-Color backgroundStartColor = currentcolors[0];
-Color backgroundEndColor = currentcolors[1];
-
-TextStyle textito =
-    TextStyle(color: currentcolors[4], fontWeight: FontWeight.bold);
 
 // class MyApp extends StatelessWidget {
 //   const MyApp({super.key});
@@ -64,8 +58,10 @@ class CoreApp extends StatefulWidget {
 
 class _CoreAppState extends State<CoreApp> {
   AI currentAI = listAIs.first;
+  List<Color> currentcolors = terra;
 
   changeAI(AI newAI) {
+    print("AI was changed");
     setState(() {
       currentAI = newAI;
     });
@@ -73,6 +69,12 @@ class _CoreAppState extends State<CoreApp> {
 
   @override
   Widget build(BuildContext context) {
+    TextStyle textito =
+        TextStyle(color: currentcolors[4], fontWeight: FontWeight.bold);
+    Color sidebarColor = currentcolors[1];
+    Color backgroundStartColor = currentcolors[0];
+    Color backgroundEndColor = currentcolors[1];
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -96,7 +98,8 @@ class _CoreAppState extends State<CoreApp> {
                       WindowTitleBarBox(child: MoveWindow()),
                       Text("Selecciona una IA", style: textito),
                       const SizedBox(height: 10),
-                      const SelectAIPage(),
+                      SelectAIPage(
+                          aicallback: changeAI, currentcolors: currentcolors),
                       const SizedBox(height: 100)
                     ],
                   ),
@@ -122,7 +125,11 @@ class _CoreAppState extends State<CoreApp> {
                       ),
                     ),
                     Text("Selecciona una", style: textito),
-                    const ProcessingPage(title: 'BoquilaHub')
+                    ProcessingPage(
+                      title: 'BoquilaHub',
+                      currentcolors: currentcolors,
+                      currentAI: currentAI
+                    )
                   ]),
                 ),
               )

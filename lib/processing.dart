@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'src/resources/palettes.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -10,7 +9,13 @@ import 'package:boquilahub/src/rust/api/simple.dart';
 import 'package:boquilahub/src/resources/objects.dart';
 
 class ProcessingPage extends StatefulWidget {
-  const ProcessingPage({super.key, required this.title});
+  final List<Color> currentcolors;
+  final AI currentAI;
+  const ProcessingPage(
+      {super.key,
+      required this.currentAI,
+      required this.currentcolors,
+      required this.title});
 
   final String title;
 
@@ -44,7 +49,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
         jpgFiles = filesInDirectory
             .where((file) =>
                 file.path.toLowerCase().endsWith('.jpg') ||
-                file.path.toLowerCase().endsWith('.jpeg'))
+                file.path.toLowerCase().endsWith('.jpeg') ||
+                file.path.toLowerCase().endsWith('.JPG') ||
+                file.path.toLowerCase().endsWith('.JPEG'))
             .map((file) => file.path)
             .toList();
         nProcessed = 0;
@@ -79,7 +86,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
       File file = File(result.files.single.path!);
       print(file.path);
 
-      bool isPicture = file.path.endsWith(".jpg") | file.path.endsWith(".JPG") | file.path.endsWith(".jpeg") | file.path.endsWith(".JPEG");
+      bool isPicture = file.path.endsWith(".jpg") |
+          file.path.endsWith(".JPG") |
+          file.path.endsWith(".jpeg") |
+          file.path.endsWith(".JPEG");
       print(isPicture);
 
       if (isPicture) {
@@ -130,6 +140,16 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   @override
   Widget build(BuildContext context) {
+    ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
+      foregroundColor: widget.currentcolors[0],
+      backgroundColor: widget.currentcolors[4],
+      minimumSize: const Size(100, 45),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+      ),
+    );
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -165,7 +185,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (isfolderselected) Text(foundImagesText),
         Row(
           children: [
-            if (isfolderselected)  Text("$nProcessed imágenes procesadas"),        
+            if (isfolderselected) Text("$nProcessed imágenes procesadas"),
             if (isProcessingFolder) const CircularProgressIndicator(),
           ],
         ),
@@ -183,9 +203,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                   if (results != null) {
                     List<dynamic> jsonList = json.decode(results);
                     print(jsonList);
-                    animalDataList = jsonList
-                        .map((json) => BBox.fromJson(json))
-                        .toList();
+                    animalDataList =
+                        jsonList.map((json) => BBox.fromJson(json)).toList();
 
                     analyzecomplete = true;
                   }
@@ -203,8 +222,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
               width: MediaQuery.of(context).size.width * 0.8,
               height: MediaQuery.of(context).size.height * 0.58,
               child: Center(
-                child:
-                    BoxImg(file: File(jpgFile), listBBox: animalDataList),
+                child: BoxImg(file: File(jpgFile), listBBox: animalDataList),
               )),
         // child: BoxImage(
         //     image: Image.file(File(filePath)),
@@ -232,18 +250,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
   }
 }
-
-final ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
-  foregroundColor: currentcolors[0],
-  backgroundColor: currentcolors[4],
-  minimumSize: const Size(100, 45),
-  padding: const EdgeInsets.symmetric(horizontal: 16),
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.all(Radius.circular(10)),
-  ),
-);
-
-
 
 // class BoxImage extends StatelessWidget {
 //   final List<BBox> listBBox;

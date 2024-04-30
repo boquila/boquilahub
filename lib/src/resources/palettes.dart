@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-List<Color> currentcolors = terra;
+// List<Color> currentcolors = terra;
 
 const List<Color> terra = <Color>[
   Color.fromARGB(255, 232, 252, 207),
