@@ -6,6 +6,7 @@ import 'src/resources/palettes.dart';
 import 'select_ai.dart';
 import 'src/resources/windows.dart';
 import 'src/resources/objects.dart';
+import 'package:boquilahub/src/rust/api/simple.dart';
 
 Future<void> main() async {
   await RustLib.init();
@@ -59,11 +60,16 @@ class CoreApp extends StatefulWidget {
 class _CoreAppState extends State<CoreApp> {
   AI currentAI = listAIs.first;
   List<Color> currentcolors = terra;
+  bool isLoadingAI = false;
 
   changeAI(AI newAI) {
     print("AI was changed");
-    setState(() {
+    setState(() async {
+      isLoadingAI = true;
       currentAI = newAI;
+      // Rust loading new AI
+      await setModel(value: currentAI.getPath());
+      isLoadingAI = false;
     });
   }
 

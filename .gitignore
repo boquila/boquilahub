@@ -53,3 +53,4 @@ models
 
 lib/src/rust
 lib/src/resources/objects.dart
+lib/src/resources/utils.dart
