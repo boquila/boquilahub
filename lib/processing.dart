@@ -9,16 +9,16 @@ import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/simple.dart';
 import 'package:boquilahub/src/resources/objects.dart';
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class ProcessingPage extends StatefulWidget {
+  const ProcessingPage({super.key, required this.title});
 
   final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<ProcessingPage> createState() => _ProcessingPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _ProcessingPageState extends State<ProcessingPage> {
   bool isfolderselected = false;
   bool isfileselected = false;
   bool isProcessingFolder = false;
@@ -98,7 +98,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  Future<String?> analyze(String filePath) async {
+  Future<String?> analyzeSingleFile(String filePath) async {
     print("Sending to Rust");
     print(filePath);
     try {
@@ -154,6 +154,7 @@ class _MyHomePageState extends State<MyHomePage> {
               onPressed: () async {
                 setState(() {
                   isProcessingFolder = true;
+                  nProcessed = 0;
                 });
                 List<String?> results = await analyzefolder(jpgFiles);
                 setState(() {
@@ -162,14 +163,19 @@ class _MyHomePageState extends State<MyHomePage> {
               },
               child: const Text("Analizar carpeta")),
         if (isfolderselected) Text(foundImagesText),
-        if (isfolderselected)  Text("$nProcessed imágenes procesadas"),        
+        Row(
+          children: [
+            if (isfolderselected)  Text("$nProcessed imágenes procesadas"),        
+            if (isProcessingFolder) const CircularProgressIndicator(),
+          ],
+        ),
         if (isfileselected)
           ElevatedButton(
               onPressed: () async {
                 setState(() {
                   isProcessingSingle = true;
                 });
-                String? results = await analyze(jpgFile);
+                String? results = await analyzeSingleFile(jpgFile);
                 setState(() {
                   isProcessingSingle = false;
                 });

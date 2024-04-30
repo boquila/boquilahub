@@ -1,24 +1,25 @@
 import 'src/resources/palettes.dart';
 import 'package:flutter/material.dart';
+import 'src/resources/objects.dart';
 
-const List<String> list = <String>[
-  '🖼️ Ánimales (genérico)',
-  '🖼️ Ánimales (especies)',
-  '🖼️ Hongos (especies)',
-  '🔊 Hídrofonos',
-  '🔊 Aves (especies)',
-  '🎥 Incendios'
-];
+// const List<String> list = <String>[
+//   '🖼️ Ánimales (genérico)',
+//   '🖼️ Ánimales (especies)',
+//   '🖼️ Hongos (especies)',
+//   '🔊 Hídrofonos',
+//   '🔊 Aves (especies)',
+//   '🎥 Incendios'
+// ];
 
-class DropdownButtonExample extends StatefulWidget {
-  const DropdownButtonExample({super.key});
+class SelectAIPage extends StatefulWidget {
+  const SelectAIPage({super.key});
 
   @override
-  State<DropdownButtonExample> createState() => _DropdownButtonExampleState();
+  State<SelectAIPage> createState() => _SelectAIPageState();
 }
 
-class _DropdownButtonExampleState extends State<DropdownButtonExample> {
-  String dropdownValue = list.first;
+class _SelectAIPageState extends State<SelectAIPage> {
+  String dropdownValue = listAIs.first.description;
 
   @override
   Widget build(BuildContext context) {
@@ -35,29 +36,13 @@ class _DropdownButtonExampleState extends State<DropdownButtonExample> {
       ),
       onChanged: (String? value) {
         setState(() {
-          if (value == list.first) {
-            setState(() {
-              currentcolors = terra;
-              dropdownValue = value!;
-            });
-          } else  {
-            showDialog(
-                context: context,
-                builder: (context) => AlertDialog(actions: [
-                      ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text("Ok"))
-                    ], title: const Text("Sección no disponible")));
-            dropdownValue = list.first;
-          }
+          dropdownValue = value!;
         });
       },
-      items: list.map<DropdownMenuItem<String>>((String value) {
+      items: listAIs.map<DropdownMenuItem<String>>((AI value) {
         return DropdownMenuItem<String>(
-          value: value,
-          child: Text(value),
+          value: value.description,
+          child: Text(value.description),
         );
       }).toList(),
     );
