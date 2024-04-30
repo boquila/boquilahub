@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'palettes.dart';
+import 'src/resources/palettes.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/simple.dart';
+import 'package:boquilahub/src/resources/objects.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -236,24 +237,7 @@ final ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
   ),
 );
 
-class BBox {
-  double x1, y1, x2, y2;
-  String label;
-  double confidence;
 
-  BBox(this.x1, this.y1, this.x2, this.y2, this.label, this.confidence);
-
-  factory BBox.fromJson(List<dynamic> json) {
-    return BBox(
-      json[0].toDouble(),
-      json[1].toDouble(),
-      json[2].toDouble(),
-      json[3].toDouble(),
-      json[4].toString(),
-      json[5].toDouble(),
-    );
-  }
-}
 
 // class BoxImage extends StatelessWidget {
 //   final List<BBox> listBBox;

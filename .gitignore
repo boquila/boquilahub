@@ -50,4 +50,6 @@ rust_builder
 test
 test_driver
 models
+
 lib/src/rust
+lib/src/resources/objects.dart

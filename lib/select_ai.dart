@@ -1,4 +1,4 @@
-import 'palettes.dart';
+import 'src/resources/palettes.dart';
 import 'package:flutter/material.dart';
 
 const List<String> list = <String>[

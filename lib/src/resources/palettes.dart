@@ -17,3 +17,11 @@ const List<Color> aqua = <Color>[
   Color.fromARGB(255, 0, 119, 182),
   Color.fromARGB(255, 3, 4, 94)
 ];
+
+const List<Color> fire = <Color>[
+  Color.fromARGB(255, 255, 255, 255),
+  Color.fromARGB(255, 255, 230, 0),
+  Color.fromARGB(255, 255, 165, 0),
+  Color.fromARGB(255, 255, 102, 0),
+  Color.fromARGB(255, 255, 0, 0)
+];

@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';
 import 'buttons.dart';
-import 'palettes.dart';
-import 'select.dart';
-import 'dart:io';
-// import 'dart:async';
+import 'src/resources/palettes.dart';
+import 'select_ai.dart';
+import 'src/resources/windows.dart';
 
 Future<void> main() async {
   await RustLib.init();
@@ -23,6 +22,9 @@ Future<void> main() async {
 }
 
 const borderColor = Color(0xFF805306);
+Color sidebarColor = currentcolors[1];
+Color backgroundStartColor = currentcolors[0];
+Color backgroundEndColor = currentcolors[1];
 
 TextStyle textito =
     TextStyle(color: currentcolors[4], fontWeight: FontWeight.bold);
@@ -52,8 +54,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-Color sidebarColor = currentcolors[1];
-
 class LeftSide extends StatelessWidget {
   const LeftSide({super.key});
   @override
@@ -73,9 +73,6 @@ class LeftSide extends StatelessWidget {
             )));
   }
 }
-
-Color backgroundStartColor = currentcolors[0];
-Color backgroundEndColor = currentcolors[1];
 
 class RightSide extends StatelessWidget {
   const RightSide({super.key});
@@ -104,60 +101,3 @@ class RightSide extends StatelessWidget {
   }
 }
 
-final buttonColors = WindowButtonColors(
-    iconNormal: const Color(0xFF805306),
-    mouseOver: const Color(0xFFF6A00C),
-    mouseDown: const Color(0xFF805306),
-    iconMouseOver: const Color(0xFF805306),
-    iconMouseDown: const Color(0xFFFFD500));
-
-final closeButtonColors = WindowButtonColors(
-    mouseOver: const Color(0xFFD32F2F),
-    mouseDown: const Color(0xFFB71C1C),
-    iconNormal: const Color(0xFF805306),
-    iconMouseOver: Colors.white);
-
-class WindowButtons extends StatefulWidget {
-  const WindowButtons({super.key});
-
-  @override
-  State<WindowButtons> createState() => _WindowButtonsState();
-}
-
-class _WindowButtonsState extends State<WindowButtons> {
-  void maximizeOrRestore() {
-    setState(() {
-      appWindow.maximizeOrRestore();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        MinimizeWindowButton(colors: buttonColors),
-        appWindow.isMaximized
-            ? RestoreWindowButton(
-                colors: buttonColors,
-                onPressed: maximizeOrRestore,
-              )
-            : MaximizeWindowButton(
-                colors: buttonColors,
-                onPressed: maximizeOrRestore,
-              ),
-        CloseWindowButton(
-          colors: closeButtonColors,
-          onPressed: () async {
-            CloseWindowButton().onPressed!();
-          },
-        ),
-      ],
-    );
-  }
-
-  Future<Process> initServer() async {
-    String processPath = 'yolo-rust/target/release/boquila_onnx.exe';
-    Process p = await Process.start(processPath, [' START ']);
-    return p;
-  }
-}
