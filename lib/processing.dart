@@ -11,10 +11,11 @@ import 'package:boquilahub/src/resources/objects.dart';
 class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
   final AI currentAI;
-  const ProcessingPage(
-      {super.key,
-      required this.currentcolors,
-      required this.currentAI,});
+  const ProcessingPage({
+    super.key,
+    required this.currentcolors,
+    required this.currentAI,
+  });
 
   @override
   State<ProcessingPage> createState() => _ProcessingPageState();
@@ -25,12 +26,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
   bool isfileselected = false;
   bool isProcessingFolder = false;
   bool isProcessingSingle = false;
-  int nProcessed = 0;
   bool analyzecomplete = false;
+  int nProcessed = 0;
   String foundImagesText = "";
-  late String jpgFile;
   late List<String> jpgFiles;
-  late PredImg predimg;
+  late List<PredImg> listpredimgs;
 
   void selectFolder() async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
@@ -39,8 +39,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
       final List<FileSystemEntity> entities =
           await Directory(selectedDirectory.toString()).list().toList();
       final Iterable<File> filesInDirectory = entities.whereType<File>();
-      print(selectedDirectory);
-      print(filesInDirectory);
+      // print(selectedDirectory);
+      // print(filesInDirectory);
 
       setState(() {
         jpgFiles = filesInDirectory
@@ -72,7 +72,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
       return false; // Image is not corrupted
     } catch (e) {
-      print("Error: $e");
+      // print("Error: $e");
       return true; // Image is corrupted or incomplete
     }
   }
@@ -81,17 +81,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null) {
       File file = File(result.files.single.path!);
-      print(file.path);
+      // print(file.path);
 
       bool isPicture = file.path.endsWith(".jpg") |
           file.path.endsWith(".JPG") |
           file.path.endsWith(".jpeg") |
           file.path.endsWith(".JPEG");
-      print(isPicture);
+      // print(isPicture);
 
       if (isPicture) {
         setState(() {
-          jpgFile = file.path;
+          jpgFiles = [file.path];
           // bool sd = await isImageCorrupted(filePath);
           // print("is corrupted?");
           // print(sd);
@@ -106,8 +106,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   Future<String?> analyzeSingleFile(String filePath) async {
-    print("Sending to Rust");
-    print(filePath);
+    // print("Sending to Rust");
+    // print(filePath);
     try {
       String response = await detect(filePath: filePath);
       return response;
@@ -118,10 +118,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   Future<List<String?>> analyzefolder(List<String> filePaths) async {
-    print("Sending to Rust");
+    // print("Sending to Rust");
     List<String?> responses = [];
     for (String filePath in filePaths) {
-      print(filePath);
+      // print(filePath);
       try {
         String response = await detect(filePath: filePath);
         responses.add(response);
@@ -192,19 +192,19 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 setState(() {
                   isProcessingSingle = true;
                 });
-                String? results = await analyzeSingleFile(jpgFile);
+                String? results = await analyzeSingleFile(jpgFiles[0]);
                 setState(() {
                   isProcessingSingle = false;
                 });
                 setState(() {
                   if (results != null) {
                     List<dynamic> jsonList = json.decode(results);
-                    print(jsonList);
+                    // print(jsonList);
                     List<BBox> imgpreds = jsonList
                         .map((json) => BBox.fromJson(json, widget.currentAI))
                         .toList();
 
-                    predimg = PredImg(jpgFile, imgpreds);
+                    listpredimgs = [PredImg(jpgFiles[0], imgpreds)];
 
                     analyzecomplete = true;
                   }
@@ -216,17 +216,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
           SizedBox(
               width: MediaQuery.of(context).size.width * 0.8,
               height: MediaQuery.of(context).size.height * 0.58,
-              child: Center(child: Image.file(File(jpgFile)))),
+              child: Center(child: Image.file(File(jpgFiles[0])))),
         if (isfileselected & analyzecomplete)
           SizedBox(
               width: MediaQuery.of(context).size.width * 0.8,
               height: MediaQuery.of(context).size.height * 0.58,
               child: Center(
-                child: predimg.render(widget.currentAI),
+                child: listpredimgs[0].render(),
               )),
         const SizedBox(height: 10),
 
-        // AI predicitons are done here
+        // AI predicitons exports are done here
         if (isfileselected & analyzecomplete)
           ElevatedButton(
               onPressed: () {
