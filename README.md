@@ -35,7 +35,7 @@ Image = Image files, video files, video feed.
 | Runtime   | Description                                                                        | Requirements                                                        | Available? |
 |-----------|------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------|
 | cpu      | Your average CPU                    | Having a CPU            | ✅|
-| cuda      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | Requires CUDA v11.6+                                               | On the way  |
+| cuda      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | Requires CUDA v11.6+                                               | ✅ |
 | tensorrt  | TensorRT execution provider for NVIDIA GPUs (GeForce 9xx series and above)         | Requires CUDA v11.4+ and TensorRT v8.4+                             |On the way |
 | openvino  | OpenVINO execution provider for Intel Core CPUs (6th generation and above)        |                                                                     |On the way|
 | onednn    | Intel oneDNN execution provider for x86/x64 targets                              |                                                                     |On the way |
