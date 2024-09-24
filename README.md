@@ -58,7 +58,11 @@ Requirements are gonna be clearer in the future.
 
 ## Tech stack
 
-We use [Flutter](https://github.com/flutter/flutter) for the UI and [Rust](https://github.com/rust-lang/rust) for the inference pipeline
+We use: 
+
+- [Flutter 3.19.2](https://github.com/flutter/flutter) for the UI  
+
+- [Rust 1.79.0](https://github.com/rust-lang/rust) for the inference pipeline
 
 ## Open source?
 
