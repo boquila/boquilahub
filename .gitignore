@@ -54,3 +54,7 @@ models
 lib/src/rust
 lib/src/resources/objects.dart
 lib/src/resources/utils.dart
+lib/src/resources/utils-og.dart
+rust2
+trash
+binaries
