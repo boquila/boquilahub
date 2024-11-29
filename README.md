@@ -11,7 +11,7 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 |boquilanet-gen | Generic animal detection          | Image       | ✅ |
 |boquilanet-cl | Chilean fauna classification    |  Image       |✅  |
 |boquilanet-eu | European fauna classification                | Image  |✅   |
-|megadetector v5a | MegaDetector (animals, vehicles, people) |  Image  | ✅   |
+|megadetector v5 and v6 | MegaDetector (animals, vehicles, people) |  Image  | ✅   |
 |boquila-fire | Wildfire detection                | Image  |✅   |
 |unnamed | Bird detection |  Audio | On the way |
 |unnamed | Chilean birds classification |  Audio | On the way |
