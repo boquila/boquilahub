@@ -37,6 +37,10 @@ dependencies:
   rust_lib_boquilahub:
     path: rust_builder
   flutter_rust_bridge: 2.7.0
+  file_picker: ^8.1.6
+  bitsdojo_window: ^0.1.6
+  csv: ^6.0.0
+  intl: ^0.20.1
 
 dev_dependencies:
   flutter_test:
