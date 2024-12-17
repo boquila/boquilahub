@@ -5,10 +5,14 @@ use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::inputs;
 use once_cell::sync::Lazy; // will help us manage MODEL variable
 
-#[flutter_rust_bridge::frb(sync)] // Synchronous mode for simplicity of the demo
-pub fn greet(name: String) -> String {
-    format!("Hello, {name}!")
-}
+// pub struct XYXYBBox {
+//     x1: f64,
+//     y1: f64,
+//     x2: f64,
+//     y2: f64,
+//     object: String,
+//     prob: f64
+// }
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
@@ -29,9 +33,11 @@ pub fn detect(file_path: String) -> String {
 // and their bounding boxes
 // Returns Array of bounding boxes in format [(x1,y1,x2,y2,object_type,probability),..]
 fn detect_objects_on_image(buf: Vec<u8>) -> Vec<(f32, f32, f32, f32, usize, f32)> {
+    // Pre-processing
     let (input, img_width, img_height) = prepare_input(buf);
+    // inference
     let output = run_model(input);
-    
+    // Post-processing
     return process_output(output, img_width, img_height);
 }
 

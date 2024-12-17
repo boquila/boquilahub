@@ -1,6 +1,6 @@
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:flutter/material.dart';
-import 'package:boquilahub/src/rust/api/simple.dart';
+import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';
 
 Future<void> main() async {

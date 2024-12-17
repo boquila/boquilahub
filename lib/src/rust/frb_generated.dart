@@ -3,7 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-import 'api/simple.dart';
+import 'api/inference.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -57,7 +57,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   @override
   Future<void> executeRustInitializers() async {
-    await api.crateApiSimpleInitApp();
+    await api.crateApiInferenceInitApp();
   }
 
   @override
@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => -1281143333;
+  int get rustContentHash => -109193790;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -79,13 +79,13 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<String> crateApiSimpleDetect({required String filePath});
+  Future<String> crateApiInferenceDetect({required String filePath});
 
-  String crateApiSimpleGreet({required String name});
+  String crateApiInferenceGreet({required String name});
 
-  Future<void> crateApiSimpleInitApp();
+  Future<void> crateApiInferenceInitApp();
 
-  Future<void> crateApiSimpleSetModel({required String value});
+  Future<void> crateApiInferenceSetModel({required String value});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -97,7 +97,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<String> crateApiSimpleDetect({required String filePath}) {
+  Future<String> crateApiInferenceDetect({required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -109,19 +109,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimpleDetectConstMeta,
+      constMeta: kCrateApiInferenceDetectConstMeta,
       argValues: [filePath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimpleDetectConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInferenceDetectConstMeta => const TaskConstMeta(
         debugName: "detect",
         argNames: ["filePath"],
       );
 
   @override
-  String crateApiSimpleGreet({required String name}) {
+  String crateApiInferenceGreet({required String name}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -132,19 +132,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_String,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimpleGreetConstMeta,
+      constMeta: kCrateApiInferenceGreetConstMeta,
       argValues: [name],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimpleGreetConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInferenceGreetConstMeta => const TaskConstMeta(
         debugName: "greet",
         argNames: ["name"],
       );
 
   @override
-  Future<void> crateApiSimpleInitApp() {
+  Future<void> crateApiInferenceInitApp() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -155,19 +155,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_unit,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimpleInitAppConstMeta,
+      constMeta: kCrateApiInferenceInitAppConstMeta,
       argValues: [],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimpleInitAppConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInferenceInitAppConstMeta => const TaskConstMeta(
         debugName: "init_app",
         argNames: [],
       );
 
   @override
-  Future<void> crateApiSimpleSetModel({required String value}) {
+  Future<void> crateApiInferenceSetModel({required String value}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -179,13 +179,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeSuccessData: sse_decode_unit,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiSimpleSetModelConstMeta,
+      constMeta: kCrateApiInferenceSetModelConstMeta,
       argValues: [value],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiSimpleSetModelConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiInferenceSetModelConstMeta => const TaskConstMeta(
         debugName: "set_model",
         argNames: ["value"],
       );
