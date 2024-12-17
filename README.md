@@ -60,9 +60,9 @@ Requirements are gonna be clearer in the future.
 
 We use: 
 
-- [Flutter 3.19.2](https://github.com/flutter/flutter) for the UI  
+- [Flutter 3.27.1](https://github.com/flutter/flutter) and [Dart 3.6.0](https://github.com/dart-lang/sdk) for the UI  
 
-- [Rust 1.79.0](https://github.com/rust-lang/rust) for the inference pipeline
+- [Rust 1.83.0](https://github.com/rust-lang/rust) for the inference pipeline
 
 ## Open source?
 
