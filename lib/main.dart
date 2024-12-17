@@ -5,6 +5,9 @@ import 'package:boquilahub/src/rust/frb_generated.dart';
 
 Future<void> main() async {
   await RustLib.init();
+
+  print(await detect(filePath: "img.jpg"));
+
   runApp(const MyApp());
 
   doWhenWindowReady(() {

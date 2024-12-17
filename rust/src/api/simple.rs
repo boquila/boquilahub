@@ -1,10 +1,9 @@
-use std::{sync::Mutex, vec}; // path::Path
-                             // use std::time::Instant;
+use std::{sync::Mutex, vec}; 
 use image::{imageops::FilterType, GenericImageView};
 use ndarray::{s, Array, Axis, IxDyn};
-use once_cell::sync::Lazy;
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::inputs;
+use once_cell::sync::Lazy; // will help us manage MODEL variable
 
 #[flutter_rust_bridge::frb(sync)] // Synchronous mode for simplicity of the demo
 pub fn greet(name: String) -> String {
@@ -17,6 +16,7 @@ pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();
 }
 
+#[flutter_rust_bridge::frb(dart_async)] 
 pub fn detect(file_path: String) -> String {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     let boxes = detect_objects_on_image(buf);
