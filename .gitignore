@@ -5,13 +5,12 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
-*.dll
-*.yaml
+.swiftpm/
 migrate_working_dir/
-
 
 # IntelliJ related
 *.iml
@@ -44,17 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-build
-rust
-rust_builder
-test
-test_driver
-models
-
-lib/src/rust
-lib/src/resources/objects.dart
-lib/src/resources/utils.dart
-lib/src/resources/utils-og.dart
-rust2
-trash
-binaries
