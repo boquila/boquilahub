@@ -1,23 +1,30 @@
 #![allow(dead_code)]
 
+#[derive(Clone)]
+pub struct ProbSpace {
+    pub labels: Vec<String>,
+    pub confidences: Vec<f64>,
+}
+
+#[derive(Clone)]
 pub struct XYXYBBox {
-    x1: f64,
-    y1: f64,
-    x2: f64,
-    y2: f64,
-    probability: f64,
-    class: String,
+    pub x1: f64,
+    pub y1: f64,
+    pub x2: f64,
+    pub y2: f64,
+    pub probability: f64,
+    pub label: String,
 }
 
 impl XYXYBBox {
-    pub fn new(x1: f64, y1: f64, x2: f64, y2: f64, probability: f64, class: &str) -> Self {
+    pub fn new(x1: f64, y1: f64, x2: f64, y2: f64, probability: f64, label: &str) -> Self {
         XYXYBBox {
             x1,
             y1,
             x2,
             y2,
             probability,
-            class: class.to_string(),
+            label: label.to_string(),
         }
     }
 

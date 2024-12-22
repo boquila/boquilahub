@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/abstractions.dart';
 import 'api/inference.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -68,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => -23862688;
+  int get rustContentHash => -1613881890;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -84,6 +85,14 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiInferenceInitApp();
 
   Future<void> crateApiInferenceSetModel({required String value});
+
+  Future<XYXYBBox> crateApiAbstractionsXyxybBoxNew(
+      {required double x1,
+      required double y1,
+      required double x2,
+      required double y2,
+      required double probability,
+      required String label});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -165,10 +174,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: ["value"],
       );
 
+  @override
+  Future<XYXYBBox> crateApiAbstractionsXyxybBoxNew(
+      {required double x1,
+      required double y1,
+      required double x2,
+      required double y2,
+      required double probability,
+      required String label}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_f_64(x1, serializer);
+        sse_encode_f_64(y1, serializer);
+        sse_encode_f_64(x2, serializer);
+        sse_encode_f_64(y2, serializer);
+        sse_encode_f_64(probability, serializer);
+        sse_encode_String(label, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 4, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_xyxyb_box,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxybBoxNewConstMeta,
+      argValues: [x1, y1, x2, y2, probability, label],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxybBoxNewConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyxyb_box_new",
+        argNames: ["x1", "y1", "x2", "y2", "probability", "label"],
+      );
+
   @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  double dco_decode_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
   }
 
   @protected
@@ -190,10 +241,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  XYXYBBox dco_decode_xyxyb_box(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return XYXYBBox(
+      x1: dco_decode_f_64(arr[0]),
+      y1: dco_decode_f_64(arr[1]),
+      x2: dco_decode_f_64(arr[2]),
+      y2: dco_decode_f_64(arr[3]),
+      probability: dco_decode_f_64(arr[4]),
+      label: dco_decode_String(arr[5]),
+    );
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
     return utf8.decoder.convert(inner);
+  }
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat64();
   }
 
   @protected
@@ -215,6 +288,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  XYXYBBox sse_decode_xyxyb_box(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_x1 = sse_decode_f_64(deserializer);
+    var var_y1 = sse_decode_f_64(deserializer);
+    var var_x2 = sse_decode_f_64(deserializer);
+    var var_y2 = sse_decode_f_64(deserializer);
+    var var_probability = sse_decode_f_64(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    return XYXYBBox(
+        x1: var_x1,
+        y1: var_y1,
+        x2: var_x2,
+        y2: var_y2,
+        probability: var_probability,
+        label: var_label);
+  }
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
@@ -230,6 +321,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
+  }
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat64(self);
   }
 
   @protected
@@ -249,6 +346,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_xyxyb_box(XYXYBBox self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.x1, serializer);
+    sse_encode_f_64(self.y1, serializer);
+    sse_encode_f_64(self.x2, serializer);
+    sse_encode_f_64(self.y2, serializer);
+    sse_encode_f_64(self.probability, serializer);
+    sse_encode_String(self.label, serializer);
   }
 
   @protected

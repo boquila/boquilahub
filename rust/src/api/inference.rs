@@ -4,14 +4,14 @@ use ndarray::{s, Array, Axis, IxDyn};
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::inputs;
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable
-use super::abstractions::*;
+// use super::abstractions::*;
 
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     // Default utilities - feel free to customize
     flutter_rust_bridge::setup_default_user_utils();
-    let _bbox1 = XYXYBBox::new(0.0, 0.0, 10.0, 10.0,2.0,"str");
+    // let _bbox1 = XYXYBBox::new(0.0, 0.0, 10.0, 10.0,2.0,"str");
 }
 
 // Global variables for the MODEL
