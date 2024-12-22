@@ -3,42 +3,33 @@ use image::{imageops::FilterType, GenericImageView};
 use ndarray::{s, Array, Axis, IxDyn};
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::inputs;
-use once_cell::sync::Lazy; // will help us manage MODEL variable
+use once_cell::sync::Lazy; // will help us manage the MODEL global variable
+use super::abstractions::*;
 
-// pub struct XYXYBBox {
-//     x1: f64,
-//     y1: f64,
-//     x2: f64,
-//     y2: f64,
-//     object: String,
-//     prob: f64
-// }
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     // Default utilities - feel free to customize
     flutter_rust_bridge::setup_default_user_utils();
+    let _bbox1 = XYXYBBox::new(0.0, 0.0, 10.0, 10.0,2.0,"str");
+}
+
+// Global variables for the MODEL
+static MODEL: Lazy<Mutex<Session>> =
+    Lazy::new(|| Mutex::new(import_model("models/boquilanet-gen.onnx")));
+
+pub fn set_model(value: String) {
+    *MODEL.lock().unwrap() = import_model(&value);
 }
 
 #[flutter_rust_bridge::frb(dart_async)] 
 pub fn detect(file_path: String) -> String {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
-    let boxes = detect_objects_on_image(buf);
-    return serde_json::to_string(&boxes).unwrap_or_default();
-}
-
-// Function receives an image,
-// passes it through YOLOv8 neural network
-// and returns an array of detected objects
-// and their bounding boxes
-// Returns Array of bounding boxes in format [(x1,y1,x2,y2,object_type,probability),..]
-fn detect_objects_on_image(buf: Vec<u8>) -> Vec<(f32, f32, f32, f32, usize, f32)> {
-    // Pre-processing
     let (input, img_width, img_height) = prepare_input(buf);
-    // inference
     let output = run_model(input);
-    // Post-processing
-    return process_output(output, img_width, img_height);
+    let boxes = process_output(output, img_width, img_height);
+
+    return serde_json::to_string(&boxes).unwrap_or_default();
 }
 
 // Function used to convert input image to tensor,
@@ -73,14 +64,6 @@ fn import_model(model_path: &str) -> Session {
         .commit_from_file(model_path).unwrap();
 
     return model;
-}
-
-
-static MODEL: Lazy<Mutex<Session>> =
-    Lazy::new(|| Mutex::new(import_model("models/boquilanet-gen.onnx")));
-
-pub fn set_model(value: String) {
-    *MODEL.lock().unwrap() = import_model(&value);
 }
 
 // YOLO example
@@ -178,11 +161,3 @@ fn intersection(
     let y2 = box1_y2.min(box2_y2);
     return (x2 - x1) * (y2 - y1);
 }
-
-// Array of YOLOv8 class labels
-// const BOQUILANET_GEN_CLASSES:[&str;1] = [
-//     "animal"
-// ];
-
-// static env: Arc<Environment> = Arc::new(Environment::builder().with_name("BoquilaNet").build().unwrap());
-// static boquilanet_model: ort::Session = SessionBuilder::new(&env).unwrap().with_model_from_file("models/boquilanet.onnx").unwrap();
