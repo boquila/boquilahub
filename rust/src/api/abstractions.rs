@@ -12,26 +12,26 @@ pub struct XYXYBBox {
     pub y1: f32,
     pub x2: f32,
     pub y2: f32,
-    pub probability: f32,
     pub class_id: usize,
+    pub probability: f32,
 }
 
 #[derive(Clone)]
 pub struct Segmentation {
     pub vertices: Vec<f32>,
-    pub probability: f32,
     pub class_id: usize,
+    pub probability: f32,
 }
 
 impl XYXYBBox {
-    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, probability: f32, class_id: usize) -> Self {
+    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, probability: f32) -> Self {
         XYXYBBox {
             x1,
             y1,
             x2,
             y2,
-            probability,
             class_id,
+            probability
         }
     }
 
