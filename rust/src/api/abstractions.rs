@@ -99,11 +99,12 @@ impl XYXYn {
         let x_right = self.x2.min(other.x2);
         let y_bottom = self.y2.min(other.y2);
 
-        if x_right < x_left || y_bottom < y_top {
-            0.0
-        } else {
-            (x_right - x_left) * (y_bottom - y_top)
-        }
+        (x_right - x_left) * (y_bottom - y_top)
+        // if x_right < x_left || y_bottom < y_top {
+        //     0.0
+        // } else {
+        //     (x_right - x_left) * (y_bottom - y_top)
+        // }
     }
 
     pub fn iou(&self, other: &XYXYn) -> f32 {
