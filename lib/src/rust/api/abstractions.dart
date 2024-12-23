@@ -7,24 +7,24 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `area`, `intersect`, `iou`
-// These types are ignored because they are not used by any `pub` functions: `ProbSpace`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`
+// These types are ignored because they are not used by any `pub` functions: `ProbSpace`, `Segmentation`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
 
 class XYXYBBox {
   final double x1;
   final double y1;
   final double x2;
   final double y2;
+  final BigInt classId;
   final double probability;
-  final String label;
 
   const XYXYBBox({
     required this.x1,
     required this.y1,
     required this.x2,
     required this.y2,
+    required this.classId,
     required this.probability,
-    required this.label,
   });
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
@@ -33,15 +33,15 @@ class XYXYBBox {
           required double y1,
           required double x2,
           required double y2,
-          required double probability,
-          required String label}) =>
+          required BigInt classId,
+          required double probability}) =>
       RustLib.instance.api.crateApiAbstractionsXyxybBoxNew(
           x1: x1,
           y1: y1,
           x2: x2,
           y2: y2,
-          probability: probability,
-          label: label);
+          classId: classId,
+          probability: probability);
 
   @override
   int get hashCode =>
@@ -49,8 +49,8 @@ class XYXYBBox {
       y1.hashCode ^
       x2.hashCode ^
       y2.hashCode ^
-      probability.hashCode ^
-      label.hashCode;
+      classId.hashCode ^
+      probability.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -61,6 +61,6 @@ class XYXYBBox {
           y1 == other.y1 &&
           x2 == other.x2 &&
           y2 == other.y2 &&
-          probability == other.probability &&
-          label == other.label;
+          classId == other.classId &&
+          probability == other.probability;
 }

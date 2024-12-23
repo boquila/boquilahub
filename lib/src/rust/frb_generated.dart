@@ -91,8 +91,8 @@ abstract class RustLibApi extends BaseApi {
       required double y1,
       required double x2,
       required double y2,
-      required double probability,
-      required String label});
+      required BigInt classId,
+      required double probability});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -180,17 +180,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       required double y1,
       required double x2,
       required double y2,
-      required double probability,
-      required String label}) {
+      required BigInt classId,
+      required double probability}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_f_64(x1, serializer);
-        sse_encode_f_64(y1, serializer);
-        sse_encode_f_64(x2, serializer);
-        sse_encode_f_64(y2, serializer);
-        sse_encode_f_64(probability, serializer);
-        sse_encode_String(label, serializer);
+        sse_encode_f_32(x1, serializer);
+        sse_encode_f_32(y1, serializer);
+        sse_encode_f_32(x2, serializer);
+        sse_encode_f_32(y2, serializer);
+        sse_encode_usize(classId, serializer);
+        sse_encode_f_32(probability, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
             funcId: 4, port: port_);
       },
@@ -199,7 +199,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeErrorData: null,
       ),
       constMeta: kCrateApiAbstractionsXyxybBoxNewConstMeta,
-      argValues: [x1, y1, x2, y2, probability, label],
+      argValues: [x1, y1, x2, y2, classId, probability],
       apiImpl: this,
     ));
   }
@@ -207,7 +207,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiAbstractionsXyxybBoxNewConstMeta =>
       const TaskConstMeta(
         debugName: "xyxyb_box_new",
-        argNames: ["x1", "y1", "x2", "y2", "probability", "label"],
+        argNames: ["x1", "y1", "x2", "y2", "classId", "probability"],
       );
 
   @protected
@@ -217,7 +217,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  double dco_decode_f_64(dynamic raw) {
+  double dco_decode_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
   }
@@ -241,18 +241,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt dco_decode_usize(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
+  }
+
+  @protected
   XYXYBBox dco_decode_xyxyb_box(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 6)
       throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return XYXYBBox(
-      x1: dco_decode_f_64(arr[0]),
-      y1: dco_decode_f_64(arr[1]),
-      x2: dco_decode_f_64(arr[2]),
-      y2: dco_decode_f_64(arr[3]),
-      probability: dco_decode_f_64(arr[4]),
-      label: dco_decode_String(arr[5]),
+      x1: dco_decode_f_32(arr[0]),
+      y1: dco_decode_f_32(arr[1]),
+      x2: dco_decode_f_32(arr[2]),
+      y2: dco_decode_f_32(arr[3]),
+      classId: dco_decode_usize(arr[4]),
+      probability: dco_decode_f_32(arr[5]),
     );
   }
 
@@ -264,9 +270,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  double sse_decode_f_64(SseDeserializer deserializer) {
+  double sse_decode_f_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getFloat64();
+    return deserializer.buffer.getFloat32();
   }
 
   @protected
@@ -288,21 +294,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BigInt sse_decode_usize(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
   XYXYBBox sse_decode_xyxyb_box(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_x1 = sse_decode_f_64(deserializer);
-    var var_y1 = sse_decode_f_64(deserializer);
-    var var_x2 = sse_decode_f_64(deserializer);
-    var var_y2 = sse_decode_f_64(deserializer);
-    var var_probability = sse_decode_f_64(deserializer);
-    var var_label = sse_decode_String(deserializer);
+    var var_x1 = sse_decode_f_32(deserializer);
+    var var_y1 = sse_decode_f_32(deserializer);
+    var var_x2 = sse_decode_f_32(deserializer);
+    var var_y2 = sse_decode_f_32(deserializer);
+    var var_classId = sse_decode_usize(deserializer);
+    var var_probability = sse_decode_f_32(deserializer);
     return XYXYBBox(
         x1: var_x1,
         y1: var_y1,
         x2: var_x2,
         y2: var_y2,
-        probability: var_probability,
-        label: var_label);
+        classId: var_classId,
+        probability: var_probability);
   }
 
   @protected
@@ -324,9 +336,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_f_64(double self, SseSerializer serializer) {
+  void sse_encode_f_32(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putFloat64(self);
+    serializer.buffer.putFloat32(self);
   }
 
   @protected
@@ -349,14 +361,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_usize(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
+  }
+
+  @protected
   void sse_encode_xyxyb_box(XYXYBBox self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_f_64(self.x1, serializer);
-    sse_encode_f_64(self.y1, serializer);
-    sse_encode_f_64(self.x2, serializer);
-    sse_encode_f_64(self.y2, serializer);
-    sse_encode_f_64(self.probability, serializer);
-    sse_encode_String(self.label, serializer);
+    sse_encode_f_32(self.x1, serializer);
+    sse_encode_f_32(self.y1, serializer);
+    sse_encode_f_32(self.x2, serializer);
+    sse_encode_f_32(self.y2, serializer);
+    sse_encode_usize(self.classId, serializer);
+    sse_encode_f_32(self.probability, serializer);
   }
 
   @protected

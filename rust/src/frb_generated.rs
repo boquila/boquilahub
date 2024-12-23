@@ -170,12 +170,12 @@ fn wire__crate__api__abstractions__xyxyb_box_new_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_x1 = <f64>::sse_decode(&mut deserializer);
-            let api_y1 = <f64>::sse_decode(&mut deserializer);
-            let api_x2 = <f64>::sse_decode(&mut deserializer);
-            let api_y2 = <f64>::sse_decode(&mut deserializer);
-            let api_probability = <f64>::sse_decode(&mut deserializer);
-            let api_label = <String>::sse_decode(&mut deserializer);
+            let api_x1 = <f32>::sse_decode(&mut deserializer);
+            let api_y1 = <f32>::sse_decode(&mut deserializer);
+            let api_x2 = <f32>::sse_decode(&mut deserializer);
+            let api_y2 = <f32>::sse_decode(&mut deserializer);
+            let api_class_id = <usize>::sse_decode(&mut deserializer);
+            let api_probability = <f32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
@@ -184,8 +184,8 @@ fn wire__crate__api__abstractions__xyxyb_box_new_impl(
                         api_y1,
                         api_x2,
                         api_y2,
+                        api_class_id,
                         api_probability,
-                        &api_label,
                     ))?;
                     Ok(output_ok)
                 })())
@@ -204,10 +204,10 @@ impl SseDecode for String {
     }
 }
 
-impl SseDecode for f64 {
+impl SseDecode for f32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_f64::<NativeEndian>().unwrap()
+        deserializer.cursor.read_f32::<NativeEndian>().unwrap()
     }
 }
 
@@ -235,22 +235,29 @@ impl SseDecode for () {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
 }
 
+impl SseDecode for usize {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u64::<NativeEndian>().unwrap() as _
+    }
+}
+
 impl SseDecode for crate::api::abstractions::XYXYBBox {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_x1 = <f64>::sse_decode(deserializer);
-        let mut var_y1 = <f64>::sse_decode(deserializer);
-        let mut var_x2 = <f64>::sse_decode(deserializer);
-        let mut var_y2 = <f64>::sse_decode(deserializer);
-        let mut var_probability = <f64>::sse_decode(deserializer);
-        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_x1 = <f32>::sse_decode(deserializer);
+        let mut var_y1 = <f32>::sse_decode(deserializer);
+        let mut var_x2 = <f32>::sse_decode(deserializer);
+        let mut var_y2 = <f32>::sse_decode(deserializer);
+        let mut var_classId = <usize>::sse_decode(deserializer);
+        let mut var_probability = <f32>::sse_decode(deserializer);
         return crate::api::abstractions::XYXYBBox {
             x1: var_x1,
             y1: var_y1,
             x2: var_x2,
             y2: var_y2,
+            class_id: var_classId,
             probability: var_probability,
-            label: var_label,
         };
     }
 }
@@ -308,8 +315,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::abstractions::XYXYBBox {
             self.y1.into_into_dart().into_dart(),
             self.x2.into_into_dart().into_dart(),
             self.y2.into_into_dart().into_dart(),
+            self.class_id.into_into_dart().into_dart(),
             self.probability.into_into_dart().into_dart(),
-            self.label.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -333,10 +340,10 @@ impl SseEncode for String {
     }
 }
 
-impl SseEncode for f64 {
+impl SseEncode for f32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_f64::<NativeEndian>(self).unwrap();
+        serializer.cursor.write_f32::<NativeEndian>(self).unwrap();
     }
 }
 
@@ -362,15 +369,25 @@ impl SseEncode for () {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
 }
 
+impl SseEncode for usize {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer
+            .cursor
+            .write_u64::<NativeEndian>(self as _)
+            .unwrap();
+    }
+}
+
 impl SseEncode for crate::api::abstractions::XYXYBBox {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <f64>::sse_encode(self.x1, serializer);
-        <f64>::sse_encode(self.y1, serializer);
-        <f64>::sse_encode(self.x2, serializer);
-        <f64>::sse_encode(self.y2, serializer);
-        <f64>::sse_encode(self.probability, serializer);
-        <String>::sse_encode(self.label, serializer);
+        <f32>::sse_encode(self.x1, serializer);
+        <f32>::sse_encode(self.y1, serializer);
+        <f32>::sse_encode(self.x2, serializer);
+        <f32>::sse_encode(self.y2, serializer);
+        <usize>::sse_encode(self.class_id, serializer);
+        <f32>::sse_encode(self.probability, serializer);
     }
 }
 
