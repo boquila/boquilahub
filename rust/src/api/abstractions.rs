@@ -2,37 +2,44 @@
 
 #[derive(Clone)]
 pub struct ProbSpace {
-    pub labels: Vec<String>,
-    pub confidences: Vec<f64>,
+    pub classes: Vec<String>,
+    pub confidences: Vec<f32>,
 }
 
 #[derive(Clone)]
 pub struct XYXYBBox {
-    pub x1: f64,
-    pub y1: f64,
-    pub x2: f64,
-    pub y2: f64,
-    pub probability: f64,
-    pub label: String,
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub probability: f32,
+    pub class_id: usize,
+}
+
+#[derive(Clone)]
+pub struct Segmentation {
+    pub vertices: Vec<f32>,
+    pub probability: f32,
+    pub class_id: usize,
 }
 
 impl XYXYBBox {
-    pub fn new(x1: f64, y1: f64, x2: f64, y2: f64, probability: f64, label: &str) -> Self {
+    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, probability: f32, class_id: usize) -> Self {
         XYXYBBox {
             x1,
             y1,
             x2,
             y2,
             probability,
-            label: label.to_string(),
+            class_id,
         }
     }
 
-    fn area(&self) -> f64 {
+    fn area(&self) -> f32 {
         (self.x2 - self.x1) * (self.y2 - self.y1)
     }
 
-    fn intersect(&self, other: &XYXYBBox) -> f64 {
+    fn intersect(&self, other: &XYXYBBox) -> f32 {
         let x_left = self.x1.max(other.x1);
         let y_top = self.y1.max(other.y1);
         let x_right = self.x2.min(other.x2);
@@ -45,7 +52,7 @@ impl XYXYBBox {
         }
     }
 
-    fn iou(&self, other: &XYXYBBox) -> f64 {
+    fn iou(&self, other: &XYXYBBox) -> f32 {
         let intersection = self.intersect(other);
         let union = self.area() + other.area() - intersection;
         intersection / union
