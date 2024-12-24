@@ -25,6 +25,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  XYWHn dco_decode_box_autoadd_xyw_hn(dynamic raw);
+
+  @protected
+  XYXYn dco_decode_box_autoadd_xyx_yn(dynamic raw);
+
+  @protected
   double dco_decode_f_32(dynamic raw);
 
   @protected
@@ -40,10 +46,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
-  XYXYBBox dco_decode_xyxyb_box(dynamic raw);
+  XYWHn dco_decode_xyw_hn(dynamic raw);
+
+  @protected
+  XYXYn dco_decode_xyx_yn(dynamic raw);
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
+
+  @protected
+  XYWHn sse_decode_box_autoadd_xyw_hn(SseDeserializer deserializer);
+
+  @protected
+  XYXYn sse_decode_box_autoadd_xyx_yn(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_32(SseDeserializer deserializer);
@@ -61,7 +76,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  XYXYBBox sse_decode_xyxyb_box(SseDeserializer deserializer);
+  XYWHn sse_decode_xyw_hn(SseDeserializer deserializer);
+
+  @protected
+  XYXYn sse_decode_xyx_yn(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -71,6 +89,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_xyw_hn(XYWHn self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_xyx_yn(XYXYn self, SseSerializer serializer);
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
@@ -89,7 +113,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_usize(BigInt self, SseSerializer serializer);
 
   @protected
-  void sse_encode_xyxyb_box(XYXYBBox self, SseSerializer serializer);
+  void sse_encode_xyw_hn(XYWHn self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_xyx_yn(XYXYn self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);

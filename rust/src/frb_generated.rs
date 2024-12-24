@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.7.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1613881890;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1873442438;
 
 // Section: executor
 
@@ -148,7 +148,7 @@ fn wire__crate__api__inference__set_model_impl(
         },
     )
 }
-fn wire__crate__api__abstractions__xyxyb_box_new_impl(
+fn wire__crate__api__abstractions__xyw_hn_area_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -156,7 +156,226 @@ fn wire__crate__api__abstractions__xyxyb_box_new_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "xyxyb_box_new",
+            debug_name: "xyw_hn_area",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <crate::api::abstractions::XYWHn>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::abstractions::XYWHn::area(&api_that))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyw_hn_new_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyw_hn_new",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_x = <f32>::sse_decode(&mut deserializer);
+            let api_y = <f32>::sse_decode(&mut deserializer);
+            let api_w = <f32>::sse_decode(&mut deserializer);
+            let api_h = <f32>::sse_decode(&mut deserializer);
+            let api_class_id = <usize>::sse_decode(&mut deserializer);
+            let api_probability = <f32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(crate::api::abstractions::XYWHn::new(
+                        api_x,
+                        api_y,
+                        api_w,
+                        api_h,
+                        api_class_id,
+                        api_probability,
+                    ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyw_hn_toxyxy_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyw_hn_toxyxy",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <crate::api::abstractions::XYWHn>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::abstractions::XYWHn::toxyxy(&api_that))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyx_yn_area_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyx_yn_area",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <crate::api::abstractions::XYXYn>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::abstractions::XYXYn::area(&api_that))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyx_yn_intersect_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyx_yn_intersect",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <crate::api::abstractions::XYXYn>::sse_decode(&mut deserializer);
+            let api_other = <crate::api::abstractions::XYXYn>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::abstractions::XYXYn::intersect(&api_that, &api_other),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyx_yn_iou_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyx_yn_iou",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <crate::api::abstractions::XYXYn>::sse_decode(&mut deserializer);
+            let api_other = <crate::api::abstractions::XYXYn>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(crate::api::abstractions::XYXYn::iou(
+                        &api_that, &api_other,
+                    ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyx_yn_new_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyx_yn_new",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -179,7 +398,7 @@ fn wire__crate__api__abstractions__xyxyb_box_new_impl(
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(crate::api::abstractions::XYXYBBox::new(
+                    let output_ok = Result::<_, ()>::Ok(crate::api::abstractions::XYXYn::new(
                         api_x1,
                         api_y1,
                         api_x2,
@@ -187,6 +406,40 @@ fn wire__crate__api__abstractions__xyxyb_box_new_impl(
                         api_class_id,
                         api_probability,
                     ))?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__abstractions__xyx_yn_toxywh_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "xyx_yn_toxywh",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <crate::api::abstractions::XYXYn>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::abstractions::XYXYn::toxywh(&api_that))?;
                     Ok(output_ok)
                 })())
             }
@@ -242,7 +495,27 @@ impl SseDecode for usize {
     }
 }
 
-impl SseDecode for crate::api::abstractions::XYXYBBox {
+impl SseDecode for crate::api::abstractions::XYWHn {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_x = <f32>::sse_decode(deserializer);
+        let mut var_y = <f32>::sse_decode(deserializer);
+        let mut var_w = <f32>::sse_decode(deserializer);
+        let mut var_h = <f32>::sse_decode(deserializer);
+        let mut var_classId = <usize>::sse_decode(deserializer);
+        let mut var_probability = <f32>::sse_decode(deserializer);
+        return crate::api::abstractions::XYWHn {
+            x: var_x,
+            y: var_y,
+            w: var_w,
+            h: var_h,
+            class_id: var_classId,
+            probability: var_probability,
+        };
+    }
+}
+
+impl SseDecode for crate::api::abstractions::XYXYn {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_x1 = <f32>::sse_decode(deserializer);
@@ -251,7 +524,7 @@ impl SseDecode for crate::api::abstractions::XYXYBBox {
         let mut var_y2 = <f32>::sse_decode(deserializer);
         let mut var_classId = <usize>::sse_decode(deserializer);
         let mut var_probability = <f32>::sse_decode(deserializer);
-        return crate::api::abstractions::XYXYBBox {
+        return crate::api::abstractions::XYXYn {
             x1: var_x1,
             y1: var_y1,
             x2: var_x2,
@@ -288,7 +561,16 @@ fn pde_ffi_dispatcher_primary_impl(
         1 => wire__crate__api__inference__detect_impl(port, ptr, rust_vec_len, data_len),
         2 => wire__crate__api__inference__init_app_impl(port, ptr, rust_vec_len, data_len),
         3 => wire__crate__api__inference__set_model_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__abstractions__xyxyb_box_new_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__abstractions__xyw_hn_area_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__abstractions__xyw_hn_new_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__abstractions__xyw_hn_toxyxy_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__abstractions__xyx_yn_area_impl(port, ptr, rust_vec_len, data_len),
+        8 => {
+            wire__crate__api__abstractions__xyx_yn_intersect_impl(port, ptr, rust_vec_len, data_len)
+        }
+        9 => wire__crate__api__abstractions__xyx_yn_iou_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__abstractions__xyx_yn_new_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__abstractions__xyx_yn_toxywh_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -308,7 +590,32 @@ fn pde_ffi_dispatcher_sync_impl(
 // Section: rust2dart
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::abstractions::XYXYBBox {
+impl flutter_rust_bridge::IntoDart for crate::api::abstractions::XYWHn {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.x.into_into_dart().into_dart(),
+            self.y.into_into_dart().into_dart(),
+            self.w.into_into_dart().into_dart(),
+            self.h.into_into_dart().into_dart(),
+            self.class_id.into_into_dart().into_dart(),
+            self.probability.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::abstractions::XYWHn
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::abstractions::XYWHn>
+    for crate::api::abstractions::XYWHn
+{
+    fn into_into_dart(self) -> crate::api::abstractions::XYWHn {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::abstractions::XYXYn {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.x1.into_into_dart().into_dart(),
@@ -322,13 +629,13 @@ impl flutter_rust_bridge::IntoDart for crate::api::abstractions::XYXYBBox {
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::abstractions::XYXYBBox
+    for crate::api::abstractions::XYXYn
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::abstractions::XYXYBBox>
-    for crate::api::abstractions::XYXYBBox
+impl flutter_rust_bridge::IntoIntoDart<crate::api::abstractions::XYXYn>
+    for crate::api::abstractions::XYXYn
 {
-    fn into_into_dart(self) -> crate::api::abstractions::XYXYBBox {
+    fn into_into_dart(self) -> crate::api::abstractions::XYXYn {
         self
     }
 }
@@ -379,7 +686,19 @@ impl SseEncode for usize {
     }
 }
 
-impl SseEncode for crate::api::abstractions::XYXYBBox {
+impl SseEncode for crate::api::abstractions::XYWHn {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f32>::sse_encode(self.x, serializer);
+        <f32>::sse_encode(self.y, serializer);
+        <f32>::sse_encode(self.w, serializer);
+        <f32>::sse_encode(self.h, serializer);
+        <usize>::sse_encode(self.class_id, serializer);
+        <f32>::sse_encode(self.probability, serializer);
+    }
+}
+
+impl SseEncode for crate::api::abstractions::XYXYn {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <f32>::sse_encode(self.x1, serializer);

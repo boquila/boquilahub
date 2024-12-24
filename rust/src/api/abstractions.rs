@@ -20,6 +20,7 @@ pub struct XYXYn {
     pub probability: f32,
 }
 
+#[derive(Clone)]
 pub struct XYXY {
     pub x1: f32,
     pub y1: f32,
@@ -43,6 +44,7 @@ pub struct XYWHn {
     pub probability: f32,
 }
 
+#[derive(Clone)]
 pub struct XYWH {
     pub x: f32,
     pub y: f32,
@@ -73,6 +75,10 @@ impl XYWHn {
         let x2 = self.x + self.w / 2.0;
         let y2 = self.y + self.h / 2.0;
         XYXYn::new(x1,y1,x2,y2,self.class_id,self.probability)
+    }
+
+    pub fn area(&self) -> f32 {
+        self.w * self.h
     }
 }
 
@@ -114,3 +120,5 @@ impl XYXYn {
     }
 }
 
+
+// Model Stuff

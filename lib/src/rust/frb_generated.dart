@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => -1613881890;
+  int get rustContentHash => -1873442438;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -86,13 +86,35 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiInferenceSetModel({required String value});
 
-  Future<XYXYBBox> crateApiAbstractionsXyxybBoxNew(
+  Future<double> crateApiAbstractionsXywHnArea({required XYWHn that});
+
+  Future<XYWHn> crateApiAbstractionsXywHnNew(
+      {required double x,
+      required double y,
+      required double w,
+      required double h,
+      required BigInt classId,
+      required double probability});
+
+  Future<XYXYn> crateApiAbstractionsXywHnToxyxy({required XYWHn that});
+
+  Future<double> crateApiAbstractionsXyxYnArea({required XYXYn that});
+
+  Future<double> crateApiAbstractionsXyxYnIntersect(
+      {required XYXYn that, required XYXYn other});
+
+  Future<double> crateApiAbstractionsXyxYnIou(
+      {required XYXYn that, required XYXYn other});
+
+  Future<XYXYn> crateApiAbstractionsXyxYnNew(
       {required double x1,
       required double y1,
       required double x2,
       required double y2,
       required BigInt classId,
       required double probability});
+
+  Future<XYWHn> crateApiAbstractionsXyxYnToxywh({required XYXYn that});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -175,7 +197,172 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<XYXYBBox> crateApiAbstractionsXyxybBoxNew(
+  Future<double> crateApiAbstractionsXywHnArea({required XYWHn that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyw_hn(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 4, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywHnAreaConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywHnAreaConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyw_hn_area",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<XYWHn> crateApiAbstractionsXywHnNew(
+      {required double x,
+      required double y,
+      required double w,
+      required double h,
+      required BigInt classId,
+      required double probability}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_f_32(x, serializer);
+        sse_encode_f_32(y, serializer);
+        sse_encode_f_32(w, serializer);
+        sse_encode_f_32(h, serializer);
+        sse_encode_usize(classId, serializer);
+        sse_encode_f_32(probability, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 5, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_xyw_hn,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywHnNewConstMeta,
+      argValues: [x, y, w, h, classId, probability],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywHnNewConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyw_hn_new",
+        argNames: ["x", "y", "w", "h", "classId", "probability"],
+      );
+
+  @override
+  Future<XYXYn> crateApiAbstractionsXywHnToxyxy({required XYWHn that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyw_hn(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 6, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_xyx_yn,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywHnToxyxyConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywHnToxyxyConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyw_hn_toxyxy",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXyxYnArea({required XYXYn that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyx_yn(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 7, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxYnAreaConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxYnAreaConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyx_yn_area",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXyxYnIntersect(
+      {required XYXYn that, required XYXYn other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyx_yn(that, serializer);
+        sse_encode_box_autoadd_xyx_yn(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 8, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxYnIntersectConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxYnIntersectConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyx_yn_intersect",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXyxYnIou(
+      {required XYXYn that, required XYXYn other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyx_yn(that, serializer);
+        sse_encode_box_autoadd_xyx_yn(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 9, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxYnIouConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxYnIouConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyx_yn_iou",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<XYXYn> crateApiAbstractionsXyxYnNew(
       {required double x1,
       required double y1,
       required double x2,
@@ -192,28 +379,65 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_usize(classId, serializer);
         sse_encode_f_32(probability, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 4, port: port_);
+            funcId: 10, port: port_);
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_xyxyb_box,
+        decodeSuccessData: sse_decode_xyx_yn,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiAbstractionsXyxybBoxNewConstMeta,
+      constMeta: kCrateApiAbstractionsXyxYnNewConstMeta,
       argValues: [x1, y1, x2, y2, classId, probability],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAbstractionsXyxybBoxNewConstMeta =>
+  TaskConstMeta get kCrateApiAbstractionsXyxYnNewConstMeta =>
       const TaskConstMeta(
-        debugName: "xyxyb_box_new",
+        debugName: "xyx_yn_new",
         argNames: ["x1", "y1", "x2", "y2", "classId", "probability"],
+      );
+
+  @override
+  Future<XYWHn> crateApiAbstractionsXyxYnToxywh({required XYXYn that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyx_yn(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 11, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_xyw_hn,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxYnToxywhConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxYnToxywhConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyx_yn_toxywh",
+        argNames: ["that"],
       );
 
   @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  XYWHn dco_decode_box_autoadd_xyw_hn(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_xyw_hn(raw);
+  }
+
+  @protected
+  XYXYn dco_decode_box_autoadd_xyx_yn(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_xyx_yn(raw);
   }
 
   @protected
@@ -247,12 +471,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  XYXYBBox dco_decode_xyxyb_box(dynamic raw) {
+  XYWHn dco_decode_xyw_hn(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 6)
       throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
-    return XYXYBBox(
+    return XYWHn(
+      x: dco_decode_f_32(arr[0]),
+      y: dco_decode_f_32(arr[1]),
+      w: dco_decode_f_32(arr[2]),
+      h: dco_decode_f_32(arr[3]),
+      classId: dco_decode_usize(arr[4]),
+      probability: dco_decode_f_32(arr[5]),
+    );
+  }
+
+  @protected
+  XYXYn dco_decode_xyx_yn(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return XYXYn(
       x1: dco_decode_f_32(arr[0]),
       y1: dco_decode_f_32(arr[1]),
       x2: dco_decode_f_32(arr[2]),
@@ -267,6 +507,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
     return utf8.decoder.convert(inner);
+  }
+
+  @protected
+  XYWHn sse_decode_box_autoadd_xyw_hn(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_xyw_hn(deserializer));
+  }
+
+  @protected
+  XYXYn sse_decode_box_autoadd_xyx_yn(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_xyx_yn(deserializer));
   }
 
   @protected
@@ -300,7 +552,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  XYXYBBox sse_decode_xyxyb_box(SseDeserializer deserializer) {
+  XYWHn sse_decode_xyw_hn(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_x = sse_decode_f_32(deserializer);
+    var var_y = sse_decode_f_32(deserializer);
+    var var_w = sse_decode_f_32(deserializer);
+    var var_h = sse_decode_f_32(deserializer);
+    var var_classId = sse_decode_usize(deserializer);
+    var var_probability = sse_decode_f_32(deserializer);
+    return XYWHn(
+        x: var_x,
+        y: var_y,
+        w: var_w,
+        h: var_h,
+        classId: var_classId,
+        probability: var_probability);
+  }
+
+  @protected
+  XYXYn sse_decode_xyx_yn(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_x1 = sse_decode_f_32(deserializer);
     var var_y1 = sse_decode_f_32(deserializer);
@@ -308,7 +578,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_y2 = sse_decode_f_32(deserializer);
     var var_classId = sse_decode_usize(deserializer);
     var var_probability = sse_decode_f_32(deserializer);
-    return XYXYBBox(
+    return XYXYn(
         x1: var_x1,
         y1: var_y1,
         x2: var_x2,
@@ -333,6 +603,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_xyw_hn(XYWHn self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_xyw_hn(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_xyx_yn(XYXYn self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_xyx_yn(self, serializer);
   }
 
   @protected
@@ -367,7 +649,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_xyxyb_box(XYXYBBox self, SseSerializer serializer) {
+  void sse_encode_xyw_hn(XYWHn self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_32(self.x, serializer);
+    sse_encode_f_32(self.y, serializer);
+    sse_encode_f_32(self.w, serializer);
+    sse_encode_f_32(self.h, serializer);
+    sse_encode_usize(self.classId, serializer);
+    sse_encode_f_32(self.probability, serializer);
+  }
+
+  @protected
+  void sse_encode_xyx_yn(XYXYn self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_f_32(self.x1, serializer);
     sse_encode_f_32(self.y1, serializer);
