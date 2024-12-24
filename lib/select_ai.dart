@@ -1,6 +1,7 @@
 import 'package:boquilahub/src/resources/hardware_dep.dart';
 import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
+import 'package:boquilahub/src/rust/api/utils.dart';
 
 class SelectAIPage extends StatefulWidget {
   final Function(AI) aicallback;
