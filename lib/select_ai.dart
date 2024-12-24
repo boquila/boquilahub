@@ -81,7 +81,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
             print(value);
             if (value == "CUDA") {
               double cudaVersion = await getCudaVersion();
-              bool iscudnnAvailable = await doescuDNNexists();
+              bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.4 && iscudnnAvailable) {
                 print("Gotta change runtime");
                 setState(() {

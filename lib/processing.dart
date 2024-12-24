@@ -229,34 +229,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
                         listpredimgs = [];
                       });
                       List<String?> results = await analyzefolder(jpgFiles);
-                      // bool check = results.length == jpgFiles.length;
-                      // if (check) {
-                      //   // List<List<dynamic>> totaljsonList = [];
-                      //   // for (String? result in results) {
-                      //   //   List<dynamic> jsonList = json.decode(result!);
-                      //   //   totaljsonList.add(jsonList);
-                      //   // }
-
-                      //   // List<List<BBox>> totallistbbox = [];
-                      //   // for (List<dynamic> jsonList in totaljsonList) {
-                      //   //   List<BBox> bboxpreds =
-                      //   //       listdynamictoBBOX(jsonList, widget.currentAI);
-                      //   //   totallistbbox.add(bboxpreds);
-                      //   // }
-
-                      //   // List<PredImg> templistpredimgs = [];
-                      //   // for (int i = 0; i < totallistbbox.length; i++) {
-                      //   //   PredImg temppredimg =
-                      //   //       PredImg(jpgFiles[i], totallistbbox[i]);
-                      //   //   templistpredimgs.add(temppredimg);
-                      //   // }
-                      //   // setState(() {
-                      //   //   listpredimgs = templistpredimgs;
-                      //   // });
-                      // } else {
-                      //   if (!context.mounted) return;
-                      //   niceError(context);
-                      // }
                       setState(() {
                         analyzecomplete = true;
                         isProcessingFolder = false;
@@ -319,23 +291,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
           ],
         ),
         const SizedBox(height: 10),
-        // if (isfileselected & !analyzecomplete)
-        //   SizedBox(
-        //       width: MediaQuery.of(context).size.width * 0.8,
-        //       height: MediaQuery.of(context).size.height * 0.58,
-        //       child: Center(child: Image.file(File(jpgFiles[0])))),
-        // SizedBox(
-        //   height: MediaQuery.of(context).size.height * 0.58,
-        //   width: MediaQuery.of(context).size.width * 0.8,
-        //   child: ListView(
-        //     shrinkWrap: true,
-        //     scrollDirection: Axis.horizontal,
-        //     children: <Widget>[
-        //       for (String jpgFile in jpgFiles)
-        //         Center(child: Image.file(File(jpgFile)))
-        //     ],
-        //   ),
-        // ),
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.58,
           width: MediaQuery.of(context).size.width * 0.8,
@@ -347,17 +302,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
             ],
           ),
         ),
-        // SizedBox(
-        //   height: MediaQuery.of(context).size.height * 0.58,
-        //   width: MediaQuery.of(context).size.width * 0.8,
-        //   child: ListView(
-        //     // This next line does the trick.
-        //     scrollDirection: Axis.horizontal,
-        //     children: <Widget>[
-        //       for (PredImg predimg in listpredimgs) showpredimg(predimg, context),
-        //     ],
-        //   ),
-        // ),
       ],
     );
   }

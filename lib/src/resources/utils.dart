@@ -50,10 +50,6 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
     return completer.future;
   }
 
-  // void delay(int i) {
-  //   Future.delayed(Duration(milliseconds: i));
-  // }
-
   Widget delayedimg(Image img) {
     return FutureBuilder(
       future: Future.delayed(const Duration(
@@ -163,24 +159,6 @@ int getIndexColor(String classValue) {
     return 0;
   }
 }
-
-// class ImageScreen extends StatelessWidget {
-//   final PredImg predImg;
-//   final Widget child;
-
-//   const ImageScreen({required this.child, required this.predImg, super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//           centerTitle: true,
-//           title: Text(predImg.getFilename()),
-//           backgroundColor: Colors.teal),
-//       body: child,
-//     );
-//   }
-// }
 
 class ClickableImage extends StatelessWidget {
   final PredImg predImg;

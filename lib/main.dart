@@ -27,31 +27,6 @@ Future<void> main() async {
 
 const borderColor = Color(0xFF805306);
 
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       debugShowCheckedModeBanner: false,
-//       theme: ThemeData(
-//         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green.shade200),
-//         useMaterial3: true,
-//       ),
-//       home: Scaffold(
-//         backgroundColor: Colors.black,
-//         body: WindowBorder(
-//           color: borderColor,
-//           width: 0,
-//           child: const Row(
-//             children: [LeftSide(), RightSide()],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }
-
 class CoreApp extends StatefulWidget {
   const CoreApp({super.key});
 
@@ -143,52 +118,3 @@ class _CoreAppState extends State<CoreApp> {
     );
   }
 }
-
-// class LeftSide extends StatelessWidget {
-//   const LeftSide({super.key});
-//   @override
-//   Widget build(BuildContext context) {
-//     return SizedBox(
-//       width: 200,
-//       child: Container(
-//         color: sidebarColor,
-//         child: Column(
-//           children: [
-//             WindowTitleBarBox(child: MoveWindow()),
-//             Text("Selecciona una IA", style: textito),
-//             const SizedBox(height: 10),
-//             const SelectAIPage(),
-//             const SizedBox(height: 100)
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
-// class RightSide extends StatelessWidget {
-//   const RightSide({super.key});
-//   @override
-//   Widget build(BuildContext context) {
-//     return Expanded(
-//       child: Container(
-//         decoration: BoxDecoration(
-//           gradient: LinearGradient(
-//               begin: Alignment.topCenter,
-//               end: Alignment.bottomCenter,
-//               colors: [backgroundStartColor, backgroundEndColor],
-//               stops: const [0.0, 1.0]),
-//         ),
-//         child: Column(children: [
-//           WindowTitleBarBox(
-//             child: Row(
-//               children: [Expanded(child: MoveWindow()), const WindowButtons()],
-//             ),
-//           ),
-//           Text("Selecciona una", style: textito),
-//           const ProcessingPage(title: 'BoquilaHub')
-//         ]),
-//       ),
-//     );
-//   }
-// }
