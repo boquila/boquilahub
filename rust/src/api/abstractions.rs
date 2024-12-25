@@ -49,9 +49,17 @@ pub struct XYXY {
 
 struct PredImg<const N: usize> {
     path: String,
-    items: [XYXYn; N],
+    items: Vec<XYXYn>,
 }
+
+// This should be the final implementation
+// struct PredImg<T: BoundingBox, const N: usize> {
+//     path: String,
+//     items: Vec<T>,
+// }
+
 // TODO: implement NMS here
+
 
 #[derive(Clone)]
 /// Bounding box in normalized XYWH format
@@ -106,6 +114,21 @@ fn intersect_xyxys(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32
     (x_right - x_left) * (y_bottom - y_top)
 }
 
+fn intersect_xywhs(x1: f32, y1: f32, w1: f32, h1: f32, x2: f32, y2: f32, w2: f32, h2: f32) -> f32 {
+    let x_left = x1.max(x2);
+    let y_top = y1.max(y2);
+    let x_right = (x1 + w1).min(x2 + w2);
+    let y_bottom = (y1 + h1).min(y2 + h2);
+
+    (x_right - x_left) * (y_bottom - y_top)
+}
+
+fn iou<T: BoundingBox>(a: &T, b: &T) -> f32 {
+    let intersection = a.intersect(b);
+    let union = a.area() + b.area() - intersection;
+    intersection / union
+}
+
 impl BoundingBox for XYXYn {
     fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
         Self {
@@ -123,13 +146,13 @@ impl BoundingBox for XYXYn {
     }
 
     fn intersect(&self, other: &XYXYn) -> f32 {
-        intersect_xyxys(self.x1, self.y1, self.x2, self.y2, other.x1, other.y1, other.x2, other.y2)
+        intersect_xyxys(
+            self.x1, self.y1, self.x2, self.y2, other.x1, other.y1, other.x2, other.y2,
+        )
     }
 
     fn iou(&self, other: &XYXYn) -> f32 {
-        let intersection = self.intersect(other);
-        let union = self.area() + other.area() - intersection;
-        intersection / union
+        iou(self,other)
     }
 }
 
@@ -150,13 +173,13 @@ impl BoundingBox for XYXY {
     }
 
     fn intersect(&self, other: &XYXY) -> f32 {
-        intersect_xyxys(self.x1, self.y1, self.x2, self.y2, other.x1, other.y1, other.x2, other.y2)
+        intersect_xyxys(
+            self.x1, self.y1, self.x2, self.y2, other.x1, other.y1, other.x2, other.y2,
+        )
     }
 
     fn iou(&self, other: &XYXY) -> f32 {
-        let intersection = self.intersect(other);
-        let union = self.area() + other.area() - intersection;
-        intersection / union
+        iou(self, other)
     }
 }
 
@@ -177,18 +200,13 @@ impl BoundingBox for XYWHn {
     }
 
     fn intersect(&self, other: &XYWHn) -> f32 {
-        let x_left = self.x.max(other.x);
-        let y_top = self.y.max(other.y);
-        let x_right = (self.x + self.w).min(other.x + other.w);
-        let y_bottom = (self.y + self.h).min(other.y + other.h);
-
-        (x_right - x_left) * (y_bottom - y_top)
+        intersect_xywhs(
+            self.x, self.y, self.w, self.h, other.x, other.y, other.w, other.h,
+        )
     }
 
     fn iou(&self, other: &XYWHn) -> f32 {
-        let intersection = self.intersect(other);
-        let union = self.area() + other.area() - intersection;
-        intersection / union
+        iou(self, other)
     }
 }
 
@@ -209,18 +227,13 @@ impl BoundingBox for XYWH {
     }
 
     fn intersect(&self, other: &XYWH) -> f32 {
-        let x_left = self.x.max(other.x);
-        let y_top = self.y.max(other.y);
-        let x_right = (self.x + self.w).min(other.x + other.w);
-        let y_bottom = (self.y + self.h).min(other.y + other.h);
-
-        (x_right - x_left) * (y_bottom - y_top)
+        intersect_xywhs(
+            self.x, self.y, self.w, self.h, other.x, other.y, other.w, other.h,
+        )
     }
 
     fn iou(&self, other: &XYWH) -> f32 {
-        let intersection = self.intersect(other);
-        let union = self.area() + other.area() - intersection;
-        intersection / union
+        iou(self, other)
     }
 }
 
