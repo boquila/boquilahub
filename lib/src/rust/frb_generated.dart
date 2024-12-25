@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.7.0';
 
   @override
-  int get rustContentHash => -1298845494;
+  int get rustContentHash => 124435409;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -91,15 +91,37 @@ abstract class RustLibApi extends BaseApi {
 
   Future<double> crateApiAbstractionsXywHnArea({required XYWHn that});
 
+  Future<double> crateApiAbstractionsXywHnIntersect(
+      {required XYWHn that, required XYWHn other});
+
+  Future<double> crateApiAbstractionsXywHnIou(
+      {required XYWHn that, required XYWHn other});
+
   Future<XYWHn> crateApiAbstractionsXywHnNew(
       {required double x,
       required double y,
       required double w,
       required double h,
       required BigInt classId,
-      required double probability});
+      required double prob});
 
-  Future<XYXYn> crateApiAbstractionsXywHnToxyxy({required XYWHn that});
+  Future<XYXYn> crateApiAbstractionsXywHnToxyxyn({required XYWHn that});
+
+  Future<double> crateApiAbstractionsXywhArea({required XYWH that});
+
+  Future<double> crateApiAbstractionsXywhIntersect(
+      {required XYWH that, required XYWH other});
+
+  Future<double> crateApiAbstractionsXywhIou(
+      {required XYWH that, required XYWH other});
+
+  Future<XYWH> crateApiAbstractionsXywhNew(
+      {required double x,
+      required double y,
+      required double w,
+      required double h,
+      required BigInt classId,
+      required double prob});
 
   Future<double> crateApiAbstractionsXyxYnArea({required XYXYn that});
 
@@ -115,9 +137,25 @@ abstract class RustLibApi extends BaseApi {
       required double x2,
       required double y2,
       required BigInt classId,
-      required double probability});
+      required double prob});
 
-  Future<XYWHn> crateApiAbstractionsXyxYnToxywh({required XYXYn that});
+  Future<XYWHn> crateApiAbstractionsXyxYnToxywhn({required XYXYn that});
+
+  Future<double> crateApiAbstractionsXyxyArea({required XYXY that});
+
+  Future<double> crateApiAbstractionsXyxyIntersect(
+      {required XYXY that, required XYXY other});
+
+  Future<double> crateApiAbstractionsXyxyIou(
+      {required XYXY that, required XYXY other});
+
+  Future<XYXY> crateApiAbstractionsXyxyNew(
+      {required double x1,
+      required double y1,
+      required double x2,
+      required double y2,
+      required BigInt classId,
+      required double prob});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -135,7 +173,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(filePath, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 1, port: port_);
+            funcId: 3, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_String,
@@ -158,7 +196,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 2, port: port_);
+            funcId: 4, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_f_64,
@@ -182,7 +220,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 3, port: port_);
+            funcId: 5, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -206,7 +244,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(value, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 4, port: port_);
+            funcId: 6, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -230,7 +268,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_box_autoadd_xyw_hn(that, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 5, port: port_);
+            funcId: 7, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_f_32,
@@ -249,13 +287,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<double> crateApiAbstractionsXywHnIntersect(
+      {required XYWHn that, required XYWHn other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyw_hn(that, serializer);
+        sse_encode_box_autoadd_xyw_hn(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 8, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywHnIntersectConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywHnIntersectConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyw_hn_intersect",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXywHnIou(
+      {required XYWHn that, required XYWHn other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyw_hn(that, serializer);
+        sse_encode_box_autoadd_xyw_hn(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 9, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywHnIouConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywHnIouConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyw_hn_iou",
+        argNames: ["that", "other"],
+      );
+
+  @override
   Future<XYWHn> crateApiAbstractionsXywHnNew(
       {required double x,
       required double y,
       required double w,
       required double h,
       required BigInt classId,
-      required double probability}) {
+      required double prob}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -264,16 +356,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_f_32(w, serializer);
         sse_encode_f_32(h, serializer);
         sse_encode_usize(classId, serializer);
-        sse_encode_f_32(probability, serializer);
+        sse_encode_f_32(prob, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 6, port: port_);
+            funcId: 10, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_xyw_hn,
         decodeErrorData: null,
       ),
       constMeta: kCrateApiAbstractionsXywHnNewConstMeta,
-      argValues: [x, y, w, h, classId, probability],
+      argValues: [x, y, w, h, classId, prob],
       apiImpl: this,
     ));
   }
@@ -281,32 +373,147 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiAbstractionsXywHnNewConstMeta =>
       const TaskConstMeta(
         debugName: "xyw_hn_new",
-        argNames: ["x", "y", "w", "h", "classId", "probability"],
+        argNames: ["x", "y", "w", "h", "classId", "prob"],
       );
 
   @override
-  Future<XYXYn> crateApiAbstractionsXywHnToxyxy({required XYWHn that}) {
+  Future<XYXYn> crateApiAbstractionsXywHnToxyxyn({required XYWHn that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_box_autoadd_xyw_hn(that, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 7, port: port_);
+            funcId: 11, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_xyx_yn,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiAbstractionsXywHnToxyxyConstMeta,
+      constMeta: kCrateApiAbstractionsXywHnToxyxynConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAbstractionsXywHnToxyxyConstMeta =>
+  TaskConstMeta get kCrateApiAbstractionsXywHnToxyxynConstMeta =>
       const TaskConstMeta(
-        debugName: "xyw_hn_toxyxy",
+        debugName: "xyw_hn_toxyxyn",
         argNames: ["that"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXywhArea({required XYWH that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xywh(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 12, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywhAreaConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywhAreaConstMeta =>
+      const TaskConstMeta(
+        debugName: "xywh_area",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXywhIntersect(
+      {required XYWH that, required XYWH other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xywh(that, serializer);
+        sse_encode_box_autoadd_xywh(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 13, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywhIntersectConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywhIntersectConstMeta =>
+      const TaskConstMeta(
+        debugName: "xywh_intersect",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXywhIou(
+      {required XYWH that, required XYWH other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xywh(that, serializer);
+        sse_encode_box_autoadd_xywh(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 14, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywhIouConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywhIouConstMeta =>
+      const TaskConstMeta(
+        debugName: "xywh_iou",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<XYWH> crateApiAbstractionsXywhNew(
+      {required double x,
+      required double y,
+      required double w,
+      required double h,
+      required BigInt classId,
+      required double prob}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_f_32(x, serializer);
+        sse_encode_f_32(y, serializer);
+        sse_encode_f_32(w, serializer);
+        sse_encode_f_32(h, serializer);
+        sse_encode_usize(classId, serializer);
+        sse_encode_f_32(prob, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 15, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_xywh,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXywhNewConstMeta,
+      argValues: [x, y, w, h, classId, prob],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXywhNewConstMeta =>
+      const TaskConstMeta(
+        debugName: "xywh_new",
+        argNames: ["x", "y", "w", "h", "classId", "prob"],
       );
 
   @override
@@ -316,7 +523,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_box_autoadd_xyx_yn(that, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 8, port: port_);
+            funcId: 16, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_f_32,
@@ -343,7 +550,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_xyx_yn(that, serializer);
         sse_encode_box_autoadd_xyx_yn(other, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 9, port: port_);
+            funcId: 17, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_f_32,
@@ -370,7 +577,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_box_autoadd_xyx_yn(that, serializer);
         sse_encode_box_autoadd_xyx_yn(other, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 10, port: port_);
+            funcId: 18, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_f_32,
@@ -395,7 +602,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       required double x2,
       required double y2,
       required BigInt classId,
-      required double probability}) {
+      required double prob}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -404,16 +611,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_f_32(x2, serializer);
         sse_encode_f_32(y2, serializer);
         sse_encode_usize(classId, serializer);
-        sse_encode_f_32(probability, serializer);
+        sse_encode_f_32(prob, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 11, port: port_);
+            funcId: 19, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_xyx_yn,
         decodeErrorData: null,
       ),
       constMeta: kCrateApiAbstractionsXyxYnNewConstMeta,
-      argValues: [x1, y1, x2, y2, classId, probability],
+      argValues: [x1, y1, x2, y2, classId, prob],
       apiImpl: this,
     ));
   }
@@ -421,32 +628,147 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiAbstractionsXyxYnNewConstMeta =>
       const TaskConstMeta(
         debugName: "xyx_yn_new",
-        argNames: ["x1", "y1", "x2", "y2", "classId", "probability"],
+        argNames: ["x1", "y1", "x2", "y2", "classId", "prob"],
       );
 
   @override
-  Future<XYWHn> crateApiAbstractionsXyxYnToxywh({required XYXYn that}) {
+  Future<XYWHn> crateApiAbstractionsXyxYnToxywhn({required XYXYn that}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_box_autoadd_xyx_yn(that, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 12, port: port_);
+            funcId: 20, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_xyw_hn,
         decodeErrorData: null,
       ),
-      constMeta: kCrateApiAbstractionsXyxYnToxywhConstMeta,
+      constMeta: kCrateApiAbstractionsXyxYnToxywhnConstMeta,
       argValues: [that],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiAbstractionsXyxYnToxywhConstMeta =>
+  TaskConstMeta get kCrateApiAbstractionsXyxYnToxywhnConstMeta =>
       const TaskConstMeta(
-        debugName: "xyx_yn_toxywh",
+        debugName: "xyx_yn_toxywhn",
         argNames: ["that"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXyxyArea({required XYXY that}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyxy(that, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 21, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxyAreaConstMeta,
+      argValues: [that],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxyAreaConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyxy_area",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXyxyIntersect(
+      {required XYXY that, required XYXY other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyxy(that, serializer);
+        sse_encode_box_autoadd_xyxy(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 22, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxyIntersectConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxyIntersectConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyxy_intersect",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<double> crateApiAbstractionsXyxyIou(
+      {required XYXY that, required XYXY other}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_xyxy(that, serializer);
+        sse_encode_box_autoadd_xyxy(other, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 23, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_f_32,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxyIouConstMeta,
+      argValues: [that, other],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxyIouConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyxy_iou",
+        argNames: ["that", "other"],
+      );
+
+  @override
+  Future<XYXY> crateApiAbstractionsXyxyNew(
+      {required double x1,
+      required double y1,
+      required double x2,
+      required double y2,
+      required BigInt classId,
+      required double prob}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_f_32(x1, serializer);
+        sse_encode_f_32(y1, serializer);
+        sse_encode_f_32(x2, serializer);
+        sse_encode_f_32(y2, serializer);
+        sse_encode_usize(classId, serializer);
+        sse_encode_f_32(prob, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 24, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_xyxy,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiAbstractionsXyxyNewConstMeta,
+      argValues: [x1, y1, x2, y2, classId, prob],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAbstractionsXyxyNewConstMeta =>
+      const TaskConstMeta(
+        debugName: "xyxy_new",
+        argNames: ["x1", "y1", "x2", "y2", "classId", "prob"],
       );
 
   @protected
@@ -456,15 +778,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BoundingBox dco_decode_TraitDef_BoundingBox(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   XYWHn dco_decode_box_autoadd_xyw_hn(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_xyw_hn(raw);
   }
 
   @protected
+  XYWH dco_decode_box_autoadd_xywh(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_xywh(raw);
+  }
+
+  @protected
   XYXYn dco_decode_box_autoadd_xyx_yn(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_xyx_yn(raw);
+  }
+
+  @protected
+  XYXY dco_decode_box_autoadd_xyxy(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_xyxy(raw);
   }
 
   @protected
@@ -515,7 +855,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       w: dco_decode_f_32(arr[2]),
       h: dco_decode_f_32(arr[3]),
       classId: dco_decode_usize(arr[4]),
-      probability: dco_decode_f_32(arr[5]),
+      prob: dco_decode_f_32(arr[5]),
+    );
+  }
+
+  @protected
+  XYWH dco_decode_xywh(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return XYWH(
+      x: dco_decode_f_32(arr[0]),
+      y: dco_decode_f_32(arr[1]),
+      w: dco_decode_f_32(arr[2]),
+      h: dco_decode_f_32(arr[3]),
+      classId: dco_decode_usize(arr[4]),
+      prob: dco_decode_f_32(arr[5]),
     );
   }
 
@@ -531,7 +887,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       x2: dco_decode_f_32(arr[2]),
       y2: dco_decode_f_32(arr[3]),
       classId: dco_decode_usize(arr[4]),
-      probability: dco_decode_f_32(arr[5]),
+      prob: dco_decode_f_32(arr[5]),
+    );
+  }
+
+  @protected
+  XYXY dco_decode_xyxy(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return XYXY(
+      x1: dco_decode_f_32(arr[0]),
+      y1: dco_decode_f_32(arr[1]),
+      x2: dco_decode_f_32(arr[2]),
+      y2: dco_decode_f_32(arr[3]),
+      classId: dco_decode_usize(arr[4]),
+      prob: dco_decode_f_32(arr[5]),
     );
   }
 
@@ -549,9 +921,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  XYWH sse_decode_box_autoadd_xywh(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_xywh(deserializer));
+  }
+
+  @protected
   XYXYn sse_decode_box_autoadd_xyx_yn(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_xyx_yn(deserializer));
+  }
+
+  @protected
+  XYXY sse_decode_box_autoadd_xyxy(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_xyxy(deserializer));
   }
 
   @protected
@@ -598,14 +982,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_w = sse_decode_f_32(deserializer);
     var var_h = sse_decode_f_32(deserializer);
     var var_classId = sse_decode_usize(deserializer);
-    var var_probability = sse_decode_f_32(deserializer);
+    var var_prob = sse_decode_f_32(deserializer);
     return XYWHn(
         x: var_x,
         y: var_y,
         w: var_w,
         h: var_h,
         classId: var_classId,
-        probability: var_probability);
+        prob: var_prob);
+  }
+
+  @protected
+  XYWH sse_decode_xywh(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_x = sse_decode_f_32(deserializer);
+    var var_y = sse_decode_f_32(deserializer);
+    var var_w = sse_decode_f_32(deserializer);
+    var var_h = sse_decode_f_32(deserializer);
+    var var_classId = sse_decode_usize(deserializer);
+    var var_prob = sse_decode_f_32(deserializer);
+    return XYWH(
+        x: var_x,
+        y: var_y,
+        w: var_w,
+        h: var_h,
+        classId: var_classId,
+        prob: var_prob);
   }
 
   @protected
@@ -616,14 +1018,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_x2 = sse_decode_f_32(deserializer);
     var var_y2 = sse_decode_f_32(deserializer);
     var var_classId = sse_decode_usize(deserializer);
-    var var_probability = sse_decode_f_32(deserializer);
+    var var_prob = sse_decode_f_32(deserializer);
     return XYXYn(
         x1: var_x1,
         y1: var_y1,
         x2: var_x2,
         y2: var_y2,
         classId: var_classId,
-        probability: var_probability);
+        prob: var_prob);
+  }
+
+  @protected
+  XYXY sse_decode_xyxy(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_x1 = sse_decode_f_32(deserializer);
+    var var_y1 = sse_decode_f_32(deserializer);
+    var var_x2 = sse_decode_f_32(deserializer);
+    var var_y2 = sse_decode_f_32(deserializer);
+    var var_classId = sse_decode_usize(deserializer);
+    var var_prob = sse_decode_f_32(deserializer);
+    return XYXY(
+        x1: var_x1,
+        y1: var_y1,
+        x2: var_x2,
+        y2: var_y2,
+        classId: var_classId,
+        prob: var_prob);
   }
 
   @protected
@@ -651,9 +1071,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_xywh(XYWH self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_xywh(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_xyx_yn(XYXYn self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_xyx_yn(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_xyxy(XYXY self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_xyxy(self, serializer);
   }
 
   @protected
@@ -701,7 +1133,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_32(self.w, serializer);
     sse_encode_f_32(self.h, serializer);
     sse_encode_usize(self.classId, serializer);
-    sse_encode_f_32(self.probability, serializer);
+    sse_encode_f_32(self.prob, serializer);
+  }
+
+  @protected
+  void sse_encode_xywh(XYWH self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_32(self.x, serializer);
+    sse_encode_f_32(self.y, serializer);
+    sse_encode_f_32(self.w, serializer);
+    sse_encode_f_32(self.h, serializer);
+    sse_encode_usize(self.classId, serializer);
+    sse_encode_f_32(self.prob, serializer);
   }
 
   @protected
@@ -712,7 +1155,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_32(self.x2, serializer);
     sse_encode_f_32(self.y2, serializer);
     sse_encode_usize(self.classId, serializer);
-    sse_encode_f_32(self.probability, serializer);
+    sse_encode_f_32(self.prob, serializer);
+  }
+
+  @protected
+  void sse_encode_xyxy(XYXY self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_32(self.x1, serializer);
+    sse_encode_f_32(self.y1, serializer);
+    sse_encode_f_32(self.x2, serializer);
+    sse_encode_f_32(self.y2, serializer);
+    sse_encode_usize(self.classId, serializer);
+    sse_encode_f_32(self.prob, serializer);
   }
 
   @protected

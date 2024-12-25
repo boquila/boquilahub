@@ -6,8 +6,14 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are not used by any `pub` functions: `ProbSpace`, `SEGn`, `XYWH`, `XYXY`
+// These functions are ignored because they are not marked as `pub`: `intersect_xyxys`
+// These types are ignored because they are not used by any `pub` functions: `PredImg`, `ProbSpace`, `SEGn`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`
+// These functions are ignored (category: IgnoreBecauseSelfTypeNotAllowed): `intersect`, `iou`
+
+abstract class BoundingBox {
+  Future<double> area();
+}
 
 /// Bounding box in normalized XYWH format
 /// # Fields
@@ -19,7 +25,7 @@ class XYWHn {
   final double w;
   final double h;
   final BigInt classId;
-  final double probability;
+  final double prob;
 
   const XYWHn({
     required this.x,
@@ -27,12 +33,18 @@ class XYWHn {
     required this.w,
     required this.h,
     required this.classId,
-    required this.probability,
+    required this.prob,
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXywHnArea(
         that: this,
       );
+
+  Future<double> intersect({required XYWHn other}) => RustLib.instance.api
+      .crateApiAbstractionsXywHnIntersect(that: this, other: other);
+
+  Future<double> iou({required XYWHn other}) => RustLib.instance.api
+      .crateApiAbstractionsXywHnIou(that: this, other: other);
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
   static Future<XYWHn> newInstance(
@@ -41,12 +53,12 @@ class XYWHn {
           required double w,
           required double h,
           required BigInt classId,
-          required double probability}) =>
+          required double prob}) =>
       RustLib.instance.api.crateApiAbstractionsXywHnNew(
-          x: x, y: y, w: w, h: h, classId: classId, probability: probability);
+          x: x, y: y, w: w, h: h, classId: classId, prob: prob);
 
-  Future<XYXYn> toxyxy() =>
-      RustLib.instance.api.crateApiAbstractionsXywHnToxyxy(
+  Future<XYXYn> toxyxyn() =>
+      RustLib.instance.api.crateApiAbstractionsXywHnToxyxyn(
         that: this,
       );
 
@@ -57,7 +69,7 @@ class XYWHn {
       w.hashCode ^
       h.hashCode ^
       classId.hashCode ^
-      probability.hashCode;
+      prob.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -69,7 +81,67 @@ class XYWHn {
           w == other.w &&
           h == other.h &&
           classId == other.classId &&
-          probability == other.probability;
+          prob == other.prob;
+}
+
+class XYWH {
+  final double x;
+  final double y;
+  final double w;
+  final double h;
+  final BigInt classId;
+  final double prob;
+
+  const XYWH({
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    required this.classId,
+    required this.prob,
+  });
+
+  Future<double> area() => RustLib.instance.api.crateApiAbstractionsXywhArea(
+        that: this,
+      );
+
+  Future<double> intersect({required XYWH other}) => RustLib.instance.api
+      .crateApiAbstractionsXywhIntersect(that: this, other: other);
+
+  Future<double> iou({required XYWH other}) => RustLib.instance.api
+      .crateApiAbstractionsXywhIou(that: this, other: other);
+
+  // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
+  static Future<XYWH> newInstance(
+          {required double x,
+          required double y,
+          required double w,
+          required double h,
+          required BigInt classId,
+          required double prob}) =>
+      RustLib.instance.api.crateApiAbstractionsXywhNew(
+          x: x, y: y, w: w, h: h, classId: classId, prob: prob);
+
+  @override
+  int get hashCode =>
+      x.hashCode ^
+      y.hashCode ^
+      w.hashCode ^
+      h.hashCode ^
+      classId.hashCode ^
+      prob.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is XYWH &&
+          runtimeType == other.runtimeType &&
+          x == other.x &&
+          y == other.y &&
+          w == other.w &&
+          h == other.h &&
+          classId == other.classId &&
+          prob == other.prob;
 }
 
 /// Bounding box in normalized XYXY format
@@ -82,7 +154,7 @@ class XYXYn {
   final double x2;
   final double y2;
   final BigInt classId;
-  final double probability;
+  final double prob;
 
   const XYXYn({
     required this.x1,
@@ -90,7 +162,7 @@ class XYXYn {
     required this.x2,
     required this.y2,
     required this.classId,
-    required this.probability,
+    required this.prob,
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXyxYnArea(
@@ -110,17 +182,12 @@ class XYXYn {
           required double x2,
           required double y2,
           required BigInt classId,
-          required double probability}) =>
+          required double prob}) =>
       RustLib.instance.api.crateApiAbstractionsXyxYnNew(
-          x1: x1,
-          y1: y1,
-          x2: x2,
-          y2: y2,
-          classId: classId,
-          probability: probability);
+          x1: x1, y1: y1, x2: x2, y2: y2, classId: classId, prob: prob);
 
-  Future<XYWHn> toxywh() =>
-      RustLib.instance.api.crateApiAbstractionsXyxYnToxywh(
+  Future<XYWHn> toxywhn() =>
+      RustLib.instance.api.crateApiAbstractionsXyxYnToxywhn(
         that: this,
       );
 
@@ -131,7 +198,7 @@ class XYXYn {
       x2.hashCode ^
       y2.hashCode ^
       classId.hashCode ^
-      probability.hashCode;
+      prob.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -143,5 +210,65 @@ class XYXYn {
           x2 == other.x2 &&
           y2 == other.y2 &&
           classId == other.classId &&
-          probability == other.probability;
+          prob == other.prob;
+}
+
+class XYXY {
+  final double x1;
+  final double y1;
+  final double x2;
+  final double y2;
+  final BigInt classId;
+  final double prob;
+
+  const XYXY({
+    required this.x1,
+    required this.y1,
+    required this.x2,
+    required this.y2,
+    required this.classId,
+    required this.prob,
+  });
+
+  Future<double> area() => RustLib.instance.api.crateApiAbstractionsXyxyArea(
+        that: this,
+      );
+
+  Future<double> intersect({required XYXY other}) => RustLib.instance.api
+      .crateApiAbstractionsXyxyIntersect(that: this, other: other);
+
+  Future<double> iou({required XYXY other}) => RustLib.instance.api
+      .crateApiAbstractionsXyxyIou(that: this, other: other);
+
+  // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
+  static Future<XYXY> newInstance(
+          {required double x1,
+          required double y1,
+          required double x2,
+          required double y2,
+          required BigInt classId,
+          required double prob}) =>
+      RustLib.instance.api.crateApiAbstractionsXyxyNew(
+          x1: x1, y1: y1, x2: x2, y2: y2, classId: classId, prob: prob);
+
+  @override
+  int get hashCode =>
+      x1.hashCode ^
+      y1.hashCode ^
+      x2.hashCode ^
+      y2.hashCode ^
+      classId.hashCode ^
+      prob.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is XYXY &&
+          runtimeType == other.runtimeType &&
+          x1 == other.x1 &&
+          y1 == other.y1 &&
+          x2 == other.x2 &&
+          y2 == other.y2 &&
+          classId == other.classId &&
+          prob == other.prob;
 }

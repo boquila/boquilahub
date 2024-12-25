@@ -24,10 +24,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  BoundingBox dco_decode_TraitDef_BoundingBox(dynamic raw);
+
+  @protected
   XYWHn dco_decode_box_autoadd_xyw_hn(dynamic raw);
 
   @protected
+  XYWH dco_decode_box_autoadd_xywh(dynamic raw);
+
+  @protected
   XYXYn dco_decode_box_autoadd_xyx_yn(dynamic raw);
+
+  @protected
+  XYXY dco_decode_box_autoadd_xyxy(dynamic raw);
 
   @protected
   double dco_decode_f_32(dynamic raw);
@@ -51,7 +60,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   XYWHn dco_decode_xyw_hn(dynamic raw);
 
   @protected
+  XYWH dco_decode_xywh(dynamic raw);
+
+  @protected
   XYXYn dco_decode_xyx_yn(dynamic raw);
+
+  @protected
+  XYXY dco_decode_xyxy(dynamic raw);
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -60,7 +75,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   XYWHn sse_decode_box_autoadd_xyw_hn(SseDeserializer deserializer);
 
   @protected
+  XYWH sse_decode_box_autoadd_xywh(SseDeserializer deserializer);
+
+  @protected
   XYXYn sse_decode_box_autoadd_xyx_yn(SseDeserializer deserializer);
+
+  @protected
+  XYXY sse_decode_box_autoadd_xyxy(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_32(SseDeserializer deserializer);
@@ -84,7 +105,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   XYWHn sse_decode_xyw_hn(SseDeserializer deserializer);
 
   @protected
+  XYWH sse_decode_xywh(SseDeserializer deserializer);
+
+  @protected
   XYXYn sse_decode_xyx_yn(SseDeserializer deserializer);
+
+  @protected
+  XYXY sse_decode_xyxy(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -99,7 +126,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_xyw_hn(XYWHn self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_xywh(XYWH self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_xyx_yn(XYXYn self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_xyxy(XYXY self, SseSerializer serializer);
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
@@ -124,7 +157,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_xyw_hn(XYWHn self, SseSerializer serializer);
 
   @protected
+  void sse_encode_xywh(XYWH self, SseSerializer serializer);
+
+  @protected
   void sse_encode_xyx_yn(XYXYn self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_xyxy(XYXY self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
