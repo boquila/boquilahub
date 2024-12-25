@@ -1,9 +1,21 @@
 #![allow(dead_code)]
 
-#[derive(Clone)]
+
+/// Probabilities in the YOLO format
+/// `classes` is a Vec with the names for each classification
+/// `probs` is a Vec with the probabilities/confidence for each classification
 pub struct ProbSpace {
     pub classes: Vec<String>,
-    pub confidences: Vec<f32>,
+    pub probs: Vec<f32>,
+}
+
+/// Segmentation in the YOLO format, normalized
+/// # Fields
+/// - `vertices` represents a polygon
+pub struct SEGn {
+    pub vertices: Vec<f32>,
+    pub class_id: usize,
+    pub prob: f32,
 }
 
 pub trait BoundingBox {
@@ -25,7 +37,6 @@ struct PredImg<const N: usize> {
 // }
 // NMS
 
-#[derive(Clone)]
 /// Bounding box in normalized XYXY format
 /// # Fields
 /// - `x1` and `y1` represent the top-left corner
@@ -49,7 +60,6 @@ impl XYXYn {
     }
 }
 
-#[derive(Clone)]
 pub struct XYXY {
     pub x1: f32,
     pub y1: f32,
@@ -69,11 +79,6 @@ impl XYXY {
     }
 }
 
-
-// TODO: implement NMS here
-
-
-#[derive(Clone)]
 /// Bounding box in normalized XYWH format
 /// # Fields
 /// - `x` and `y` represent the center
@@ -97,7 +102,6 @@ impl XYWHn {
     }
 }
 
-#[derive(Clone)]
 pub struct XYWH {
     pub x: f32,
     pub y: f32,
@@ -115,16 +119,6 @@ impl XYWH {
         let y2 = self.y + self.h / 2.0;
         XYXY::new(x1, y1, x2, y2, self.class_id, self.prob)
     }
-}
-
-#[derive(Clone)]
-/// Segmentation in the YOLO format, normalized
-/// # Fields
-/// - `vertices` represents a polygon
-pub struct SEGn {
-    pub vertices: Vec<f32>,
-    pub class_id: usize,
-    pub prob: f32,
 }
 
 fn intersect_xyxys(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32) -> f32 {
