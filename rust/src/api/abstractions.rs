@@ -6,6 +6,13 @@ pub struct ProbSpace {
     pub confidences: Vec<f32>,
 }
 
+pub trait BoundingBox {
+    fn new(a:f32,b:f32,c:f32,d:f32,class_id:usize,prob:f32) -> Self;
+    fn area(&self) -> f64;
+    fn intersection(&self, other: Self) -> f64;
+    fn iou(&self, other: Self) -> f64;
+}
+
 #[derive(Clone)]  
 /// Bounding box in normalized XYXY format
 /// # Fields
@@ -17,7 +24,7 @@ pub struct XYXYn {
     pub x2: f32,
     pub y2: f32,
     pub class_id: usize,
-    pub probability: f32,
+    pub prob: f32,
 }
 
 #[derive(Clone)]
@@ -27,7 +34,7 @@ pub struct XYXY {
     pub x2: f32,
     pub y2: f32,
     pub class_id: usize,
-    pub probability: f32,
+    pub prob: f32,
 }
 
 #[derive(Clone)]
@@ -41,7 +48,7 @@ pub struct XYWHn {
     pub w: f32,
     pub h: f32,
     pub class_id: usize,
-    pub probability: f32,
+    pub prob: f32,
 }
 
 #[derive(Clone)]
@@ -51,7 +58,7 @@ pub struct XYWH {
     pub w: f32,
     pub h: f32,
     pub class_id: usize,
-    pub probability: f32,
+    pub prob: f32,
 }
 
 #[derive(Clone)]
@@ -61,12 +68,12 @@ pub struct XYWH {
 pub struct SEGn {
     pub vertices: Vec<f32>,
     pub class_id: usize,
-    pub probability: f32,
+    pub prob: f32,
 }
 
 impl XYWHn {
-    pub fn new(x: f32, y: f32, w: f32, h: f32, class_id: usize, probability: f32) -> Self {
-        Self { x, y, w, h, class_id, probability }
+    pub fn new(x: f32, y: f32, w: f32, h: f32, class_id: usize, prob: f32) -> Self {
+        Self { x, y, w, h, class_id, prob }
     }
 
     pub fn toxyxy(&self) -> XYXYn {
@@ -74,7 +81,7 @@ impl XYWHn {
         let y1 = self.y - self.h / 2.0;
         let x2 = self.x + self.w / 2.0;
         let y2 = self.y + self.h / 2.0;
-        XYXYn::new(x1,y1,x2,y2,self.class_id,self.probability)
+        XYXYn::new(x1,y1,x2,y2,self.class_id,self.prob)
     }
 
     pub fn area(&self) -> f32 {
@@ -83,8 +90,8 @@ impl XYWHn {
 }
 
 impl XYXYn {
-    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, probability: f32) -> Self {
-        Self { x1, y1, x2, y2, class_id, probability }
+    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
+        Self { x1, y1, x2, y2, class_id, prob }
     }
 
     pub fn toxywh(&self) -> XYWHn {
@@ -92,7 +99,7 @@ impl XYXYn {
         let y = (self.y1 + self.y2) / 2.0;
         let w = self.x2 - self.x1;
         let h = self.y2 - self.y1;
-        XYWHn::new(x,y,w,h,self.class_id,self.probability)
+        XYWHn::new(x,y,w,h,self.class_id,self.prob)
     }
 
     pub fn area(&self) -> f32 {
