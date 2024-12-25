@@ -13,6 +13,18 @@ pub trait BoundingBox {
     fn iou(&self, other: &Self) -> f32;
 }
 
+struct PredImg<const N: usize> {
+    path: String,
+    items: Vec<XYXYn>,
+}
+
+// This should be the final implementation
+// struct PredImg<T: BoundingBox, const N: usize> {
+//     path: String,
+//     items: Vec<T>,
+// }
+// NMS
+
 #[derive(Clone)]
 /// Bounding box in normalized XYXY format
 /// # Fields
@@ -47,16 +59,16 @@ pub struct XYXY {
     pub prob: f32,
 }
 
-struct PredImg<const N: usize> {
-    path: String,
-    items: Vec<XYXYn>,
+impl XYXY {
+    pub fn toxywhn(&self) -> XYWH {
+        let x = (self.x1 + self.x2) / 2.0;
+        let y = (self.y1 + self.y2) / 2.0;
+        let w = self.x2 - self.x1;
+        let h = self.y2 - self.y1;
+        XYWH::new(x, y, w, h, self.class_id, self.prob)
+    }
 }
 
-// This should be the final implementation
-// struct PredImg<T: BoundingBox, const N: usize> {
-//     path: String,
-//     items: Vec<T>,
-// }
 
 // TODO: implement NMS here
 
@@ -93,6 +105,16 @@ pub struct XYWH {
     pub h: f32,
     pub class_id: usize,
     pub prob: f32,
+}
+
+impl XYWH {
+    pub fn toxyxyn(&self) -> XYXY {
+        let x1 = self.x - self.w / 2.0;
+        let y1 = self.y - self.h / 2.0;
+        let x2 = self.x + self.w / 2.0;
+        let y2 = self.y + self.h / 2.0;
+        XYXY::new(x1, y1, x2, y2, self.class_id, self.prob)
+    }
 }
 
 #[derive(Clone)]
@@ -237,5 +259,3 @@ impl BoundingBox for XYWH {
     }
 }
 
-// TODO: intersect for xywhs
-// TODO: general iou function?
