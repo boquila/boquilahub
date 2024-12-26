@@ -17,12 +17,14 @@ pub struct SEGn {
     pub prob: f32,
 }
 
-pub trait BoundingBox {
+pub trait BoundingBox: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, class_id: usize, prob: f32) -> Self;
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
     /// Calculates the "intersection over union" between two Bounding Boxes of the same type
     fn iou(&self, other: &Self) -> f32;
+    fn prob(&self) -> f32;
+    fn class_id(&self) -> usize;
 }
 
 struct PredImg<const N: usize> {
@@ -61,6 +63,7 @@ impl XYXYn {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct XYXY {
     pub x1: f32,
     pub y1: f32,
@@ -84,6 +87,7 @@ impl XYXY {
 /// # Fields
 /// - `x` and `y` represent the center
 /// - `w` and `h` represent width and height
+#[derive(Debug, Copy, Clone)]
 pub struct XYWHn {
     pub x: f32,
     pub y: f32,
@@ -103,6 +107,7 @@ impl XYWHn {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct XYWH {
     pub x: f32,
     pub y: f32,
@@ -171,6 +176,14 @@ impl BoundingBox for XYXYn {
     fn iou(&self, other: &XYXYn) -> f32 {
         iou(self, other)
     }
+
+    fn prob(&self) -> f32 {
+        self.prob
+    }
+    
+    fn class_id(&self) -> usize {
+        self.class_id
+    }
 }
 
 impl BoundingBox for XYXY {
@@ -197,6 +210,14 @@ impl BoundingBox for XYXY {
 
     fn iou(&self, other: &XYXY) -> f32 {
         iou(self, other)
+    }
+
+    fn prob(&self) -> f32 {
+        self.prob
+    }
+    
+    fn class_id(&self) -> usize {
+        self.class_id
     }
 }
 
@@ -225,6 +246,14 @@ impl BoundingBox for XYWHn {
     fn iou(&self, other: &XYWHn) -> f32 {
         iou(self, other)
     }
+
+    fn prob(&self) -> f32 {
+        self.prob
+    }
+    
+    fn class_id(&self) -> usize {
+        self.class_id
+    }
 }
 
 impl BoundingBox for XYWH {
@@ -252,10 +281,18 @@ impl BoundingBox for XYWH {
     fn iou(&self, other: &XYWH) -> f32 {
         iou(self, other)
     }
+
+    fn prob(&self) -> f32 {
+        self.prob
+    }
+    
+    fn class_id(&self) -> usize {
+        self.class_id
+    }
 }
 
-fn nms(mut boxes: Vec<XYXYn>, iou_threshold: f32) -> Vec<XYXYn> {
-    boxes.sort_by(|a, b| b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal));
+fn nms<T: BoundingBox + Clone>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
+    boxes.sort_by(|a, b| b.prob().partial_cmp(&a.prob()).unwrap_or(std::cmp::Ordering::Equal));
     
     let mut keep = Vec::new();
     
@@ -265,7 +302,7 @@ fn nms(mut boxes: Vec<XYXYn>, iou_threshold: f32) -> Vec<XYXYn> {
         
         boxes = boxes.into_iter()
             .skip(1)
-            .filter(|b| b.class_id != current.class_id || b.iou(&current) <= iou_threshold)
+            .filter(|b| b.class_id() != current.class_id() || b.iou(&current) <= iou_threshold)
             .collect();
     }
     
