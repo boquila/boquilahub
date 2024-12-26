@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
@@ -22,6 +21,7 @@ pub trait BoundingBox {
     fn new(a: f32, b: f32, c: f32, d: f32, class_id: usize, prob: f32) -> Self;
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
+    /// Calculates the "intersection over union" between two Bounding Boxes of the same type
     fn iou(&self, other: &Self) -> f32;
 }
 
@@ -41,14 +41,15 @@ struct PredImg<const N: usize> {
 /// # Fields
 /// - `x1` and `y1` represent the top-left corner
 /// - `x2` and `y2` represent the bottom-right  corner
-pub struct XYXYn {
-    pub x1: f32,
-    pub y1: f32,
-    pub x2: f32,
-    pub y2: f32,
-    pub class_id: usize,
-    pub prob: f32,
-}
+#[derive(Debug, Copy, Clone)]
+    pub struct XYXYn {
+        pub x1: f32,
+        pub y1: f32,
+        pub x2: f32,
+        pub y2: f32,
+        pub class_id: usize,
+        pub prob: f32,
+    }
 
 impl XYXYn {
     pub fn toxywhn(&self) -> XYWHn {
@@ -168,7 +169,7 @@ impl BoundingBox for XYXYn {
     }
 
     fn iou(&self, other: &XYXYn) -> f32 {
-        iou(self,other)
+        iou(self, other)
     }
 }
 
@@ -253,3 +254,20 @@ impl BoundingBox for XYWH {
     }
 }
 
+fn nms(mut boxes: Vec<XYXYn>, iou_threshold: f32) -> Vec<XYXYn> {
+    boxes.sort_by(|a, b| b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal));
+    
+    let mut keep = Vec::new();
+    
+    while let Some(current) = boxes.first() {
+        let current = current.clone();
+        keep.push(current);
+        
+        boxes = boxes.into_iter()
+            .skip(1)
+            .filter(|b| b.class_id != current.class_id || b.iou(&current) <= iou_threshold)
+            .collect();
+    }
+    
+    keep
+}
