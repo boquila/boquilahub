@@ -25,9 +25,13 @@ pub fn set_model(value: String) {
 #[flutter_rust_bridge::frb(dart_async)] 
 pub fn detect(file_path: String) -> String {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
-    let (input, img_width, img_height) = prepare_input(buf,1024,1024);
+
+    let input_width = 1024;
+    let input_height = 1024;
+    
+    let (input, img_width, img_height) = prepare_input(buf,input_width,input_height);
     let output = run_model(input);
-    let boxes = process_output(output, img_width, img_height);
+    let boxes = process_output(output, img_width, img_height,input_width,input_height);
 
     return serde_json::to_string(&boxes).unwrap_or_default();
 }
