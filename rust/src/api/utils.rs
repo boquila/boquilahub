@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::process::Command;
 use std::str;
 use regex::Regex;
