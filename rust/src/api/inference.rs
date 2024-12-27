@@ -15,19 +15,27 @@ pub fn init_app() {
 }
 
 // Global variables for the MODEL
+static INPUT_WIDTH: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); // Replace 256 with your desired width
+static INPUT_HEIGHT: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); // Replace 256 with your desired height
+
 static MODEL: Lazy<Mutex<Session>> =
     Lazy::new(|| Mutex::new(import_model("models/boquilanet-gen.onnx")));
 
-pub fn set_model(value: String) {
+pub fn set_model(value: String,new_input_width:u32, new_input_height: u32) {
     *MODEL.lock().unwrap() = import_model(&value);
+    *INPUT_WIDTH.lock().unwrap() = new_input_width;
+    *INPUT_HEIGHT.lock().unwrap() = new_input_height;
 }
 
+// TODO: it should return a Vec<XYXY>, not a JSON String, this change will improve performance a bit
 #[flutter_rust_bridge::frb(dart_async)] 
 pub fn detect(file_path: String) -> String {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
 
-    let input_width = 1024;
-    let input_height = 1024;
+    // Hardcoded, it shouldn't be.
+    // TODO: fix
+    let input_width = *INPUT_HEIGHT.lock().unwrap();
+    let input_height = *INPUT_HEIGHT.lock().unwrap();
     
     let (input, img_width, img_height) = prepare_input(buf,input_width,input_height);
     let output = run_model(input);

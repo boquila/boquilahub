@@ -44,7 +44,7 @@ class _CoreAppState extends State<CoreApp> {
       isLoadingAI = true;
       currentAI = newAI;
     });
-    await setModel(value: currentAI.getPath());
+    await setModel(value: currentAI.getPath(),newInputWidth: 1024, newInputHeight: 1024);
     setState(() {
       isLoadingAI = false;
     });

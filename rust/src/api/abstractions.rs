@@ -23,8 +23,8 @@ pub trait BoundingBox: Copy {
     fn intersect(&self, other: &Self) -> f32;
     /// Calculates the "intersection over union" between two Bounding Boxes of the same type
     fn iou(&self, other: &Self) -> f32;
-    fn prob(&self) -> f32;
-    fn class_id(&self) -> usize;
+    fn get_prob(&self) -> f32;
+    fn get_class_id(&self) -> usize;
 }
 
 struct PredImg<const N: usize> {
@@ -177,11 +177,11 @@ impl BoundingBox for XYXYn {
         iou(self, other)
     }
 
-    fn prob(&self) -> f32 {
+    fn get_prob(&self) -> f32 {
         self.prob
     }
     
-    fn class_id(&self) -> usize {
+    fn get_class_id(&self) -> usize {
         self.class_id
     }
 }
@@ -212,11 +212,11 @@ impl BoundingBox for XYXY {
         iou(self, other)
     }
 
-    fn prob(&self) -> f32 {
+    fn get_prob(&self) -> f32 {
         self.prob
     }
     
-    fn class_id(&self) -> usize {
+    fn get_class_id(&self) -> usize {
         self.class_id
     }
 }
@@ -247,11 +247,11 @@ impl BoundingBox for XYWHn {
         iou(self, other)
     }
 
-    fn prob(&self) -> f32 {
+    fn get_prob(&self) -> f32 {
         self.prob
     }
     
-    fn class_id(&self) -> usize {
+    fn get_class_id(&self) -> usize {
         self.class_id
     }
 }
@@ -282,17 +282,17 @@ impl BoundingBox for XYWH {
         iou(self, other)
     }
 
-    fn prob(&self) -> f32 {
+    fn get_prob(&self) -> f32 {
         self.prob
     }
     
-    fn class_id(&self) -> usize {
+    fn get_class_id(&self) -> usize {
         self.class_id
     }
 }
 
 fn nms<T: BoundingBox + Clone>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
-    boxes.sort_by(|a, b| b.prob().partial_cmp(&a.prob()).unwrap_or(std::cmp::Ordering::Equal));
+    boxes.sort_by(|a, b| b.get_prob().partial_cmp(&a.get_prob()).unwrap_or(std::cmp::Ordering::Equal));
     
     let mut keep = Vec::new();
     
@@ -302,7 +302,7 @@ fn nms<T: BoundingBox + Clone>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> 
         
         boxes = boxes.into_iter()
             .skip(1)
-            .filter(|b| b.class_id() != current.class_id() || b.iou(&current) <= iou_threshold)
+            .filter(|b| b.get_class_id() != current.get_class_id() || b.iou(&current) <= iou_threshold)
             .collect();
     }
     

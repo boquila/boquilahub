@@ -6,13 +6,17 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `intersect_xyxys`
+// These functions are ignored because they are not marked as `pub`: `intersect_xywhs`, `intersect_xyxys`, `iou`, `nms`
 // These types are ignored because they are not used by any `pub` functions: `PredImg`, `ProbSpace`, `SEGn`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseSelfTypeNotAllowed): `intersect`, `iou`
 
 abstract class BoundingBox {
   Future<double> area();
+
+  Future<BigInt> getClassId();
+
+  Future<double> getProb();
 }
 
 /// Bounding box in normalized XYWH format
@@ -37,6 +41,16 @@ class XYWHn {
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXywHnArea(
+        that: this,
+      );
+
+  Future<BigInt> getClassId() =>
+      RustLib.instance.api.crateApiAbstractionsXywHnGetClassId(
+        that: this,
+      );
+
+  Future<double> getProb() =>
+      RustLib.instance.api.crateApiAbstractionsXywHnGetProb(
         that: this,
       );
 
@@ -105,6 +119,16 @@ class XYWH {
         that: this,
       );
 
+  Future<BigInt> getClassId() =>
+      RustLib.instance.api.crateApiAbstractionsXywhGetClassId(
+        that: this,
+      );
+
+  Future<double> getProb() =>
+      RustLib.instance.api.crateApiAbstractionsXywhGetProb(
+        that: this,
+      );
+
   Future<double> intersect({required XYWH other}) => RustLib.instance.api
       .crateApiAbstractionsXywhIntersect(that: this, other: other);
 
@@ -121,6 +145,11 @@ class XYWH {
           required double prob}) =>
       RustLib.instance.api.crateApiAbstractionsXywhNew(
           x: x, y: y, w: w, h: h, classId: classId, prob: prob);
+
+  Future<XYXY> toxyxyn() =>
+      RustLib.instance.api.crateApiAbstractionsXywhToxyxyn(
+        that: this,
+      );
 
   @override
   int get hashCode =>
@@ -166,6 +195,16 @@ class XYXYn {
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXyxYnArea(
+        that: this,
+      );
+
+  Future<BigInt> getClassId() =>
+      RustLib.instance.api.crateApiAbstractionsXyxYnGetClassId(
+        that: this,
+      );
+
+  Future<double> getProb() =>
+      RustLib.instance.api.crateApiAbstractionsXyxYnGetProb(
         that: this,
       );
 
@@ -234,6 +273,16 @@ class XYXY {
         that: this,
       );
 
+  Future<BigInt> getClassId() =>
+      RustLib.instance.api.crateApiAbstractionsXyxyGetClassId(
+        that: this,
+      );
+
+  Future<double> getProb() =>
+      RustLib.instance.api.crateApiAbstractionsXyxyGetProb(
+        that: this,
+      );
+
   Future<double> intersect({required XYXY other}) => RustLib.instance.api
       .crateApiAbstractionsXyxyIntersect(that: this, other: other);
 
@@ -250,6 +299,11 @@ class XYXY {
           required double prob}) =>
       RustLib.instance.api.crateApiAbstractionsXyxyNew(
           x1: x1, y1: y1, x2: x2, y2: y2, classId: classId, prob: prob);
+
+  Future<XYWH> toxywhn() =>
+      RustLib.instance.api.crateApiAbstractionsXyxyToxywhn(
+        that: this,
+      );
 
   @override
   int get hashCode =>

@@ -8,6 +8,8 @@
 
 import 'api/abstractions.dart';
 import 'api/inference.dart';
+import 'api/postprocessing.dart';
+import 'api/preprocessing.dart';
 import 'api/utils.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -21,6 +23,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     required super.generalizedFrbRustBinding,
     required super.portManager,
   });
+
+  CrossPlatformFinalizerArg
+      get rust_arc_decrement_strong_count_ArrayF32Ix4Ptr => wire
+          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4;
+
+  CrossPlatformFinalizerArg
+      get rust_arc_decrement_strong_count_ArrayF32IxDynPtr => wire
+          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn;
+
+  @protected
+  ArrayF32Ix4
+      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          dynamic raw);
+
+  @protected
+  ArrayF32IxDyn
+      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          dynamic raw);
+
+  @protected
+  ArrayF32Ix4
+      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          dynamic raw);
+
+  @protected
+  ArrayF32IxDyn
+      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -47,7 +77,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<(double, double, double, double, BigInt, double)>
+      dco_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32(dynamic raw);
+
+  @protected
+  (
+    ArrayF32Ix4,
+    int,
+    int
+  ) dco_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_arrayf_32_ix_4_u_32_u_32(
+      dynamic raw);
+
+  @protected
+  (double, double, double, double, BigInt, double)
+      dco_decode_record_f_32_f_32_f_32_f_32_usize_f_32(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -71,6 +123,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   XYXY dco_decode_xyxy(dynamic raw);
 
   @protected
+  ArrayF32Ix4
+      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          SseDeserializer deserializer);
+
+  @protected
+  ArrayF32IxDyn
+      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          SseDeserializer deserializer);
+
+  @protected
+  ArrayF32Ix4
+      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          SseDeserializer deserializer);
+
+  @protected
+  ArrayF32IxDyn
+      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          SseDeserializer deserializer);
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
@@ -92,7 +164,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<(double, double, double, double, BigInt, double)>
+      sse_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32(
+          SseDeserializer deserializer);
+
+  @protected
+  (
+    ArrayF32Ix4,
+    int,
+    int
+  ) sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_arrayf_32_ix_4_u_32_u_32(
+      SseDeserializer deserializer);
+
+  @protected
+  (double, double, double, double, BigInt, double)
+      sse_decode_record_f_32_f_32_f_32_f_32_usize_f_32(
+          SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -122,6 +218,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  void
+      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          ArrayF32Ix4 self, SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          ArrayF32IxDyn self, SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          ArrayF32Ix4 self, SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          ArrayF32IxDyn self, SseSerializer serializer);
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
@@ -143,8 +259,29 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
       Uint8List self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_record_f_32_f_32_f_32_f_32_usize_f_32(
+      List<(double, double, double, double, BigInt, double)> self,
+      SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_arrayf_32_ix_4_u_32_u_32(
+          (ArrayF32Ix4, int, int) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_record_f_32_f_32_f_32_f_32_usize_f_32(
+      (double, double, double, double, BigInt, double) self,
+      SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
@@ -178,6 +315,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
 class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
+
+  void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          int ptr) =>
+      wasmModule
+          .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+              ptr);
+
+  void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          int ptr) =>
+      wasmModule
+          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+              ptr);
+
+  void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          int ptr) =>
+      wasmModule
+          .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+              ptr);
+
+  void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          int ptr) =>
+      wasmModule
+          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+              ptr);
 }
 
 @JS('wasm_bindgen')
@@ -185,4 +346,20 @@ external RustLibWasmModule get wasmModule;
 
 @JS()
 @anonymous
-extension type RustLibWasmModule._(JSObject _) implements JSObject {}
+extension type RustLibWasmModule._(JSObject _) implements JSObject {
+  external void
+      rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          int ptr);
+
+  external void
+      rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32Ix4(
+          int ptr);
+
+  external void
+      rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          int ptr);
+
+  external void
+      rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArrayf32IxDyn(
+          int ptr);
+}
