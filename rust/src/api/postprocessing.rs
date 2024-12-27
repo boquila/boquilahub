@@ -1,4 +1,5 @@
 use ndarray::{s, Array, Axis, IxDyn};
+use super::abstractions::*;
 
 // Function used to convert RAW output from YOLO to an array
 // of detected objects. Each object contain the bounding box of
@@ -10,7 +11,7 @@ pub fn process_output(
     img_height: u32,
     input_width: u32, 
     input_height: u32
-) -> Vec<(f32, f32, f32, f32, usize, f32)> {
+) -> Vec<XYXY> {
     let mut boxes = Vec::new();
     let output = output.slice(s![.., .., 0]);
     for row in output.axis_iter(Axis(0)) {
@@ -34,16 +35,19 @@ pub fn process_output(
         let x2 = xc + w / 2.0;
         let y1 = yc - h / 2.0;
         let y2 = yc + h / 2.0;
-        boxes.push((   x1, y1, x2, y2, label, prob    ));
+        let temp = XYXY::new(x1,y1,x2,y2,label,prob);
+        boxes.push(temp);
+        // boxes.push((   x1, y1, x2, y2, label, prob    ));
     }
 
-    boxes.sort_by(|box1, box2| box2.5.total_cmp(&box1.5));
+    boxes.sort_by(|box1, box2| box2.prob.total_cmp(&box1.prob));
     let mut result = Vec::new();
     while boxes.len() > 0 {
         result.push(boxes[0]);
         boxes = boxes
             .iter()
-            .filter(|box1| iou(&boxes[0], box1) < 0.7)
+            // .filter(|box1| iou(&boxes[0], box1) < 0.7)
+            .filter(|box1| boxes[0].iou(box1) < 0.7)
             .map(|x| *x)
             .collect()
     }

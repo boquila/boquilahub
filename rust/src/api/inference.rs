@@ -3,7 +3,7 @@ use ndarray::{Array, Ix4, IxDyn};
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::inputs;
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable
-// use super::abstractions::*;
+use super::abstractions::*;
 use super::preprocessing::prepare_input;
 
 use super::postprocessing::process_output;
@@ -29,7 +29,7 @@ pub fn set_model(value: String,new_input_width:u32, new_input_height: u32) {
 
 // TODO: it should return a Vec<XYXY>, not a JSON String, this change will improve performance a bit
 #[flutter_rust_bridge::frb(dart_async)] 
-pub fn detect(file_path: String) -> String {
+pub fn detect(file_path: String) -> Vec<XYXY> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
 
     // Hardcoded, it shouldn't be.
@@ -40,8 +40,8 @@ pub fn detect(file_path: String) -> String {
     let (input, img_width, img_height) = prepare_input(buf,input_width,input_height);
     let output = run_model(input);
     let boxes = process_output(output, img_width, img_height,input_width,input_height);
-
-    return serde_json::to_string(&boxes).unwrap_or_default();
+    boxes
+    // return serde_json::to_string(&boxes).unwrap_or_default();
 }
 
 fn import_model(model_path: &str) -> Session {
