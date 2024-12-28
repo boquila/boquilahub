@@ -21,10 +21,11 @@ pub trait BoundingBox: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, class_id: usize, prob: f32) -> Self;
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
-    /// Calculates the "intersection over union" between two Bounding Boxes of the same type
     fn iou(&self, other: &Self) -> f32;
     fn get_prob(&self) -> f32;
     fn get_class_id(&self) -> usize;
+    fn check(&self) -> bool;
+
 }
 
 struct PredImg<const N: usize> {
@@ -44,14 +45,14 @@ struct PredImg<const N: usize> {
 /// - `x1` and `y1` represent the top-left corner
 /// - `x2` and `y2` represent the bottom-right  corner
 #[derive(Debug, Copy, Clone)]
-    pub struct XYXYn {
-        pub x1: f32,
-        pub y1: f32,
-        pub x2: f32,
-        pub y2: f32,
-        pub class_id: usize,
-        pub prob: f32,
-    }
+pub struct XYXYn {
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub class_id: usize,
+    pub prob: f32,
+}
 
 impl XYXYn {
     pub fn toxywhn(&self) -> XYWHn {
@@ -180,9 +181,33 @@ impl BoundingBox for XYXYn {
     fn get_prob(&self) -> f32 {
         self.prob
     }
-    
+
     fn get_class_id(&self) -> usize {
         self.class_id
+    }
+
+    fn check(&self) -> bool {
+        // Check if x1 <= x2 and y1 <= y2
+        if self.x1 > self.x2 || self.y1 > self.y2 {
+            return false;
+        }
+
+        // Check if all coordinates are normalized (between 0.0 and 1.0)
+        if !(0.0..=1.0).contains(&self.x1)
+            || !(0.0..=1.0).contains(&self.y1)
+            || !(0.0..=1.0).contains(&self.x2)
+            || !(0.0..=1.0).contains(&self.y2)
+        {
+            return false;
+        }
+
+        // Check if prob is in [0.0, 1.0]
+        if !(0.0..=1.0).contains(&self.prob) {
+            return false;
+        }
+
+        // If all checks pass, the bounding box is well-formatted
+        true
     }
 }
 
@@ -215,9 +240,24 @@ impl BoundingBox for XYXY {
     fn get_prob(&self) -> f32 {
         self.prob
     }
-    
+
     fn get_class_id(&self) -> usize {
         self.class_id
+    }
+
+    fn check(&self) -> bool {
+        // Check if x1 <= x2 and y1 <= y2
+        if self.x1 > self.x2 || self.y1 > self.y2 {
+            return false;
+        }
+
+        // Check if prob is in [0.0, 1.0]
+        if !(0.0..=1.0).contains(&self.prob) {
+            return false;
+        }
+
+        // If all checks pass, the bounding box is well-formatted
+        true
     }
 }
 
@@ -250,9 +290,33 @@ impl BoundingBox for XYWHn {
     fn get_prob(&self) -> f32 {
         self.prob
     }
-    
+
     fn get_class_id(&self) -> usize {
         self.class_id
+    }
+
+    fn check(&self) -> bool {
+        // Check if all values are normalized (between 0.0 and 1.0)
+        if !(0.0..=1.0).contains(&self.x)
+            || !(0.0..=1.0).contains(&self.y)
+            || !(0.0..=1.0).contains(&self.w)
+            || !(0.0..=1.0).contains(&self.h)
+        {
+            return false;
+        }
+
+        // Check if width and height are non-negative
+        if self.w < 0.0 || self.h < 0.0 {
+            return false;
+        }
+
+        // Check if prob is in [0.0, 1.0]
+        if !(0.0..=1.0).contains(&self.prob) {
+            return false;
+        }
+
+        // If all checks pass, the bounding box is well-formatted
+        true
     }
 }
 
@@ -285,26 +349,48 @@ impl BoundingBox for XYWH {
     fn get_prob(&self) -> f32 {
         self.prob
     }
-    
+
     fn get_class_id(&self) -> usize {
         self.class_id
+    }
+
+    fn check(&self) -> bool {
+        // Check if width and height are non-negative
+        if self.w < 0.0 || self.h < 0.0 {
+            return false;
+        }
+
+        // Check if prob is in [0.0, 1.0]
+        if !(0.0..=1.0).contains(&self.prob) {
+            return false;
+        }
+
+        // If all checks pass, the bounding box is well-formatted
+        true
     }
 }
 
 fn nms<T: BoundingBox + Clone>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
-    boxes.sort_by(|a, b| b.get_prob().partial_cmp(&a.get_prob()).unwrap_or(std::cmp::Ordering::Equal));
-    
+    boxes.sort_by(|a, b| {
+        b.get_prob()
+            .partial_cmp(&a.get_prob())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     let mut keep = Vec::new();
-    
+
     while let Some(current) = boxes.first() {
         let current = current.clone();
         keep.push(current);
-        
-        boxes = boxes.into_iter()
+
+        boxes = boxes
+            .into_iter()
             .skip(1)
-            .filter(|b| b.get_class_id() != current.get_class_id() || b.iou(&current) <= iou_threshold)
+            .filter(|b| {
+                b.get_class_id() != current.get_class_id() || b.iou(&current) <= iou_threshold
+            })
             .collect();
     }
-    
+
     keep
 }
