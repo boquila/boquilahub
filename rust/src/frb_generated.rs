@@ -31,7 +31,7 @@ use crate::api::preprocessing::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
-use ndarray::{s, Array, Axis, IxDyn, Ix4};
+use ndarray::{s, Array, Axis, IxDyn,Ix4};
 
 // Section: boilerplate
 
@@ -1375,13 +1375,13 @@ impl SseDecode for Vec<u8> {
     }
 }
 
-impl SseDecode for Vec<(f32, f32, f32, f32, usize, f32)> {
+impl SseDecode for Vec<crate::api::abstractions::XYXY> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
-            ans_.push(<(f32, f32, f32, f32, usize, f32)>::sse_decode(deserializer));
+            ans_.push(<crate::api::abstractions::XYXY>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1394,21 +1394,6 @@ impl SseDecode for (Array<f32, Ix4>, u32, u32) {
         let mut var_field1 = <u32>::sse_decode(deserializer);
         let mut var_field2 = <u32>::sse_decode(deserializer);
         return (var_field0, var_field1, var_field2);
-    }
-}
-
-impl SseDecode for (f32, f32, f32, f32, usize, f32) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_field0 = <f32>::sse_decode(deserializer);
-        let mut var_field1 = <f32>::sse_decode(deserializer);
-        let mut var_field2 = <f32>::sse_decode(deserializer);
-        let mut var_field3 = <f32>::sse_decode(deserializer);
-        let mut var_field4 = <usize>::sse_decode(deserializer);
-        let mut var_field5 = <f32>::sse_decode(deserializer);
-        return (
-            var_field0, var_field1, var_field2, var_field3, var_field4, var_field5,
-        );
     }
 }
 
@@ -1829,12 +1814,12 @@ impl SseEncode for Vec<u8> {
     }
 }
 
-impl SseEncode for Vec<(f32, f32, f32, f32, usize, f32)> {
+impl SseEncode for Vec<crate::api::abstractions::XYXY> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <(f32, f32, f32, f32, usize, f32)>::sse_encode(item, serializer);
+            <crate::api::abstractions::XYXY>::sse_encode(item, serializer);
         }
     }
 }
@@ -1845,18 +1830,6 @@ impl SseEncode for (Array<f32, Ix4>, u32, u32) {
         <Array<f32, Ix4>>::sse_encode(self.0, serializer);
         <u32>::sse_encode(self.1, serializer);
         <u32>::sse_encode(self.2, serializer);
-    }
-}
-
-impl SseEncode for (f32, f32, f32, f32, usize, f32) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <f32>::sse_encode(self.0, serializer);
-        <f32>::sse_encode(self.1, serializer);
-        <f32>::sse_encode(self.2, serializer);
-        <f32>::sse_encode(self.3, serializer);
-        <usize>::sse_encode(self.4, serializer);
-        <f32>::sse_encode(self.5, serializer);
     }
 }
 

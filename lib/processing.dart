@@ -1,14 +1,14 @@
+import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:intl/intl.dart';
-import 'dart:async';
+// import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-
-import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/resources/objects.dart';
+import 'dart:core';
 
 class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
@@ -113,14 +113,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  Future<String?> analyzeSingleFile(String filePath) async {
+  Future<List<XYXY>?> analyzeSingleFile(String filePath) async {
     // print("Sending to Rust");
     // print(filePath);
     setState(() {
       isrunning = true;
     });
     try {
-      String response = await detect(filePath: filePath);
+      List<XYXY> response = await detect(filePath: filePath);
       setState(() {
         isrunning = false;
       });
@@ -135,31 +135,26 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return null;
   }
 
-  Future<List<String?>> analyzefolder(List<String> filePaths) async {
+  void analyzefolder(List<String> filePaths) async {
     setState(() {
       shouldContinue = true;
     });
-    // print("Sending to Rust");
-    List<String?> responses = [];
     for (String filePath in filePaths) {
       // print(filePath);
       if (!shouldContinue) break;
       try {
-        String response = await detect(filePath: filePath);
-        responses.add(response);
-        List<dynamic> jsonList = json.decode(response);
-        List<BBox> bboxpreds = listdynamictoBBOX(jsonList, widget.currentAI);
+        List<XYXY> response = await detect(filePath: filePath);
+        List<BBox> bboxpreds = XYXYtoBBOX(response, widget.currentAI);
         setState(() {
           listpredimgs.add(PredImg(filePath, bboxpreds));
         });
       } catch (e) {
-        responses.add("error");
+        print(e);
       }
       setState(() {
         nProcessed = nProcessed + 1;
       });
     }
-    return responses;
   }
 
   @override
@@ -202,15 +197,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     setState(() {
                       isProcessingSingle = true;
                     });
-                    String? results = await analyzeSingleFile(jpgFiles[0]);
+                    List<XYXY>? results = await analyzeSingleFile(jpgFiles[0]);
                     setState(() {
                       isProcessingSingle = false;
                     });
                     setState(() {
                       if (results != null) {
-                        List<dynamic> jsonList = json.decode(results);
-                        List<BBox> bboxpreds =
-                            listdynamictoBBOX(jsonList, widget.currentAI);
+                        List<BBox> bboxpreds = XYXYtoBBOX(results, widget.currentAI);
 
                         listpredimgs = [PredImg(jpgFiles[0], bboxpreds)];
 
@@ -229,7 +222,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                         nProcessed = 0;
                         listpredimgs = [];
                       });
-                      List<String?> results = await analyzefolder(jpgFiles);
+                      analyzefolder(jpgFiles);
                       setState(() {
                         analyzecomplete = true;
                         isProcessingFolder = false;
@@ -325,12 +318,6 @@ processFinishedCheckMark(context) {
   );
 }
 
-List<BBox> listdynamictoBBOX(List<dynamic> jsonList, AI ai) {
-  List<BBox> bboxpreds =
-      jsonList.map((json) => BBox.fromJson(json, ai)).toList();
-  return bboxpreds;
-}
-
 niceError(context) {
   return showDialog(
     context: context,
@@ -355,4 +342,21 @@ Widget showpredimg(PredImg predimg, context) {
       child: predimg.render(),
     ),
   );
+}
+
+
+List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai){
+  List<BBox> toreturn = [];
+  for (XYXY xyxy in orig){
+    BBox temp = BBox(
+     xyxy.x1,
+     xyxy.y1,
+     xyxy.x2,
+     xyxy.y2,
+     ai.classes[xyxy.classId.toInt()],
+     xyxy.prob
+    );
+    toreturn.add(temp);
+  }
+  return toreturn;
 }

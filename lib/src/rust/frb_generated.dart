@@ -83,7 +83,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<String> crateApiInferenceDetect({required String filePath});
+  Future<List<XYXY>> crateApiInferenceDetect({required String filePath});
 
   Future<double> crateApiUtilsGetCudaVersion();
 
@@ -94,13 +94,12 @@ abstract class RustLibApi extends BaseApi {
       required int inputWidth,
       required int inputHeight});
 
-  Future<List<(double, double, double, double, BigInt, double)>>
-      crateApiPostprocessingProcessOutput(
-          {required ArrayF32IxDyn output,
-          required int imgWidth,
-          required int imgHeight,
-          required int inputWidth,
-          required int inputHeight});
+  Future<List<XYXY>> crateApiPostprocessingProcessOutput(
+      {required ArrayF32IxDyn output,
+      required int imgWidth,
+      required int imgHeight,
+      required int inputWidth,
+      required int inputHeight});
 
   Future<void> crateApiInferenceSetModel(
       {required String value,
@@ -222,7 +221,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<String> crateApiInferenceDetect({required String filePath}) {
+  Future<List<XYXY>> crateApiInferenceDetect({required String filePath}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -231,7 +230,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             funcId: 5, port: port_);
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_String,
+        decodeSuccessData: sse_decode_list_xyxy,
         decodeErrorData: null,
       ),
       constMeta: kCrateApiInferenceDetectConstMeta,
@@ -324,13 +323,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<(double, double, double, double, BigInt, double)>>
-      crateApiPostprocessingProcessOutput(
-          {required ArrayF32IxDyn output,
-          required int imgWidth,
-          required int imgHeight,
-          required int inputWidth,
-          required int inputHeight}) {
+  Future<List<XYXY>> crateApiPostprocessingProcessOutput(
+      {required ArrayF32IxDyn output,
+      required int imgWidth,
+      required int imgHeight,
+      required int inputWidth,
+      required int inputHeight}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -344,8 +342,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             funcId: 9, port: port_);
       },
       codec: SseCodec(
-        decodeSuccessData:
-            sse_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32,
+        decodeSuccessData: sse_decode_list_xyxy,
         decodeErrorData: null,
       ),
       constMeta: kCrateApiPostprocessingProcessOutputConstMeta,
@@ -1264,12 +1261,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<(double, double, double, double, BigInt, double)>
-      dco_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32(dynamic raw) {
+  List<XYXY> dco_decode_list_xyxy(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>)
-        .map(dco_decode_record_f_32_f_32_f_32_f_32_usize_f_32)
-        .toList();
+    return (raw as List<dynamic>).map(dco_decode_xyxy).toList();
   }
 
   @protected
@@ -1289,24 +1283,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           arr[0]),
       dco_decode_u_32(arr[1]),
       dco_decode_u_32(arr[2]),
-    );
-  }
-
-  @protected
-  (double, double, double, double, BigInt, double)
-      dco_decode_record_f_32_f_32_f_32_f_32_usize_f_32(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 6) {
-      throw Exception('Expected 6 elements, got ${arr.length}');
-    }
-    return (
-      dco_decode_f_32(arr[0]),
-      dco_decode_f_32(arr[1]),
-      dco_decode_f_32(arr[2]),
-      dco_decode_f_32(arr[3]),
-      dco_decode_usize(arr[4]),
-      dco_decode_f_32(arr[5]),
     );
   }
 
@@ -1492,15 +1468,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<(double, double, double, double, BigInt, double)>
-      sse_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32(
-          SseDeserializer deserializer) {
+  List<XYXY> sse_decode_list_xyxy(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <(double, double, double, double, BigInt, double)>[];
+    var ans_ = <XYXY>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_record_f_32_f_32_f_32_f_32_usize_f_32(deserializer));
+      ans_.add(sse_decode_xyxy(deserializer));
     }
     return ans_;
   }
@@ -1519,27 +1493,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_field1 = sse_decode_u_32(deserializer);
     var var_field2 = sse_decode_u_32(deserializer);
     return (var_field0, var_field1, var_field2);
-  }
-
-  @protected
-  (double, double, double, double, BigInt, double)
-      sse_decode_record_f_32_f_32_f_32_f_32_usize_f_32(
-          SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_field0 = sse_decode_f_32(deserializer);
-    var var_field1 = sse_decode_f_32(deserializer);
-    var var_field2 = sse_decode_f_32(deserializer);
-    var var_field3 = sse_decode_f_32(deserializer);
-    var var_field4 = sse_decode_usize(deserializer);
-    var var_field5 = sse_decode_f_32(deserializer);
-    return (
-      var_field0,
-      var_field1,
-      var_field2,
-      var_field3,
-      var_field4,
-      var_field5
-    );
   }
 
   @protected
@@ -1747,13 +1700,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_record_f_32_f_32_f_32_f_32_usize_f_32(
-      List<(double, double, double, double, BigInt, double)> self,
-      SseSerializer serializer) {
+  void sse_encode_list_xyxy(List<XYXY> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_record_f_32_f_32_f_32_f_32_usize_f_32(item, serializer);
+      sse_encode_xyxy(item, serializer);
     }
   }
 
@@ -1766,19 +1717,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         self.$1, serializer);
     sse_encode_u_32(self.$2, serializer);
     sse_encode_u_32(self.$3, serializer);
-  }
-
-  @protected
-  void sse_encode_record_f_32_f_32_f_32_f_32_usize_f_32(
-      (double, double, double, double, BigInt, double) self,
-      SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_f_32(self.$1, serializer);
-    sse_encode_f_32(self.$2, serializer);
-    sse_encode_f_32(self.$3, serializer);
-    sse_encode_f_32(self.$4, serializer);
-    sse_encode_usize(self.$5, serializer);
-    sse_encode_f_32(self.$6, serializer);
   }
 
   @protected

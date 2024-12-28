@@ -83,8 +83,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
-  List<(double, double, double, double, BigInt, double)>
-      dco_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32(dynamic raw);
+  List<XYXY> dco_decode_list_xyxy(dynamic raw);
 
   @protected
   (
@@ -93,10 +92,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     int
   ) dco_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_arrayf_32_ix_4_u_32_u_32(
       dynamic raw);
-
-  @protected
-  (double, double, double, double, BigInt, double)
-      dco_decode_record_f_32_f_32_f_32_f_32_usize_f_32(dynamic raw);
 
   @protected
   int dco_decode_u_32(dynamic raw);
@@ -170,9 +165,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
-  List<(double, double, double, double, BigInt, double)>
-      sse_decode_list_record_f_32_f_32_f_32_f_32_usize_f_32(
-          SseDeserializer deserializer);
+  List<XYXY> sse_decode_list_xyxy(SseDeserializer deserializer);
 
   @protected
   (
@@ -181,11 +174,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     int
   ) sse_decode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_arrayf_32_ix_4_u_32_u_32(
       SseDeserializer deserializer);
-
-  @protected
-  (double, double, double, double, BigInt, double)
-      sse_decode_record_f_32_f_32_f_32_f_32_usize_f_32(
-          SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_32(SseDeserializer deserializer);
@@ -266,19 +254,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Uint8List self, SseSerializer serializer);
 
   @protected
-  void sse_encode_list_record_f_32_f_32_f_32_f_32_usize_f_32(
-      List<(double, double, double, double, BigInt, double)> self,
-      SseSerializer serializer);
+  void sse_encode_list_xyxy(List<XYXY> self, SseSerializer serializer);
 
   @protected
   void
       sse_encode_record_auto_owned_rust_opaque_flutter_rust_bridgefor_generated_rust_auto_opaque_inner_arrayf_32_ix_4_u_32_u_32(
           (ArrayF32Ix4, int, int) self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_record_f_32_f_32_f_32_f_32_usize_f_32(
-      (double, double, double, double, BigInt, double) self,
-      SseSerializer serializer);
 
   @protected
   void sse_encode_u_32(int self, SseSerializer serializer);

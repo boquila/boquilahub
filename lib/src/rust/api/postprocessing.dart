@@ -4,11 +4,12 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'abstractions.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `intersection`, `iou`, `union`
 
-Future<List<(double, double, double, double, BigInt, double)>> processOutput(
+Future<List<XYXY>> processOutput(
         {required ArrayF32IxDyn output,
         required int imgWidth,
         required int imgHeight,
