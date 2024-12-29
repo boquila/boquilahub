@@ -17,6 +17,15 @@ pub struct SEGn {
     pub prob: f32,
 }
 
+/// Segmentation in the YOLO format, not normalized
+/// # Fields
+/// - `vertices` represents a polygon
+pub struct SEG {
+    pub vertices: Vec<f32>,
+    pub class_id: usize,
+    pub prob: f32,
+}
+
 pub trait BoundingBox: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, class_id: usize, prob: f32) -> Self;
     fn area(&self) -> f32;

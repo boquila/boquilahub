@@ -1,10 +1,7 @@
 use ndarray::{s, Array, Axis, IxDyn};
 use super::abstractions::*;
 
-// Function used to convert RAW output from YOLO to an array
-// of detected objects. Each object contain the bounding box of
-// this object, the type of object and the probability
-// Returns array of detected objects in a format [(x1,y1,x2,y2,object_type,probability),..]
+// Function used to convert the output tensor from YOLO to an Vec<XYXY>
 pub fn process_output(
     output: Array<f32, IxDyn>,
     img_width: u32,
@@ -46,42 +43,9 @@ pub fn process_output(
         result.push(boxes[0]);
         boxes = boxes
             .iter()
-            // .filter(|box1| iou(&boxes[0], box1) < 0.7)
             .filter(|box1| boxes[0].iou(box1) < 0.7)
             .map(|x| *x)
             .collect()
     }
     return result;
 }
-
-// Function calculates "Intersection-over-union" coefficient for specified two boxes
-// https://pyimagesearch.com/2016/11/07/intersection-over-union-iou-for-object-detection/.
-// Returns Intersection over union ratio as a float number
-// fn iou(box1: &(f32, f32, f32, f32, usize, f32), box2: &(f32, f32, f32, f32, usize, f32)) -> f32 {
-//     return intersection(box1, box2) / union(box1, box2);
-// }
-
-// // Function calculates union area of two boxes
-// // Returns Area of the boxes union as a float number
-// fn union(box1: &(f32, f32, f32, f32, usize, f32), box2: &(f32, f32, f32, f32, usize, f32)) -> f32 {
-//     let (box1_x1, box1_y1, box1_x2, box1_y2, _, _) = *box1;
-//     let (box2_x1, box2_y1, box2_x2, box2_y2, _, _) = *box2;
-//     let box1_area = (box1_x2 - box1_x1) * (box1_y2 - box1_y1);
-//     let box2_area = (box2_x2 - box2_x1) * (box2_y2 - box2_y1);
-//     return box1_area + box2_area - intersection(box1, box2);
-// }
-
-// // Function calculates intersection area of two boxes
-// // Returns Area of intersection of the boxes as a float number
-// fn intersection(
-//     box1: &(f32, f32, f32, f32, usize, f32),
-//     box2: &(f32, f32, f32, f32, usize, f32),
-// ) -> f32 {
-//     let (box1_x1, box1_y1, box1_x2, box1_y2, _, _) = *box1;
-//     let (box2_x1, box2_y1, box2_x2, box2_y2, _, _) = *box2;
-//     let x1 = box1_x1.max(box2_x1);
-//     let y1 = box1_y1.max(box2_y1);
-//     let x2 = box1_x2.min(box2_x2);
-//     let y2 = box1_y2.min(box2_y2);
-//     return (x2 - x1) * (y2 - y1);
-// }
