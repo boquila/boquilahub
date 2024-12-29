@@ -25,7 +25,6 @@ pub trait BoundingBox: Copy {
     fn get_prob(&self) -> f32;
     fn get_class_id(&self) -> usize;
     fn check(&self) -> bool;
-
 }
 
 struct PredImg<const N: usize> {
@@ -187,27 +186,14 @@ impl BoundingBox for XYXYn {
     }
 
     fn check(&self) -> bool {
-        // Check if x1 <= x2 and y1 <= y2
-        if self.x1 > self.x2 || self.y1 > self.y2 {
-            return false;
-        }
-
-        // Check if all coordinates are normalized (between 0.0 and 1.0)
-        if !(0.0..=1.0).contains(&self.x1)
-            || !(0.0..=1.0).contains(&self.y1)
-            || !(0.0..=1.0).contains(&self.x2)
-            || !(0.0..=1.0).contains(&self.y2)
-        {
-            return false;
-        }
-
-        // Check if prob is in [0.0, 1.0]
-        if !(0.0..=1.0).contains(&self.prob) {
-            return false;
-        }
-
-        // If all checks pass, the bounding box is well-formatted
-        true
+        self.x1 >= 0.0 && self.x1 <= 1.0 &&
+        self.y1 >= 0.0 && self.y1 <= 1.0 &&
+        self.x2 >= 0.0 && self.x2 <= 1.0 &&
+        self.y2 >= 0.0 && self.y2 <= 1.0 &&
+        self.x2 >= self.x1 &&
+        self.y2 >= self.y1 &&
+        self.prob >= 0.0 &&
+        self.prob <= 1.0
     }
 }
 
@@ -246,18 +232,10 @@ impl BoundingBox for XYXY {
     }
 
     fn check(&self) -> bool {
-        // Check if x1 <= x2 and y1 <= y2
-        if self.x1 > self.x2 || self.y1 > self.y2 {
-            return false;
-        }
-
-        // Check if prob is in [0.0, 1.0]
-        if !(0.0..=1.0).contains(&self.prob) {
-            return false;
-        }
-
-        // If all checks pass, the bounding box is well-formatted
-        true
+        self.x2 >= self.x1 &&
+        self.y2 >= self.y1 &&
+        self.prob >= 0.0 &&
+        self.prob <= 1.0
     }
 }
 
@@ -296,27 +274,14 @@ impl BoundingBox for XYWHn {
     }
 
     fn check(&self) -> bool {
-        // Check if all values are normalized (between 0.0 and 1.0)
-        if !(0.0..=1.0).contains(&self.x)
-            || !(0.0..=1.0).contains(&self.y)
-            || !(0.0..=1.0).contains(&self.w)
-            || !(0.0..=1.0).contains(&self.h)
-        {
-            return false;
-        }
-
-        // Check if width and height are non-negative
-        if self.w < 0.0 || self.h < 0.0 {
-            return false;
-        }
-
-        // Check if prob is in [0.0, 1.0]
-        if !(0.0..=1.0).contains(&self.prob) {
-            return false;
-        }
-
-        // If all checks pass, the bounding box is well-formatted
-        true
+        self.x >= 0.0 && self.x <= 1.0 &&
+        self.y >= 0.0 && self.y <= 1.0 &&
+        self.w >= 0.0 && self.w <= 1.0 &&
+        self.h >= 0.0 && self.h <= 1.0 &&
+        (self.x + self.w) <= 1.0 &&
+        (self.y + self.h) <= 1.0 &&
+        self.prob >= 0.0 &&
+        self.prob <= 1.0
     }
 }
 
@@ -355,18 +320,10 @@ impl BoundingBox for XYWH {
     }
 
     fn check(&self) -> bool {
-        // Check if width and height are non-negative
-        if self.w < 0.0 || self.h < 0.0 {
-            return false;
-        }
-
-        // Check if prob is in [0.0, 1.0]
-        if !(0.0..=1.0).contains(&self.prob) {
-            return false;
-        }
-
-        // If all checks pass, the bounding box is well-formatted
-        true
+        self.w >= 0.0 &&
+        self.h >= 0.0 &&
+        self.prob >= 0.0 &&
+        self.prob <= 1.0
     }
 }
 
