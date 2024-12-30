@@ -1,2 +1,4 @@
 *.dart linguist-detectable=true
 *.rust linguist-detectable=true
+rust_builder/** linguist-generated=true
+pubspec.lock linguist-generated=true
