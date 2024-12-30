@@ -6,13 +6,16 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `intersect_xywhs`, `intersect_xyxys`, `iou`, `nms`
-// These types are ignored because they are not used by any `pub` functions: `PredImg`, `ProbSpace`, `SEGn`
+// These functions are ignored because they are not marked as `pub`: `intersect_xywhs`, `intersect_xyxys`, `iou`
+// These functions are ignored because they have generic arguments: `nms`
+// These types are ignored because they are not used by any `pub` functions: `PredImg`, `ProbSpace`, `SEG`, `SEGn`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseSelfTypeNotAllowed): `intersect`, `iou`
 
 abstract class BoundingBox {
   Future<double> area();
+
+  Future<bool> check();
 
   Future<BigInt> getClassId();
 
@@ -41,6 +44,10 @@ class XYWHn {
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXywHnArea(
+        that: this,
+      );
+
+  Future<bool> check() => RustLib.instance.api.crateApiAbstractionsXywHnCheck(
         that: this,
       );
 
@@ -116,6 +123,10 @@ class XYWH {
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXywhArea(
+        that: this,
+      );
+
+  Future<bool> check() => RustLib.instance.api.crateApiAbstractionsXywhCheck(
         that: this,
       );
 
@@ -198,6 +209,10 @@ class XYXYn {
         that: this,
       );
 
+  Future<bool> check() => RustLib.instance.api.crateApiAbstractionsXyxYnCheck(
+        that: this,
+      );
+
   Future<BigInt> getClassId() =>
       RustLib.instance.api.crateApiAbstractionsXyxYnGetClassId(
         that: this,
@@ -270,6 +285,10 @@ class XYXY {
   });
 
   Future<double> area() => RustLib.instance.api.crateApiAbstractionsXyxyArea(
+        that: this,
+      );
+
+  Future<bool> check() => RustLib.instance.api.crateApiAbstractionsXyxyCheck(
         that: this,
       );
 

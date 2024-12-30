@@ -160,6 +160,20 @@ fn iou<T: BoundingBox>(a: &T, b: &T) -> f32 {
     intersection / union
 }
 
+// pub fn nms<T: BoundingBox>(mut boxes: Vec<T>) -> Vec<T> {
+//     boxes.sort_by(|box1, box2| box2.get_prob().total_cmp(&box1.get_prob()));
+//     let mut result = Vec::new();
+//     while boxes.len() > 0 {
+//         result.push(boxes[0]);
+//         boxes = boxes
+//             .iter()
+//             .filter(|box1| boxes[0].iou(box1) < 0.7)
+//             .map(|x| *x)
+//             .collect()
+//     }
+//     return result
+// }
+
 impl BoundingBox for XYXYn {
     fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
         Self {
@@ -336,7 +350,7 @@ impl BoundingBox for XYWH {
     }
 }
 
-fn nms<T: BoundingBox + Clone>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
+pub fn nms<T: BoundingBox>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
     boxes.sort_by(|a, b| {
         b.get_prob()
             .partial_cmp(&a.get_prob())

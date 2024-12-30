@@ -73,6 +73,6 @@ pub fn detect(file_path: String) -> Vec<XYXY> {
 // }
 
 // #[flutter_rust_bridge::frb(dart_async)]
-// pub fn segment(file_path: String) -> SEG {
+// pub fn segment(file_path: String) -> Vec<SEG> {
     
 // }
