@@ -11,7 +11,7 @@ pub fn prepare_input(buf: Vec<u8>,input_width: u32, input_height: u32) -> (Array
     for pixel in img.pixels() {
         let x = pixel.0 as usize;
         let y = pixel.1 as usize;
-        let [r, g, b, _] = pixel.2 .0;
+        let [r, g, b, _] = pixel.2.0;
         input[[0, 0, y, x]] = (r as f32) / 255.0;
         input[[0, 1, y, x]] = (g as f32) / 255.0;
         input[[0, 2, y, x]] = (b as f32) / 255.0;

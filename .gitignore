@@ -46,3 +46,6 @@ app.*.map.json
 
 # boquila specific stuff
 /models/
+
+rust/src/frb_generated.rs
+lib/src/rust
