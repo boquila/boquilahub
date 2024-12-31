@@ -3,7 +3,7 @@
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
-pub struct ProbSpace {
+struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
 }
@@ -11,7 +11,7 @@ pub struct ProbSpace {
 /// Segmentation in the YOLO format, normalized
 /// # Fields
 /// - `vertices` represents a polygon
-pub struct SEGn {
+struct SEGn {
     pub vertices: Vec<f32>,
     pub class_id: usize,
     pub prob: f32,
@@ -20,15 +20,13 @@ pub struct SEGn {
 /// Segmentation in the YOLO format, not normalized
 /// # Fields
 /// - `vertices` represents a polygon
-pub struct SEG {
+struct SEG {
     pub vertices: Vec<f32>,
     pub class_id: usize,
     pub prob: f32,
 }
 
-pub trait BoundingBox: Copy {
-    type Opposite;
-    type N;
+pub trait BoundingBoxTrait: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, class_id: usize, prob: f32) -> Self;
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
@@ -36,8 +34,8 @@ pub trait BoundingBox: Copy {
     fn get_prob(&self) -> f32;
     fn get_class_id(&self) -> usize;
     fn check(&self) -> bool;
-    fn transform(&self) -> Self::Opposite;
-    fn n(&self) -> Self::N;
+    // fn transform(&self) -> BoundingBox;
+    // fn n(&self) -> BoundingBox;
 }
 
 struct PredImg<const N: usize> {
@@ -51,6 +49,13 @@ struct PredImg<const N: usize> {
 //     items: Vec<T>,
 // }
 // NMS
+
+enum BoundingBox {
+    XYXY(XYXY),
+    XYXYn(XYXYn),
+    XYWH(XYWH),
+    XYWHn(XYWHn),
+}
 
 /// Bounding box in normalized XYXY format
 /// # Fields
@@ -118,10 +123,132 @@ fn intersect_xywhs(x1: f32, y1: f32, w1: f32, h1: f32, x2: f32, y2: f32, w2: f32
     (x_right - x_left) * (y_bottom - y_top)
 }
 
-fn iou<T: BoundingBox>(a: &T, b: &T) -> f32 {
+fn iou<T: BoundingBoxTrait>(a: &T, b: &T) -> f32 {
     let intersection = a.intersect(b);
     let union = a.area() + b.area() - intersection;
     intersection / union
+}
+
+impl BoundingBox {
+    fn to_xyxy(&self) -> XYXY {
+        match self {
+            BoundingBox::XYXY(b) => *b,
+            BoundingBox::XYXYn(b) => XYXY {
+                x1: b.x1,
+                y1: b.y1,
+                x2: b.x2,
+                y2: b.y2,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYWH(b) => XYXY {
+                x1: b.x - b.w / 2.0,
+                y1: b.y - b.h / 2.0,
+                x2: b.x + b.w / 2.0,
+                y2: b.y + b.h / 2.0,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYWHn(b) => XYXY {
+                x1: b.x - b.w / 2.0,
+                y1: b.y - b.h / 2.0,
+                x2: b.x + b.w / 2.0,
+                y2: b.y + b.h / 2.0,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+        }
+    }
+
+    fn to_xyxyn(&self) -> XYXYn {
+        match self {
+            BoundingBox::XYXY(b) => XYXYn {
+                x1: b.x1,
+                y1: b.y1,
+                x2: b.x2,
+                y2: b.y2,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYXYn(b) => *b,
+            BoundingBox::XYWH(b) => XYXYn {
+                x1: b.x - b.w / 2.0,
+                y1: b.y - b.h / 2.0,
+                x2: b.x + b.w / 2.0,
+                y2: b.y + b.h / 2.0,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYWHn(b) => XYXYn {
+                x1: b.x - b.w / 2.0,
+                y1: b.y - b.h / 2.0,
+                x2: b.x + b.w / 2.0,
+                y2: b.y + b.h / 2.0,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+        }
+    }
+
+    fn to_xywh(&self) -> XYWH {
+        match self {
+            BoundingBox::XYXY(b) => XYWH {
+                x: (b.x1 + b.x2) / 2.0,
+                y: (b.y1 + b.y2) / 2.0,
+                w: b.x2 - b.x1,
+                h: b.y2 - b.y1,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYXYn(b) => XYWH {
+                x: (b.x1 + b.x2) / 2.0,
+                y: (b.y1 + b.y2) / 2.0,
+                w: b.x2 - b.x1,
+                h: b.y2 - b.y1,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYWH(b) => *b,
+            BoundingBox::XYWHn(b) => XYWH {
+                x: b.x,
+                y: b.y,
+                w: b.w,
+                h: b.h,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+        }
+    }
+
+    fn to_xywhn(&self) -> XYWHn {
+        match self {
+            BoundingBox::XYXY(b) => XYWHn {
+                x: (b.x1 + b.x2) / 2.0,
+                y: (b.y1 + b.y2) / 2.0,
+                w: b.x2 - b.x1,
+                h: b.y2 - b.y1,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYXYn(b) => XYWHn {
+                x: (b.x1 + b.x2) / 2.0,
+                y: (b.y1 + b.y2) / 2.0,
+                w: b.x2 - b.x1,
+                h: b.y2 - b.y1,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYWH(b) => XYWHn {
+                x: b.x,
+                y: b.y,
+                w: b.w,
+                h: b.h,
+                class_id: b.class_id,
+                prob: b.prob,
+            },
+            BoundingBox::XYWHn(b) => *b,
+        }
+    }
 }
 
 // pub fn nms<T: BoundingBox>(mut boxes: Vec<T>) -> Vec<T> {
@@ -138,10 +265,7 @@ fn iou<T: BoundingBox>(a: &T, b: &T) -> f32 {
 //     return result
 // }
 
-impl BoundingBox for XYXYn {
-    type Opposite = XYWHn;
-    type N = XYXY;
-
+impl BoundingBoxTrait for XYXYn {
     fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
         Self {
             x1,
@@ -176,35 +300,34 @@ impl BoundingBox for XYXYn {
     }
 
     fn check(&self) -> bool {
-        self.x1 >= 0.0 && self.x1 <= 1.0 &&
-        self.y1 >= 0.0 && self.y1 <= 1.0 &&
-        self.x2 >= 0.0 && self.x2 <= 1.0 &&
-        self.y2 >= 0.0 && self.y2 <= 1.0 &&
-        self.x2 >= self.x1 &&
-        self.y2 >= self.y1 &&
-        self.prob >= 0.0 &&
-        self.prob <= 1.0
-    }
-    
-    fn transform(&self) -> Self::Opposite {
-        let x = (self.x1 + self.x2) / 2.0;
-        let y = (self.y1 + self.y2) / 2.0;
-        let w = self.x2 - self.x1;
-        let h = self.y2 - self.y1;
-        XYWHn::new(x, y, w, h, self.class_id, self.prob)
-    }
-    
-    fn n(&self) -> Self::N {
-        todo!()
+        self.x1 >= 0.0
+            && self.x1 <= 1.0
+            && self.y1 >= 0.0
+            && self.y1 <= 1.0
+            && self.x2 >= 0.0
+            && self.x2 <= 1.0
+            && self.y2 >= 0.0
+            && self.y2 <= 1.0
+            && self.x2 >= self.x1
+            && self.y2 >= self.y1
+            && self.prob >= 0.0
+            && self.prob <= 1.0
     }
 
-    
+    // fn transform(&self) -> BoundingBox {
+    //     let x = (self.x1 + self.x2) / 2.0;
+    //     let y = (self.y1 + self.y2) / 2.0;
+    //     let w = self.x2 - self.x1;
+    //     let h = self.y2 - self.y1;
+    //     BoundingBox::XYWHn(XYWHn::new(x, y, w, h, self.class_id, self.prob))
+    // }
+
+    // fn n(&self) -> BoundingBox {
+    //     todo!()
+    // }
 }
 
-impl BoundingBox for XYXY {
-    type Opposite = XYWH;
-    type N = XYXYn;
-
+impl BoundingBoxTrait for XYXY {
     fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
         Self {
             x1,
@@ -239,29 +362,23 @@ impl BoundingBox for XYXY {
     }
 
     fn check(&self) -> bool {
-        self.x2 >= self.x1 &&
-        self.y2 >= self.y1 &&
-        self.prob >= 0.0 &&
-        self.prob <= 1.0
+        self.x2 >= self.x1 && self.y2 >= self.y1 && self.prob >= 0.0 && self.prob <= 1.0
     }
-    
-    fn transform(&self) -> XYWH {
-        let x = (self.x1 + self.x2) / 2.0;
-        let y = (self.y1 + self.y2) / 2.0;
-        let w = self.x2 - self.x1;
-        let h = self.y2 - self.y1;
-        XYWH::new(x, y, w, h, self.class_id, self.prob)
-    }
-    
-    fn n(&self) -> Self::N {
-        todo!()
-    }
+
+    // fn transform(&self) -> BoundingBox {
+    //     let x = (self.x1 + self.x2) / 2.0;
+    //     let y = (self.y1 + self.y2) / 2.0;
+    //     let w = self.x2 - self.x1;
+    //     let h = self.y2 - self.y1;
+    //     BoundingBox::XYWH(XYWH::new(x, y, w, h, self.class_id, self.prob))
+    // }
+
+    // fn n(&self) -> BoundingBox {
+    //     todo!()
+    // }
 }
 
-impl BoundingBox for XYWHn {
-    type Opposite = XYXYn;
-    type N = XYWH;
-
+impl BoundingBoxTrait for XYWHn {
     fn new(x: f32, y: f32, w: f32, h: f32, class_id: usize, prob: f32) -> Self {
         Self {
             x,
@@ -296,33 +413,34 @@ impl BoundingBox for XYWHn {
     }
 
     fn check(&self) -> bool {
-        self.x >= 0.0 && self.x <= 1.0 &&
-        self.y >= 0.0 && self.y <= 1.0 &&
-        self.w >= 0.0 && self.w <= 1.0 &&
-        self.h >= 0.0 && self.h <= 1.0 &&
-        (self.x + self.w) <= 1.0 &&
-        (self.y + self.h) <= 1.0 &&
-        self.prob >= 0.0 &&
-        self.prob <= 1.0
+        self.x >= 0.0
+            && self.x <= 1.0
+            && self.y >= 0.0
+            && self.y <= 1.0
+            && self.w >= 0.0
+            && self.w <= 1.0
+            && self.h >= 0.0
+            && self.h <= 1.0
+            && (self.x + self.w) <= 1.0
+            && (self.y + self.h) <= 1.0
+            && self.prob >= 0.0
+            && self.prob <= 1.0
     }
-    
-    fn transform(&self) -> XYXYn {
-        let x1 = self.x - self.w / 2.0;
-        let y1 = self.y - self.h / 2.0;
-        let x2 = self.x + self.w / 2.0;
-        let y2 = self.y + self.h / 2.0;
-        XYXYn::new(x1, y1, x2, y2, self.class_id, self.prob)
-    }
-    
-    fn n(&self) -> Self::N {
-        todo!()
-    }
+
+    // fn transform(&self) -> BoundingBox {
+    //     let x1 = self.x - self.w / 2.0;
+    //     let y1 = self.y - self.h / 2.0;
+    //     let x2 = self.x + self.w / 2.0;
+    //     let y2 = self.y + self.h / 2.0;
+    //     BoundingBox::XYXYn(XYXYn::new(x1, y1, x2, y2, self.class_id, self.prob))
+    // }
+
+    // fn n(&self) -> BoundingBox {
+    //     todo!()
+    // }
 }
 
-impl BoundingBox for XYWH {
-    type Opposite = XYXY;
-    type N = XYWHn;
-
+impl BoundingBoxTrait for XYWH {
     fn new(x: f32, y: f32, w: f32, h: f32, class_id: usize, prob: f32) -> Self {
         Self {
             x,
@@ -357,26 +475,23 @@ impl BoundingBox for XYWH {
     }
 
     fn check(&self) -> bool {
-        self.w >= 0.0 &&
-        self.h >= 0.0 &&
-        self.prob >= 0.0 &&
-        self.prob <= 1.0
+        self.w >= 0.0 && self.h >= 0.0 && self.prob >= 0.0 && self.prob <= 1.0
     }
-    
-    fn transform(&self) -> XYXY {
-        let x1 = self.x - self.w / 2.0;
-        let y1 = self.y - self.h / 2.0;
-        let x2 = self.x + self.w / 2.0;
-        let y2 = self.y + self.h / 2.0;
-        XYXY::new(x1, y1, x2, y2, self.class_id, self.prob)
-    }
-    
-    fn n(&self) -> Self::N {
-        todo!()
-    }
+
+    // fn transform(&self) -> BoundingBox {
+    //     let x1 = self.x - self.w / 2.0;
+    //     let y1 = self.y - self.h / 2.0;
+    //     let x2 = self.x + self.w / 2.0;
+    //     let y2 = self.y + self.h / 2.0;
+    //     BoundingBox::XYXY(XYXY::new(x1, y1, x2, y2, self.class_id, self.prob))
+    // }
+
+    // fn n(&self) -> BoundingBox {
+    //     todo!()
+    // }
 }
 
-pub fn nms<T: BoundingBox>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
+pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
     boxes.sort_by(|a, b| {
         b.get_prob()
             .partial_cmp(&a.get_prob())

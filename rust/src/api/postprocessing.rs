@@ -1,5 +1,5 @@
 use ndarray::{s, Array, Axis, IxDyn};
-use super::abstractions::*;
+use super::abstractions::{nms, BoundingBoxTrait, XYXY};
 
 // Function used to convert the output tensor from YOLO to an Vec<XYXY>
 pub fn process_output(

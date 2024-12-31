@@ -1,4 +1,4 @@
-use super::abstractions::*;
+use super::abstractions::XYXY;
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable
