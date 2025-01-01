@@ -532,17 +532,18 @@ pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T>
 }
 
 // AI model for Object Detection
-struct AImodelOD {
+struct AImodel {
     pub name: String,
     pub version: f32, // complement tothe name
     pub input_width: u32,
     pub input_height: u32,
     pub description: String, // complement to the name
     pub color_code: String, // "terra", "fire", "green", depending on this, the app will show different colors hehe
+    pub task: String, // "detect", "classify", "segment"
     pub classes: Vec<String>,
 }
 
-impl AImodelOD {
+impl AImodel {
     // Constructor for the AI struct
     pub fn new(
         name: String,
@@ -551,6 +552,7 @@ impl AImodelOD {
         input_height: u32,
         description: String,
         color_code: String,
+        task: String,
         classes: Vec<String>,
     ) -> Self {
         Self {
@@ -560,6 +562,7 @@ impl AImodelOD {
             input_height,
             description,
             color_code,
+            task,
             classes,
         }
     }
