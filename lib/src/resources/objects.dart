@@ -68,13 +68,10 @@ class PredImg {
 class AI {
   final String name;
   final String description;
-  final String colorCode; // "terra", "fire", "green"
-  final String outputType; // "BBox", "ProbSpace"
+  final String colorCode; // "terra", "fire", "aqua"
   final List<String> classes;
-  final bool available;
 
-  const AI(this.name, this.description, this.colorCode, this.outputType,
-      this.classes, this.available);
+  const AI(this.name, this.description, this.colorCode, this.classes);
 
   String getPath() {
     return "models/$name.bq";
@@ -82,16 +79,8 @@ class AI {
 }
 
 List<AI> listAIs = const <AI>[
-  AI("boquilanet-gen", '🖼️ Ánimales (genérico)', "terra", "BBox",
-      boquilanetgenClasses, true),
-  AI("boquilanet-cl", '🖼️ Ánimales (especies)', "terra", "BBox",
-      boquilanetclClasses, true),
-  // AI('yoloXl', '🖼️ Objetos (genérico)', "terra", "BBox", yoloClasses, true),
-  AI("boquila-fire", "🔥 Incendios", "fire", "ProbSpace", boquilafireClasses,
-      false),
-  AI('boquila-bird-gen', '🔊 Aves (genérico)', "terra", "ProbSpace", [], false),
-  AI('boquila-bird-cl', '🔊 Aves (especies)', "terra", "ProbSpace", [], false),
-  AI('boquila-h2o', '🔊 Hídrofonos', "aqua", "ProbSpace", [], false)
+  AI("boquilanet-gen", '🖼️ Ánimales (genérico)', "terra", boquilanetgenClasses),
+  AI("boquilanet-cl", '🖼️ Ánimales (especies)', "terra", boquilanetclClasses)
 ];
 
 AI getAIByDescription(String description) {
@@ -138,104 +127,6 @@ const List<String> boquilanetclClasses = <String>[
   "conejo",
   "perro"
 ];
-
-const List<String> boquilafireClasses = <String>["fire", "smoke", "normal"];
-
-const List<String> yoloClasses = <String>[
-  'person',
-  'bicycle',
-  'car',
-  'motorcycle',
-  'airplane',
-  'bus',
-  'train',
-  'truck',
-  'boat',
-  'traffic light',
-  'fire hydrant',
-  'stop sign',
-  'parking meter',
-  'bench',
-  'bird',
-  'cat',
-  'dog',
-  'horse',
-  'sheep',
-  'cow',
-  'elephant',
-  'bear',
-  'zebra',
-  'giraffe',
-  'backpack',
-  'umbrella',
-  'handbag',
-  'tie',
-  'suitcase',
-  'frisbee',
-  'skis',
-  'snowboard',
-  'sports ball',
-  'kite',
-  'baseball bat',
-  'baseball glove',
-  'skateboard',
-  'surfboard',
-  'tennis racket',
-  'bottle',
-  'wine glass',
-  'cup',
-  'fork',
-  'knife',
-  'spoon',
-  'bowl',
-  'banana',
-  'apple',
-  'sandwich',
-  'orange',
-  'broccoli',
-  'carrot',
-  'hot dog',
-  'pizza',
-  'donut',
-  'cake',
-  'chair',
-  'couch',
-  'potted plant',
-  'bed',
-  'dining table',
-  'toilet',
-  'tv',
-  'laptop',
-  'mouse',
-  'remote',
-  'keyboard',
-  'cell phone',
-  'microwave',
-  'oven',
-  'toaster',
-  'sink',
-  'refrigerator',
-  'book',
-  'clock',
-  'vase',
-  'scissors',
-  'teddy bear',
-  'hair drier',
-  'toothbrush'
-];
-
-// AI(
-//   "boquilanet-eu",
-//   "European fauna classification",
-//   "terra",
-//   "ProbSpace"
-// ),
-// AI(
-//   "megadetector v5a",
-//   "MegaDetector (animals, vehicles, people)",
-//   "green",
-//   "BBox"
-// ),
 
 Future<void> writeCsv(List<PredImg> predImgs, String outputPath) async {
   List<List<dynamic>> rows = [];

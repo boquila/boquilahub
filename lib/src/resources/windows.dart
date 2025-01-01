@@ -44,9 +44,6 @@ class _WindowButtonsState extends State<WindowButtons> {
               ),
         CloseWindowButton(
           colors: closeButtonColors,
-          onPressed: () async {
-            CloseWindowButton().onPressed!();
-          },
         ),
       ],
     );

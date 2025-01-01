@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+// Big TODO: class_ids should be string
+// and this string should be defined right after the inference
+
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
@@ -31,16 +34,12 @@ pub trait BoundingBoxTrait: Copy {
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
     fn iou(&self, other: &Self) -> f32;
+    fn get_coords(&self) -> (f32,f32,f32,f32);
     fn get_prob(&self) -> f32;
     fn get_class_id(&self) -> usize;
     fn check(&self) -> bool;
     // fn transform(&self) -> BoundingBox;
     // fn n(&self) -> BoundingBox;
-}
-
-struct PredImg<const N: usize> {
-    path: String,
-    items: Vec<XYXYn>,
 }
 
 // This should be the final implementation
@@ -314,6 +313,10 @@ impl BoundingBoxTrait for XYXYn {
             && self.prob <= 1.0
     }
 
+    fn get_coords(&self) -> (f32,f32,f32,f32) {
+        (self.x1,self.y1,self.x2,self.y2)
+    }
+
     // fn transform(&self) -> BoundingBox {
     //     let x = (self.x1 + self.x2) / 2.0;
     //     let y = (self.y1 + self.y2) / 2.0;
@@ -363,6 +366,10 @@ impl BoundingBoxTrait for XYXY {
 
     fn check(&self) -> bool {
         self.x2 >= self.x1 && self.y2 >= self.y1 && self.prob >= 0.0 && self.prob <= 1.0
+    }
+
+    fn get_coords(&self) -> (f32,f32,f32,f32) {
+        (self.x1,self.y1,self.x2,self.y2)
     }
 
     // fn transform(&self) -> BoundingBox {
@@ -427,6 +434,10 @@ impl BoundingBoxTrait for XYWHn {
             && self.prob <= 1.0
     }
 
+    fn get_coords(&self) -> (f32,f32,f32,f32) {
+        (self.x,self.y,self.w,self.h)
+    }
+
     // fn transform(&self) -> BoundingBox {
     //     let x1 = self.x - self.w / 2.0;
     //     let y1 = self.y - self.h / 2.0;
@@ -478,6 +489,10 @@ impl BoundingBoxTrait for XYWH {
         self.w >= 0.0 && self.h >= 0.0 && self.prob >= 0.0 && self.prob <= 1.0
     }
 
+    fn get_coords(&self) -> (f32,f32,f32,f32) {
+        (self.x,self.y,self.w,self.h)
+    }
+
     // fn transform(&self) -> BoundingBox {
     //     let x1 = self.x - self.w / 2.0;
     //     let y1 = self.y - self.h / 2.0;
@@ -514,4 +529,48 @@ pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T>
     }
 
     keep
+}
+
+// AI model for Object Detection
+struct AImodelOD {
+    pub name: String,
+    pub version: f32, // complement tothe name
+    pub input_width: u32,
+    pub input_height: u32,
+    pub description: String, // complement to the name
+    pub color_code: String, // "terra", "fire", "green", depending on this, the app will show different colors hehe
+    pub classes: Vec<String>,
+}
+
+impl AImodelOD {
+    // Constructor for the AI struct
+    pub fn new(
+        name: String,
+        version: f32,
+        input_width: u32,
+        input_height: u32,
+        description: String,
+        color_code: String,
+        classes: Vec<String>,
+    ) -> Self {
+        Self {
+            name,
+            version,
+            input_width,
+            input_height,
+            description,
+            color_code,
+            classes,
+        }
+    }
+
+    // Method to get the path of the AI model
+    pub fn get_path(&self) -> String {
+        format!("models/{}.bq", self.name)
+    }
+}
+
+pub struct ImgPred{
+    pub file_path: String,
+    pub list_bbox: Vec<XYXY>,
 }

@@ -24,7 +24,7 @@ const List<Color> fire = <Color>[
   Color.fromARGB(255, 255, 0, 0)
 ];
 
-// Just a silly test lol
+// list of the BBox colors
 const List<Color> bboxColors = <Color>[
   Colors.red,
   Colors.deepPurple,

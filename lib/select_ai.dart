@@ -40,20 +40,8 @@ class _SelectAIPageState extends State<SelectAIPage> {
             if (dropdownValue != value) {
               setState(() {
                 AI tempAI = getAIByDescription(value!);
-                if (tempAI.available == true) {
-                  dropdownValue = value;
-                  widget.aicallback(tempAI);
-                } else {
-                  showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(actions: [
-                            ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                },
-                                child: const Text("Ok"))
-                          ], title: const Text("Sección no disponible")));
-                }
+                dropdownValue = value;
+                widget.aicallback(tempAI);
               });
             }
           },

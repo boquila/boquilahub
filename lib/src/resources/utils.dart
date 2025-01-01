@@ -146,14 +146,13 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   }
 }
 
+//  TODO: fix asap
 // Very inefficient
 int getIndexColor(String classValue) {
   if (boquilanetgenClasses.contains(classValue)) {
     return boquilanetgenClasses.indexOf(classValue);
   } else if (boquilanetclClasses.contains(classValue)) {
     return boquilanetclClasses.indexOf(classValue);
-  } else if (boquilafireClasses.contains(classValue)) {
-    return boquilafireClasses.indexOf(classValue);
   } else {
     // Return a default index if the class is not found in any list
     return 0;
