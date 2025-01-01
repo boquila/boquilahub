@@ -6,7 +6,7 @@
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
-struct ProbSpace {
+pub struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
 }
@@ -14,7 +14,7 @@ struct ProbSpace {
 /// Segmentation in the YOLO format, normalized
 /// # Fields
 /// - `vertices` represents a polygon
-struct SEGn {
+pub struct SEGn {
     pub vertices: Vec<f32>,
     pub class_id: usize,
     pub prob: f32,

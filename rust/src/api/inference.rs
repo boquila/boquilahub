@@ -1,4 +1,5 @@
-use super::abstractions::XYXY;
+#![allow(dead_code)]
+use super::abstractions::{XYXY,ProbSpace,SEGn};
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable
@@ -76,3 +77,25 @@ pub fn detect(file_path: String) -> Vec<XYXY> {
 // pub fn segment(file_path: String) -> Vec<SEG> {
     
 // }
+
+enum AIOutputs {
+    ObjectDetection(Vec<XYXY>),
+    Classification(ProbSpace),
+    Segmentation(Vec<SEGn>)
+}
+
+enum AIFunctions {
+    Classify,
+    Detect,
+    Segment,
+}
+
+impl AIFunctions {
+    fn execute(&self, input: String) -> AIOutputs {
+        match self {
+            AIFunctions::Classify => todo!("{}", input),
+            AIFunctions::Detect => AIOutputs::ObjectDetection(detect(input)),
+            AIFunctions::Segment => todo!("{}", input),
+        }
+    }
+}
