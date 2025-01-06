@@ -38,8 +38,10 @@ pub trait BoundingBoxTrait: Copy {
     fn get_prob(&self) -> f32;
     fn get_class_id(&self) -> usize;
     fn check(&self) -> bool;
-    // fn transform(&self) -> BoundingBox;
-    // fn n(&self) -> BoundingBox;
+    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY;
+    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn;
+    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH;
+    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn;
 }
 
 // This should be the final implementation
@@ -317,17 +319,25 @@ impl BoundingBoxTrait for XYXYn {
         (self.x1,self.y1,self.x2,self.y2)
     }
 
-    // fn transform(&self) -> BoundingBox {
-    //     let x = (self.x1 + self.x2) / 2.0;
-    //     let y = (self.y1 + self.y2) / 2.0;
-    //     let w = self.x2 - self.x1;
-    //     let h = self.y2 - self.y1;
-    //     BoundingBox::XYWHn(XYWHn::new(x, y, w, h, self.class_id, self.prob))
-    // }
+    fn to_xywhn(&self,_w:Option<f32>,_h:Option<f32>) -> XYWHn {
+        let x = (self.x1 + self.x2) / 2.0;
+        let y = (self.y1 + self.y2) / 2.0;
+        let w = self.x2 - self.x1;
+        let h = self.y2 - self.y1;
+        XYWHn::new(x, y, w, h, self.class_id, self.prob)
+    }
 
-    // fn n(&self) -> BoundingBox {
-    //     todo!()
-    // }
+    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+        todo!()
+    }
+
+    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY {
+        todo!()
+    }
+
+    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
+        todo!()
+    }
 }
 
 impl BoundingBoxTrait for XYXY {
@@ -372,17 +382,21 @@ impl BoundingBoxTrait for XYXY {
         (self.x1,self.y1,self.x2,self.y2)
     }
 
-    // fn transform(&self) -> BoundingBox {
-    //     let x = (self.x1 + self.x2) / 2.0;
-    //     let y = (self.y1 + self.y2) / 2.0;
-    //     let w = self.x2 - self.x1;
-    //     let h = self.y2 - self.y1;
-    //     BoundingBox::XYWH(XYWH::new(x, y, w, h, self.class_id, self.prob))
-    // }
+    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+        todo!()
+    }
 
-    // fn n(&self) -> BoundingBox {
-    //     todo!()
-    // }
+    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY {
+        todo!()
+    }
+
+    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
+        todo!()
+    }
+
+    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn {
+        todo!()
+    }
 }
 
 impl BoundingBoxTrait for XYWHn {
@@ -438,17 +452,21 @@ impl BoundingBoxTrait for XYWHn {
         (self.x,self.y,self.w,self.h)
     }
 
-    // fn transform(&self) -> BoundingBox {
-    //     let x1 = self.x - self.w / 2.0;
-    //     let y1 = self.y - self.h / 2.0;
-    //     let x2 = self.x + self.w / 2.0;
-    //     let y2 = self.y + self.h / 2.0;
-    //     BoundingBox::XYXYn(XYXYn::new(x1, y1, x2, y2, self.class_id, self.prob))
-    // }
+    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+        todo!()
+    }
 
-    // fn n(&self) -> BoundingBox {
-    //     todo!()
-    // }
+    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY {
+        todo!()
+    }
+
+    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
+        todo!()
+    }
+
+    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn {
+        todo!()
+    }
 }
 
 impl BoundingBoxTrait for XYWH {
@@ -493,17 +511,25 @@ impl BoundingBoxTrait for XYWH {
         (self.x,self.y,self.w,self.h)
     }
 
-    // fn transform(&self) -> BoundingBox {
-    //     let x1 = self.x - self.w / 2.0;
-    //     let y1 = self.y - self.h / 2.0;
-    //     let x2 = self.x + self.w / 2.0;
-    //     let y2 = self.y + self.h / 2.0;
-    //     BoundingBox::XYXY(XYXY::new(x1, y1, x2, y2, self.class_id, self.prob))
-    // }
+    fn to_xyxy(&self,_w:Option<f32>,_h:Option<f32>) -> XYXY {
+        let x1 = self.x - self.w / 2.0;
+        let y1 = self.y - self.h / 2.0;
+        let x2 = self.x + self.w / 2.0;
+        let y2 = self.y + self.h / 2.0;
+        XYXY::new(x1, y1, x2, y2, self.class_id, self.prob)
+    }
 
-    // fn n(&self) -> BoundingBox {
-    //     todo!()
-    // }
+    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+        todo!()
+    }
+
+    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
+        todo!()
+    }
+
+    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn {
+        todo!()
+    }
 }
 
 pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
