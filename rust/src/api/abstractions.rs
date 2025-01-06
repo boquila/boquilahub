@@ -34,28 +34,14 @@ pub trait BoundingBoxTrait: Copy {
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
     fn iou(&self, other: &Self) -> f32;
-    fn get_coords(&self) -> (f32,f32,f32,f32);
+    fn get_coords(&self) -> (f32, f32, f32, f32);
     fn get_prob(&self) -> f32;
     fn get_class_id(&self) -> usize;
     fn check(&self) -> bool;
-    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY;
-    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn;
-    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH;
-    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn;
-}
-
-// This should be the final implementation
-// struct PredImg<T: BoundingBox, const N: usize> {
-//     path: String,
-//     items: Vec<T>,
-// }
-// NMS
-
-enum BoundingBox {
-    XYXY(XYXY),
-    XYXYn(XYXYn),
-    XYWH(XYWH),
-    XYWHn(XYWHn),
+    fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY;
+    fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn;
+    fn to_xywh(&self, w: Option<f32>, h: Option<f32>) -> XYWH;
+    fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn;
 }
 
 /// Bounding box in normalized XYXY format
@@ -130,128 +116,6 @@ fn iou<T: BoundingBoxTrait>(a: &T, b: &T) -> f32 {
     intersection / union
 }
 
-impl BoundingBox {
-    fn to_xyxy(&self) -> XYXY {
-        match self {
-            BoundingBox::XYXY(b) => *b,
-            BoundingBox::XYXYn(b) => XYXY {
-                x1: b.x1,
-                y1: b.y1,
-                x2: b.x2,
-                y2: b.y2,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYWH(b) => XYXY {
-                x1: b.x - b.w / 2.0,
-                y1: b.y - b.h / 2.0,
-                x2: b.x + b.w / 2.0,
-                y2: b.y + b.h / 2.0,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYWHn(b) => XYXY {
-                x1: b.x - b.w / 2.0,
-                y1: b.y - b.h / 2.0,
-                x2: b.x + b.w / 2.0,
-                y2: b.y + b.h / 2.0,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-        }
-    }
-
-    fn to_xyxyn(&self) -> XYXYn {
-        match self {
-            BoundingBox::XYXY(b) => XYXYn {
-                x1: b.x1,
-                y1: b.y1,
-                x2: b.x2,
-                y2: b.y2,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYXYn(b) => *b,
-            BoundingBox::XYWH(b) => XYXYn {
-                x1: b.x - b.w / 2.0,
-                y1: b.y - b.h / 2.0,
-                x2: b.x + b.w / 2.0,
-                y2: b.y + b.h / 2.0,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYWHn(b) => XYXYn {
-                x1: b.x - b.w / 2.0,
-                y1: b.y - b.h / 2.0,
-                x2: b.x + b.w / 2.0,
-                y2: b.y + b.h / 2.0,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-        }
-    }
-
-    fn to_xywh(&self) -> XYWH {
-        match self {
-            BoundingBox::XYXY(b) => XYWH {
-                x: (b.x1 + b.x2) / 2.0,
-                y: (b.y1 + b.y2) / 2.0,
-                w: b.x2 - b.x1,
-                h: b.y2 - b.y1,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYXYn(b) => XYWH {
-                x: (b.x1 + b.x2) / 2.0,
-                y: (b.y1 + b.y2) / 2.0,
-                w: b.x2 - b.x1,
-                h: b.y2 - b.y1,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYWH(b) => *b,
-            BoundingBox::XYWHn(b) => XYWH {
-                x: b.x,
-                y: b.y,
-                w: b.w,
-                h: b.h,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-        }
-    }
-
-    fn to_xywhn(&self) -> XYWHn {
-        match self {
-            BoundingBox::XYXY(b) => XYWHn {
-                x: (b.x1 + b.x2) / 2.0,
-                y: (b.y1 + b.y2) / 2.0,
-                w: b.x2 - b.x1,
-                h: b.y2 - b.y1,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYXYn(b) => XYWHn {
-                x: (b.x1 + b.x2) / 2.0,
-                y: (b.y1 + b.y2) / 2.0,
-                w: b.x2 - b.x1,
-                h: b.y2 - b.y1,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYWH(b) => XYWHn {
-                x: b.x,
-                y: b.y,
-                w: b.w,
-                h: b.h,
-                class_id: b.class_id,
-                prob: b.prob,
-            },
-            BoundingBox::XYWHn(b) => *b,
-        }
-    }
-}
-
 // pub fn nms<T: BoundingBox>(mut boxes: Vec<T>) -> Vec<T> {
 //     boxes.sort_by(|box1, box2| box2.get_prob().total_cmp(&box1.get_prob()));
 //     let mut result = Vec::new();
@@ -315,28 +179,28 @@ impl BoundingBoxTrait for XYXYn {
             && self.prob <= 1.0
     }
 
-    fn get_coords(&self) -> (f32,f32,f32,f32) {
-        (self.x1,self.y1,self.x2,self.y2)
+    fn get_coords(&self) -> (f32, f32, f32, f32) {
+        (self.x1, self.y1, self.x2, self.y2)
     }
 
-    fn to_xywhn(&self,_w:Option<f32>,_h:Option<f32>) -> XYWHn {
+    fn to_xyxyn(&self, _w: Option<f32>, _h: Option<f32>) -> XYXYn {
+        return *self;
+    }
+
+    fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY {
+        todo!()
+    }
+
+    fn to_xywh(&self, w: Option<f32>, h: Option<f32>) -> XYWH {
+        todo!()
+    }
+
+    fn to_xywhn(&self, _w: Option<f32>, _h: Option<f32>) -> XYWHn {
         let x = (self.x1 + self.x2) / 2.0;
         let y = (self.y1 + self.y2) / 2.0;
         let w = self.x2 - self.x1;
         let h = self.y2 - self.y1;
         XYWHn::new(x, y, w, h, self.class_id, self.prob)
-    }
-
-    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
-        todo!()
-    }
-
-    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY {
-        todo!()
-    }
-
-    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
-        todo!()
     }
 }
 
@@ -378,23 +242,27 @@ impl BoundingBoxTrait for XYXY {
         self.x2 >= self.x1 && self.y2 >= self.y1 && self.prob >= 0.0 && self.prob <= 1.0
     }
 
-    fn get_coords(&self) -> (f32,f32,f32,f32) {
-        (self.x1,self.y1,self.x2,self.y2)
+    fn get_coords(&self) -> (f32, f32, f32, f32) {
+        (self.x1, self.y1, self.x2, self.y2)
     }
 
-    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+    fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn {
         todo!()
     }
 
-    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY {
-        todo!()
+    fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY {
+        return *self;
     }
 
-    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
-        todo!()
+    fn to_xywh(&self, _w: Option<f32>, _h: Option<f32>) -> XYWH {
+        let x = (self.x1 + self.x2) / 2.0;
+        let y = (self.y1 + self.y2) / 2.0;
+        let w = self.x2 - self.x1;
+        let h = self.y2 - self.y1;
+        XYWH::new(x, y, w, h, self.class_id, self.prob)
     }
 
-    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn {
+    fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn {
         todo!()
     }
 }
@@ -448,23 +316,27 @@ impl BoundingBoxTrait for XYWHn {
             && self.prob <= 1.0
     }
 
-    fn get_coords(&self) -> (f32,f32,f32,f32) {
-        (self.x,self.y,self.w,self.h)
+    fn get_coords(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
     }
 
-    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+    fn to_xyxyn(&self, _w: Option<f32>, _h: Option<f32>) -> XYXYn {
+        let x1 = self.x - self.w / 2.0;
+        let y1 = self.y - self.h / 2.0;
+        let x2 = self.x + self.w / 2.0;
+        let y2 = self.y + self.h / 2.0;
+        XYXYn::new(x1, y1, x2, y2, self.class_id, self.prob)
+    }
+
+    fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY {
         todo!()
     }
 
-    fn to_xyxy(&self, w: Option<f32>, h:Option<f32>) -> XYXY {
-        todo!()
+    fn to_xywhn(&self, _w: Option<f32>, _h: Option<f32>) -> XYWHn {
+        return *self;
     }
 
-    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
-        todo!()
-    }
-
-    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn {
+    fn to_xywh(&self, w: Option<f32>, h: Option<f32>) -> XYWH {
         todo!()
     }
 }
@@ -507,11 +379,15 @@ impl BoundingBoxTrait for XYWH {
         self.w >= 0.0 && self.h >= 0.0 && self.prob >= 0.0 && self.prob <= 1.0
     }
 
-    fn get_coords(&self) -> (f32,f32,f32,f32) {
-        (self.x,self.y,self.w,self.h)
+    fn get_coords(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
     }
 
-    fn to_xyxy(&self,_w:Option<f32>,_h:Option<f32>) -> XYXY {
+    fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn {
+        todo!()
+    }
+
+    fn to_xyxy(&self, _w: Option<f32>, _h: Option<f32>) -> XYXY {
         let x1 = self.x - self.w / 2.0;
         let y1 = self.y - self.h / 2.0;
         let x2 = self.x + self.w / 2.0;
@@ -519,16 +395,12 @@ impl BoundingBoxTrait for XYWH {
         XYXY::new(x1, y1, x2, y2, self.class_id, self.prob)
     }
 
-    fn to_xywh(&self, w: Option<f32>, h:Option<f32>) -> XYWH {
+    fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn {
         todo!()
     }
 
-    fn to_xyxyn(&self, w: Option<f32>, h:Option<f32>) -> XYXYn {
-        todo!()
-    }
-
-    fn to_xywhn(&self, w: Option<f32>, h:Option<f32>) -> XYWHn {
-        todo!()
+    fn to_xywh(&self, _w: Option<f32>, _h: Option<f32>) -> XYWH {
+        return *self;
     }
 }
 
@@ -565,7 +437,7 @@ struct AImodel {
     pub input_height: u32,
     pub description: String, // complement to the name
     pub color_code: String, // "terra", "fire", "green", depending on this, the app will show different colors hehe
-    pub task: String, // "detect", "classify", "segment"
+    pub task: String,       // "detect", "classify", "segment"
     pub classes: Vec<String>,
 }
 
@@ -599,7 +471,7 @@ impl AImodel {
     }
 }
 
-pub struct ImgPred{
+pub struct ImgPred {
     pub file_path: String,
     pub list_bbox: Vec<XYXY>,
 }
