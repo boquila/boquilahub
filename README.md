@@ -63,7 +63,3 @@ We use:
 - [Flutter 3.27.1](https://github.com/flutter/flutter) and [Dart 3.6.0](https://github.com/dart-lang/sdk) for the UI  
 
 - [Rust 1.83.0](https://github.com/rust-lang/rust) for the inference pipeline
-
-## Open source?
-
-In the future, we'll be fully open source. Right now, you can see the UI code.
