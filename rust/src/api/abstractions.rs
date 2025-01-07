@@ -42,6 +42,7 @@ pub trait BoundingBoxTrait: Copy {
     fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn;
     fn to_xywh(&self, w: Option<f32>, h: Option<f32>) -> XYWH;
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn;
+    fn jsonify(&self) -> String;
 }
 
 /// Bounding box in normalized XYXY format
@@ -212,6 +213,13 @@ impl BoundingBoxTrait for XYXYn {
         let h = self.y2 - self.y1;
         XYWHn::new(x, y, w, h, self.class_id, self.prob)
     }
+
+    fn jsonify(&self) -> String {
+        format!(
+            "{{\"x1\":{},\"y1\":{},\"x2\":{},\"y2\":{},\"class_id\":{},\"prob\":{}}}",
+            self.x1, self.y1, self.x2, self.y2, self.class_id, self.prob
+        )
+    }
 }
 
 impl BoundingBoxTrait for XYXY {
@@ -284,6 +292,13 @@ impl BoundingBoxTrait for XYXY {
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn {
         let temp = self.to_xyxyn(w, h);
         return temp.to_xywhn(w, h);
+    }
+
+    fn jsonify(&self) -> String {
+        format!(
+            "{{\"x1\":{},\"y1\":{},\"x2\":{},\"y2\":{},\"class_id\":{},\"prob\":{}}}",
+            self.x1, self.y1, self.x2, self.y2, self.class_id, self.prob
+        )
     }
 }
 
@@ -370,6 +385,13 @@ impl BoundingBoxTrait for XYWHn {
             prob: self.prob,
         }
     }
+
+    fn jsonify(&self) -> String {
+        format!(
+            "{{\"x\":{},\"y\":{},\"w\":{},\"h\":{},\"class_id\":{},\"prob\":{}}}",
+            self.x, self.y, self.w, self.h, self.class_id, self.prob
+        )
+    }
 }
 
 impl BoundingBoxTrait for XYWH {
@@ -443,6 +465,13 @@ impl BoundingBoxTrait for XYWH {
 
     fn to_xywh(&self, _w: Option<f32>, _h: Option<f32>) -> XYWH {
         return *self;
+    }
+
+    fn jsonify(&self) -> String {
+        format!(
+            "{{\"x\":{},\"y\":{},\"w\":{},\"h\":{},\"class_id\":{},\"prob\":{}}}",
+            self.x, self.y, self.w, self.h, self.class_id, self.prob
+        )
     }
 }
 
