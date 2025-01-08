@@ -66,12 +66,12 @@ class _SelectAIPageState extends State<SelectAIPage> {
             color: widget.currentcolors[2],
           ),
           onChanged: (String? value) async {
-            print(value);
+            // print(value);
             if (value == "CUDA") {
               double cudaVersion = await getCudaVersion();
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.4 && iscudnnAvailable) {
-                print("Gotta change runtime");
+                // print("Gotta change runtime");
                 setState(() {
                   dropdownValue2 = value!;
                 });
@@ -95,7 +95,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
                 );
               }
             } else if (value == "CPU") {
-              print("Gotta change runtime");
+              // print("Gotta change runtime");
               setState(() {
                 dropdownValue2 = value!;
               });

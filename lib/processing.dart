@@ -124,10 +124,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
       setState(() {
         isrunning = false;
       });
-      print(response);
+      // print(response);
       return response;
     } catch (e) {
-      print(e);
+      // print(e);
     }
     setState(() {
       isrunning = false;
@@ -149,7 +149,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           listpredimgs.add(PredImg(filePath, bboxpreds));
         });
       } catch (e) {
-        print(e);
+        // print(e);
       }
       setState(() {
         nProcessed = nProcessed + 1;
@@ -344,7 +344,7 @@ Widget showpredimg(PredImg predimg, context) {
   );
 }
 
-
+// ignore: non_constant_identifier_names
 List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai){
   List<BBox> toreturn = [];
   for (XYXY xyxy in orig){
