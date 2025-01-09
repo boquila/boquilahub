@@ -261,7 +261,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                       if (selectedDirectory != null) {
                                         await copyToFolder(listpredimgs,
                                             "$selectedDirectory/export");
+                                        if (context.mounted){                                          
                                         processFinishedCheckMark(context);
+                                        }                                        
                                       }
 
                                       // Navigator.pop(context);
