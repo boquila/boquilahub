@@ -12,13 +12,13 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 |boquilanet-cl | Chilean fauna classification    |  Image       |✅  |
 |boquilanet-eu | European fauna classification                | Image  |✅   |
 |megadetector v5 and v6 | MegaDetector (animals, vehicles, people) |  Image  | ✅   |
-|boquila-fire | Wildfire detection                | Image  |✅   |
+|boquila-fire | Wildfire segmentation                | Image  |✅   |
 |unnamed | Bird detection |  Audio | On the way |
 |unnamed | Chilean birds classification |  Audio | On the way |
 |unnamed | Automated marine acoustics |  Audio | On the way |
 |unnamed | Tiny LLM |  Text | On the way |
 
-Image = Image files, video files, video feed.
+Video files and Feed processing code is being rewritten
 
 ## List of Platforms
 
