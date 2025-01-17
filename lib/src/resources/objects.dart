@@ -128,65 +128,6 @@ const List<String> boquilanetclClasses = <String>[
   "perro"
 ];
 
-Future<void> writeCsv(List<PredImg> predImgs, String outputPath) async {
-  List<List<dynamic>> rows = [];
-
-  rows.add(['File Path', 'X1', 'Y1', 'X2', 'Y2', 'Label', 'Confidence']);
-
-  for (var predImg in predImgs) {
-    for (var bbox in predImg.listbbox) {
-      rows.add([
-        predImg.filePath,
-        bbox.x1,
-        bbox.y1,
-        bbox.x2,
-        bbox.y2,
-        bbox.label,
-        bbox.confidence
-      ]);
-    }
-  }
-
-  String csv = const ListToCsvConverter().convert(rows);
-
-  final file = File(outputPath);
-  await file.writeAsString(csv);
-}
-
-Future<void> writeCsv2(List<PredImg> predImgs, String outputPath) async {
-  final List<List<dynamic>> rows = [];
-
-  rows.add(['File Path', 'n', 'observaciones']);
-
-  for (var predImg in predImgs) {
-    final List<List<dynamic>> bboxRows = [];
-    final Set<String> labels = {};
-
-    for (BBox bbox in predImg.listbbox) {
-      bboxRows.add([
-        bbox.x1,
-        bbox.y1,
-        bbox.x2,
-        bbox.y2,
-        bbox.label,
-        bbox.confidence,
-      ]);
-      labels.add(bbox.label);
-    }
-
-    rows.add([
-      predImg.filePath,
-      bboxRows.length,
-      labels.join(', '), // Joining all labels with a comma
-    ]);
-  }
-
-  final String csv = const ListToCsvConverter().convert(rows);
-
-  final File file = File(outputPath);
-  await file.writeAsString(csv);
-}
-
 Future<void> copyToFolder(List<PredImg> predImgs, String outputPath) async {
   for (PredImg predImg in predImgs) {
     final File imageFile = File(predImg.filePath);
