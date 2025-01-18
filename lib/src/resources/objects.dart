@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:boquilahub/src/resources/utils.dart';
-import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 
 class BBox {

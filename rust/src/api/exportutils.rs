@@ -6,7 +6,7 @@ use csv::WriterBuilder;
 use std::collections::HashSet;
 use super::abstractions::ImgPred;
 
-fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
+pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
     // Create a CSV writer.
     let mut wtr = Writer::from_path(output_path)?;
 
@@ -33,7 +33,7 @@ fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
+pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
     // Open the output file.
     let file = File::create(output_path)?;
     let mut wtr = WriterBuilder::new().has_headers(true).from_writer(file);

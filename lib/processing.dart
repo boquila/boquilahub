@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/inference.dart';
+import 'package:boquilahub/src/rust/api/exportutils.dart';
 import 'package:boquilahub/src/resources/objects.dart';
 import 'dart:core';
 
@@ -244,10 +245,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                       String str =
                                           DateFormat("yyyy-MM-dd HH mm ss")
                                               .format(DateTime.now());
-                                      writeCsv(
-                                          listpredimgs, "analisis_$str.csv");
-                                      writeCsv2(listpredimgs,
-                                          "analisis_condensado_$str.csv");
+                                      writeCsv(predImgs: listpredimgs, outputPath: "analisis_$str.csv");
+                                      writeCsv2(predImgs: listpredimgs, outputPath: "analisis_condensado_$str.csv");
                                       processFinishedCheckMark(context);
                                       // Navigator.pop(context);
                                     },
