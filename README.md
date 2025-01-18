@@ -64,8 +64,17 @@ We use:
 
 - [Flutter 3.27.1](https://github.com/flutter/flutter) and [Dart 3.6.0](https://github.com/dart-lang/sdk) for the UI  
 
-- [Rust 1.83.0](https://github.com/rust-lang/rust) for the inference pipeline
+- [Rust 1.83.0](https://github.com/rust-lang/rust) for the proccesing pipelines
 
 ## How to compile
 
 If you want to compile from source just have to
+
+```shell
+cargo install flutter_rust_bridge_codegen 
+git clone https://github.com/boquila/boquilahub/
+cd boquilahub
+flutter run --release
+```
+
+Probably instead of cloning from main, you should prefer to get the source code from a tagged version
