@@ -9,18 +9,6 @@ class BBox {
 
   BBox(this.x1, this.y1, this.x2, this.y2, this.label, this.confidence);
 
-  // This will take the Input from Rust and process it to return a Bounding Box
-  factory BBox.fromJson(List<dynamic> json, AI ai) {
-    return BBox(
-      json[0].toDouble(),
-      json[1].toDouble(),
-      json[2].toDouble(),
-      json[3].toDouble(),
-      ai.classes[json[4] as int],
-      json[5].toDouble(),
-    );
-  }
-
   @override
   String toString() {
     return '$x1,$y1,$x2,$y2,$label,$confidence';
