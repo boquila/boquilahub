@@ -500,7 +500,7 @@ pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T>
     keep
 }
 
-// AI model for Object Detection
+// AI model for Image Processing
 pub struct AImodel {
     pub name: String,
     pub version: f32, // complement tothe name
@@ -514,7 +514,6 @@ pub struct AImodel {
 }
 
 impl AImodel {
-    // Constructor for the AI struct
     pub fn new(
         name: String,
         version: f32,

@@ -16,8 +16,8 @@ pub fn init_app() {
 }
 
 // Lazily initialized global variables for the MODEL
-static INPUT_WIDTH: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); // Replace 256 with your desired width
-static INPUT_HEIGHT: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); // Replace 256 with your desired height
+static INPUT_WIDTH: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); // 
+static INPUT_HEIGHT: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); //
 static MODEL: Lazy<Mutex<Session>> =
     Lazy::new(|| Mutex::new(import_model("models/boquilanet-gen.onnx")));
 

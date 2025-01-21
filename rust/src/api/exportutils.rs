@@ -7,13 +7,9 @@ use std::collections::HashSet;
 use super::abstractions::ImgPred;
 
 pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
-    // Create a CSV writer.
     let mut wtr = Writer::from_path(output_path)?;
-
-    // Write the header row.
     wtr.write_record(&["File Path", "X1", "Y1", "X2", "Y2", "Label", "Confidence"])?;
 
-    // Write each row for the bounding boxes.
     for pred_img in pred_imgs {
         for bbox in pred_img.list_bbox {
             wtr.write_record(&[
@@ -28,17 +24,15 @@ pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
         }
     }
 
-    // Flush the writer to ensure all data is written.
     wtr.flush()?;
     Ok(())
 }
 
 pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
-    // Open the output file.
+    
     let file = File::create(output_path)?;
     let mut wtr = WriterBuilder::new().has_headers(true).from_writer(file);
 
-    // Write the header row.
     wtr.write_record(&["File Path", "n", "observaciones"])?;
 
     // Iterate through each predicted image.
@@ -70,8 +64,6 @@ pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> 
             &labels.into_iter().collect::<Vec<String>>().join(", "),
         ])?;
 
-        // Optionally, you could add bbox_rows data here if needed, though
-        // the original Dart function only writes summary information for each image.
     }
 
     // Flush and write the CSV.

@@ -1,6 +1,7 @@
 use image::{imageops::FilterType, GenericImageView};
 use ndarray::{Array, Ix4};
 
+// TODO: rewrite, could be more efficient
 pub fn prepare_input(buf: Vec<u8>,input_width: u32, input_height: u32) -> (Array<f32, Ix4>, u32, u32) {
     let img = image::load_from_memory(&buf).unwrap();
     let (img_width, img_height) = (img.width(), img.height());
