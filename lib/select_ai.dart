@@ -4,22 +4,28 @@ import 'src/resources/objects.dart';
 import 'package:boquilahub/src/rust/api/utils.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 
+AI getAIByDescription(List<AI> listAIs, String description) {
+  // Function to get AI object by description
+  return listAIs.firstWhere((ai) => ai.description == description);
+}
+
 class SelectAIPage extends StatefulWidget {
   final Function(AI) aicallback;
   final List<Color> currentcolors;
+  final List<AI> listAIs;
   const SelectAIPage(
-      {super.key, required this.aicallback, required this.currentcolors});
+      {super.key, required this.aicallback, required this.currentcolors,required this.listAIs});
 
   @override
   State<SelectAIPage> createState() => _SelectAIPageState();
 }
 
 class _SelectAIPageState extends State<SelectAIPage> {
-  String dropdownValue = listAIs.first.description;
   String dropdownValue2 = listEPs.first.name;
 
   @override
   Widget build(BuildContext context) {
+    String dropdownValue = widget.listAIs.first.description;
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
 
@@ -40,13 +46,13 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) {
             if (dropdownValue != value) {
               setState(() {
-                AI tempAI = getAIByDescription(value!);
+                AI tempAI = getAIByDescription(widget.listAIs,value!);
                 dropdownValue = value;
                 widget.aicallback(tempAI);
               });
             }
           },
-          items: listAIs.map<DropdownMenuItem<String>>((AI value) {
+          items: widget.listAIs.map<DropdownMenuItem<String>>((AI value) {
             return DropdownMenuItem<String>(
               value: value.description,
               child: Text(value.description),

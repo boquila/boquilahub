@@ -22,12 +22,12 @@ pub fn init_app() {
 }
 
 fn default_model() -> Session {
-    // let cuda = CUDAExecutionProvider::default();
+    let (_model_metadata, data): (AI, Vec<u8>) = import_bq("models/boquilanet-gen.bq").unwrap();
     let model = Session::builder()
         .unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap()
-        .commit_from_file("models/boquilanet-gen.bq")
+        .commit_from_memory(&data)
         .unwrap();
     return model;
 }

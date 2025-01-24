@@ -7,13 +7,14 @@ import 'processing.dart';
 import 'src/resources/palettes.dart';
 import 'select_ai.dart';
 import 'src/resources/windows.dart';
-import 'src/resources/objects.dart';
 import 'package:boquilahub/src/rust/api/inference.dart';
+import 'package:boquilahub/src/rust/api/bq.dart';
 // import 'src/resources/hardware_dep.dart';
 
 Future<void> main() async {
   await RustLib.init();
-  runApp(const CoreApp());
+  final List<AI> listAIs = await getBqs();
+  runApp(CoreApp(listAIs: listAIs));
 
   doWhenWindowReady(() {
     final win = appWindow;
@@ -29,35 +30,35 @@ Future<void> main() async {
 const borderColor = Color(0xFF805306);
 
 class CoreApp extends StatefulWidget {
-  const CoreApp({super.key});
+  final List<AI> listAIs;
+  const CoreApp({super.key, required this.listAIs});
 
   @override
   State<CoreApp> createState() => _CoreAppState();
 }
 
 class _CoreAppState extends State<CoreApp> {
-  AI currentAI = listAIs.first;
   List<Color> currentcolors = terra;
   bool isLoadingAI = false;
-
-  changeAI(AI newAI) async {
-    setState(() {
-      isLoadingAI = true;
-      currentAI = newAI;
-    });
-    await setModel(value: await currentAI.getPath());
-    setState(() {
-      isLoadingAI = false;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    AI currentAI = widget.listAIs.first;
     TextStyle textito =
         TextStyle(color: currentcolors[4], fontWeight: FontWeight.bold);
     Color sidebarColor = currentcolors[1];
     Color backgroundStartColor = currentcolors[0];
     Color backgroundEndColor = currentcolors[1];
+
+    changeAI(AI newAI) async {
+      setState(() {
+        isLoadingAI = true;
+        currentAI = newAI;
+      });
+      await setModel(value: await currentAI.getPath());
+      setState(() {
+        isLoadingAI = false;
+      });
+    }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -81,7 +82,10 @@ class _CoreAppState extends State<CoreApp> {
                     children: [
                       WindowTitleBarBox(child: MoveWindow()),
                       SelectAIPage(
-                          aicallback: changeAI, currentcolors: currentcolors),
+                        aicallback: changeAI,
+                        currentcolors: currentcolors,
+                        listAIs: widget.listAIs,
+                      ),
                       const SizedBox(height: 100)
                     ],
                   ),

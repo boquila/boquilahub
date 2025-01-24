@@ -102,7 +102,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: bboxColors[getIndexColor(data.label)],
+                              color: bboxColors[getIndexColor()],
                               width: 2.0,
                             ),
                           ),
@@ -117,7 +117,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                         child: Align(
                           alignment: Alignment.topLeft,
                           child: Container(
-                            color: bboxColors[getIndexColor(data.label)],
+                            color: bboxColors[getIndexColor()],
                             child: Padding(
                               padding: const EdgeInsets.all(2.0),
                               child: Text(
@@ -148,15 +148,19 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
 
 //  TODO: fix asap
 // Very inefficient
-int getIndexColor(String classValue) {
-  if (boquilanetgenClasses.contains(classValue)) {
-    return boquilanetgenClasses.indexOf(classValue);
-  } else if (boquilanetclClasses.contains(classValue)) {
-    return boquilanetclClasses.indexOf(classValue);
-  } else {
-    // Return a default index if the class is not found in any list
-    return 0;
-  }
+// int getIndexColor(String classValue) {
+//   if (boquilanetgenClasses.contains(classValue)) {
+//     return boquilanetgenClasses.indexOf(classValue);
+//   } else if (boquilanetclClasses.contains(classValue)) {
+//     return boquilanetclClasses.indexOf(classValue);
+//   } else {
+//     // Return a default index if the class is not found in any list
+//     return 0;
+//   }
+// }
+
+int getIndexColor() {
+    return 1;
 }
 
 class ClickableImage extends StatelessWidget {
