@@ -1,6 +1,6 @@
 #![allow(dead_code)]
-use super::abstractions::{AImodel, ProbSpace, SEGn, XYXY};
-use super::bq::import_bq;
+use super::abstractions::{AI, ProbSpace, SEGn, XYXY};
+use super::bq::{import_bq,get_bqs};
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable
@@ -14,6 +14,11 @@ use super::postprocessing::process_output;
 pub fn init_app() {
     // Default utilities - feel free to customize
     flutter_rust_bridge::setup_default_user_utils();
+    let bqs = get_bqs();
+
+    for bq in bqs {
+        println!("{:#?}", bq);
+    }
 }
 
 fn default_model() -> Session {
@@ -28,7 +33,7 @@ fn default_model() -> Session {
 }
 
 // Lazily initialized global variables for the MODEL
-static CURRENT_AI: Lazy<Mutex<AImodel>> = Lazy::new(|| Mutex::new(AImodel::default())); //
+static CURRENT_AI: Lazy<Mutex<AI>> = Lazy::new(|| Mutex::new(AI::default())); //
 
 static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
 
@@ -46,7 +51,7 @@ fn import_model(model_data: &Vec<u8>) -> Session {
 }
 
 pub fn set_model(value: String) {
-    let (model_metadata, data): (AImodel, Vec<u8>) = import_bq(&value).unwrap();
+    let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
     *MODEL.lock().unwrap() = import_model(&data);
     *CURRENT_AI.lock().unwrap() = model_metadata.clone();
     println!("{:#?}", model_metadata);

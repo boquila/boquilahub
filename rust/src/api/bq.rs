@@ -1,8 +1,9 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Read};
-use super::abstractions::AImodel;
+use std::path::Path;
+use super::abstractions::AI;
 
-pub fn import_bq(file_path: &str) -> io::Result<(AImodel, Vec<u8>)> {
+pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
     // Open the .bq file
     let mut file = File::open(file_path)?;
     let mut file_content = Vec::new();
@@ -29,9 +30,9 @@ pub fn import_bq(file_path: &str) -> io::Result<(AImodel, Vec<u8>)> {
     let json_str = String::from_utf8(json_data.to_vec())
         .unwrap_or_else(|_| panic!("Failed to parse JSON content"));
 
-    // Deserialize JSON into AImodel
-    let ai_model: AImodel = serde_json::from_str(&json_str)
-        .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
+    // Deserialize JSON into AI
+    let ai_model: AI = serde_json::from_str(&json_str)
+        .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AI"));
 
     // Read ONNX section length (4 bytes, little-endian)
     let onnx_length_start = json_end;
@@ -47,4 +48,68 @@ pub fn import_bq(file_path: &str) -> io::Result<(AImodel, Vec<u8>)> {
     let onnx_data = file_content[onnx_start..onnx_end].to_vec();
 
     Ok((ai_model, onnx_data))
+}
+
+pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
+    let mut file = File::open(file_path)?;
+    let mut file_content = Vec::new();
+    file.read_to_end(&mut file_content)?;
+
+    // Validate magic string
+    if &file_content[..7] != b"BQMODEL" {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid file format"));
+    }
+
+    // Read version
+    let version = file_content[7];
+    if version != 1 {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Unsupported version"));
+    }
+
+    // Read JSON section length
+    let json_length = u32::from_le_bytes(file_content[8..12].try_into().unwrap()) as usize;
+
+    // Extract JSON section
+    let json_start = 12;
+    let json_end = json_start + json_length;
+    let json_data = &file_content[json_start..json_end];
+    let json_str = String::from_utf8(json_data.to_vec())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse JSON"))?;
+
+    // Deserialize JSON into AI
+    serde_json::from_str(&json_str)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to deserialize JSON"))
+}
+
+
+fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
+    // Validate the folder path
+    let path = Path::new(folder_path);
+    if !path.is_dir() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "Specified path is not a directory"));
+    }
+
+    // Collect BQ files and process them
+    let mut ai_models = Vec::new();
+
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let file_path = entry.path();
+
+        // Check if the file has a .bq extension
+        if let Some(extension) = file_path.extension() {
+            if extension == "bq" {
+                match get_ai_model(file_path.to_str().unwrap()) {
+                    Ok(model) => ai_models.push(model),
+                    Err(e) => eprintln!("Error processing file {:?}: {}", file_path, e),
+                }
+            }
+        }
+    }
+
+    Ok(ai_models)
+}
+
+pub fn get_bqs() -> Vec<AI> {
+    analyze_folder("models/").unwrap()
 }

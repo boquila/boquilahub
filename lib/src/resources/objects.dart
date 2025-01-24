@@ -1,6 +1,9 @@
 import 'dart:io';
 import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:boquilahub/src/rust/api/abstractions.dart';
+import 'package:boquilahub/src/rust/api/bq.dart';
 
 class BBox {
   double x1, y1, x2, y2;
@@ -52,28 +55,25 @@ class PredImg {
   }
 }
 
-class AI {
-  final String name;
-  final String description;
-  final String colorCode; // "terra", "fire", "aqua"
-  final List<String> classes;
+// class AI {
+//   final String name;
+//   final String description;
+//   final String colorCode; // "terra", "fire", "aqua"
+//   final List<String> classes;
 
-  const AI(this.name, this.description, this.colorCode, this.classes);
+//   const AI(this.name, this.description, this.colorCode, this.classes);
 
-  String getPath() {
-    return "models/$name.bq";
-  }
-}
+//   String getPath() {
+//     return "models/$name.bq";
+//   }
+// }
 
-List<AI> listAIs = const <AI>[
-  AI("boquilanet-gen", '🖼️ Ánimales (genérico)', "terra", boquilanetgenClasses),
-  AI("boquilanet-cl", '🖼️ Ánimales (especies)', "terra", boquilanetclClasses)
-];
+// var listAIs = await getBqs();
 
-AI getAIByDescription(String description) {
-  // Function to get AI object by description
-  return listAIs.firstWhere((ai) => ai.description == description);
-}
+// AI getAIByDescription(String description) {
+//   // Function to get AI object by description
+//   return listAIs.firstWhere((ai) => ai.description == description);
+// }
 
 class EP {
   final String name;

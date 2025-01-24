@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';
+import 'package:boquilahub/src/rust/api/abstractions.dart';
 // import 'package:flutter/services.dart';
 import 'processing.dart';
 import 'src/resources/palettes.dart';
@@ -44,7 +45,7 @@ class _CoreAppState extends State<CoreApp> {
       isLoadingAI = true;
       currentAI = newAI;
     });
-    await setModel(value: currentAI.getPath());
+    await setModel(value: await currentAI.getPath());
     setState(() {
       isLoadingAI = false;
     });

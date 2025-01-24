@@ -503,7 +503,7 @@ pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T>
 
 // AI model for Image Processing
 #[derive(Deserialize, Debug, Clone)]
-pub struct AImodel {
+pub struct AI {
     pub name: String,
     pub version: f32, // complement tothe name
     pub input_width: u32,
@@ -515,7 +515,7 @@ pub struct AImodel {
     pub classes: Vec<String>,
 }
 
-impl AImodel {
+impl AI {
     pub fn new(
         name: String,
         version: f32,
@@ -542,7 +542,7 @@ impl AImodel {
 
     // The `default` function returns a dummy instance
     pub fn default() -> Self {
-        AImodel::new(
+        AI::new(
             "boquilanet-gen".to_string(),
             0.1,
             1024,
