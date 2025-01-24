@@ -245,8 +245,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                       String str =
                                           DateFormat("yyyy-MM-dd HH mm ss")
                                               .format(DateTime.now());
-                                      writeCsv(predImgs: listpredimgs, outputPath: "analisis_$str.csv");
-                                      writeCsv2(predImgs: listpredimgs, outputPath: "analisis_condensado_$str.csv");
+                                      // writeCsv(predImgs: listpredimgs, outputPath: "analisis_$str.csv");
+                                      // writeCsv2(predImgs: listpredimgs, outputPath: "analisis_condensado_$str.csv");
                                       processFinishedCheckMark(context);
                                       // Navigator.pop(context);
                                     },

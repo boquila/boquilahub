@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use serde::Deserialize;
 
 // Big TODO: class_ids should be string
 // and this string should be defined right after the inference
@@ -364,8 +365,8 @@ impl BoundingBoxTrait for XYWHn {
     }
 
     fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY {
-        let temp = self.to_xyxyn(w,h);
-        temp.to_xyxy(w,h)
+        let temp = self.to_xyxyn(w, h);
+        temp.to_xyxy(w, h)
     }
 
     fn to_xywhn(&self, _w: Option<f32>, _h: Option<f32>) -> XYWHn {
@@ -437,8 +438,8 @@ impl BoundingBoxTrait for XYWH {
     }
 
     fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn {
-        let temp = self.to_xyxy(w,h);
-        return temp.to_xyxyn(w,h)
+        let temp = self.to_xyxy(w, h);
+        return temp.to_xyxyn(w, h);
     }
 
     fn to_xyxy(&self, _w: Option<f32>, _h: Option<f32>) -> XYXY {
@@ -501,15 +502,16 @@ pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T>
 }
 
 // AI model for Image Processing
+#[derive(Deserialize, Debug, Clone)]
 pub struct AImodel {
     pub name: String,
     pub version: f32, // complement tothe name
     pub input_width: u32,
     pub input_height: u32,
-    pub description: String, // complement to the name
+    pub description: String,          // complement to the name
     pub color_code: String, // "terra", "fire", "green", depending on this, the app will show different colors hehe
     pub task: String,       // "detect", "classify", "segment"
-    pub post_processing: Vec<String>,       // "detect", "classify", "segment"
+    pub post_processing: Vec<String>, // "detect", "classify", "segment"
     pub classes: Vec<String>,
 }
 
@@ -536,6 +538,21 @@ impl AImodel {
             post_processing,
             classes,
         }
+    }
+
+    // The `default` function returns a dummy instance
+    pub fn default() -> Self {
+        AImodel::new(
+            "boquilanet-gen".to_string(),
+            0.1,
+            1024,
+            1024,
+            "Generic animal detection".to_string(),
+            "green".to_string(),
+            "detect".to_string(),
+            vec!["NMS".to_string()],
+            vec!["animal".to_string()],
+        )
     }
 
     // Method to get the path of the AI model

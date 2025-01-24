@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use super::abstractions::{XYXY,ProbSpace,SEGn};
+use super::abstractions::{AImodel, ProbSpace, SEGn, XYXY};
+use super::bq::import_bq;
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable
@@ -15,29 +16,40 @@ pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();
 }
 
-// Lazily initialized global variables for the MODEL
-static INPUT_WIDTH: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); // 
-static INPUT_HEIGHT: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(1024)); //
-static MODEL: Lazy<Mutex<Session>> =
-    Lazy::new(|| Mutex::new(import_model("models/boquilanet-gen.onnx")));
-
-fn import_model(model_path: &str) -> Session {
+fn default_model() -> Session {
     // let cuda = CUDAExecutionProvider::default();
     let model = Session::builder()
         .unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap()
+        .commit_from_file("models/boquilanet-gen.bq")
+        .unwrap();
+    return model;
+}
+
+// Lazily initialized global variables for the MODEL
+static CURRENT_AI: Lazy<Mutex<AImodel>> = Lazy::new(|| Mutex::new(AImodel::default())); //
+
+static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
+
+fn import_model(model_data: &Vec<u8>) -> Session {
+    // let cuda = CUDAExecutionProvider::default();
+    let model = Session::builder()
+        .unwrap()
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .unwrap()
+        .commit_from_memory(&model_data)
         // .with_execution_providers([cuda.build()]).unwrap()
-        .commit_from_file(model_path)
         .unwrap();
 
     return model;
 }
 
-pub fn set_model(value: String, new_input_width: u32, new_input_height: u32) {
-    *MODEL.lock().unwrap() = import_model(&value);
-    *INPUT_WIDTH.lock().unwrap() = new_input_width;
-    *INPUT_HEIGHT.lock().unwrap() = new_input_height;
+pub fn set_model(value: String) {
+    let (model_metadata, data): (AImodel, Vec<u8>) = import_bq(&value).unwrap();
+    *MODEL.lock().unwrap() = import_model(&data);
+    *CURRENT_AI.lock().unwrap() = model_metadata.clone();
+    println!("{:#?}", model_metadata);
 }
 
 fn run_model(input: Array<f32, Ix4>) -> Array<f32, IxDyn> {
@@ -59,8 +71,8 @@ fn run_model(input: Array<f32, Ix4>) -> Array<f32, IxDyn> {
 pub fn detect(file_path: String) -> Vec<XYXY> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
 
-    let input_width = *INPUT_HEIGHT.lock().unwrap();
-    let input_height = *INPUT_HEIGHT.lock().unwrap();
+    let input_width = CURRENT_AI.lock().unwrap().input_width;
+    let input_height = CURRENT_AI.lock().unwrap().input_height;
 
     let (input, img_width, img_height) = prepare_input(buf, input_width, input_height);
     let output = run_model(input);
@@ -70,18 +82,18 @@ pub fn detect(file_path: String) -> Vec<XYXY> {
 
 // #[flutter_rust_bridge::frb(dart_async)]
 // pub fn classify(file_path: String) -> ProbSpace {
-    
+
 // }
 
 // #[flutter_rust_bridge::frb(dart_async)]
 // pub fn segment(file_path: String) -> Vec<SEG> {
-    
+
 // }
 
 enum AIOutputs {
     ObjectDetection(Vec<XYXY>),
     Classification(ProbSpace),
-    Segmentation(Vec<SEGn>)
+    Segmentation(Vec<SEGn>),
 }
 
 enum AIFunctions {
