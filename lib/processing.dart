@@ -36,6 +36,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String foundImagesText = "";
   List<String> jpgFiles = [];
   List<PredImg> listpredimgs = [];
+  late AI currentAI = widget.currentAI;
+
+  @override
+  void initState() {
+    currentAI = widget.currentAI;
+    super.initState();
+  }
 
   void selectFolder() async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
@@ -145,7 +152,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       if (!shouldContinue) break;
       try {
         List<XYXY> response = await detect(filePath: filePath);
-        List<BBox> bboxpreds = XYXYtoBBOX(response, widget.currentAI);
+        List<BBox> bboxpreds = XYXYtoBBOX(response, currentAI);
         setState(() {
           listpredimgs.add(PredImg(filePath, bboxpreds));
         });
@@ -169,6 +176,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
         borderRadius: BorderRadius.all(Radius.circular(10)),
       ),
     );
+
+    AI currentAI = widget.currentAI;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -204,7 +213,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     });
                     setState(() {
                       if (results != null) {
-                        List<BBox> bboxpreds = XYXYtoBBOX(results, widget.currentAI);
+                        List<BBox> bboxpreds = XYXYtoBBOX(results, currentAI);
 
                         listpredimgs = [PredImg(jpgFiles[0], bboxpreds)];
 
@@ -260,9 +269,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                       if (selectedDirectory != null) {
                                         await copyToFolder(listpredimgs,
                                             "$selectedDirectory/export");
-                                        if (context.mounted){                                          
-                                        processFinishedCheckMark(context);
-                                        }                                        
+                                        if (context.mounted) {
+                                          processFinishedCheckMark(context);
+                                        }
                                       }
 
                                       // Navigator.pop(context);
@@ -274,7 +283,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             title: const Text("Opciones")));
                   },
                   child: const Text("Exportar")),
-            if (isrunning) const SizedBox(height: 15, width: 15, child: CircularProgressIndicator())
+            if (isrunning)
+              const SizedBox(
+                  height: 15, width: 15, child: CircularProgressIndicator())
           ],
         ),
         if (isfolderselected) Text(foundImagesText),
@@ -282,7 +293,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (isfolderselected) Text("$nProcessed imágenes procesadas"),
-            if (isProcessingFolder) const SizedBox(height: 15, width: 15, child: CircularProgressIndicator()),
+            if (isProcessingFolder)
+              const SizedBox(
+                  height: 15, width: 15, child: CircularProgressIndicator()),
           ],
         ),
         const SizedBox(height: 10),
@@ -346,17 +359,12 @@ Widget showpredimg(PredImg predimg, context) {
 }
 
 // ignore: non_constant_identifier_names
-List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai){
+List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai) {
+  print(ai.classes);
   List<BBox> toreturn = [];
-  for (XYXY xyxy in orig){
-    BBox temp = BBox(
-     xyxy.x1,
-     xyxy.y1,
-     xyxy.x2,
-     xyxy.y2,
-     ai.classes[xyxy.classId.toInt()],
-     xyxy.prob
-    );
+  for (XYXY xyxy in orig) {
+    BBox temp = BBox(xyxy.x1, xyxy.y1, xyxy.x2, xyxy.y2,
+        ai.classes[xyxy.classId.toInt()], xyxy.prob);
     toreturn.add(temp);
   }
   return toreturn;

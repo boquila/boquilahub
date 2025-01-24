@@ -40,9 +40,10 @@ class CoreApp extends StatefulWidget {
 class _CoreAppState extends State<CoreApp> {
   List<Color> currentcolors = terra;
   bool isLoadingAI = false;
+  late AI currentAI = widget.listAIs.first;
   @override
   Widget build(BuildContext context) {
-    AI currentAI = widget.listAIs.first;
+    // AI currentAI = widget.listAIs.first;
     TextStyle textito =
         TextStyle(color: currentcolors[4], fontWeight: FontWeight.bold);
     Color sidebarColor = currentcolors[1];

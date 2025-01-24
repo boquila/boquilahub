@@ -14,7 +14,10 @@ class SelectAIPage extends StatefulWidget {
   final List<Color> currentcolors;
   final List<AI> listAIs;
   const SelectAIPage(
-      {super.key, required this.aicallback, required this.currentcolors,required this.listAIs});
+      {super.key,
+      required this.aicallback,
+      required this.currentcolors,
+      required this.listAIs});
 
   @override
   State<SelectAIPage> createState() => _SelectAIPageState();
@@ -22,10 +25,11 @@ class SelectAIPage extends StatefulWidget {
 
 class _SelectAIPageState extends State<SelectAIPage> {
   String dropdownValue2 = listEPs.first.name;
+  late String dropdownValue = widget.listAIs.first.description;
 
   @override
   Widget build(BuildContext context) {
-    String dropdownValue = widget.listAIs.first.description;
+    // String dropdownValue = widget.listAIs.first.description;
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
 
@@ -44,9 +48,9 @@ class _SelectAIPageState extends State<SelectAIPage> {
             color: widget.currentcolors[2],
           ),
           onChanged: (String? value) {
-            if (dropdownValue != value) {
+            if (true) {
               setState(() {
-                AI tempAI = getAIByDescription(widget.listAIs,value!);
+                AI tempAI = getAIByDescription(widget.listAIs, value!);
                 dropdownValue = value;
                 widget.aicallback(tempAI);
               });
