@@ -1,11 +1,15 @@
 #![allow(dead_code)]
-use super::abstractions::{xyxy_to_bbox, ProbSpace, SEGn, AI, XYXY, BBox};
+use super::abstractions::{xyxy_to_bbox, BBox, ProbSpace, SEGn, AI, XYXY};
 use super::bq::import_bq;
+use super::eps::EP;
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
-use once_cell::sync::Lazy; // will help us manage the MODEL global variable
+use once_cell::sync::Lazy; 
+// will help us manage the MODEL global variable
 use ort::inputs;
-use ort::session::{builder::GraphOptimizationLevel, Session};
+use ort::session::builder::GraphOptimizationLevel;
+use ort::{execution_providers::CUDAExecutionProvider, session::Session};
+
 use std::{sync::Mutex, vec};
 
 use super::postprocessing::process_output;
@@ -20,6 +24,7 @@ fn default_model() -> Session {
     let (_model_metadata, data): (AI, Vec<u8>) = import_bq("models/boquilanet-gen.bq").unwrap();
     let model = Session::builder()
         .unwrap()
+        .with_execution_providers([CUDAExecutionProvider::default().build()]).unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap()
         .commit_from_memory(&data)
@@ -31,22 +36,35 @@ fn default_model() -> Session {
 static CURRENT_AI: Lazy<Mutex<AI>> = Lazy::new(|| Mutex::new(AI::default())); //
 static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
 
-fn import_model(model_data: &Vec<u8>) -> Session {
-    // let cuda = CUDAExecutionProvider::default();
-    let model = Session::builder()
-        .unwrap()
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .unwrap()
-        .commit_from_memory(&model_data)
-        // .with_execution_providers([cuda.build()]).unwrap()
-        .unwrap();
+fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {    
+    if ep.name == "CUDA" {
+        let model = Session::builder()
+            .unwrap()
+            .with_execution_providers([CUDAExecutionProvider::default().build().error_on_failure()])
+            .unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .unwrap()
+            .commit_from_memory(&model_data)
+            .unwrap();
 
-    return model;
+        return model;
+    } else {
+        
+        let model = Session::builder()
+            .unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .unwrap()
+            .commit_from_memory(&model_data)
+            // .with_execution_providers([cuda.build()]).unwrap()
+            .unwrap();
+
+        return model;
+    }
 }
 
-pub fn set_model(value: String) {
+pub fn set_model(value: String, ep: EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
-    *MODEL.lock().unwrap() = import_model(&data);
+    *MODEL.lock().unwrap() = import_model(&data, ep);
     *CURRENT_AI.lock().unwrap() = model_metadata.clone();
     println!("{:#?}", model_metadata);
 }
@@ -82,7 +100,7 @@ pub fn detect(file_path: String) -> Vec<XYXY> {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox(file_path: String) -> Vec<BBox> {
     let data = detect(file_path);
-    return xyxy_to_bbox(data, CURRENT_AI.lock().unwrap().clone())
+    return xyxy_to_bbox(data, CURRENT_AI.lock().unwrap().clone());
 }
 
 // #[flutter_rust_bridge::frb(dart_async)]

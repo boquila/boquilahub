@@ -1,7 +1,7 @@
 import 'package:boquilahub/src/resources/hardware_dep.dart';
 import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
-import 'package:boquilahub/src/rust/api/utils.dart';
+
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 
@@ -14,7 +14,7 @@ EP getEPByName(List<EP> listEPs, String name) {
 }
 
 class SelectAIPage extends StatefulWidget {
-  final Function(AI) aicallback;
+  final Function(AI,EP) aicallback;
   final List<Color> currentcolors;
   final List<AI> listAIs;
   const SelectAIPage(
@@ -30,6 +30,9 @@ class SelectAIPage extends StatefulWidget {
 class _SelectAIPageState extends State<SelectAIPage> {
   String epvalue = listEPs.first.name;
   String? dropdownValue;
+  late AI currentAI;
+  late EP currentEP = listEPs[0];
+
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +57,9 @@ class _SelectAIPageState extends State<SelectAIPage> {
             if (true) {
               setState(() {
                 AI tempAI = getAIByDescription(widget.listAIs, value!);
+                currentAI = tempAI;
                 dropdownValue = value;
-                widget.aicallback(tempAI);
+                widget.aicallback(currentAI, currentEP);
               });
             }
           },
@@ -82,12 +86,16 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) async {
             // print(value);
             if (value == "CUDA") {              
-              double cudaVersion = await ExecutionProviders.cuda(getEPByName(listEPs, value!)).getVersion();
+              EP tempEP = getEPByName(listEPs, value!);
+              double cudaVersion = await ExecutionProviders.cuda(tempEP).getVersion();
+              print(cudaVersion);
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
-              if (cudaVersion == 12.4 && iscudnnAvailable) {
+              if (cudaVersion == 12.8 && iscudnnAvailable) {
                 print("Gotta change runtime");
                 setState(() {
+                  currentEP = tempEP;
                   epvalue = value;
+                  widget.aicallback(currentAI, currentEP);
                 });
               } else {
                 if (!context.mounted) return;
@@ -110,8 +118,11 @@ class _SelectAIPageState extends State<SelectAIPage> {
               }
             } else if (value == "CPU") {
               // print("Gotta change runtime");
+              EP tempEP = getEPByName(listEPs, value!);
               setState(() {
-                epvalue = value!;
+                currentEP = tempEP;
+                epvalue = value;
+                widget.aicallback(currentAI, currentEP);
               });
             }
           },

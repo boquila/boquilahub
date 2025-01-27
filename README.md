@@ -37,7 +37,7 @@ Segmentation code is being rewritten
 | Runtime           | Description                                                                        | Requirements                                                        | Available?   |
 |-------------------|------------------------------------------------------------------------------------|---------------------------------------------------------------------|--------------|
 | cpu               | Your average CPU                                                                   | Having a CPU                                                        | ✅           |
-| NVIDIA CUDA       | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | Requires CUDA v12.4 and cuDNN 8.9.2.26+                             | ✅           |
+| NVIDIA CUDA       | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | Requires CUDA v12.8 and cuDNN 9.7                            | ✅           |
 | NVIDIA TensorRT   | TensorRT execution provider for NVIDIA GPUs (GeForce 9xx series and above)         | Requires CUDA v11.4+ and TensorRT v8.4+                             | On the way   |
 | AMD ROCm          | ROCm execution provider for AMD GPUs                                               | Requires ROCm-supported AMD GPUs                                    | On the way   |
 | AMD MIGraphX      | MIGraphX execution provider for AMD GPUs                                           | Requires AMD ROCm and MIGraphX                                      | On the way   |

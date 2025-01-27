@@ -9,6 +9,7 @@ import 'select_ai.dart';
 import 'src/resources/windows.dart';
 import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/api/bq.dart';
+import 'package:boquilahub/src/rust/api/eps.dart';
 // import 'src/resources/hardware_dep.dart';
 
 Future<void> main() async {
@@ -50,12 +51,12 @@ class _CoreAppState extends State<CoreApp> {
     Color backgroundStartColor = currentcolors[0];
     Color backgroundEndColor = currentcolors[1];
 
-    changeAI(AI newAI) async {
+    changeAI(AI newAI, EP ep) async {
       setState(() {
         isLoadingAI = true;
         currentAI = newAI;
       });
-      await setModel(value: await currentAI.getPath());
+      await setModel(value: await currentAI.getPath(), ep: ep);
       setState(() {
         isLoadingAI = false;
       });

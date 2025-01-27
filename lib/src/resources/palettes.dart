@@ -25,7 +25,7 @@ const List<Color> fire = <Color>[
 ];
 
 // list of the BBox colors
-const List<Color> bboxColors = <Color>[
+const List<Color> bboxColor = <Color>[
   Colors.red,
   Colors.deepPurple,
   Colors.lightBlueAccent,
@@ -100,4 +100,9 @@ const List<Color> bboxColors = <Color>[
   Color.fromARGB(255, 204, 153, 102),  // Copper
   Color.fromARGB(255, 153, 204, 102),  // Chartreuse
   Color.fromARGB(255, 204, 102, 204),  // Plum
+];
+
+const List<Color> bboxColors = [
+  ...bboxColor,
+  ...bboxColor,
 ];
