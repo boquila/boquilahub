@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
 import 'package:boquilahub/src/rust/api/utils.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
+import 'package:boquilahub/src/rust/api/eps.dart';
 
 AI getAIByDescription(List<AI> listAIs, String description) {
-  // Function to get AI object by description
   return listAIs.firstWhere((ai) => ai.description == description);
+}
+
+EP getEPByName(List<EP> listEPs, String name) {
+  return listEPs.firstWhere((ep) => ep.name == name);
 }
 
 class SelectAIPage extends StatefulWidget {
@@ -31,7 +35,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
   Widget build(BuildContext context) {
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
-
+    
     return Column(
       children: [
         Text("Selecciona una IA", style: textito),
@@ -77,13 +81,13 @@ class _SelectAIPageState extends State<SelectAIPage> {
           ),
           onChanged: (String? value) async {
             // print(value);
-            if (value == "CUDA") {
-              double cudaVersion = await getCudaVersion();
+            if (value == "CUDA") {              
+              double cudaVersion = await ExecutionProviders.cuda(getEPByName(listEPs, value!)).getVersion();
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.4 && iscudnnAvailable) {
-                // print("Gotta change runtime");
+                print("Gotta change runtime");
                 setState(() {
-                  epvalue = value!;
+                  epvalue = value;
                 });
               } else {
                 if (!context.mounted) return;
@@ -112,9 +116,9 @@ class _SelectAIPageState extends State<SelectAIPage> {
             }
           },
           items: listEPs.map<DropdownMenuItem<String>>((EP value) {
-            return DropdownMenuItem<String>(
+            return DropdownMenuItem(
               value: value.name,
-              child: value.widget,
+              child: getEPWidget(value),
             );
           }).toList(),
         ),

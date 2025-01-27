@@ -40,6 +40,7 @@ dependencies:
   file_picker: ^8.1.6
   bitsdojo_window: ^0.1.6
   intl: ^0.20.1
+  freezed_annotation: ^2.4.4
 
 dev_dependencies:
   flutter_test:
@@ -50,9 +51,11 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
+  freezed: ^2.5.8
   flutter_lints: ^5.0.0
   integration_test:
     sdk: flutter
+  build_runner: ^2.4.14
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

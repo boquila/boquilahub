@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
+import 'package:boquilahub/src/rust/api/eps.dart';
 
 class PredImg {
   final String filePath;
@@ -34,27 +35,20 @@ class PredImg {
     return filePath.split('\\').last;
   }
 }
-
-class EP {
-  final String name;
-  final String description;
-  final Widget widget; // New field
-
-  const EP(this.name, this.description, this.widget); // Updated constructor
+getEPWidget(EP ep) {
+  return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image(image: AssetImage('assets/${ep.imgPath}')),
+          Text(ep.name),
+        ],
+      );
 }
 
 const List<EP> listEPs = <EP>[
-  // EP("CPU", "Central Processing Unit", Center(child: Text("CPU"))),
-  EP(
-      "CUDA",
-      "GPU Nvidia",
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image(image: AssetImage('assets/tiny_nvidia.png')),
-          Text("CUDA"),
-        ],
-      ))
+  EP(name: "CPU", description: "Just your CPU", imgPath: "tiny_cpu.png", version: 0.0, dependencies: "none"),
+  EP(name: "CUDA", description: "NVIDIA GPU", imgPath: "tiny_nvidia.png", version: 12.4, dependencies: "cuDNN"),
+  
 ];
 
 Future<void> copyToFolder(List<PredImg> predImgs, String outputPath) async {
