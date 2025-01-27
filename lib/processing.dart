@@ -35,7 +35,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
   List<String> jpgFiles = [];
   List<PredImg> listpredimgs = [];
   
-
   @override
   void initState() {
     super.initState();

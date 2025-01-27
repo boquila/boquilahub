@@ -24,12 +24,11 @@ class SelectAIPage extends StatefulWidget {
 }
 
 class _SelectAIPageState extends State<SelectAIPage> {
-  String dropdownValue2 = listEPs.first.name;
-  late String dropdownValue = widget.listAIs.first.description;
+  String epvalue = listEPs.first.name;
+  String? dropdownValue;
 
   @override
   Widget build(BuildContext context) {
-    // String dropdownValue = widget.listAIs.first.description;
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
 
@@ -67,7 +66,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
         Text("Procesador", style: textito),
         const SizedBox(height: 10),
         DropdownButton<String>(
-          value: dropdownValue2,
+          value: epvalue,
           icon: const Icon(Icons.search),
           elevation: 1,
           style: TextStyle(color: widget.currentcolors[4]),
@@ -84,7 +83,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
               if (cudaVersion == 12.4 && iscudnnAvailable) {
                 // print("Gotta change runtime");
                 setState(() {
-                  dropdownValue2 = value!;
+                  epvalue = value!;
                 });
               } else {
                 if (!context.mounted) return;
@@ -108,7 +107,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
             } else if (value == "CPU") {
               // print("Gotta change runtime");
               setState(() {
-                dropdownValue2 = value!;
+                epvalue = value!;
               });
             }
           },

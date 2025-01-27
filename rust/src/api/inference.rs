@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use super::abstractions::{xyxy_to_bbox, ProbSpace, SEGn, AI, XYXY, BBox};
-use super::bq::{import_bq,get_bqs};
+use super::bq::import_bq;
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; // will help us manage the MODEL global variable

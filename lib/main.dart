@@ -18,7 +18,7 @@ Future<void> main() async {
 
   doWhenWindowReady(() {
     final win = appWindow;
-    const initialSize = Size(600, 520);
+    const initialSize = Size(800, 720);
     win.minSize = initialSize;
     win.size = initialSize;
     win.alignment = Alignment.center;
@@ -76,7 +76,7 @@ class _CoreAppState extends State<CoreApp> {
             children: [
               // lEFT SIDE
               SizedBox(
-                width: 200,
+                width: 300,
                 child: Container(
                   color: sidebarColor,
                   child: Column(
