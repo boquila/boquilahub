@@ -113,7 +113,7 @@ class _CoreAppState extends State<CoreApp> {
                     ),
                     Text("Selecciona una", style: textito),
                     ProcessingPage(
-                        currentcolors: currentcolors, currentAI: currentAI)
+                        currentcolors: currentcolors)
                   ]),
                 ),
               )

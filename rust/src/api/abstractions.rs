@@ -565,3 +565,59 @@ pub struct ImgPred {
     pub file_path: String,
     pub list_bbox: Vec<XYXY>,
 }
+
+// What we'll use to print, render and stuff, just a frontend struct
+// xyxyn
+pub struct BBox {
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub confidence: f32,
+    pub class_id: u16,
+    pub label: String,
+}
+
+impl BBox {
+    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, confidence: f32, class_id: u16,label: String) -> Self {
+        BBox {
+            x1,
+            y1,
+            x2,
+            y2,
+            confidence,
+            class_id,
+            label,
+        }
+    }
+
+    pub fn stringify(&self) -> String {
+        format!(
+            "{},{},{},{},{},{}",
+            self.x1, self.y1, self.x2, self.y2, self.confidence, self.label
+        )
+    }
+
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn strconf(&self) -> String {
+        format!("{:.2}", self.confidence)
+    }
+}
+
+pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: AI) -> Vec<BBox> {
+    let mut to_return: Vec<BBox> = Vec::new();
+    for xyxy in orig {
+        let label = ai.classes[xyxy.class_id].clone();
+        let bbox = BBox {
+            x1: xyxy.x1,
+            y1: xyxy.y1,
+            x2: xyxy.x2,
+            y2: xyxy.y2,
+            confidence: xyxy.prob,
+            class_id: xyxy.class_id as u16,
+            label,
+        };
+        to_return.push(bbox);
+    }
+    to_return
+}

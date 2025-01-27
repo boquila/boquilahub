@@ -1,24 +1,26 @@
 import 'dart:io';
 import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
+import 'package:boquilahub/src/rust/api/abstractions.dart';
 
-class BBox {
-  double x1, y1, x2, y2;
-  String label;
-  double confidence;
 
-  BBox(this.x1, this.y1, this.x2, this.y2, this.label, this.confidence);
+// class BBox {
+//   double x1, y1, x2, y2;
+//   String label;
+//   double confidence;
 
-  @override
-  String toString() {
-    return '$x1,$y1,$x2,$y2,$label,$confidence';
-  }
+//   BBox(this.x1, this.y1, this.x2, this.y2, this.label, this.confidence);
 
-  String strconf() {
-    // Round the confidence to two decimal places
-    return confidence.toStringAsFixed(2);
-  }
-}
+//   @override
+//   String toString() {
+//     return '$x1,$y1,$x2,$y2,$label,$confidence';
+//   }
+
+//   String strconf() {
+//     // Round the confidence to two decimal places
+//     return confidence.toStringAsFixed(2);
+//   }
+// }
 
 class PredImg {
   final String filePath;

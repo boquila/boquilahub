@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::abstractions::{AI, ProbSpace, SEGn, XYXY};
+use super::abstractions::{xyxy_to_bbox, ProbSpace, SEGn, AI, XYXY, BBox};
 use super::bq::{import_bq,get_bqs};
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
@@ -14,11 +14,6 @@ use super::postprocessing::process_output;
 pub fn init_app() {
     // Default utilities - feel free to customize
     flutter_rust_bridge::setup_default_user_utils();
-    let bqs = get_bqs();
-
-    for bq in bqs {
-        println!("{:#?}", bq);
-    }
 }
 
 fn default_model() -> Session {
@@ -34,7 +29,6 @@ fn default_model() -> Session {
 
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: Lazy<Mutex<AI>> = Lazy::new(|| Mutex::new(AI::default())); //
-
 static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
 
 fn import_model(model_data: &Vec<u8>) -> Session {
@@ -83,6 +77,12 @@ pub fn detect(file_path: String) -> Vec<XYXY> {
     let output = run_model(input);
     let boxes = process_output(output, img_width, img_height, input_width, input_height);
     return boxes;
+}
+
+#[flutter_rust_bridge::frb(dart_async)]
+pub fn detect_bbox(file_path: String) -> Vec<BBox> {
+    let data = detect(file_path);
+    return xyxy_to_bbox(data, CURRENT_AI.lock().unwrap().clone())
 }
 
 // #[flutter_rust_bridge::frb(dart_async)]

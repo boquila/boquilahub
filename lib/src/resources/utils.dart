@@ -3,6 +3,8 @@ import 'package:boquilahub/src/resources/palettes.dart';
 import 'package:flutter/material.dart';
 import 'objects.dart';
 import 'dart:io';
+import 'package:boquilahub/src/rust/api/abstractions.dart';
+
 
 class BoxImg extends StatefulWidget {
   final PredImg predImg;
@@ -102,7 +104,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: bboxColors[getIndexColor()],
+                              color: bboxColors[data.classId],
                               width: 2.0,
                             ),
                           ),
@@ -117,7 +119,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                         child: Align(
                           alignment: Alignment.topLeft,
                           child: Container(
-                            color: bboxColors[getIndexColor()],
+                            color: bboxColors[data.classId],
                             child: Padding(
                               padding: const EdgeInsets.all(2.0),
                               child: Text(

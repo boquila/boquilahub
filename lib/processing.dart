@@ -13,11 +13,9 @@ import 'dart:core';
 
 class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
-  final AI currentAI;
   const ProcessingPage({
     super.key,
     required this.currentcolors,
-    required this.currentAI,
   });
 
   @override
@@ -36,11 +34,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String foundImagesText = "";
   List<String> jpgFiles = [];
   List<PredImg> listpredimgs = [];
-  late AI currentAI = widget.currentAI;
+  
 
   @override
   void initState() {
-    currentAI = widget.currentAI;
     super.initState();
   }
 
@@ -121,14 +118,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  Future<List<XYXY>?> analyzeSingleFile(String filePath) async {
+  Future<List<BBox>?> analyzeSingleFile(String filePath) async {
     // print("Sending to Rust");
     // print(filePath);
     setState(() {
       isrunning = true;
     });
     try {
-      List<XYXY> response = await detect(filePath: filePath);
+      List<BBox> response = await detectBbox(filePath: filePath);
       setState(() {
         isrunning = false;
       });
@@ -151,8 +148,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       // print(filePath);
       if (!shouldContinue) break;
       try {
-        List<XYXY> response = await detect(filePath: filePath);
-        List<BBox> bboxpreds = XYXYtoBBOX(response, currentAI);
+        List<BBox> bboxpreds = await detectBbox(filePath: filePath);
         setState(() {
           listpredimgs.add(PredImg(filePath, bboxpreds));
         });
@@ -176,8 +172,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
         borderRadius: BorderRadius.all(Radius.circular(10)),
       ),
     );
-
-    AI currentAI = widget.currentAI;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -207,13 +201,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     setState(() {
                       isProcessingSingle = true;
                     });
-                    List<XYXY>? results = await analyzeSingleFile(jpgFiles[0]);
+                    List<BBox>? bboxpreds = await analyzeSingleFile(jpgFiles[0]);
                     setState(() {
                       isProcessingSingle = false;
                     });
                     setState(() {
-                      if (results != null) {
-                        List<BBox> bboxpreds = XYXYtoBBOX(results, currentAI);
+                      if (bboxpreds != null) {
 
                         listpredimgs = [PredImg(jpgFiles[0], bboxpreds)];
 
@@ -359,13 +352,13 @@ Widget showpredimg(PredImg predimg, context) {
 }
 
 // ignore: non_constant_identifier_names
-List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai) {
-  print(ai.classes);
-  List<BBox> toreturn = [];
-  for (XYXY xyxy in orig) {
-    BBox temp = BBox(xyxy.x1, xyxy.y1, xyxy.x2, xyxy.y2,
-        ai.classes[xyxy.classId.toInt()], xyxy.prob);
-    toreturn.add(temp);
-  }
-  return toreturn;
-}
+// List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai) {
+//   print(ai.classes);
+//   List<BBox> toreturn = [];
+//   for (XYXY xyxy in orig) {
+//     BBox temp = BBox(xyxy.x1, xyxy.y1, xyxy.x2, xyxy.y2,
+//         ai.classes[xyxy.classId.toInt()], xyxy.prob);
+//     toreturn.add(temp);
+//   }
+//   return toreturn;
+// }
