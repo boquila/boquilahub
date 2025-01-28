@@ -29,7 +29,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
   bool shouldContinue = true;
   int nProcessed = 0;
   String nfoundimagestext = "";
-  List<String> jpgFiles = [];
   List<PredImg> listpredimgs = [];
 
   @override
@@ -37,32 +36,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
     super.initState();
   }
 
-  bool isSupportedIMG(file) {
+  bool isSupportedIMG(File file) {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
         file.path.toLowerCase().endsWith('.png') ||
         file.path.toLowerCase().endsWith('.jpeg');
     return isPicture;
-  }
-
-  void selectFolder() async {
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-    if (selectedDirectory != null) {
-      final List<FileSystemEntity> entities =
-          await Directory(selectedDirectory.toString()).list().toList();
-      final Iterable<File> filesInDirectory = entities.whereType<File>();
-      setState(() {
-        jpgFiles = filesInDirectory
-            .where((file) => isSupportedIMG(file))
-            .map((file) => file.path)
-            .toList();
-        nProcessed = 0;
-        nfoundimagestext = "${jpgFiles.length} imágenes encontradas";
-        isfolderselected = true;
-        analyzecomplete = false;
-        shouldContinue = false;
-        listpredimgs = [];
-      });
-    } 
   }
 
   Future<bool> isImageCorrupted(String filePath) async {
@@ -76,38 +54,57 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
+  void selectFolder() async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    if (selectedDirectory != null) {
+      final List<FileSystemEntity> entities =
+          await Directory(selectedDirectory.toString()).list().toList();
+      final Iterable<File> filesInDirectory = entities.whereType<File>();
+      setState(() {
+        List<String> jpgFiles = filesInDirectory
+            .where((file) => isSupportedIMG(file))
+            .map((file) => file.path)
+            .toList();
+        listpredimgs = jpgFiles.map((file) => PredImg(file, [])).toList();
+        nProcessed = 0;
+        nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
+        isfolderselected = true;
+        analyzecomplete = false;
+        shouldContinue = false;
+      });
+    }
+  }
+
   void selectFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null) {
       File file = File(result.files.single.path!);
       if (isSupportedIMG(file)) {
         setState(() {
-          jpgFiles = [file.path];
+          PredImg temppred = PredImg(file.path, []);
+          listpredimgs.add(temppred);
           analyzecomplete = false;
           isfolderselected = false;
         });
       }
-    } 
+    }
   }
 
-  void analyzefolder(List<String> filePaths) async {
+  void analyze() async {
     setState(() {
       shouldContinue = true;
     });
-    for (String filePath in filePaths) {
-      // print(filePath);
+    for (int i = 0; i < listpredimgs.length; i++) {
       if (!shouldContinue) break;
       try {
-        List<BBox> bboxpreds = await detectBbox(filePath: filePath);
+        String temppath = listpredimgs[i].filePath;
+        List<BBox> tempbbox = await detectBbox(filePath: temppath);
         setState(() {
-          listpredimgs.add(PredImg(filePath, bboxpreds));
+          listpredimgs[i] = PredImg(temppath, tempbbox);
+          nProcessed = nProcessed + 1;
         });
-      } catch (e) {
-        // print(e);
-      }
-      setState(() {
-        nProcessed = nProcessed + 1;
-      });
+        // ignore: empty_catches
+      } catch (e) {}
     }
   }
 
@@ -145,7 +142,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (jpgFiles.isNotEmpty)
+            if (listpredimgs.isNotEmpty)
               ElevatedButton(
                   onPressed: () async {
                     if (isProcessing) {
@@ -153,9 +150,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                       setState(() {
                         isProcessing = true;
                         nProcessed = 0;
-                        listpredimgs = [];
                       });
-                      analyzefolder(jpgFiles);
+                      analyze();
                       setState(() {
                         analyzecomplete = true;
                         isProcessing = false;
@@ -221,7 +217,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                   height: 15, width: 15, child: CircularProgressIndicator()),
           ],
         ),
-        const SizedBox(height: 10),
+        if (true) const SizedBox(height: 10),
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.58,
           width: MediaQuery.of(context).size.width * 0.8,
