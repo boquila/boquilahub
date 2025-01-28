@@ -50,3 +50,4 @@ app.*.map.json
 rust/src/frb_generated.rs
 lib/src/rust
 binaries/
+.vscode

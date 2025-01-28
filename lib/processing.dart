@@ -13,9 +13,11 @@ import 'dart:core';
 
 class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
+  final AI? currentai;
   const ProcessingPage({
     super.key,
     required this.currentcolors,
+    required this.currentai,
   });
 
   @override
@@ -30,9 +32,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
   int nProcessed = 0;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
+  AI? currentAI;
 
   @override
   void initState() {
+    currentAI = widget.currentai;
     super.initState();
   }
 
@@ -82,7 +86,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       if (isSupportedIMG(file)) {
         setState(() {
           PredImg temppred = PredImg(file.path, []);
-          listpredimgs.add(temppred);
+          listpredimgs = [temppred];
           analyzecomplete = false;
           isfolderselected = false;
         });
@@ -90,7 +94,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  void analyze() async {
+  Future<void> analyze() async {
     setState(() {
       shouldContinue = true;
     });
@@ -120,22 +124,43 @@ class _ProcessingPageState extends State<ProcessingPage> {
       ),
     );
 
+    ButtonStyle botoncitostyle2 = ElevatedButton.styleFrom(
+      foregroundColor: Colors.grey,
+      backgroundColor: Colors.blueGrey,
+      minimumSize: const Size(100, 45),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+      ),
+    );
+
+    TextStyle textito =
+        TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        Text("Selecciona", style: textito),
         const SizedBox(height: 20),
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             ElevatedButton(
                 style: botoncitostyle,
                 onPressed: selectFolder,
                 child: const Text("Carpeta")),
-            const SizedBox(width: 50),
             ElevatedButton(
                 style: botoncitostyle,
                 onPressed: selectFile,
-                child: const Text("Imagen"))
+                child: const Text("Imagen")),
+            ElevatedButton(
+                style: botoncitostyle2,
+                onPressed: () {  },
+                child: const Text("Video")),
+            ElevatedButton(
+                style: botoncitostyle2,
+                onPressed: () {  },
+                child: const Text("Cámara")),
           ],
         ),
         const SizedBox(height: 10),
@@ -145,17 +170,21 @@ class _ProcessingPageState extends State<ProcessingPage> {
             if (listpredimgs.isNotEmpty)
               ElevatedButton(
                   onPressed: () async {
-                    if (isProcessing) {
+                    if (widget.currentai != null) {
+                      if (isProcessing) {
+                      } else {
+                        setState(() {
+                          isProcessing = true;
+                          nProcessed = 0;
+                        });
+                        await analyze();
+                        setState(() {
+                          analyzecomplete = true;
+                          isProcessing = false;
+                        });
+                      }
                     } else {
-                      setState(() {
-                        isProcessing = true;
-                        nProcessed = 0;
-                      });
-                      analyze();
-                      setState(() {
-                        analyzecomplete = true;
-                        isProcessing = false;
-                      });
+                      simpleDialog(context, "Primero, elige una IA");
                     }
                   },
                   child: const Text("Analizar")),
@@ -175,8 +204,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                               .format(DateTime.now());
                                       // writeCsv(predImgs: listpredimgs, outputPath: "analisis_$str.csv");
                                       // writeCsv2(predImgs: listpredimgs, outputPath: "analisis_condensado_$str.csv");
-                                      processFinishedCheckMark(context);
-                                      // Navigator.pop(context);
+                                      simpleDialog(context, "✅ Listo");
                                     },
                                     child: const Text("Exportar CSV")),
                                 const SizedBox(width: 10),
@@ -189,11 +217,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                         await copyToFolder(listpredimgs,
                                             "$selectedDirectory/export");
                                         if (context.mounted) {
-                                          processFinishedCheckMark(context);
+                                          simpleDialog(context, "✅ Listo");
                                         }
                                       }
-
-                                      // Navigator.pop(context);
                                     },
                                     child: const Text(
                                         "Copiar imágenes \nsegún clasificación")),
@@ -208,25 +234,21 @@ class _ProcessingPageState extends State<ProcessingPage> {
           ],
         ),
         if (isfolderselected) Text(nfoundimagestext),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isfolderselected) Text("$nProcessed imágenes procesadas"),
-            if (isProcessing)
-              const SizedBox(
-                  height: 15, width: 15, child: CircularProgressIndicator()),
-          ],
-        ),
-        if (true) const SizedBox(height: 10),
+        if (isfolderselected) Text("$nProcessed imágenes procesadas"),
+        const SizedBox(height: 10),
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.58,
           width: MediaQuery.of(context).size.width * 0.8,
-          child: ListView(
-            shrinkWrap: true,
-            scrollDirection: Axis.vertical,
-            children: <Widget>[
-              for (PredImg predimg in listpredimgs) render(predimg),
-            ],
+          child: ScrollConfiguration(
+            behavior: MyCustomScrollBehavior(),
+            child: ListView.builder(
+              shrinkWrap: true,
+              scrollDirection: Axis.vertical,
+              itemCount: listpredimgs.length,
+              itemBuilder: (context, index) {
+                return render(listpredimgs[index]);
+              },
+            ),
           ),
         ),
       ],
@@ -234,35 +256,25 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 }
 
-processFinishedCheckMark(context) {
+simpleDialog(context, String text) {
   return showDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      actions: [
-        ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text("Ok"))
-      ],
-      title: const Text("✅ Listo"),
-    ),
+    builder: (context) => AlertDialog(actions: [
+      ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text("Ok"))
+    ], title: Text(text)),
   );
 }
 
-niceError(context) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      actions: [
-        ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text("Ok"))
-      ],
-      title: const Text("Hubo un error"),
-    ),
-  );
+class MyCustomScrollBehavior extends MaterialScrollBehavior {
+  // Override behavior methods and getters like dragDevices
+  @override
+  Set<ui.PointerDeviceKind> get dragDevices => {
+        ui.PointerDeviceKind.touch,
+        ui.PointerDeviceKind.mouse,
+        ui.PointerDeviceKind.trackpad,
+      };
 }

@@ -35,6 +35,8 @@ fn default_model() -> Session {
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: Lazy<Mutex<AI>> = Lazy::new(|| Mutex::new(AI::default())); //
 static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
+static IOU_THRESHOLD: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.7));
+static MIN_PROB: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.45));
 
 fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {    
     if ep.name == "CUDA" {
@@ -49,7 +51,6 @@ fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {
 
         return model;
     } else {
-        
         let model = Session::builder()
             .unwrap()
             .with_optimization_level(GraphOptimizationLevel::Level3)
@@ -83,8 +84,7 @@ fn run_model(input: Array<f32, Ix4>) -> Array<f32, IxDyn> {
     return predictions;
 }
 
-#[flutter_rust_bridge::frb(dart_async)]
-pub fn detect(file_path: String) -> Vec<XYXY> {
+fn detect(file_path: String) -> Vec<XYXY> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
 
     let input_width = CURRENT_AI.lock().unwrap().input_width;
@@ -99,7 +99,7 @@ pub fn detect(file_path: String) -> Vec<XYXY> {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox(file_path: String) -> Vec<BBox> {
     let data = detect(file_path);
-    return xyxy_to_bbox(data, CURRENT_AI.lock().unwrap().clone());
+    return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
 
 // #[flutter_rust_bridge::frb(dart_async)]

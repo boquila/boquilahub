@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
-// import 'package:flutter/services.dart';
 import 'processing.dart';
 import 'src/resources/palettes.dart';
 import 'select_ai.dart';
@@ -10,7 +9,6 @@ import 'src/resources/windows.dart';
 import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/api/bq.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
-// import 'src/resources/hardware_dep.dart';
 
 Future<void> main() async {
   await RustLib.init();
@@ -41,12 +39,9 @@ class CoreApp extends StatefulWidget {
 class _CoreAppState extends State<CoreApp> {
   List<Color> currentcolors = terra;
   bool isLoadingAI = false;
-  late AI currentAI = widget.listAIs.first;
+  AI? currentAI;
   @override
   Widget build(BuildContext context) {
-    // AI currentAI = widget.listAIs.first;
-    TextStyle textito =
-        TextStyle(color: currentcolors[4], fontWeight: FontWeight.bold);
     Color sidebarColor = currentcolors[1];
     Color backgroundStartColor = currentcolors[0];
     Color backgroundEndColor = currentcolors[1];
@@ -56,7 +51,7 @@ class _CoreAppState extends State<CoreApp> {
         isLoadingAI = true;
         currentAI = newAI;
       });
-      await setModel(value: await currentAI.getPath(), ep: ep);
+      await setModel(value: await currentAI!.getPath(), ep: ep);
       setState(() {
         isLoadingAI = false;
       });
@@ -112,9 +107,7 @@ class _CoreAppState extends State<CoreApp> {
                         ],
                       ),
                     ),
-                    Text("Selecciona una", style: textito),
-                    ProcessingPage(
-                        currentcolors: currentcolors)
+                    ProcessingPage(currentcolors: currentcolors,currentai: currentAI)
                   ]),
                 ),
               )

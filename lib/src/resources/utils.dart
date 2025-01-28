@@ -72,6 +72,9 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     Image img = Image.file(File(widget.predImg.filePath), key: key);
+    if (widget.predImg.listbbox.isEmpty){
+      return img;
+    }
     return Stack(
       children: [
         delayedimg(img),
@@ -81,10 +84,6 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
             builder: (context, snapshot) {
               bool conA = !snapshot.hasData;
               bool conB = redboxSize == null;
-              // print("Conditions 1");
-              // print(redboxSize);
-              // print(conA);
-              // print(conB);
               if (conB || conA) {
                 return const CircularProgressIndicator();
               } else {

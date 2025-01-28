@@ -604,7 +604,7 @@ impl BBox {
     }
 }
 
-pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: AI) -> Vec<BBox> {
+pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: &AI) -> Vec<BBox> {
     let mut to_return: Vec<BBox> = Vec::new();
     for xyxy in orig {
         let label = ai.classes[xyxy.class_id].clone();
