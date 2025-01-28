@@ -20,10 +20,10 @@ class SelectAIPage extends StatefulWidget {
 }
 
 class _SelectAIPageState extends State<SelectAIPage> {
-  String epvalue = listEPs.first.name;
-  String? dropdownValue;
-  late AI currentAI;
-  late EP currentEP = listEPs[0];
+  String epDropdownValue = listEPs.first.name;
+  String? aiDropDownValue;
+  late AI? currentAI;
+  late EP currentEP = listEPs[0]; // CPU as default
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +35,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
         Text("Selecciona una IA", style: textito),
         const SizedBox(height: 10),
         DropdownButton<String>(
-          value: dropdownValue,
+          value: aiDropDownValue,
           icon: const Icon(Icons.search),
           elevation: 4,
           style: TextStyle(color: widget.currentcolors[4]),
@@ -47,11 +47,10 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) {
             if (true) {
               setState(() {
-                AI tempAI = getAiByDescription(
+                currentAI = getAiByDescription(
                     listAis: widget.listAIs, description: value!);
-                currentAI = tempAI;
-                dropdownValue = value;
-                widget.aicallback(currentAI, currentEP);
+                aiDropDownValue = value;
+                widget.aicallback(currentAI!, currentEP);
               });
             }
           },
@@ -95,7 +94,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
         Text("Procesador", style: textito),
         const SizedBox(height: 10),
         DropdownButton<String>(
-          value: epvalue,
+          value: epDropdownValue,
           icon: const Icon(Icons.search),
           elevation: 1,
           style: TextStyle(color: widget.currentcolors[4]),
@@ -105,44 +104,45 @@ class _SelectAIPageState extends State<SelectAIPage> {
             color: widget.currentcolors[2],
           ),
           onChanged: (String? value) async {
-            // print(value);
-            if (value == "CUDA") {
-              EP tempEP = getEpByName(listEps: listEPs, name: value!);
-              double cudaVersion =
-                  await ExecutionProviders.cuda(tempEP).getVersion();
-              bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
-              if (cudaVersion == 12.8 && iscudnnAvailable) {
+            if (currentAI != null) {
+              if (value == "CUDA") {
+                EP tempEP = getEpByName(listEps: listEPs, name: value!);
+                double cudaVersion =
+                    await ExecutionProviders.cuda(tempEP).getVersion();
+                bool iscudnnAvailable =
+                    true; // TODO: implement isCUDNNAvailable
+                if (cudaVersion == 12.8 && iscudnnAvailable) {
+                  setState(() {
+                    currentEP = tempEP;
+                    epDropdownValue = value;
+                  });
+                } else {
+                  if (!context.mounted) return;
+                  String cudatext = cudaText(cudaVersion);
+                  String cuDNNtext = cuDNNText(iscudnnAvailable);
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      actions: [
+                        ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            child: const Text("Ok"))
+                      ],
+                      content: Text(
+                          "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
+                    ),
+                  );
+                }
+              } else if (value == "CPU") {
                 setState(() {
-                  currentEP = tempEP;
-                  epvalue = value;
-                  widget.aicallback(currentAI, currentEP);
+                  currentEP = getEpByName(listEps: listEPs, name: value!);
+                  epDropdownValue = value;
                 });
-              } else {
-                if (!context.mounted) return;
-                String cudatext = cudaText(cudaVersion);
-                String cuDNNtext = cuDNNText(iscudnnAvailable);
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    actions: [
-                      ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text("Ok"))
-                    ],
-                    content: Text(
-                        "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
-                  ),
-                );
               }
-            } else if (value == "CPU") {
-              // print("Gotta change runtime");
-              EP tempEP = getEpByName(listEps: listEPs, name: value!);
               setState(() {
-                currentEP = tempEP;
-                epvalue = value;
-                widget.aicallback(currentAI, currentEP);
+                widget.aicallback(currentAI!, currentEP);
               });
             }
           },
