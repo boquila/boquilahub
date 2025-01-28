@@ -621,3 +621,8 @@ pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: AI) -> Vec<BBox> {
     }
     to_return
 }
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_ai_by_description(list_ais: &[AI], description: &str) -> AI {
+    list_ais.iter().find(|ai| ai.name == description).unwrap().clone()
+}

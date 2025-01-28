@@ -74,6 +74,7 @@ If you want to compile from source just have to
 cargo install flutter_rust_bridge_codegen 
 git clone https://github.com/boquila/boquilahub/
 cd boquilahub
+flutter_rust_bridge_codegen generate
 flutter run --release
 ```
 

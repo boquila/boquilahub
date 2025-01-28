@@ -349,15 +349,3 @@ Widget showpredimg(PredImg predimg, context) {
     ),
   );
 }
-
-// ignore: non_constant_identifier_names
-// List<BBox> XYXYtoBBOX(List<XYXY> orig, AI ai) {
-//   print(ai.classes);
-//   List<BBox> toreturn = [];
-//   for (XYXY xyxy in orig) {
-//     BBox temp = BBox(xyxy.x1, xyxy.y1, xyxy.x2, xyxy.y2,
-//         ai.classes[xyxy.classId.toInt()], xyxy.prob);
-//     toreturn.add(temp);
-//   }
-//   return toreturn;
-// }

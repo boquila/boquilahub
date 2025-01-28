@@ -66,7 +66,6 @@ pub fn set_model(value: String, ep: EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
     *MODEL.lock().unwrap() = import_model(&data, ep);
     *CURRENT_AI.lock().unwrap() = model_metadata.clone();
-    println!("{:#?}", model_metadata);
 }
 
 fn run_model(input: Array<f32, Ix4>) -> Array<f32, IxDyn> {

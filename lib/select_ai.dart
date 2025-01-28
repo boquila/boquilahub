@@ -5,14 +5,6 @@ import 'src/resources/objects.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 
-AI getAIByDescription(List<AI> listAIs, String description) {
-  return listAIs.firstWhere((ai) => ai.description == description);
-}
-
-EP getEPByName(List<EP> listEPs, String name) {
-  return listEPs.firstWhere((ep) => ep.name == name);
-}
-
 class SelectAIPage extends StatefulWidget {
   final Function(AI,EP) aicallback;
   final List<Color> currentcolors;
@@ -56,7 +48,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) {
             if (true) {
               setState(() {
-                AI tempAI = getAIByDescription(widget.listAIs, value!);
+                AI tempAI = getAiByDescription(listAis: widget.listAIs, description: value!);
                 currentAI = tempAI;
                 dropdownValue = value;
                 widget.aicallback(currentAI, currentEP);
@@ -65,8 +57,8 @@ class _SelectAIPageState extends State<SelectAIPage> {
           },
           items: widget.listAIs.map<DropdownMenuItem<String>>((AI value) {
             return DropdownMenuItem<String>(
-              value: value.description,
-              child: Text(value.description),
+              value: value.name,
+              child: Text('🖼️ ${value.name}'),
             );
           }).toList(),
         ),
@@ -86,12 +78,10 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) async {
             // print(value);
             if (value == "CUDA") {              
-              EP tempEP = getEPByName(listEPs, value!);
+              EP tempEP = getEpByName(listEps: listEPs,  name: value!);
               double cudaVersion = await ExecutionProviders.cuda(tempEP).getVersion();
-              print(cudaVersion);
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.8 && iscudnnAvailable) {
-                print("Gotta change runtime");
                 setState(() {
                   currentEP = tempEP;
                   epvalue = value;
@@ -112,13 +102,13 @@ class _SelectAIPageState extends State<SelectAIPage> {
                           child: const Text("Ok"))
                     ],
                     content: Text(
-                        "Se requiere \n- CUDA 12.4, $cudatext\n- cuDNN 8.9.2.26, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
+                        "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
                   ),
                 );
               }
             } else if (value == "CPU") {
               // print("Gotta change runtime");
-              EP tempEP = getEPByName(listEPs, value!);
+              EP tempEP = getEpByName(listEps: listEPs,  name: value!);
               setState(() {
                 currentEP = tempEP;
                 epvalue = value;
