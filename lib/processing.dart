@@ -24,12 +24,9 @@ class ProcessingPage extends StatefulWidget {
 
 class _ProcessingPageState extends State<ProcessingPage> {
   bool isfolderselected = false;
-  bool isfileselected = false;
-  bool isProcessingFolder = false;
-  bool isProcessingSingle = false;
+  bool isProcessing = false;
   bool analyzecomplete = false;
   bool shouldContinue = true;
-  bool isrunning = false;
   int nProcessed = 0;
   String nfoundimagestext = "";
   List<String> jpgFiles = [];
@@ -61,7 +58,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
         nProcessed = 0;
         nfoundimagestext = "${jpgFiles.length} imágenes encontradas";
         isfolderselected = true;
-        isfileselected = false;
         analyzecomplete = false;
         shouldContinue = false;
         listpredimgs = [];
@@ -87,36 +83,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
       if (isSupportedIMG(file)) {
         setState(() {
           jpgFiles = [file.path];
-          // bool sd = await isImageCorrupted(filePath);
-          // print("is corrupted?");
-          // print(sd);
           analyzecomplete = false;
           isfolderselected = false;
-          isfileselected = true;
         });
       }
     } 
-  }
-
-  Future<List<BBox>?> analyzeSingleFile(String filePath) async {
-    setState(() {
-      isrunning = true;
-    });
-    try {
-      List<BBox> response = await detectBbox(filePath: filePath);
-      setState(() {
-        isrunning = false;
-      });
-      
-      return response;
-    // ignore: empty_catches
-    } catch (e) {
-      
-    }
-    setState(() {
-      isrunning = false;
-    });
-    return null;
   }
 
   void analyzefolder(List<String> filePaths) async {
@@ -174,46 +145,26 @@ class _ProcessingPageState extends State<ProcessingPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (isfileselected)
+            if (jpgFiles.isNotEmpty)
               ElevatedButton(
                   onPressed: () async {
-                    setState(() {
-                      isProcessingSingle = true;
-                    });
-                    List<BBox>? bboxpreds =
-                        await analyzeSingleFile(jpgFiles[0]);
-                    setState(() {
-                      isProcessingSingle = false;
-                    });
-                    setState(() {
-                      if (bboxpreds != null) {
-                        listpredimgs = [PredImg(jpgFiles[0], bboxpreds)];
-
-                        analyzecomplete = true;
-                      }
-                    });
-                  },
-                  child: const Text("Analizar fotografía")),
-            if (isfolderselected & jpgFiles.isNotEmpty)
-              ElevatedButton(
-                  onPressed: () async {
-                    if (isProcessingFolder) {
+                    if (isProcessing) {
                     } else {
                       setState(() {
-                        isProcessingFolder = true;
+                        isProcessing = true;
                         nProcessed = 0;
                         listpredimgs = [];
                       });
                       analyzefolder(jpgFiles);
                       setState(() {
                         analyzecomplete = true;
-                        isProcessingFolder = false;
+                        isProcessing = false;
                       });
                     }
                   },
-                  child: const Text("Analizar carpeta")),
+                  child: const Text("Analizar")),
             // AI predicitons exports are done here
-            if ((isfileselected || isfolderselected) & analyzecomplete)
+            if (analyzecomplete)
               ElevatedButton(
                   onPressed: () {
                     showDialog(
@@ -255,7 +206,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             title: const Text("Opciones")));
                   },
                   child: const Text("Exportar")),
-            if (isrunning)
+            if (isProcessing)
               const SizedBox(
                   height: 15, width: 15, child: CircularProgressIndicator())
           ],
@@ -265,7 +216,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (isfolderselected) Text("$nProcessed imágenes procesadas"),
-            if (isProcessingFolder)
+            if (isProcessing)
               const SizedBox(
                   height: 15, width: 15, child: CircularProgressIndicator()),
           ],
