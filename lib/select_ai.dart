@@ -6,7 +6,7 @@ import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 
 class SelectAIPage extends StatefulWidget {
-  final Function(AI,EP) aicallback;
+  final Function(AI, EP) aicallback;
   final List<Color> currentcolors;
   final List<AI> listAIs;
   const SelectAIPage(
@@ -25,12 +25,11 @@ class _SelectAIPageState extends State<SelectAIPage> {
   late AI currentAI;
   late EP currentEP = listEPs[0];
 
-
   @override
   Widget build(BuildContext context) {
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
-    
+
     return Column(
       children: [
         Text("Selecciona una IA", style: textito),
@@ -48,7 +47,8 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) {
             if (true) {
               setState(() {
-                AI tempAI = getAiByDescription(listAis: widget.listAIs, description: value!);
+                AI tempAI = getAiByDescription(
+                    listAis: widget.listAIs, description: value!);
                 currentAI = tempAI;
                 dropdownValue = value;
                 widget.aicallback(currentAI, currentEP);
@@ -58,7 +58,36 @@ class _SelectAIPageState extends State<SelectAIPage> {
           items: widget.listAIs.map<DropdownMenuItem<String>>((AI value) {
             return DropdownMenuItem<String>(
               value: value.name,
-              child: Text('🖼️ ${value.name}'),
+              child: Tooltip(
+                message: value.classes.join(', '),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('🖼️ '),
+                        Text(value.name),
+                      ],
+                    ),
+                    if (value.classes.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${value.classes.length} clases',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             );
           }).toList(),
         ),
@@ -77,9 +106,10 @@ class _SelectAIPageState extends State<SelectAIPage> {
           ),
           onChanged: (String? value) async {
             // print(value);
-            if (value == "CUDA") {              
-              EP tempEP = getEpByName(listEps: listEPs,  name: value!);
-              double cudaVersion = await ExecutionProviders.cuda(tempEP).getVersion();
+            if (value == "CUDA") {
+              EP tempEP = getEpByName(listEps: listEPs, name: value!);
+              double cudaVersion =
+                  await ExecutionProviders.cuda(tempEP).getVersion();
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.8 && iscudnnAvailable) {
                 setState(() {
@@ -108,7 +138,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
               }
             } else if (value == "CPU") {
               // print("Gotta change runtime");
-              EP tempEP = getEpByName(listEps: listEPs,  name: value!);
+              EP tempEP = getEpByName(listEps: listEPs, name: value!);
               setState(() {
                 currentEP = tempEP;
                 epvalue = value;
