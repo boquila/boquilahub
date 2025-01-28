@@ -22,7 +22,7 @@ class SelectAIPage extends StatefulWidget {
 class _SelectAIPageState extends State<SelectAIPage> {
   String epDropdownValue = listEPs.first.name;
   String? aiDropDownValue;
-  late AI? currentAI;
+  AI? currentAI;
   late EP currentEP = listEPs[0]; // CPU as default
 
   @override
@@ -57,36 +57,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
           items: widget.listAIs.map<DropdownMenuItem<String>>((AI value) {
             return DropdownMenuItem<String>(
               value: value.name,
-              child: Tooltip(
-                message: value.classes.join(', '),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('🖼️ '),
-                        Text(value.name),
-                      ],
-                    ),
-                    if (value.classes.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${value.classes.length} clases',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              child: getAIwidget(value),
             );
           }).toList(),
         ),

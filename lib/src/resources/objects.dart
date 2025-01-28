@@ -9,53 +9,91 @@ class PredImg {
   List<BBox> listbbox;
 
   PredImg(this.filePath, this.listbbox);
+}
 
-  Widget render() {
-    return ClickableImage(predImg: this, child: BoxImg(predImg: this));
-  }
+String getMainLabel(List<BBox> listbbox) {
+  if (listbbox.isEmpty) {
+    return 'no predictions';
+  } else {
+    final Map<String, int> labelCounts = {};
 
-  String getMainLabel() {
-    if (listbbox.isEmpty) {
-      return 'no predictions';
-    } else {
-      final Map<String, int> labelCounts = {};
-
-      for (var bbox in listbbox) {
-        labelCounts[bbox.label] = (labelCounts[bbox.label] ?? 0) + 1;
-      }
-
-      final mainLabel =
-          labelCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-
-      return mainLabel;
+    for (var bbox in listbbox) {
+      labelCounts[bbox.label] = (labelCounts[bbox.label] ?? 0) + 1;
     }
-  }
 
-  String getFilename() {
-    return filePath.split('\\').last;
+    final mainLabel =
+        labelCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+
+    return mainLabel;
   }
 }
+
+Widget render(predImg) {
+  return ClickableImage(predImg: predImg, child: BoxImg(predImg: predImg));
+}
+
 getEPWidget(EP ep) {
   return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image(image: AssetImage('assets/${ep.imgPath}')),
-          Text(ep.name),
-        ],
-      );
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Image(image: AssetImage('assets/${ep.imgPath}')),
+      Text(ep.name),
+    ],
+  );
 }
 
 const List<EP> listEPs = <EP>[
-  EP(name: "CPU", description: "Just your CPU", imgPath: "tiny_cpu.png", version: 0.0, dependencies: "none"),
-  EP(name: "CUDA", description: "NVIDIA GPU", imgPath: "tiny_nvidia.png", version: 12.4, dependencies: "cuDNN"),
-  
+  EP(
+      name: "CPU",
+      description: "Just your CPU",
+      imgPath: "tiny_cpu.png",
+      version: 0.0,
+      dependencies: "none"),
+  EP(
+      name: "CUDA",
+      description: "NVIDIA GPU",
+      imgPath: "tiny_nvidia.png",
+      version: 12.4,
+      dependencies: "cuDNN"),
 ];
+
+Widget getAIwidget(AI value) {
+  return Tooltip(
+    message: value.classes.join(', '),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            const Text('🖼️ '),
+            Text(value.name),
+          ],
+        ),
+        if (value.classes.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'classes: ${value.classes.length}',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
 
 Future<void> copyToFolder(List<PredImg> predImgs, String outputPath) async {
   for (PredImg predImg in predImgs) {
     final File imageFile = File(predImg.filePath);
     if (await imageFile.exists()) {
-      final String mainLabel = predImg.getMainLabel();
+      final String mainLabel = getMainLabel(predImg.listbbox);
       String folderPath;
       if (mainLabel == 'no predictions') {
         folderPath = '$outputPath/$mainLabel';

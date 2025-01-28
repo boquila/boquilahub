@@ -163,8 +163,8 @@ class ClickableImage extends StatelessWidget {
           builder: (context) => Scaffold(
             appBar: AppBar(
                 centerTitle: true,
-                title: Text(predImg.getFilename()),
-                backgroundColor: Colors.teal),
+                title: Text(predImg.filePath),
+                backgroundColor: Color.fromARGB(255, 61, 163, 93)),
             body: child,
           ),
         ),
