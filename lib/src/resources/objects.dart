@@ -11,6 +11,15 @@ class PredImg {
   PredImg(this.filePath, this.listbbox);
 }
 
+bool areBoxesEmpty(List<PredImg> images) {
+  for (var image in images) {
+    if (image.listbbox.isNotEmpty) {
+      return false;
+    }
+  }
+  return true;
+}
+
 String getMainLabel(List<BBox> listbbox) {
   if (listbbox.isEmpty) {
     return 'no predictions';

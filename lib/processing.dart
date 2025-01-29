@@ -40,6 +40,30 @@ class _ProcessingPageState extends State<ProcessingPage> {
     super.initState();
   }
 
+  Future<bool?> askUserWhatToAnalyze() async {
+    bool? result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Elige"),
+          content: Text("Quieres analizar todo?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text("Sí"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text("No, solo los datos faltan"),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result;
+  }
+
   bool isSupportedIMG(File file) {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
         file.path.toLowerCase().endsWith('.png') ||
@@ -75,6 +99,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         isfolderselected = true;
         analyzecomplete = false;
         shouldContinue = false;
+        isProcessing = false;
       });
     }
   }
@@ -94,15 +119,22 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  Future<void> analyze() async {
+  Future<void> analyze(bool analyzeonlyempty) async {
     setState(() {
       shouldContinue = true;
     });
     for (int i = 0; i < listpredimgs.length; i++) {
       if (!shouldContinue) break;
+      if (analyzeonlyempty) {
+        if (listpredimgs[i].listbbox.isNotEmpty) {
+          continue;
+        }
+      }
+
       try {
         String temppath = listpredimgs[i].filePath;
         List<BBox> tempbbox = await detectBbox(filePath: temppath);
+        if (!shouldContinue) break;
         setState(() {
           listpredimgs[i] = PredImg(temppath, tempbbox);
           nProcessed = nProcessed + 1;
@@ -155,11 +187,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 child: const Text("Imagen")),
             ElevatedButton(
                 style: botoncitostyle2,
-                onPressed: () {  },
+                onPressed: () {},
                 child: const Text("Video")),
             ElevatedButton(
                 style: botoncitostyle2,
-                onPressed: () {  },
+                onPressed: () {},
                 child: const Text("Cámara")),
           ],
         ),
@@ -173,21 +205,35 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     if (widget.currentai != null) {
                       if (isProcessing) {
                       } else {
-                        setState(() {
-                          isProcessing = true;
-                          nProcessed = 0;
-                        });
-                        await analyze();
-                        setState(() {
-                          analyzecomplete = true;
-                          isProcessing = false;
-                        });
+                        if (!areBoxesEmpty(listpredimgs)) {
+                          bool? checkall = await askUserWhatToAnalyze();
+                          if (checkall != null) {
+                            setState(() {
+                              isProcessing = true;
+                              nProcessed = 0;
+                            });
+                            await analyze(!checkall);
+                            setState(() {
+                              analyzecomplete = true;
+                              isProcessing = false;
+                            });
+                          }
+                        }
                       }
                     } else {
                       simpleDialog(context, "Primero, elige una IA");
                     }
                   },
-                  child: const Text("Analizar")),
+                  child: Row(
+                    children: [
+                      const Text("Analizar"),
+                      if (isProcessing)
+                        const SizedBox(
+                            height: 15,
+                            width: 15,
+                            child: CircularProgressIndicator())
+                    ],
+                  )),
             // AI predicitons exports are done here
             if (analyzecomplete)
               ElevatedButton(
@@ -199,9 +245,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
                               children: [
                                 ElevatedButton(
                                     onPressed: () async {
-                                      String str =
-                                          DateFormat("yyyy-MM-dd HH mm ss")
-                                              .format(DateTime.now());
+                                      // String str =
+                                      //     DateFormat("yyyy-MM-dd HH mm ss")
+                                      //         .format(DateTime.now());
                                       // writeCsv(predImgs: listpredimgs, outputPath: "analisis_$str.csv");
                                       // writeCsv2(predImgs: listpredimgs, outputPath: "analisis_condensado_$str.csv");
                                       simpleDialog(context, "✅ Listo");
@@ -228,9 +274,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             title: const Text("Opciones")));
                   },
                   child: const Text("Exportar")),
-            if (isProcessing)
-              const SizedBox(
-                  height: 15, width: 15, child: CircularProgressIndicator())
           ],
         ),
         if (isfolderselected) Text(nfoundimagestext),
@@ -242,6 +285,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           child: ScrollConfiguration(
             behavior: MyCustomScrollBehavior(),
             child: ListView.builder(
+              addAutomaticKeepAlives: false,
               shrinkWrap: true,
               scrollDirection: Axis.vertical,
               itemCount: listpredimgs.length,
