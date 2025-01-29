@@ -27,7 +27,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
   bool isProcessing = false;
   bool analyzecomplete = false;
   bool shouldContinue = true;
-  int nProcessed = 0;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
   AI? currentAI;
@@ -38,7 +37,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     super.initState();
   }
 
-  void pause(){
+  void pause() {
     setState(() {
       shouldContinue = false;
     });
@@ -102,17 +101,22 @@ class _ProcessingPageState extends State<ProcessingPage> {
       final List<FileSystemEntity> entities =
           await Directory(selectedDirectory.toString()).list().toList();
       final Iterable<File> filesInDirectory = entities.whereType<File>();
+      List<String> jpgFiles = filesInDirectory
+          .where((file) => isSupportedIMG(file))
+          .map((file) => file.path)
+          .toList();
+      List<PredImg> templist = [];
+      for (String filepath in jpgFiles) {
+        List<BBox> tempbbox = await readPredictionsFromFile(filepath);
+        PredImg temppredimg = PredImg(filepath, tempbbox, tempbbox.isNotEmpty);
+        templist.add(temppredimg);
+      }
       setState(() {
-        List<String> jpgFiles = filesInDirectory
-            .where((file) => isSupportedIMG(file))
-            .map((file) => file.path)
-            .toList();
-        listpredimgs = jpgFiles.map((file) => PredImg(file, [])).toList();
+        listpredimgs = templist;
         isfolderselected = true;
         analyzecomplete = false;
         shouldContinue = false;
         isProcessing = false;
-        nProcessed = 0;
         nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
       });
     }
@@ -125,8 +129,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
     if (result != null) {
       File file = File(result.files.single.path!);
+      List<BBox> tempbbox = await readPredictionsFromFile(file.path);
+      PredImg temppred = PredImg(file.path, tempbbox, tempbbox.isNotEmpty);
       setState(() {
-        PredImg temppred = PredImg(file.path, []);
         listpredimgs = [temppred];
         analyzecomplete = false;
         isfolderselected = false;
@@ -151,8 +156,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
         List<BBox> tempbbox = await detectBbox(filePath: temppath);
         if (!shouldContinue) break;
         setState(() {
-          listpredimgs[i] = PredImg(temppath, tempbbox);
-          nProcessed = nProcessed + 1;
+          listpredimgs[i].listbbox = tempbbox;
+          listpredimgs[i].wasprocessed = true;
         });
         // ignore: empty_catches
       } catch (e) {}
@@ -254,12 +259,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
                               children: [
                                 ElevatedButton(
                                     onPressed: () async {
-                                      // String str =
-                                      //     DateFormat("yyyy-MM-dd HH mm ss")
-                                      //         .format(DateTime.now());
-                                      // writeCsv(predImgs: listpredimgs, outputPath: "analisis_$str.csv");
-                                      // writeCsv2(predImgs: listpredimgs, outputPath: "analisis_condensado_$str.csv");
-                                      simpleDialog(context, "✅ Listo");
+                                      for (PredImg predimg in listpredimgs) {
+                                        await writePredImgToFile(predimg);
+                                      }
+
+                                      if (context.mounted) {
+                                        simpleDialog(context, "✅ Listo");
+                                      }
                                     },
                                     child: const Text("Exportar CSV")),
                                 const SizedBox(width: 10),
@@ -288,7 +294,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
           ],
         ),
         if (isfolderselected) Text(nfoundimagestext),
-        if (isfolderselected) Text("$nProcessed imágenes procesadas"),
+        if (isfolderselected)
+          Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
         const SizedBox(height: 10),
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.58,
