@@ -267,7 +267,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                         simpleDialog(context, "✅ Listo");
                                       }
                                     },
-                                    child: const Text("Exportar CSV")),
+                                    child: const Text("Exportar datos")),
                                 const SizedBox(width: 10),
                                 ElevatedButton(
                                     onPressed: () async {
