@@ -1,6 +1,4 @@
 import 'package:boquilahub/src/rust/api/abstractions.dart';
-import 'package:intl/intl.dart';
-// import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -40,13 +38,18 @@ class _ProcessingPageState extends State<ProcessingPage> {
     super.initState();
   }
 
+  void pause(){
+    setState(() {
+      shouldContinue = false;
+    });
+  }
+
   Future<bool?> askUserWhatToAnalyze() async {
     bool? result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Elige"),
-          content: Text("Quieres analizar todo?"),
+          content: Text("¿Quieres analizar todo?"),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
@@ -54,7 +57,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text("No, solo los datos faltan"),
+              child: Text("No, solo los datos que faltan"),
             ),
           ],
         );
@@ -62,6 +65,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
 
     return result;
+  }
+
+  void analyzeW(bool bool) async {
+    setState(() {
+      isProcessing = true;
+    });
+    await analyze(bool);
+    setState(() {
+      analyzecomplete = true;
+      isProcessing = false;
+    });
   }
 
   bool isSupportedIMG(File file) {
@@ -94,28 +108,29 @@ class _ProcessingPageState extends State<ProcessingPage> {
             .map((file) => file.path)
             .toList();
         listpredimgs = jpgFiles.map((file) => PredImg(file, [])).toList();
-        nProcessed = 0;
-        nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
         isfolderselected = true;
         analyzecomplete = false;
         shouldContinue = false;
         isProcessing = false;
+        nProcessed = 0;
+        nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
       });
     }
   }
 
   void selectFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowedExtensions: ['jpg', 'jpeg', "png"],
+      type: FileType.custom,
+    );
     if (result != null) {
       File file = File(result.files.single.path!);
-      if (isSupportedIMG(file)) {
-        setState(() {
-          PredImg temppred = PredImg(file.path, []);
-          listpredimgs = [temppred];
-          analyzecomplete = false;
-          isfolderselected = false;
-        });
-      }
+      setState(() {
+        PredImg temppred = PredImg(file.path, []);
+        listpredimgs = [temppred];
+        analyzecomplete = false;
+        isfolderselected = false;
+      });
     }
   }
 
@@ -208,16 +223,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
                         if (!areBoxesEmpty(listpredimgs)) {
                           bool? checkall = await askUserWhatToAnalyze();
                           if (checkall != null) {
-                            setState(() {
-                              isProcessing = true;
-                              nProcessed = 0;
-                            });
-                            await analyze(!checkall);
-                            setState(() {
-                              analyzecomplete = true;
-                              isProcessing = false;
-                            });
+                            analyzeW(!checkall);
                           }
+                        } else {
+                          analyzeW(true);
                         }
                       }
                     } else {
@@ -274,6 +283,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             title: const Text("Opciones")));
                   },
                   child: const Text("Exportar")),
+            if (isProcessing)
+              ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
           ],
         ),
         if (isfolderselected) Text(nfoundimagestext),
