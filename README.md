@@ -4,9 +4,9 @@ Run AI models to monitor and protect nature. Locally, no cloud.
 
 ![readme](readme.jpg)
 
-## AIs
+## AIs and binaries
 
-Go to [boquila.org/hub](https://boquila.org/hub), download the models you want to use and just put them in your models folder, that's it.
+Go to [boquila.org/hub](https://boquila.org/hub), download the models you want to use and just put them in your models folder, that's it. The compiled binaries are also there.
 
 You can load any [.bq model](https://github.com/boquila/.bq). Right now, only for object detection. But in the future we will expand the format.
 
