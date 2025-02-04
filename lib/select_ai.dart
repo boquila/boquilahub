@@ -1,9 +1,9 @@
 import 'package:boquilahub/src/resources/hardware_dep.dart';
 import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
-
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
+import 'package:boquilahub/src/rust/api/rest.dart';
 
 class SelectAIPage extends StatefulWidget {
   final Function(AI, EP) aicallback;
@@ -24,11 +24,23 @@ class _SelectAIPageState extends State<SelectAIPage> {
   String? aiDropDownValue;
   AI? currentAI;
   late EP currentEP = listEPs[0]; // CPU as default
+  bool isAPIdeployed = false;
+  bool apierror = false;
 
   @override
   Widget build(BuildContext context) {
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
+
+    ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
+      foregroundColor: widget.currentcolors[0],
+      backgroundColor: widget.currentcolors[4],
+      minimumSize: const Size(100, 45),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(10)),
+      ),
+    );
 
     return Column(
       children: [
@@ -124,6 +136,52 @@ class _SelectAIPageState extends State<SelectAIPage> {
             );
           }).toList(),
         ),
+        const SizedBox(height: 30),
+        Text("API", style: textito),
+        const SizedBox(height: 10),
+        if (!isAPIdeployed)
+          Tooltip(
+            textAlign: TextAlign.center,
+            waitDuration: const Duration(milliseconds: 500),
+            message:
+                "Esto permite que otros dispositivos \nen su red local puedan procesar datos\n a través de esta aplicación",
+            child: ElevatedButton(
+              style: botoncitostyle,
+              onPressed: () async {
+                try {
+                  setState(() {
+                    isAPIdeployed = true;
+                    apierror = false;
+                  });
+                  await runApi();
+                } catch (e) {
+                  setState(() {
+                    isAPIdeployed = false;
+                    apierror = true;
+                  });
+                }
+              },
+              child: const Text('Habilitar'),
+            ),
+          ),
+        if (isAPIdeployed)
+          Tooltip(
+            textAlign: TextAlign.center,
+            waitDuration: const Duration(milliseconds: 500),
+            message:
+                "Esto permite que otros dispositivos \nen su red local puedan procesar datos\n a través de esta aplicación",
+            child: ElevatedButton(
+              
+              onPressed: null,
+              child: const Text('Habilitar'),
+            ),
+          ),
+        if (isAPIdeployed)
+          Text(
+            "API desplegada en \nURL local: http://{IP}:8791",
+            textAlign: TextAlign.center,
+          ),
+        if (apierror) Text("Ocurrió un error")
       ],
     );
   }
