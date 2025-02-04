@@ -164,28 +164,55 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
+  Widget _buildSourceButton(
+      {required IconData icon,
+      required String label,
+      required VoidCallback onPressed,
+      required Color color}) {
+    return ElevatedButton.icon(
+      icon: Icon(icon, size: 20),
+      label: Text(label),
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: color,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDataSourceButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildSourceButton(
+            icon: Icons.folder_open,
+            label: "Carpeta",
+            onPressed: selectFolder,
+            color: widget.currentcolors[4]),
+        _buildSourceButton(
+            icon: Icons.image_outlined,
+            label: "Imagen",
+            onPressed: selectFile,
+            color: widget.currentcolors[4]),
+        _buildSourceButton(
+            icon: Icons.videocam_outlined,
+            label: "Video",
+            onPressed: () {},
+            color: Colors.grey),
+        _buildSourceButton(
+            icon: Icons.camera_alt_outlined,
+            label: "Cámara",
+            onPressed: () {},
+            color: Colors.grey),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
-      foregroundColor: widget.currentcolors[0],
-      backgroundColor: widget.currentcolors[4],
-      minimumSize: const Size(100, 45),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-      ),
-    );
-
-    ButtonStyle botoncitostyle2 = ElevatedButton.styleFrom(
-      foregroundColor: Colors.grey,
-      backgroundColor: Colors.blueGrey,
-      minimumSize: const Size(100, 45),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(10)),
-      ),
-    );
-
     TextStyle textito =
         TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
 
@@ -194,27 +221,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       children: [
         Text("Selecciona", style: textito),
         const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            ElevatedButton(
-                style: botoncitostyle,
-                onPressed: selectFolder,
-                child: const Text("Carpeta")),
-            ElevatedButton(
-                style: botoncitostyle,
-                onPressed: selectFile,
-                child: const Text("Imagen")),
-            ElevatedButton(
-                style: botoncitostyle2,
-                onPressed: () {},
-                child: const Text("Video")),
-            ElevatedButton(
-                style: botoncitostyle2,
-                onPressed: () {},
-                child: const Text("Cámara")),
-          ],
-        ),
+        _buildDataSourceButtons(),
         const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
