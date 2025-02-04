@@ -1,3 +1,4 @@
+import 'package:boquilahub/src/resources/objects.dart';
 import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';
@@ -40,21 +41,29 @@ class _CoreAppState extends State<CoreApp> {
   List<Color> currentcolors = terra;
   bool isLoadingAI = false;
   AI? currentAI;
+  EP currentEP = listEPs[0]; // CPU as default
+
   @override
   Widget build(BuildContext context) {
     Color sidebarColor = currentcolors[1];
     Color backgroundStartColor = currentcolors[0];
     Color backgroundEndColor = currentcolors[1];
 
-    changeAI(AI newAI, EP ep) async {
+    changeAI(AI newAI) async {
       setState(() {
         isLoadingAI = true;
         currentAI = newAI;
       });
-      await setModel(value: await currentAI!.getPath(), ep: ep);
+      await setModel(value: await currentAI!.getPath(), ep: currentEP);
       setState(() {
         isLoadingAI = false;
       });
+    }
+
+    changeEP(EP newep) async {
+      setState(() {
+        currentEP = newep;
+      });      
     }
 
     return MaterialApp(
@@ -80,8 +89,10 @@ class _CoreAppState extends State<CoreApp> {
                       WindowTitleBarBox(child: MoveWindow()),
                       SelectAIPage(
                         aicallback: changeAI,
+                        epcallback: changeEP,
                         currentcolors: currentcolors,
                         listAIs: widget.listAIs,
+                        currentEP: currentEP,
                       ),
                       const SizedBox(height: 100)
                     ],
@@ -107,7 +118,7 @@ class _CoreAppState extends State<CoreApp> {
                         ],
                       ),
                     ),
-                    ProcessingPage(currentcolors: currentcolors,currentai: currentAI)
+                    ProcessingPage(currentcolors: currentcolors, currentai: currentAI, currentep: currentEP,)
                   ]),
                 ),
               )

@@ -31,7 +31,6 @@ pub async fn run_api() {
 }
 
 fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<BBox>{
-
     let client = Client::new();
     let response = client
         .post(url)
@@ -46,8 +45,8 @@ fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<BBox>{
     return deserialized;
 }
 
+#[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
-
     return detect_bbox_from_buf_remotely(url, buf);
 }

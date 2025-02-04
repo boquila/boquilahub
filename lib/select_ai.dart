@@ -6,13 +6,17 @@ import 'package:boquilahub/src/rust/api/eps.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 
 class SelectAIPage extends StatefulWidget {
-  final Function(AI, EP) aicallback;
+  final Function(AI) aicallback;
+  final Function(EP) epcallback;
   final List<Color> currentcolors;
+  final EP currentEP;
   final List<AI> listAIs;
   const SelectAIPage(
       {super.key,
       required this.aicallback,
+      required this.epcallback,
       required this.currentcolors,
+      required this.currentEP,
       required this.listAIs});
 
   @override
@@ -23,7 +27,6 @@ class _SelectAIPageState extends State<SelectAIPage> {
   String epDropdownValue = listEPs.first.name;
   String? aiDropDownValue;
   AI? currentAI;
-  late EP currentEP = listEPs[0]; // CPU as default
   bool isAPIdeployed = false;
   bool apierror = false;
 
@@ -62,7 +65,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
                 currentAI = getAiByDescription(
                     listAis: widget.listAIs, description: value!);
                 aiDropDownValue = value;
-                widget.aicallback(currentAI!, currentEP);
+                widget.aicallback(currentAI!);
               });
             }
           },
@@ -87,14 +90,14 @@ class _SelectAIPageState extends State<SelectAIPage> {
             color: widget.currentcolors[2],
           ),
           onChanged: (String? value) async {
-            if (currentAI != null && value == "CUDA") {
+            if (value == "CUDA") {
               EP tempEP = getEpByName(listEps: listEPs, name: value!);
               double cudaVersion =
                   await ExecutionProviders.cuda(tempEP).getVersion();
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.8 && iscudnnAvailable) {
                 setState(() {
-                  currentEP = tempEP;
+                  widget.epcallback(tempEP);
                   epDropdownValue = value;
                 });
               } else {
@@ -118,18 +121,22 @@ class _SelectAIPageState extends State<SelectAIPage> {
               }
             } else if (value == "CPU") {
               setState(() {
-                currentEP = getEpByName(listEps: listEPs, name: value!);
+                EP tempep = getEpByName(listEps: listEPs, name: value!);
+                widget.epcallback(tempep);
                 epDropdownValue = value;
               });
             } else if (value == "BoquilaHUB Remoto") {
               setState(() {
-                currentEP = getEpByName(listEps: listEPs, name: value!);
+                EP tempep = getEpByName(listEps: listEPs, name: value!);
+                widget.epcallback(tempep);
                 epDropdownValue = value;
               });
             }
-            setState(() {
-              widget.aicallback(currentAI!, currentEP);
-            });
+            if (currentAI != null) {
+              setState(() {
+                widget.aicallback(currentAI!);
+              });
+            }
           },
           items: listEPs.map<DropdownMenuItem<String>>((EP value) {
             return DropdownMenuItem(
@@ -141,7 +148,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
         const SizedBox(height: 30),
         Text("API", style: textito),
         const SizedBox(height: 10),
-        if (!isAPIdeployed)
+        if (!isAPIdeployed && widget.currentEP.local)
           Tooltip(
             textAlign: TextAlign.center,
             waitDuration: const Duration(milliseconds: 500),
@@ -170,7 +177,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
               child: const Text('Desplegar'),
             ),
           ),
-        if (isAPIdeployed)
+        if (isAPIdeployed || !widget.currentEP.local)
           Tooltip(
             textAlign: TextAlign.center,
             waitDuration: const Duration(milliseconds: 500),

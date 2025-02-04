@@ -1,4 +1,5 @@
 import 'package:boquilahub/src/rust/api/abstractions.dart';
+import 'package:boquilahub/src/rust/api/eps.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,17 +7,19 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/api/exportutils.dart';
+import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/resources/objects.dart';
 import 'dart:core';
 
 class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
   final AI? currentai;
-  const ProcessingPage({
-    super.key,
-    required this.currentcolors,
-    required this.currentai,
-  });
+  final EP currentep;
+  const ProcessingPage(
+      {super.key,
+      required this.currentcolors,
+      required this.currentai,
+      required this.currentep});
 
   @override
   State<ProcessingPage> createState() => _ProcessingPageState();
@@ -153,7 +156,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
       try {
         String temppath = listpredimgs[i].filePath;
-        List<BBox> tempbbox = await detectBbox(filePath: temppath);
+        List<BBox> tempbbox = [];
+        if (widget.currentep.local) {
+          tempbbox = await detectBbox(filePath: temppath);
+        } else {
+          try {
+            tempbbox = await detectBboxRemotely(
+                url: "http://localhost:8791/upload", filePath: temppath);
+          } catch (e) {
+            print(e);
+          }
+        }
         if (!shouldContinue) break;
         setState(() {
           listpredimgs[i].listbbox = tempbbox;
@@ -229,7 +242,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             if (listpredimgs.isNotEmpty)
               ElevatedButton(
                   onPressed: () async {
-                    if (widget.currentai != null) {
+                    if (widget.currentai != null || !widget.currentep.local) {
                       if (isProcessing) {
                       } else {
                         if (!areBoxesEmpty(listpredimgs)) {
