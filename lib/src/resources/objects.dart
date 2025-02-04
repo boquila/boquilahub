@@ -123,13 +123,39 @@ Widget render(predImg) {
   return ClickableImage(predImg: predImg, child: BoxImg(predImg: predImg));
 }
 
-getEPWidget(EP ep) {
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Image(image: AssetImage('assets/${ep.imgPath}')),
-      Text(ep.name),
-    ],
+Widget getEPWidget(EP ep) {
+  return Padding(
+    padding: EdgeInsets.symmetric(horizontal: 12),
+    child: Row(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color.fromARGB(31, 85, 194, 64),
+                blurRadius: 3,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Image.asset(
+            'assets/${ep.imgPath}',
+            width: 32,
+            height: 32,
+          ),
+        ),
+        SizedBox(width: 12),
+        Text(
+          ep.name,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    ),
   );
 }
 
@@ -139,18 +165,21 @@ const List<EP> listEPs = <EP>[
       description: "Just your CPU",
       imgPath: "tiny_cpu.png",
       version: 0.0,
+      local: true,
       dependencies: "none"),
   EP(
       name: "CUDA",
       description: "NVIDIA GPU",
       imgPath: "tiny_nvidia.png",
       version: 12.4,
+      local: true,
       dependencies: "cuDNN"),
   EP(
       name: "BoquilaHUB Remoto",
       description: "Sesión remota de BoquilaHUB",
       imgPath: "tiny_boquila.png",
       version: 0.0,
+      local: false,
       dependencies: "none"),
 ];
 

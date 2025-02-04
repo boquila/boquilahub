@@ -2,13 +2,13 @@ use regex::Regex;
 use std::process::Command;
 use std::str;
 
-
 #[derive(Debug, Clone)]
 pub struct EP {
     pub name: String,
     pub description: String,
     pub img_path: String,
     pub version: f32,      // the version that is accepted by BoquilaHUB
+    pub local: bool,
     pub dependencies: String, // the dependencies that are required
 }
 

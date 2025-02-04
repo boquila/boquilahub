@@ -1,5 +1,7 @@
+use crate::api::abstractions::BBox;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
+use reqwest::blocking::Client;
 
 async fn upload(mut multipart: Multipart) -> String {
     let mut serialized: String = String::new();
@@ -26,4 +28,26 @@ pub async fn run_api() {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8791").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<BBox>{
+
+    let client = Client::new();
+    let response = client
+        .post(url)
+        .multipart(reqwest::blocking::multipart::Form::new()
+            .part("file", reqwest::blocking::multipart::Part::bytes(buffer)
+                .mime_str("image/jpeg").unwrap())
+        )
+        .send()
+        .expect("Failed to send request");
+
+    let deserialized: Vec<BBox>  = serde_json::from_str(&response.text().unwrap()).unwrap();    
+    return deserialized;
+}
+
+pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
+    let buf = std::fs::read(file_path).unwrap_or(vec![]);
+
+    return detect_bbox_from_buf_remotely(url, buf);
 }
