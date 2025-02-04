@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // Big TODO: class_ids should be string
 // and this string should be defined right after the inference
@@ -568,6 +568,7 @@ pub struct ImgPred {
 
 // What we'll use to print, render and stuff, just a frontend struct
 // xyxyn
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BBox {
     pub x1: f32,
     pub y1: f32,

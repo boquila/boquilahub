@@ -1,3 +1,5 @@
+import 'dart:isolate';
+
 import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';
@@ -7,6 +9,7 @@ import 'src/resources/palettes.dart';
 import 'select_ai.dart';
 import 'src/resources/windows.dart';
 import 'package:boquilahub/src/rust/api/inference.dart';
+import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/rust/api/bq.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 
@@ -14,6 +17,7 @@ Future<void> main() async {
   await RustLib.init();
   final List<AI> listAIs = await getBqs();
   runApp(CoreApp(listAIs: listAIs));
+  runApi();
 
   doWhenWindowReady(() {
     final win = appWindow;
