@@ -87,47 +87,49 @@ class _SelectAIPageState extends State<SelectAIPage> {
             color: widget.currentcolors[2],
           ),
           onChanged: (String? value) async {
-            if (currentAI != null) {
-              if (value == "CUDA") {
-                EP tempEP = getEpByName(listEps: listEPs, name: value!);
-                double cudaVersion =
-                    await ExecutionProviders.cuda(tempEP).getVersion();
-                bool iscudnnAvailable =
-                    true; // TODO: implement isCUDNNAvailable
-                if (cudaVersion == 12.8 && iscudnnAvailable) {
-                  setState(() {
-                    currentEP = tempEP;
-                    epDropdownValue = value;
-                  });
-                } else {
-                  if (!context.mounted) return;
-                  String cudatext = cudaText(cudaVersion);
-                  String cuDNNtext = cuDNNText(iscudnnAvailable);
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      actions: [
-                        ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: const Text("Ok"))
-                      ],
-                      content: Text(
-                          "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
-                    ),
-                  );
-                }
-              } else if (value == "CPU") {
+            if (currentAI != null && value == "CUDA") {
+              EP tempEP = getEpByName(listEps: listEPs, name: value!);
+              double cudaVersion =
+                  await ExecutionProviders.cuda(tempEP).getVersion();
+              bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
+              if (cudaVersion == 12.8 && iscudnnAvailable) {
                 setState(() {
-                  currentEP = getEpByName(listEps: listEPs, name: value!);
+                  currentEP = tempEP;
                   epDropdownValue = value;
                 });
+              } else {
+                if (!context.mounted) return;
+                String cudatext = cudaText(cudaVersion);
+                String cuDNNtext = cuDNNText(iscudnnAvailable);
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    actions: [
+                      ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Ok"))
+                    ],
+                    content: Text(
+                        "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
+                  ),
+                );
               }
+            } else if (value == "CPU") {
               setState(() {
-                widget.aicallback(currentAI!, currentEP);
+                currentEP = getEpByName(listEps: listEPs, name: value!);
+                epDropdownValue = value;
+              });
+            } else if (value == "BoquilaHUB Remoto") {
+              setState(() {
+                currentEP = getEpByName(listEps: listEPs, name: value!);
+                epDropdownValue = value;
               });
             }
+            setState(() {
+              widget.aicallback(currentAI!, currentEP);
+            });
           },
           items: listEPs.map<DropdownMenuItem<String>>((EP value) {
             return DropdownMenuItem(
@@ -148,20 +150,24 @@ class _SelectAIPageState extends State<SelectAIPage> {
             child: ElevatedButton(
               style: botoncitostyle,
               onPressed: () async {
-                try {
-                  setState(() {
-                    isAPIdeployed = true;
-                    apierror = false;
-                  });
-                  await runApi();
-                } catch (e) {
-                  setState(() {
-                    isAPIdeployed = false;
-                    apierror = true;
-                  });
+                if (currentAI == null) {
+                  simpleDialog(context, "Primero, elige una IA");
+                } else {
+                  try {
+                    setState(() {
+                      isAPIdeployed = true;
+                      apierror = false;
+                    });
+                    await runApi();
+                  } catch (e) {
+                    setState(() {
+                      isAPIdeployed = false;
+                      apierror = true;
+                    });
+                  }
                 }
               },
-              child: const Text('Habilitar'),
+              child: const Text('Desplegar'),
             ),
           ),
         if (isAPIdeployed)
@@ -171,9 +177,8 @@ class _SelectAIPageState extends State<SelectAIPage> {
             message:
                 "Esto permite que otros dispositivos \nen su red local puedan procesar datos\n a través de esta aplicación",
             child: ElevatedButton(
-              
               onPressed: null,
-              child: const Text('Habilitar'),
+              child: const Text('Desplegar'),
             ),
           ),
         if (isAPIdeployed)

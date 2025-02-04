@@ -146,6 +146,12 @@ const List<EP> listEPs = <EP>[
       imgPath: "tiny_nvidia.png",
       version: 12.4,
       dependencies: "cuDNN"),
+  EP(
+      name: "BoquilaHUB Remoto",
+      description: "Sesión remota de BoquilaHUB",
+      imgPath: "tiny_boquila.png",
+      version: 0.0,
+      dependencies: "none"),
 ];
 
 Widget getAIwidget(AI value) {
@@ -200,4 +206,17 @@ Future<void> copyToFolder(List<PredImg> predImgs, String outputPath) async {
       await newImageFile.writeAsBytes(await imageFile.readAsBytes());
     }
   }
+}
+
+simpleDialog(context, String text) {
+  return showDialog(
+    context: context,
+    builder: (context) => AlertDialog(actions: [
+      ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text("Ok"))
+    ], title: Text(text)),
+  );
 }

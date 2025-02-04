@@ -318,19 +318,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 }
 
-simpleDialog(context, String text) {
-  return showDialog(
-    context: context,
-    builder: (context) => AlertDialog(actions: [
-      ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          child: const Text("Ok"))
-    ], title: Text(text)),
-  );
-}
-
 class MyCustomScrollBehavior extends MaterialScrollBehavior {
   // Override behavior methods and getters like dragDevices
   @override
