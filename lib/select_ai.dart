@@ -6,10 +6,11 @@ import 'package:boquilahub/src/rust/api/eps.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 
 class SelectAIPage extends StatefulWidget {
-  final Function(AI) aicallback;
+  final Function(AI?) aicallback;
   final Function(EP) epcallback;
   final List<Color> currentcolors;
   final EP currentEP;
+  final AI? currentAI;
   final List<AI> listAIs;
   const SelectAIPage(
       {super.key,
@@ -17,6 +18,7 @@ class SelectAIPage extends StatefulWidget {
       required this.epcallback,
       required this.currentcolors,
       required this.currentEP,
+      required this.currentAI,
       required this.listAIs});
 
   @override
@@ -26,7 +28,6 @@ class SelectAIPage extends StatefulWidget {
 class _SelectAIPageState extends State<SelectAIPage> {
   String epDropdownValue = listEPs.first.name;
   String? aiDropDownValue;
-  AI? currentAI;
   bool isAPIdeployed = false;
   bool apierror = false;
 
@@ -62,10 +63,10 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) {
             if (true) {
               setState(() {
-                currentAI = getAiByDescription(
+                AI tempAI = getAiByDescription(
                     listAis: widget.listAIs, description: value!);
+                widget.aicallback(tempAI);
                 aiDropDownValue = value;
-                widget.aicallback(currentAI!);
               });
             }
           },
@@ -132,9 +133,9 @@ class _SelectAIPageState extends State<SelectAIPage> {
                 epDropdownValue = value;
               });
             }
-            if (currentAI != null) {
+            if (widget.currentAI != null) {
               setState(() {
-                widget.aicallback(currentAI!);
+                widget.aicallback(widget.currentAI!);
               });
             }
           },
@@ -157,7 +158,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
             child: ElevatedButton(
               style: botoncitostyle,
               onPressed: () async {
-                if (currentAI == null) {
+                if (widget.currentAI == null) {
                   simpleDialog(context, "Primero, elige una IA");
                 } else {
                   try {

@@ -42,6 +42,7 @@ class _CoreAppState extends State<CoreApp> {
   bool isLoadingAI = false;
   AI? currentAI;
   EP currentEP = listEPs[0]; // CPU as default
+  String? remote_url;
 
   @override
   Widget build(BuildContext context) {
@@ -49,21 +50,29 @@ class _CoreAppState extends State<CoreApp> {
     Color backgroundStartColor = currentcolors[0];
     Color backgroundEndColor = currentcolors[1];
 
-    changeAI(AI newAI) async {
+    changeAI(AI? newAI) async {
       setState(() {
         isLoadingAI = true;
         currentAI = newAI;
       });
+
       await setModel(value: await currentAI!.getPath(), ep: currentEP);
+
       setState(() {
         isLoadingAI = false;
       });
     }
 
-    changeEP(EP newep) async {
+    changeEP(EP newep) {
       setState(() {
         currentEP = newep;
-      });      
+      });
+    }
+
+    changeURL(String url) {
+      setState(() {
+        remote_url = url;
+      });
     }
 
     return MaterialApp(
@@ -93,6 +102,7 @@ class _CoreAppState extends State<CoreApp> {
                         currentcolors: currentcolors,
                         listAIs: widget.listAIs,
                         currentEP: currentEP,
+                        currentAI: currentAI,
                       ),
                       const SizedBox(height: 100)
                     ],
@@ -118,7 +128,12 @@ class _CoreAppState extends State<CoreApp> {
                         ],
                       ),
                     ),
-                    ProcessingPage(currentcolors: currentcolors, currentai: currentAI, currentep: currentEP,)
+                    ProcessingPage(
+                      currentcolors: currentcolors,
+                      currentai: currentAI,
+                      currentep: currentEP,
+                      url: remote_url,
+                    )
                   ]),
                 ),
               )

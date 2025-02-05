@@ -15,11 +15,14 @@ class ProcessingPage extends StatefulWidget {
   final List<Color> currentcolors;
   final AI? currentai;
   final EP currentep;
-  const ProcessingPage(
-      {super.key,
-      required this.currentcolors,
-      required this.currentai,
-      required this.currentep});
+  final String? url;
+  const ProcessingPage({
+    super.key,
+    required this.currentcolors,
+    required this.currentai,
+    required this.currentep,
+    required this.url,
+  });
 
   @override
   State<ProcessingPage> createState() => _ProcessingPageState();
@@ -32,11 +35,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
   bool shouldContinue = true;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
-  AI? currentAI;
+  bool errorocurred = false;
 
   @override
   void initState() {
-    currentAI = widget.currentai;
     super.initState();
   }
 
@@ -145,6 +147,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   Future<void> analyze(bool analyzeonlyempty) async {
     setState(() {
       shouldContinue = true;
+      errorocurred = false;
     });
     for (int i = 0; i < listpredimgs.length; i++) {
       if (!shouldContinue) break;
@@ -160,20 +163,19 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (widget.currentep.local) {
           tempbbox = await detectBbox(filePath: temppath);
         } else {
-          try {
-            tempbbox = await detectBboxRemotely(
-                url: "http://localhost:8791/upload", filePath: temppath);
-          } catch (e) {
-            print(e);
-          }
+          tempbbox = await detectBboxRemotely(
+              url: "${widget.url!}/upload", filePath: temppath);
         }
         if (!shouldContinue) break;
         setState(() {
           listpredimgs[i].listbbox = tempbbox;
           listpredimgs[i].wasprocessed = true;
         });
-        // ignore: empty_catches
-      } catch (e) {}
+      } catch (e) {
+        setState(() {
+          errorocurred = true;
+        });
+      }
     }
   }
 
@@ -268,7 +270,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             child: CircularProgressIndicator())
                     ],
                   )),
-            // AI predicitons exports are done here
             if (analyzecomplete)
               ElevatedButton(
                   onPressed: () {
@@ -313,6 +314,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
               ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
           ],
         ),
+        if (errorocurred)
+          Text(
+            "Ha ocurrido un error en la inferencia. \nProceso cancelado.",
+            textAlign: TextAlign.center,
+          ),
         if (isfolderselected) Text(nfoundimagestext),
         if (isfolderselected)
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
