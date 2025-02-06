@@ -8,11 +8,3 @@ String cudaText(double cudaversion){
     return "se encontró versión $text";
   }
 }
-
-String cuDNNText(bool iscudnnAvailable){
-  if (iscudnnAvailable == true){
-    return "se encontró la versión correcta";
-  } else {
-    return "no se encontró la versión correcta";
-  }
-}

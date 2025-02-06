@@ -104,7 +104,6 @@ class _SelectAIPageState extends State<SelectAIPage> {
               } else {
                 if (!context.mounted) return;
                 String cudatext = cudaText(cudaVersion);
-                String cuDNNtext = cuDNNText(iscudnnAvailable);
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -116,7 +115,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
                           child: const Text("Ok"))
                     ],
                     content: Text(
-                        "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7, $cuDNNtext\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
+                        "Se requiere \n- CUDA 12.8, $cudatext\n- cuDNN 9.7,\n- Tarjeta gráfica Nvidia 7xx o superior \n\n Por favor verificar que todos los requisitos se cumplan"),
                   ),
                 );
               }
@@ -127,11 +126,15 @@ class _SelectAIPageState extends State<SelectAIPage> {
                 epDropdownValue = value;
               });
             } else if (value == "BoquilaHUB Remoto") {
+              if (isAPIdeployed){
+                simpleDialog(context, "No puedes elegir está opción, \nya que estás desplegando una API");
+              } else {
               setState(() {
                 EP tempep = getEpByName(listEps: listEPs, name: value!);
                 widget.epcallback(tempep);
                 epDropdownValue = value;
               });
+              }
             }
             if (widget.currentAI != null) {
               setState(() {

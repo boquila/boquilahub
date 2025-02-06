@@ -322,7 +322,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (isfolderselected) Text(nfoundimagestext),
         if (isfolderselected)
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
-        const SizedBox(height: 10),
+        const SizedBox(height: 20),
         SizedBox(
           height: MediaQuery.of(context).size.height * 0.58,
           width: MediaQuery.of(context).size.width * 0.8,

@@ -42,7 +42,7 @@ class _CoreAppState extends State<CoreApp> {
   bool isLoadingAI = false;
   AI? currentAI;
   EP currentEP = listEPs[0]; // CPU as default
-  String? remote_url;
+  String? remoteUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +71,7 @@ class _CoreAppState extends State<CoreApp> {
 
     changeURL(String url) {
       setState(() {
-        remote_url = url;
+        remoteUrl = url;
       });
     }
 
@@ -132,7 +132,7 @@ class _CoreAppState extends State<CoreApp> {
                       currentcolors: currentcolors,
                       currentai: currentAI,
                       currentep: currentEP,
-                      url: remote_url,
+                      url: remoteUrl,
                     )
                   ]),
                 ),
