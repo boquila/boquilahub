@@ -1,8 +1,7 @@
+// The idea is to have the core funcionality that will alow us to do everything we need in the app
+// but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
 use serde::{Deserialize, Serialize};
-
-// Big TODO: class_ids should be string
-// and this string should be defined right after the inference
 
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
@@ -43,6 +42,10 @@ pub trait BoundingBoxTrait: Copy {
     fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn;
     fn to_xywh(&self, w: Option<f32>, h: Option<f32>) -> XYWH;
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn;
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc;
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
     fn jsonify(&self) -> String;
 }
 
@@ -214,6 +217,26 @@ impl BoundingBoxTrait for XYXYn {
         XYWHn::new(x, y, w, h, self.prob,self.class_id)
     }
 
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        let temp = self.to_xyxyn(w,h);
+        return XYXYnc::new(temp,label);
+    }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        let temp = self.to_xyxy(w,h);
+        return XYXYc::new(temp,label);
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        let temp = self.to_xywh(w,h);
+        return XYWHc::new(temp,label);
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        let temp = self.to_xywhn(w,h);
+        return XYWHnc::new(temp,label);
+    }
+
     fn jsonify(&self) -> String {
         format!(
             "{{\"x1\":{},\"y1\":{},\"x2\":{},\"y2\":{},\"class_id\":{},\"prob\":{}}}",
@@ -292,6 +315,26 @@ impl BoundingBoxTrait for XYXY {
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn {
         let temp = self.to_xyxyn(w, h);
         return temp.to_xywhn(w, h);
+    }
+
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        let temp = self.to_xyxyn(w,h);
+        return XYXYnc::new(temp,label);
+    }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        let temp = self.to_xyxy(w,h);
+        return XYXYc::new(temp,label);
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        let temp = self.to_xywh(w,h);
+        return XYWHc::new(temp,label);
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        let temp = self.to_xywhn(w,h);
+        return XYWHnc::new(temp,label);
     }
 
     fn jsonify(&self) -> String {
@@ -386,6 +429,26 @@ impl BoundingBoxTrait for XYWHn {
         }
     }
 
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        let temp = self.to_xyxyn(w,h);
+        return XYXYnc::new(temp,label);
+    }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        let temp = self.to_xyxy(w,h);
+        return XYXYc::new(temp,label);
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        let temp = self.to_xywh(w,h);
+        return XYWHc::new(temp,label);
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        let temp = self.to_xywhn(w,h);
+        return XYWHnc::new(temp,label);
+    }
+
     fn jsonify(&self) -> String {
         format!(
             "{{\"x\":{},\"y\":{},\"w\":{},\"h\":{},\"class_id\":{},\"prob\":{}}}",
@@ -465,6 +528,26 @@ impl BoundingBoxTrait for XYWH {
 
     fn to_xywh(&self, _w: Option<f32>, _h: Option<f32>) -> XYWH {
         return *self;
+    }
+
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        let temp = self.to_xyxyn(w,h);
+        return XYXYnc::new(temp,label);
+    }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        let temp = self.to_xyxy(w,h);
+        return XYXYc::new(temp,label);
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        let temp = self.to_xywh(w,h);
+        return XYWHc::new(temp,label);
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        let temp = self.to_xywhn(w,h);
+        return XYWHnc::new(temp,label);
     }
 
     fn jsonify(&self) -> String {
@@ -600,6 +683,34 @@ pub struct XYWHc {
 pub struct XYWHnc {
     pub xywhn: XYWHn,
     pub label: String,
+}
+
+pub trait BoundingBoxTraitc<T: BoundingBoxTrait>{
+    fn new(boundingbox: T, label: String) -> Self;
+}
+
+impl BoundingBoxTraitc<XYXY> for XYXYc {
+    fn new(xyxy: XYXY, label: String) -> Self {
+        XYXYc { xyxy, label }
+    }
+}
+
+impl BoundingBoxTraitc<XYXYn> for XYXYnc {
+    fn new(xyxyn: XYXYn, label: String) -> Self {
+        XYXYnc { xyxyn, label }
+    }
+}
+
+impl BoundingBoxTraitc<XYWH> for XYWHc {
+    fn new(xywh: XYWH, label: String) -> Self {
+        XYWHc { xywh, label }
+    }
+}
+
+impl BoundingBoxTraitc<XYWHn> for XYWHnc{
+    fn new(xywhn: XYWHn, label: String) -> Self {
+        XYWHnc { xywhn, label }
+    }
 }
 
 impl BBox {
