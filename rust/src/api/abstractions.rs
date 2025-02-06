@@ -17,8 +17,8 @@ pub struct ProbSpace {
 /// - `vertices` represents a polygon
 pub struct SEGn {
     pub vertices: Vec<f32>,
-    pub class_id: usize,
     pub prob: f32,
+    pub class_id: u16,
 }
 
 /// Segmentation in the YOLO format, not normalized
@@ -26,18 +26,18 @@ pub struct SEGn {
 /// - `vertices` represents a polygon
 struct SEG {
     pub vertices: Vec<f32>,
-    pub class_id: usize,
     pub prob: f32,
+    pub class_id: u16,
 }
 
 pub trait BoundingBoxTrait: Copy {
-    fn new(a: f32, b: f32, c: f32, d: f32, class_id: usize, prob: f32) -> Self;
+    fn new(a: f32, b: f32, c: f32, d: f32, prob: f32, class_id: u16) -> Self;
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
     fn iou(&self, other: &Self) -> f32;
     fn get_coords(&self) -> (f32, f32, f32, f32);
     fn get_prob(&self) -> f32;
-    fn get_class_id(&self) -> usize;
+    fn get_class_id(&self) -> u16;
     fn check(&self) -> bool;
     fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY;
     fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn;
@@ -56,8 +56,8 @@ pub struct XYXYn {
     pub y1: f32,
     pub x2: f32,
     pub y2: f32,
-    pub class_id: usize,
     pub prob: f32,
+    pub class_id: u16,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -66,8 +66,8 @@ pub struct XYXY {
     pub y1: f32,
     pub x2: f32,
     pub y2: f32,
-    pub class_id: usize,
     pub prob: f32,
+    pub class_id: u16,
 }
 
 /// Bounding box in normalized XYWH format
@@ -80,8 +80,8 @@ pub struct XYWHn {
     pub y: f32,
     pub w: f32,
     pub h: f32,
-    pub class_id: usize,
     pub prob: f32,
+    pub class_id: u16,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -90,8 +90,8 @@ pub struct XYWH {
     pub y: f32,
     pub w: f32,
     pub h: f32,
-    pub class_id: usize,
     pub prob: f32,
+    pub class_id: u16,
 }
 
 fn intersect_xyxys(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32) -> f32 {
@@ -133,14 +133,14 @@ fn iou<T: BoundingBoxTrait>(a: &T, b: &T) -> f32 {
 // }
 
 impl BoundingBoxTrait for XYXYn {
-    fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
+    fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u16) -> Self {
         Self {
             x1,
             y1,
             x2,
             y2,
-            class_id,
             prob,
+            class_id,
         }
     }
 
@@ -162,7 +162,7 @@ impl BoundingBoxTrait for XYXYn {
         self.prob
     }
 
-    fn get_class_id(&self) -> usize {
+    fn get_class_id(&self) -> u16 {
         self.class_id
     }
 
@@ -197,8 +197,7 @@ impl BoundingBoxTrait for XYXYn {
             self.y1 * h,
             self.x2 * w,
             self.x2 * h,
-            self.class_id,
-            self.prob,
+            self.prob,self.class_id
         )
     }
 
@@ -212,7 +211,7 @@ impl BoundingBoxTrait for XYXYn {
         let y = (self.y1 + self.y2) / 2.0;
         let w = self.x2 - self.x1;
         let h = self.y2 - self.y1;
-        XYWHn::new(x, y, w, h, self.class_id, self.prob)
+        XYWHn::new(x, y, w, h, self.prob,self.class_id)
     }
 
     fn jsonify(&self) -> String {
@@ -224,14 +223,14 @@ impl BoundingBoxTrait for XYXYn {
 }
 
 impl BoundingBoxTrait for XYXY {
-    fn new(x1: f32, y1: f32, x2: f32, y2: f32, class_id: usize, prob: f32) -> Self {
+    fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u16) -> Self {
         Self {
             x1,
             y1,
             x2,
             y2,
-            class_id,
             prob,
+            class_id
         }
     }
 
@@ -253,7 +252,7 @@ impl BoundingBoxTrait for XYXY {
         self.prob
     }
 
-    fn get_class_id(&self) -> usize {
+    fn get_class_id(&self) -> u16 {
         self.class_id
     }
 
@@ -273,8 +272,8 @@ impl BoundingBoxTrait for XYXY {
             self.y1 / h,
             self.x2 / w,
             self.x2 / h,
-            self.class_id,
             self.prob,
+            self.class_id,
         )
     }
 
@@ -287,7 +286,7 @@ impl BoundingBoxTrait for XYXY {
         let y = (self.y1 + self.y2) / 2.0;
         let w = self.x2 - self.x1;
         let h = self.y2 - self.y1;
-        XYWH::new(x, y, w, h, self.class_id, self.prob)
+        XYWH::new(x, y, w, h, self.prob,self.class_id)
     }
 
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn {
@@ -304,14 +303,14 @@ impl BoundingBoxTrait for XYXY {
 }
 
 impl BoundingBoxTrait for XYWHn {
-    fn new(x: f32, y: f32, w: f32, h: f32, class_id: usize, prob: f32) -> Self {
+    fn new(x: f32, y: f32, w: f32, h: f32, prob: f32, class_id: u16) -> Self {
         Self {
             x,
             y,
             w,
             h,
-            class_id,
             prob,
+            class_id,
         }
     }
 
@@ -333,7 +332,7 @@ impl BoundingBoxTrait for XYWHn {
         self.prob
     }
 
-    fn get_class_id(&self) -> usize {
+    fn get_class_id(&self) -> u16 {
         self.class_id
     }
 
@@ -361,7 +360,7 @@ impl BoundingBoxTrait for XYWHn {
         let y1 = self.y - self.h / 2.0;
         let x2 = self.x + self.w / 2.0;
         let y2 = self.y + self.h / 2.0;
-        XYXYn::new(x1, y1, x2, y2, self.class_id, self.prob)
+        XYXYn::new(x1, y1, x2, y2, self.prob,self.class_id, )
     }
 
     fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY {
@@ -396,14 +395,14 @@ impl BoundingBoxTrait for XYWHn {
 }
 
 impl BoundingBoxTrait for XYWH {
-    fn new(x: f32, y: f32, w: f32, h: f32, class_id: usize, prob: f32) -> Self {
+    fn new(x: f32, y: f32, w: f32, h: f32, prob: f32, class_id: u16) -> Self {
         Self {
             x,
             y,
             w,
             h,
-            class_id,
             prob,
+            class_id,
         }
     }
 
@@ -425,7 +424,7 @@ impl BoundingBoxTrait for XYWH {
         self.prob
     }
 
-    fn get_class_id(&self) -> usize {
+    fn get_class_id(&self) -> u16 {
         self.class_id
     }
 
@@ -447,7 +446,7 @@ impl BoundingBoxTrait for XYWH {
         let y1 = self.y - self.h / 2.0;
         let x2 = self.x + self.w / 2.0;
         let y2 = self.y + self.h / 2.0;
-        XYXY::new(x1, y1, x2, y2, self.class_id, self.prob)
+        XYXY::new(x1, y1, x2, y2, self.prob,self.class_id)
     }
 
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn {
@@ -608,7 +607,7 @@ impl BBox {
 pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: &AI) -> Vec<BBox> {
     let mut to_return: Vec<BBox> = Vec::new();
     for xyxy in orig {
-        let label = ai.classes[xyxy.class_id].clone();
+        let label = ai.classes[xyxy.class_id as usize].clone();
         let bbox = BBox {
             x1: xyxy.x1,
             y1: xyxy.y1,

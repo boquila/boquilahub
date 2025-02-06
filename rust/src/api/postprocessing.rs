@@ -23,7 +23,7 @@ pub fn process_output(
         if prob < 0.45 {
             continue;
         }
-        let label = class_id;
+        let label = class_id as u16;
         let xc = row[0] / input_width as f32 * (img_width as f32);
         let yc = row[1] / input_height as f32 * (img_height as f32);
         let w = row[2] / input_width as f32 * (img_width as f32);
@@ -32,7 +32,7 @@ pub fn process_output(
         let x2 = xc + w / 2.0;
         let y1 = yc - h / 2.0;
         let y2 = yc + h / 2.0;
-        let temp = XYXY::new(x1,y1,x2,y2,label,prob);
+        let temp = XYXY::new(x1,y1,x2,y2,prob,label,);
         boxes.push(temp);
     }
 
