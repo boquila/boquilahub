@@ -50,7 +50,7 @@ pub trait BoundingBoxTrait: Copy {
 /// # Fields
 /// - `x1` and `y1` represent the top-left corner
 /// - `x2` and `y2` represent the bottom-right  corner
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct XYXYn {
     pub x1: f32,
     pub y1: f32,
@@ -60,7 +60,7 @@ pub struct XYXYn {
     pub class_id: u16,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct XYXY {
     pub x1: f32,
     pub y1: f32,
@@ -74,7 +74,7 @@ pub struct XYXY {
 /// # Fields
 /// - `x` and `y` represent the center
 /// - `w` and `h` represent width and height
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct XYWHn {
     pub x: f32,
     pub y: f32,
@@ -84,7 +84,7 @@ pub struct XYWHn {
     pub class_id: u16,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct XYWH {
     pub x: f32,
     pub y: f32,
@@ -575,6 +575,30 @@ pub struct BBox {
     pub y2: f32,
     pub confidence: f32,
     pub class_id: u16,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct XYXYc {
+    pub xyxy: XYXY,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct XYXYnc {
+    pub xyxyn: XYXYn,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct XYWHc {
+    pub xywh: XYWH,
+    pub label: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct XYWHnc {
+    pub xywhn: XYWHn,
     pub label: String,
 }
 
