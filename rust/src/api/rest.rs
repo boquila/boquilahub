@@ -2,6 +2,8 @@ use crate::api::abstractions::BBox;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use reqwest::blocking::Client;
+use std::process::Command;
+use std::str;
 
 async fn upload(mut multipart: Multipart) -> String {
     let mut serialized: String = String::new();
@@ -49,4 +51,31 @@ fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<BBox>{
 pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_bbox_from_buf_remotely(url, buf);
+}
+
+fn get_ipv4_address() -> Option<String> {
+    // Run the ipconfig command
+    let output = Command::new("ipconfig")
+        .output()
+        .expect("Failed to execute ipconfig");
+    
+    // Convert output to a string
+    let output_str = str::from_utf8(&output.stdout)
+        .expect("Failed to convert output to string");
+    
+    // Split the output into lines and find the IPv4 address
+    for line in output_str.lines() {
+        if line.contains("IPv4 Address") {
+            // Extract the IP address (everything after the last ': ')
+            return line.split(": ").last()
+                .map(|ip| ip.trim().to_string());
+        }
+    }
+
+    None
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_ip() -> String {
+    get_ipv4_address().unwrap()
 }

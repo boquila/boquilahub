@@ -19,8 +19,8 @@ Video files and Feed processing code is being rewritten, available soon.
 | Platform                           |  Production ready  |
 | --------------------------------- |------------ |
 | Windows          | ✅ |
-| Android          | On the way |
 | Linux          | On the way |
+| Android          | On the way |
 | MacOS          | Not soon |
 | iOS          | Not soon |
 

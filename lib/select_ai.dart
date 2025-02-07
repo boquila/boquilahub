@@ -4,10 +4,13 @@ import 'src/resources/objects.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 
 class SelectAIPage extends StatefulWidget {
   final Function(AI?) aicallback;
   final Function(EP) epcallback;
+  final Function(String?) urlcallback;
   final List<Color> currentcolors;
   final EP currentEP;
   final AI? currentAI;
@@ -16,6 +19,7 @@ class SelectAIPage extends StatefulWidget {
       {super.key,
       required this.aicallback,
       required this.epcallback,
+      required this.urlcallback,
       required this.currentcolors,
       required this.currentEP,
       required this.currentAI,
@@ -126,14 +130,20 @@ class _SelectAIPageState extends State<SelectAIPage> {
                 epDropdownValue = value;
               });
             } else if (value == "BoquilaHUB Remoto") {
-              if (isAPIdeployed){
-                simpleDialog(context, "No puedes elegir está opción, \nya que estás desplegando una API");
-              } else {
-              setState(() {
-                EP tempep = getEpByName(listEps: listEPs, name: value!);
-                widget.epcallback(tempep);
-                epDropdownValue = value;
-              });
+              String? url = await showUrlInputDialog(context);
+              // TODO: It needs to check that URL is actually a good BoquilaHUB API
+              if (isAPIdeployed) {
+                if (context.mounted) {
+                  simpleDialog(context,
+                      "No puedes elegir está opción, \nya que estás desplegando una API");
+                }
+              } else if (url != null) {
+                setState(() {
+                  EP tempep = getEpByName(listEps: listEPs, name: value!);
+                  widget.epcallback(tempep);
+                  widget.urlcallback(url);
+                  epDropdownValue = value;
+                });
               }
             }
             if (widget.currentAI != null) {
@@ -193,12 +203,74 @@ class _SelectAIPageState extends State<SelectAIPage> {
             ),
           ),
         if (isAPIdeployed)
-          Text(
-            "API desplegada en \nURL local: http://{IP}:8791",
+          Text.rich(
+            TextSpan(
+              text: 'API desplegada en \nURL local: ',
+              children: [
+                TextSpan(
+                  text: 'http://${getIp()}:8791',
+                  style: TextStyle(
+                    color: Colors.blue,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      Clipboard.setData(
+                          ClipboardData(text: 'http://${getIp()}:8791'));
+                      // Optional: Show a snackbar or toast to indicate copying
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('URL copiada al portapapeles')),
+                      );
+                    },
+                ),
+              ],
+            ),
             textAlign: TextAlign.center,
           ),
         if (apierror) Text("Ocurrió un error")
       ],
     );
   }
+}
+
+Future<String?> showUrlInputDialog(BuildContext context) async {
+  final TextEditingController urlController = TextEditingController();
+
+  return showDialog<String?>(
+    context: context,
+    barrierDismissible: false, // User must type the URL and submit
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text('Enter URL Address'),
+        content: TextField(
+          controller: urlController,
+          keyboardType: TextInputType.url,
+          decoration: InputDecoration(
+            hintText: 'https://example.com',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            child: Text('Cancel'),
+            onPressed: () {
+              Navigator.of(context).pop(null); // Return null on cancel
+            },
+          ),
+          ElevatedButton(
+            child: Text('Submit'),
+            onPressed: () {
+              final String enteredUrl = urlController.text.trim();
+              if (enteredUrl.isNotEmpty &&
+                  Uri.tryParse(enteredUrl)?.hasAbsolutePath == true) {
+                Navigator.of(context).pop(enteredUrl); // Return the URL
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Please enter a valid URL')),
+                );
+              }
+            },
+          ),
+        ],
+      );
+    },
+  );
 }

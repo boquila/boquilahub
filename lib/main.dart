@@ -69,7 +69,7 @@ class _CoreAppState extends State<CoreApp> {
       });
     }
 
-    changeURL(String url) {
+    changeURL(String? url) {
       setState(() {
         remoteUrl = url;
       });
@@ -99,6 +99,7 @@ class _CoreAppState extends State<CoreApp> {
                       SelectAIPage(
                         aicallback: changeAI,
                         epcallback: changeEP,
+                        urlcallback: changeURL,
                         currentcolors: currentcolors,
                         listAIs: widget.listAIs,
                         currentEP: currentEP,
@@ -144,3 +145,4 @@ class _CoreAppState extends State<CoreApp> {
     );
   }
 }
+

@@ -685,8 +685,8 @@ pub struct XYWHnc {
     pub label: String,
 }
 
-pub trait BoundingBoxTraitc<T: BoundingBoxTrait>{
-    fn new(boundingbox: T, label: String) -> Self;
+pub trait BoundingBoxTraitc<BoundingBoxTrait>{
+    fn new(boundingbox: BoundingBoxTrait, label: String) -> Self;
 }
 
 impl BoundingBoxTraitc<XYXY> for XYXYc {
