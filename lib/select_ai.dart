@@ -138,12 +138,20 @@ class _SelectAIPageState extends State<SelectAIPage> {
                       "No puedes elegir está opción, \nya que estás desplegando una API");
                 }
               } else if (url != null) {
-                setState(() {
+                bool isapigood = await checkBoquilaHubApi(url: url);
+                if (isapigood){
+                  setState(() {
                   EP tempep = getEpByName(listEps: listEPs, name: value!);
                   widget.epcallback(tempep);
                   widget.urlcallback(url);
                   epDropdownValue = value;
                 });
+                } else {
+                  if (context.mounted){
+                  simpleDialog(context, "Hubo un error, por favor verifica la URL");
+                  }
+                }
+                
               }
             }
             if (widget.currentAI != null) {
@@ -240,23 +248,23 @@ Future<String?> showUrlInputDialog(BuildContext context) async {
     barrierDismissible: false, // User must type the URL and submit
     builder: (BuildContext context) {
       return AlertDialog(
-        title: Text('Enter URL Address'),
+        title: Text('Ingresa la URL'),
         content: TextField(
           controller: urlController,
           keyboardType: TextInputType.url,
           decoration: InputDecoration(
-            hintText: 'https://example.com',
+            hintText: 'http://127.0.0.1:8971',
           ),
         ),
         actions: <Widget>[
           TextButton(
-            child: Text('Cancel'),
+            child: Text('Cancelar'),
             onPressed: () {
               Navigator.of(context).pop(null); // Return null on cancel
             },
           ),
           ElevatedButton(
-            child: Text('Submit'),
+            child: Text('Enviar'),
             onPressed: () {
               final String enteredUrl = urlController.text.trim();
               if (enteredUrl.isNotEmpty &&
@@ -264,7 +272,7 @@ Future<String?> showUrlInputDialog(BuildContext context) async {
                 Navigator.of(context).pop(enteredUrl); // Return the URL
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Please enter a valid URL')),
+                  SnackBar(content: Text('Por favor, ingresa una URL válida')),
                 );
               }
             },

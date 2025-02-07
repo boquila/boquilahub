@@ -79,3 +79,9 @@ fn get_ipv4_address() -> Option<String> {
 pub fn get_ip() -> String {
     get_ipv4_address().unwrap()
 }
+
+pub async fn check_boquila_hub_api(url: &str) -> bool {
+    let response = reqwest::get(url).await.unwrap();
+    let body = response.text().await.unwrap();
+    body.trim() == "BoquilaHUB Web API!"
+}
