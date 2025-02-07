@@ -1,6 +1,6 @@
 # BoquilaHUB
 
-Run AI models to monitor and protect nature. Locally, no cloud.
+Cross- platform app to run AI models to monitor and protect nature. Locally, no cloud.
 
 ![readme](readme.jpg)
 
