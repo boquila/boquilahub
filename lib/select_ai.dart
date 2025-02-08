@@ -131,7 +131,6 @@ class _SelectAIPageState extends State<SelectAIPage> {
               });
             } else if (value == "BoquilaHUB Remoto") {
               String? url = await showUrlInputDialog(context);
-              // TODO: It needs to check that URL is actually a good BoquilaHUB API
               if (isAPIdeployed) {
                 if (context.mounted) {
                   simpleDialog(context,
