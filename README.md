@@ -4,6 +4,16 @@ Cross- platform app to run AI models to monitor and protect nature. Locally, no 
 
 ![readme](readme.jpg)
 
+## Features
+
+- Cross-platform. 
+- Run AIs for computer vision locally
+- Process image files
+- Process video files (BoquilaHUB 0.2)
+- Process camera feed (BoquilaHUB 0.2). Powered by [video-rs](https://github.com/oddity-ai/video-rs)
+- Deploy Web APIs, with maximum efficiency. Powered by [Axum](https://github.com/tokio-rs/axum)
+- Use these Web APIs to delegate processing, in case your computer doesn't have good hardware
+
 ## AIs and binaries
 
 Go to [boquila.org/hub](https://boquila.org/hub), download the models you want to use and just put them in your models folder, that's it. The compiled binaries are also there.
