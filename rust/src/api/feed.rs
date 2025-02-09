@@ -30,6 +30,6 @@ impl Iterator for VideoFrameIterator {
     }
 }
 
-pub fn process_url(url: &str) -> Result<VideoFrameIterator, Box<dyn std::error::Error>> {
+pub fn process_rtsp(url: &str) -> Result<VideoFrameIterator, Box<dyn std::error::Error>> {
     VideoFrameIterator::new(url)
 }
