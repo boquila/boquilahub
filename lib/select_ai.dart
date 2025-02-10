@@ -217,14 +217,14 @@ class _SelectAIPageState extends State<SelectAIPage> {
               text: 'API desplegada en \nURL local: ',
               children: [
                 TextSpan(
-                  text: 'http://${ip}:8791',
+                  text: 'http://$ip:8791',
                   style: TextStyle(
                     color: Colors.blue,
                   ),
                   recognizer: TapGestureRecognizer()
                     ..onTap = () {
                       Clipboard.setData(
-                          ClipboardData(text: 'http://${ip}:8791'));
+                          ClipboardData(text: 'http://$ip:8791'));
                       // Optional: Show a snackbar or toast to indicate copying
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('URL copiada al portapapeles')),
@@ -273,7 +273,7 @@ Future<String?> showUrlInputDialog(BuildContext context) async {
                       (enteredUrl.startsWith('http://') ||
                           enteredUrl.startsWith('https://')))) {
                 // Valid URL
-                Navigator.of(context).pop(enteredUrl);
+                Navigator.of(context).pop(removeTrailingSlash(enteredUrl));
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Por favor, ingresa una URL válida')),
@@ -285,4 +285,10 @@ Future<String?> showUrlInputDialog(BuildContext context) async {
       );
     },
   );
+}
+String removeTrailingSlash(String input) {
+  if (input.isNotEmpty && input.endsWith('/')) {
+    return input.substring(0, input.length - 1);
+  }
+  return input;
 }
