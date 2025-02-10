@@ -1,7 +1,9 @@
+use flutter_rust_bridge::frb;
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::iter::Iterator;
 use video_rs::{Decoder, DecoderBuilder, Options, Url};
 
+#[frb(ignore)]
 pub struct VideoFrameIterator {
     decoder: Decoder,
 }
@@ -30,6 +32,7 @@ impl Iterator for VideoFrameIterator {
     }
 }
 
-pub fn process_rtsp(url: &str) -> Result<VideoFrameIterator, Box<dyn std::error::Error>> {
+#[frb(ignore)]
+fn process_rtsp(url: &str) -> Result<VideoFrameIterator, Box<dyn std::error::Error>> {
     VideoFrameIterator::new(url)
 }

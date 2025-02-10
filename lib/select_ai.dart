@@ -50,6 +50,8 @@ class _SelectAIPageState extends State<SelectAIPage> {
       ),
     );
 
+    final String ip = getIp(); // Call getIp() only once
+
     return Column(
       children: [
         Text("Selecciona una IA", style: textito),
@@ -138,19 +140,19 @@ class _SelectAIPageState extends State<SelectAIPage> {
                 }
               } else if (url != null) {
                 bool isapigood = await checkBoquilaHubApi(url: url);
-                if (isapigood){
+                if (isapigood) {
                   setState(() {
-                  EP tempep = getEpByName(listEps: listEPs, name: value!);
-                  widget.epcallback(tempep);
-                  widget.urlcallback(url);
-                  epDropdownValue = value;
-                });
+                    EP tempep = getEpByName(listEps: listEPs, name: value!);
+                    widget.epcallback(tempep);
+                    widget.urlcallback(url);
+                    epDropdownValue = value;
+                  });
                 } else {
-                  if (context.mounted){
-                  simpleDialog(context, "Hubo un error, por favor verifica la URL");
+                  if (context.mounted) {
+                    simpleDialog(
+                        context, "Hubo un error, por favor verifica la URL");
                   }
                 }
-                
               }
             }
             if (widget.currentAI != null) {
@@ -215,14 +217,14 @@ class _SelectAIPageState extends State<SelectAIPage> {
               text: 'API desplegada en \nURL local: ',
               children: [
                 TextSpan(
-                  text: 'http://${getIp()}:8791',
+                  text: 'http://${ip}:8791',
                   style: TextStyle(
                     color: Colors.blue,
                   ),
                   recognizer: TapGestureRecognizer()
                     ..onTap = () {
                       Clipboard.setData(
-                          ClipboardData(text: 'http://${getIp()}:8791'));
+                          ClipboardData(text: 'http://${ip}:8791'));
                       // Optional: Show a snackbar or toast to indicate copying
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('URL copiada al portapapeles')),
@@ -267,8 +269,11 @@ Future<String?> showUrlInputDialog(BuildContext context) async {
             onPressed: () {
               final String enteredUrl = urlController.text.trim();
               if (enteredUrl.isNotEmpty &&
-                  Uri.tryParse(enteredUrl)?.hasAbsolutePath == true) {
-                Navigator.of(context).pop(enteredUrl); // Return the URL
+                  (Uri.tryParse(enteredUrl)?.hasScheme == true &&
+                      (enteredUrl.startsWith('http://') ||
+                          enteredUrl.startsWith('https://')))) {
+                // Valid URL
+                Navigator.of(context).pop(enteredUrl);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Por favor, ingresa una URL válida')),
