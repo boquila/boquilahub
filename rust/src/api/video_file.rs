@@ -49,3 +49,13 @@ impl Iterator for FileVideoFrameIterator {
 pub fn process_video_file(file_path: &str) -> Result<FileVideoFrameIterator, Box<dyn std::error::Error>> {
     FileVideoFrameIterator::new(file_path)
 }
+
+// Example
+// fn main() {
+//     let frame_iterator = process_rtsp("rtsp://1.1.1.1:8000/101").unwrap();
+
+//     for frame in frame_iterator {
+//         // frame is now just the ndarray frame data
+//         println!("Got frame with shape: {:?}", frame.shape());
+//     }
+// }
