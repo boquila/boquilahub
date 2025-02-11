@@ -1,6 +1,6 @@
 use flutter_rust_bridge::frb;
 use image::{ImageBuffer, Rgb};
-use std::iter::Iterator;
+use std::{iter::Iterator, path::Path};
 use video_rs::{Decoder, DecoderBuilder, Url};
 
 #[frb(ignore)]
@@ -11,9 +11,7 @@ pub struct FileVideoFrameIterator {
 impl FileVideoFrameIterator {
     pub fn new(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         video_rs::init()?;
-        let url = Url::from_file_path(file_path)
-            .map_err(|_| "Invalid file path")?;
-        let decoder = DecoderBuilder::new(url).build()?;
+        let decoder = DecoderBuilder::new(Path::new(file_path)).build()?;
         Ok(FileVideoFrameIterator { decoder })
     }
 }
