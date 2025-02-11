@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   rust_lib_boquilahub:
     path: rust_builder
-  flutter_rust_bridge: 2.7.0
+  flutter_rust_bridge: 2.8.0
   file_picker: ^8.1.6
   bitsdojo_window: ^0.1.6
   intl: ^0.20.1

@@ -29,6 +29,8 @@ struct SEG {
     pub class_id: u16,
 }
 
+pub struct T {}
+
 pub trait BoundingBoxTrait: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, prob: f32, class_id: u16) -> Self;
     fn area(&self) -> f32;
@@ -42,6 +44,7 @@ pub trait BoundingBoxTrait: Copy {
     fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn;
     fn to_xywh(&self, w: Option<f32>, h: Option<f32>) -> XYWH;
     fn to_xywhn(&self, w: Option<f32>, h: Option<f32>) -> XYWHn;
+    #[flutter_rust_bridge::frb(ignore)]
     fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc;
     fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
     fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
@@ -685,8 +688,8 @@ pub struct XYWHnc {
     pub label: String,
 }
 
-pub trait BoundingBoxTraitc<BoundingBoxTrait>{
-    fn new(boundingbox: BoundingBoxTrait, label: String) -> Self;
+pub trait BoundingBoxTraitc<T: BoundingBoxTrait>{
+    fn new(boundingbox: T, label: String) -> Self;
 }
 
 impl BoundingBoxTraitc<XYXY> for XYXYc {
