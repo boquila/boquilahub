@@ -8,3 +8,4 @@ pub mod exportutils;
 pub mod bq;
 pub mod rest;
 pub mod feed;
+pub mod video_file;
