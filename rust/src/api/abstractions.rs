@@ -694,25 +694,25 @@ pub trait BoundingBoxTraitc<T: BoundingBoxTrait>{
 
 impl BoundingBoxTraitc<XYXY> for XYXYc {
     fn new(xyxy: XYXY, label: String) -> Self {
-        XYXYc { xyxy, label }
+        Self { xyxy, label }
     }
 }
 
 impl BoundingBoxTraitc<XYXYn> for XYXYnc {
     fn new(xyxyn: XYXYn, label: String) -> Self {
-        XYXYnc { xyxyn, label }
+        Self { xyxyn, label }
     }
 }
 
 impl BoundingBoxTraitc<XYWH> for XYWHc {
     fn new(xywh: XYWH, label: String) -> Self {
-        XYWHc { xywh, label }
+        Self { xywh, label }
     }
 }
 
 impl BoundingBoxTraitc<XYWHn> for XYWHnc{
     fn new(xywhn: XYWHn, label: String) -> Self {
-        XYWHnc { xywhn, label }
+        Self { xywhn, label }
     }
 }
 
@@ -752,11 +752,20 @@ pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: &AI) -> Vec<BBox> {
             x2: xyxy.x2,
             y2: xyxy.y2,
             confidence: xyxy.prob,
-            class_id: xyxy.class_id as u16,
+            class_id: xyxy.class_id,
             label,
         };
         to_return.push(bbox);
     }
+    to_return
+}
+
+pub fn list_xyxy_to_xyxyc(orig: Vec<XYXY>, ai: &AI) -> Vec<XYXYc> {
+    let mut to_return = Vec::with_capacity(orig.len()); 
+    to_return.extend(orig.into_iter().map(|xyxy| {
+        let label = ai.classes[xyxy.class_id as usize].clone();
+        xyxy.to_xyxyc(None, None, label)
+    }));
     to_return
 }
 
