@@ -86,10 +86,10 @@ fn run_model(input: Array<f32, Ix4>) -> Array<f32, IxDyn> {
 
 fn detect(file_path: String) -> Vec<XYXY> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
-    return detect_from_buf(buf);
+    return detect_from_buf(&buf);
 }
 
-pub fn detect_from_buf(buf: Vec<u8>) -> Vec<XYXY> {
+pub fn detect_from_buf(buf: &Vec<u8>) -> Vec<XYXY> {
     let input_width = CURRENT_AI.lock().unwrap().input_width;
     let input_height = CURRENT_AI.lock().unwrap().input_height;
 
@@ -99,7 +99,7 @@ pub fn detect_from_buf(buf: Vec<u8>) -> Vec<XYXY> {
     return boxes;
 }
 
-pub fn detect_bbox_from_buf(buf:Vec<u8>) -> Vec<BBox> {
+pub fn detect_bbox_from_buf(buf:&Vec<u8>) -> Vec<BBox> {
     let data = detect_from_buf(buf);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
