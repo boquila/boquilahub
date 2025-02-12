@@ -5,6 +5,7 @@ use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_m
 use imageproc::rect::Rect;
 use super::abstractions::{BBox};
 
+#[flutter_rust_bridge::frb(ignore)]
 const BBOX_COLORS:  [Rgba<u8>; 74]  = [
     Rgba([255, 0, 0, 255]),               // Red
     Rgba([103, 58, 183, 255]),            // Deep Purple
