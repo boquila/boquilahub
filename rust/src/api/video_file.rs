@@ -1,7 +1,7 @@
 use flutter_rust_bridge::frb;
 use image::{ImageBuffer, Rgb};
 use std::{iter::Iterator, path::Path};
-use video_rs::{Decoder, DecoderBuilder, Url};
+use video_rs::{Decoder, DecoderBuilder};
 
 #[frb(ignore)]
 pub struct FileVideoFrameIterator {

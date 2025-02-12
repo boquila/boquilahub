@@ -9,3 +9,4 @@ pub mod bq;
 pub mod rest;
 pub mod feed;
 pub mod video_file;
+pub mod render;
