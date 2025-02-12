@@ -21,3 +21,5 @@ csv = "1.3.1"
 serde = { version = "1.0.217", features = ["derive"] }
 reqwest = { version = "0.12.12", features = ["blocking", "multipart"] }
 video-rs = { version = "0.10.3", features = ["ndarray"] }
+imageproc = "0.25.0"
+ab_glyph = "0.2.29"

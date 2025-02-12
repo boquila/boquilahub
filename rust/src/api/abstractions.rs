@@ -740,6 +740,10 @@ impl BBox {
     pub fn strconf(&self) -> String {
         format!("{:.2}", self.confidence)
     }
+
+    pub fn strlabel(&self) -> String {
+        format!("{} {}%", self.label, self.strconf())
+    }
 }
 
 pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: &AI) -> Vec<BBox> {

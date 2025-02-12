@@ -1,6 +1,9 @@
-
-
-use image::Rgba;
+#![allow(dead_code)]
+use ab_glyph::FontRef;
+use image::{DynamicImage, Rgba};
+use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
+use imageproc::rect::Rect;
+use super::abstractions::{BBox};
 
 const BBOX_COLORS:  [Rgba<u8>; 74]  = [
     Rgba([255, 0, 0, 255]),               // Red
@@ -78,3 +81,46 @@ const BBOX_COLORS:  [Rgba<u8>; 74]  = [
     Rgba([153, 204, 102, 255]),           // Chartreuse
     Rgba([204, 102, 204, 255]),           // Plum
 ];
+
+fn draw_bbox_from_file_path(file_path: &str, predictions: Vec<BBox>) -> DynamicImage {
+    let buf = std::fs::read(file_path).unwrap();
+    let img = draw_bbox_from_buf(&buf,predictions);
+    return img
+}
+
+fn draw_bbox_from_buf(buf: &Vec<u8>, predictions: Vec<BBox>) -> DynamicImage {
+    let mut img = image::load_from_memory(buf).unwrap();    
+    let factor = 18.4;
+    let factor2 = 3.0;
+    let white: Rgba<u8> = Rgba([255, 255, 255, 255]);
+    let font = FontRef::try_from_slice(include_bytes!("../../../assets//DejaVuSans.ttf")).unwrap();
+
+    for bbox in &predictions {
+        let w = bbox.x2 - bbox.x1;
+        let h = bbox.y2 - bbox.y1;
+        let color = BBOX_COLORS[bbox.class_id as usize];
+        let text = bbox.strlabel();
+
+        draw_hollow_rect_mut(
+            &mut img,
+            Rect::at(bbox.x1 as i32, bbox.y1 as i32).of_size(w as u32, h as u32),
+            color,
+        );
+        draw_filled_rect_mut(
+            &mut img,
+            Rect::at(bbox.x1 as i32, (bbox.y1 - factor + factor2) as i32)
+                .of_size((text.len() * 10) as u32, factor as u32 + 4),
+            color,
+        );
+        draw_text_mut(
+            &mut img,
+            white,
+            bbox.x1 as i32,
+            (bbox.y1 - factor + factor2) as i32,
+            factor,
+            &font,
+            &text,
+        );
+    }
+    return img
+}
