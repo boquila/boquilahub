@@ -82,20 +82,20 @@ const BBOX_COLORS:  [Rgba<u8>; 74]  = [
     Rgba([204, 102, 204, 255]),           // Plum
 ];
 
-fn draw_bbox_from_file_path(file_path: &str, predictions: Vec<BBox>) -> DynamicImage {
+fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> DynamicImage {
     let buf = std::fs::read(file_path).unwrap();
     let img = draw_bbox_from_buf(&buf,predictions);
     return img
 }
 
-fn draw_bbox_from_buf(buf: &Vec<u8>, predictions: Vec<BBox>) -> DynamicImage {
+fn draw_bbox_from_buf(buf: &Vec<u8>, predictions: &Vec<BBox>) -> DynamicImage {
     let mut img = image::load_from_memory(buf).unwrap();    
     let factor = 18.4;
     let factor2 = 3.0;
     let white: Rgba<u8> = Rgba([255, 255, 255, 255]);
     let font = FontRef::try_from_slice(include_bytes!("../../../assets//DejaVuSans.ttf")).unwrap();
 
-    for bbox in &predictions {
+    for bbox in predictions {        
         let w = bbox.x2 - bbox.x1;
         let h = bbox.y2 - bbox.y1;
         let color = BBOX_COLORS[bbox.class_id as usize];
