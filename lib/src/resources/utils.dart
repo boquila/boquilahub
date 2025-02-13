@@ -122,7 +122,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                             child: Padding(
                               padding: const EdgeInsets.all(2.0),
                               child: Text(
-                                "${data.label} ${data.strconf()}",
+                                data.strlabel(),
                                 style: const TextStyle(
                                   color:
                                       Colors.white, // Set text color to white

@@ -9,7 +9,6 @@ use once_cell::sync::Lazy;
 use ort::inputs;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
-
 use std::{sync::Mutex, vec};
 
 use super::postprocessing::process_output;
@@ -95,7 +94,7 @@ pub fn detect_from_buf(buf: &Vec<u8>) -> Vec<XYXY> {
 
     let (input, img_width, img_height) = prepare_input(buf, input_width, input_height);
     let output = run_model(input);
-    let boxes = process_output(output, img_width, img_height, input_width, input_height);
+    let boxes = process_output(output, img_width, img_height, input_width, input_height);;
     return boxes;
 }
 

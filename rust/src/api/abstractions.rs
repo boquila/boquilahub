@@ -577,8 +577,8 @@ pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T>
         boxes = boxes
             .into_iter()
             .skip(1)
-            .filter(|b| {
-                b.get_class_id() != current.get_class_id() || b.iou(&current) <= iou_threshold
+            .filter(|bbox| {
+                bbox.get_class_id() != current.get_class_id() || bbox.iou(&current) <= iou_threshold
             })
             .collect();
     }
@@ -745,12 +745,9 @@ impl BBox {
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn strconf(&self) -> String {
-        format!("{:.2}", self.confidence)
-    }
-
     pub fn strlabel(&self) -> String {
-        format!("{} {}%", self.label, self.strconf())
+        let conf = format!("{:.2}", self.confidence);
+        format!("{} {}%", self.label, conf)
     }
 }
 
