@@ -1,11 +1,9 @@
-#![allow(dead_code)]
 use ab_glyph::FontRef;
-use image::{DynamicImage, Rgb, Rgba};
+use image::Rgb;
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
-use super::abstractions::{BBox};
+use super::abstractions::BBox;
 
-#[flutter_rust_bridge::frb(ignore)]
 const BBOX_COLORS: [Rgb<u8>; 74] = [
     Rgb([255, 0, 0]),     // Red
     Rgb([103, 58, 183]),  // Deep Purple
@@ -83,11 +81,21 @@ const BBOX_COLORS: [Rgb<u8>; 74] = [
     Rgb([204, 102, 204]), // Plum
 ];
 
-fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
+pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
     let buf = std::fs::read(file_path).unwrap();
     let img = draw_bbox_from_buf(&buf,predictions);
     return img
 }
+
+// #[flutter_rust_bridge::frb(sync)]
+// pub fn draw_bbox(file_path: &str, predictions: &Vec<BBox>) -> Vec<u8> {
+//     let image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> =
+//         draw_bbox_from_file_path(file_path, predictions);
+//     let mut jpeg_data = Vec::new();
+//     let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 95);
+//     encoder.encode_image(&image_buffer).unwrap();
+//     return jpeg_data;
+// }
 
 const FONT_SCALE: f32 = 18.4;
 const LABEL_PADDING: f32 = 3.0;

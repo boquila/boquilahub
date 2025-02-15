@@ -91,10 +91,9 @@ fn detect(file_path: String) -> Vec<XYXY> {
 pub fn detect_from_buf(buf: &Vec<u8>) -> Vec<XYXY> {
     let input_width = CURRENT_AI.lock().unwrap().input_width;
     let input_height = CURRENT_AI.lock().unwrap().input_height;
-
     let (input, img_width, img_height) = prepare_input(buf, input_width, input_height);
     let output = run_model(input);
-    let boxes = process_output(output, img_width, img_height, input_width, input_height);;
+    let boxes = process_output(output, img_width, img_height, input_width, input_height);
     return boxes;
 }
 
