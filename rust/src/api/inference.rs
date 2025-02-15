@@ -5,7 +5,6 @@ use super::eps::EP;
 use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; 
-// will help us manage the MODEL global variable
 use ort::inputs;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
@@ -68,7 +67,7 @@ pub fn set_model(value: String, ep: EP) {
     *CURRENT_AI.lock().unwrap() = model_metadata.clone();
 }
 
-fn run_model(input: Array<f32, Ix4>) -> Array<f32, IxDyn> {
+fn run_model(input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
     let binding = MODEL.lock().unwrap();
 
     let outputs = binding
@@ -88,16 +87,17 @@ fn detect(file_path: String) -> Vec<XYXY> {
     return detect_from_buf(&buf);
 }
 
-pub fn detect_from_buf(buf: &Vec<u8>) -> Vec<XYXY> {
-    let input_width = CURRENT_AI.lock().unwrap().input_width;
-    let input_height = CURRENT_AI.lock().unwrap().input_height;
+pub fn detect_from_buf(buf: &[u8]) -> Vec<XYXY> {
+    let ai = CURRENT_AI.lock().unwrap();
+    let (input_width, input_height) = (ai.input_width, ai.input_height);
+
     let (input, img_width, img_height) = prepare_input(buf, input_width, input_height);
-    let output = run_model(input);
-    let boxes = process_output(output, img_width, img_height, input_width, input_height);
+    let output = run_model(&input);
+    let boxes = process_output(&output, img_width, img_height, input_width, input_height);
     return boxes;
 }
 
-pub fn detect_bbox_from_buf(buf:&Vec<u8>) -> Vec<BBox> {
+pub fn detect_bbox_from_buf(buf:&[u8]) -> Vec<BBox> {
     let data = detect_from_buf(buf);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }

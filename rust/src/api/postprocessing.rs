@@ -3,7 +3,7 @@ use super::abstractions::{nms, BoundingBoxTrait, XYXY};
 
 // Function used to convert the output tensor from YOLO to an Vec<XYXY>
 pub fn process_output(
-    output: Array<f32, IxDyn>,
+    output: &Array<f32, IxDyn>,
     img_width: u32,
     img_height: u32,
     input_width: u32, 
