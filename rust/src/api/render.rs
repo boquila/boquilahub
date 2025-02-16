@@ -4,7 +4,7 @@ use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_m
 use imageproc::rect::Rect;
 use super::abstractions::BBox;
 
-const BBOX_COLORS: [Rgb<u8>; 74] = [
+const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([255, 0, 0]),     // Red
     Rgb([103, 58, 183]),  // Deep Purple
     Rgb([3, 169, 244]),   // Light Blue Accent
@@ -79,6 +79,22 @@ const BBOX_COLORS: [Rgb<u8>; 74] = [
     Rgb([204, 153, 102]), // Copper
     Rgb([153, 204, 102]), // Chartreuse
     Rgb([204, 102, 204]), // Plum
+    Rgb([75, 0, 130]),    // Indigo
+    Rgb([64, 224, 208]),  // Turquoise
+    Rgb([255, 140, 0]),   // Dark Orange
+    Rgb([147, 112, 219]), // Medium Purple
+    Rgb([0, 250, 154]),   // Medium Spring Green
+    Rgb([255, 99, 71]),   // Tomato
+    Rgb([186, 85, 211]),  // Medium Orchid
+    Rgb([152, 251, 152]), // Pale Green
+    Rgb([219, 112, 147]), // Pale Violet Red
+    Rgb([244, 164, 96]),  // Sandy Brown
+    Rgb([176, 196, 222]), // Light Steel Blue
+    Rgb([255, 127, 80]),  // Coral
+    Rgb([135, 206, 250]), // Light Sky Blue
+    Rgb([218, 165, 32]),  // Golden Rod
+    Rgb([72, 61, 139]),   // Dark Slate Blue
+    Rgb([250, 128, 114]), // Salmon
 ];
 
 pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
@@ -103,7 +119,7 @@ const CHAR_WIDTH: usize = 10;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../../assets//DejaVuSans.ttf");
 
-fn draw_bbox_from_buf(buf: &Vec<u8>, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
+fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
     let mut img: image::ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf).unwrap().to_rgb8();  
     let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();    
     
