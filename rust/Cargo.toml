@@ -23,3 +23,4 @@ reqwest = { version = "0.12.12", features = ["blocking", "multipart"] }
 video-rs = { version = "0.10.3", features = ["ndarray"] }
 imageproc = "0.25.0"
 ab_glyph = "0.2.29"
+pulp = "0.21.4"

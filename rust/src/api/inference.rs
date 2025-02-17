@@ -6,6 +6,8 @@ use super::preprocessing::prepare_input;
 use ndarray::{Array, Ix4, IxDyn};
 use once_cell::sync::Lazy; 
 use ort::inputs;
+use std::time::Instant;
+
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::{sync::Mutex, vec};

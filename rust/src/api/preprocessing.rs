@@ -7,7 +7,11 @@ pub fn prepare_input(buf: &[u8], input_width: u32, input_height: u32) -> (Array<
     let img: ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf)
         .unwrap()
         .into_rgb8();
-    
+
+    return prepare_input_from_img(img, input_width, input_height)
+}
+
+pub fn prepare_input_from_img(img: ImageBuffer<Rgb<u8>, Vec<u8>>, input_width: u32, input_height: u32) -> (Array<f32, Ix4>, u32, u32) {
     let (img_width, img_height) = (img.width(), img.height());
     
     let resized = resize(
