@@ -12,6 +12,15 @@ pub struct EP {
     pub dependencies: String, // the dependencies that are required
 }
 
+struct EPx {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub img_path: &'static str,
+    pub dependencies: &'static str, 
+    pub version: f32,
+    pub local: bool,
+}
+
 #[derive(Debug)]
 pub enum ExecutionProviders {
     CUDA(EP),
