@@ -100,7 +100,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
             if (value == "CUDA") {
               EP tempEP = getEpByName(listEps: listEPs, name: value!);
               double cudaVersion =
-                  await ExecutionProviders.cuda(tempEP).getVersion();
+                  await getEpVersion(provider: tempEP);
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.8 && iscudnnAvailable) {
                 setState(() {

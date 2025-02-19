@@ -7,51 +7,47 @@ pub struct EP {
     pub name: String,
     pub description: String,
     pub img_path: String,
-    pub version: f32,      // the version that is accepted by BoquilaHUB
+    pub version: f32, // the version that is accepted by BoquilaHUB
     pub local: bool,
-    pub dependencies: String, // the dependencies that are required
+    pub dependencies: String,
 }
 
-struct EPx {
-    pub name: &'static str,
-    pub description: &'static str,
-    pub img_path: &'static str,
-    pub dependencies: &'static str, 
-    pub version: f32,
-    pub local: bool,
-}
+pub fn get_ep_version(provider: &EP) -> f64 {
+    match provider.name.as_str() {
+        "CUDA" => {
+            let output = Command::new("nvcc").args(["--version"]).output().unwrap();
 
-#[derive(Debug)]
-pub enum ExecutionProviders {
-    CUDA(EP),
-    ROCm(EP),
-}
+            let output_text = match str::from_utf8(&output.stdout) {
+                Ok(v) => v,
+                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+            };
 
-impl ExecutionProviders {
-    pub fn get_version(&self) -> f64 {
-        match self {
-            ExecutionProviders::CUDA(_) => {
-                let output = Command::new("nvcc").args(["--version"]).output().unwrap();
+            let version_regex = Regex::new(r"release (\d+\.\d+),").unwrap();
 
-                let output_text = match str::from_utf8(&output.stdout) {
-                    Ok(v) => v,
-                    Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-                };
-
-                let version_regex = Regex::new(r"release (\d+\.\d+),").unwrap();
-
-                if let Some(captures) = version_regex.captures(output_text) {
-                    if let Some(version_str) = captures.get(1) {
-                        // Convert the version string to a float
-                        return version_str.as_str().parse::<f64>().unwrap_or(0.0);
-                    }
+            if let Some(captures) = version_regex.captures(output_text) {
+                if let Some(version_str) = captures.get(1) {
+                    // Convert the version string to a float
+                    return version_str.as_str().parse::<f64>().unwrap_or(0.0);
                 }
-                0.0 // Return 0.0 if no match is found
             }
-            ExecutionProviders::ROCm(_) => {
-                todo!();
-            }
+            0.0 // Return 0.0 if no match is found
         }
+        "CPU" => {
+            todo!();
+        }
+        "ROCm" => {
+            todo!();
+        }
+        "VitisAI" => {
+            todo!();
+        }
+        "TensorRT" => {
+            todo!();
+        }
+        "BoquilaHUBRemoto" => {
+            todo!();
+        } 
+        _ => 0.0, // Default case
     }
 }
 

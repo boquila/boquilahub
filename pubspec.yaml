@@ -42,6 +42,7 @@ dependencies:
   intl: ^0.20.1
   freezed_annotation: ^2.4.4
 
+  collection: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

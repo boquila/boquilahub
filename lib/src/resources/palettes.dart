@@ -71,35 +71,6 @@ const List<Color> bboxColor = <Color>[
   Color.fromARGB(255, 199, 21, 133), // Medium Violet Red
   Color.fromARGB(255, 255, 228, 196), // Bisque
   Color.fromARGB(255, 176, 224, 230), // Powder Blue
-  Color.fromARGB(255, 221, 160, 221), // Plum
-  Color.fromARGB(255, 255, 51, 102),   // Cerise
-  Color.fromARGB(255, 204, 102, 153),  // Pale Magenta
-  Color.fromARGB(255, 153, 204, 255),  // Sky Blue
-  Color.fromARGB(255, 102, 204, 204),  // Aquamarine
-  Color.fromARGB(255, 255, 153, 153),  // Salmon
-  Color.fromARGB(255, 204, 153, 255),  // Lavender
-  Color.fromARGB(255, 255, 204, 51),   // Mustard
-  Color.fromARGB(255, 153, 102, 102),  // Brick
-  Color.fromARGB(255, 102, 153, 153),  // Teal
-  Color.fromARGB(255, 255, 102, 102),  // Coral
-  Color.fromARGB(255, 102, 204, 102),  // Lime
-  Color.fromARGB(255, 204, 102, 102),  // Terracotta
-  Color.fromARGB(255, 51, 153, 102),   // Viridian
-  Color.fromARGB(255, 204, 102, 255),  // Orchid
-  Color.fromARGB(255, 153, 255, 153),  // Pale Green
-  Color.fromARGB(255, 255, 153, 204),  // Blush
-  Color.fromARGB(255, 255, 102, 204),  // Fuchsia
-  Color.fromARGB(255, 153, 102, 204),  // Indigo
-  Color.fromARGB(255, 102, 255, 255),  // Turquoise
-  Color.fromARGB(255, 204, 102, 153),  // Mauve
-  Color.fromARGB(255, 102, 255, 102),  // Spring Green
-  Color.fromARGB(255, 255, 153, 102),  // Tangerine
-  Color.fromARGB(255, 102, 153, 102),  // Olive
-  Color.fromARGB(255, 255, 204, 153),  // Apricot
-  Color.fromARGB(255, 102, 153, 204),  // Cornflower
-  Color.fromARGB(255, 204, 153, 102),  // Copper
-  Color.fromARGB(255, 153, 204, 102),  // Chartreuse
-  Color.fromARGB(255, 204, 102, 204),  // Plum
 ];
 
 const List<Color> bboxColors = [
