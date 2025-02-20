@@ -31,6 +31,7 @@ struct SEG {
 
 pub struct T {}
 
+// Trait for all bounding boxes (that don't have a string)
 pub trait BoundingBoxTrait: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, prob: f32, class_id: u16) -> Self;
     fn area(&self) -> f32;
@@ -688,31 +689,100 @@ pub struct XYWHnc {
     pub label: String,
 }
 
-pub trait BoundingBoxTraitc<T: BoundingBoxTrait> {
+// Trait for all bounding boxes with a label string
+pub trait BoundingBoxTraitC<T: BoundingBoxTrait> {
     fn new(boundingbox: T, label: String) -> Self;
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc;
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
 }
 
-impl BoundingBoxTraitc<XYXY> for XYXYc {
+impl BoundingBoxTraitC<XYXY> for XYXYc {
     fn new(xyxy: XYXY, label: String) -> Self {
         Self { xyxy, label }
     }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        self.xyxy.to_xyxyc(w, h, label)
+    }
+
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        self.xyxy.to_xyxync(w, h, label)
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        self.xyxy.to_xywhc(w, h, label)
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        self.xyxy.to_xywhnc(w, h, label)
+    }
 }
 
-impl BoundingBoxTraitc<XYXYn> for XYXYnc {
+impl BoundingBoxTraitC<XYXYn> for XYXYnc {
     fn new(xyxyn: XYXYn, label: String) -> Self {
         Self { xyxyn, label }
     }
-}
 
-impl BoundingBoxTraitc<XYWH> for XYWHc {
-    fn new(xywh: XYWH, label: String) -> Self {
-        Self { xywh, label }
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        self.xyxyn.to_xyxyc(w, h, label)
+    }
+
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        self.xyxyn.to_xyxync(w, h, label)
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        self.xyxyn.to_xywhc(w, h, label)
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        self.xyxyn.to_xywhnc(w, h, label)
     }
 }
 
-impl BoundingBoxTraitc<XYWHn> for XYWHnc {
+impl BoundingBoxTraitC<XYWH> for XYWHc {
+    fn new(xywh: XYWH, label: String) -> Self {
+        Self { xywh, label }
+    }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        self.xywh.to_xyxyc(w, h, label)
+    }
+
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        self.xywh.to_xyxync(w, h, label)
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        self.xywh.to_xywhc(w, h, label)
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        self.xywh.to_xywhnc(w, h, label)
+    }
+}
+
+impl BoundingBoxTraitC<XYWHn> for XYWHnc {
     fn new(xywhn: XYWHn, label: String) -> Self {
         Self { xywhn, label }
+    }
+
+    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
+        self.xywhn.to_xyxyc(w, h, label)
+    }
+
+    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
+        self.xywhn.to_xyxync(w, h, label)
+    }
+
+    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
+        self.xywhn.to_xywhc(w, h, label)
+    }
+
+    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
+        self.xywhn.to_xywhnc(w, h, label)
     }
 }
 

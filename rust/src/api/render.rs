@@ -98,26 +98,24 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([250, 128, 114]), // Salmon
 ];
 
-pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let buf = std::fs::read(file_path).unwrap();
-    let img = draw_bbox_from_buf(&buf,predictions);
-    return img
-}
-
-fn draw_bbox(file_path: &str, predictions: &Vec<BBox>) -> Vec<u8> {
-    let image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> =
-        draw_bbox_from_file_path(file_path, predictions);
-    let mut jpeg_data = Vec::new();
-    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 95);
-    encoder.encode_image(&image_buffer).unwrap();
-    return jpeg_data;
-}
-
 const FONT_SCALE: f32 = 18.4;
 const LABEL_PADDING: f32 = 3.0;
 const CHAR_WIDTH: usize = 10;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../../assets//DejaVuSans.ttf");
+
+pub fn image_buffer_to_jpg_buffer(image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<u8> {
+    let mut jpeg_data = Vec::new();
+    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 100);
+    encoder.encode_image(&image_buffer).unwrap();
+    return jpeg_data;
+}
+
+pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let buf = std::fs::read(file_path).unwrap();
+    let img = draw_bbox_from_buf(&buf,predictions);
+    return img
+}
 
 fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
     let mut img: image::ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf).unwrap().to_rgb8();  

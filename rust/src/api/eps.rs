@@ -2,7 +2,7 @@ use regex::Regex;
 use std::process::Command;
 use std::str;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EP {
     pub name: String,
     pub description: String,
