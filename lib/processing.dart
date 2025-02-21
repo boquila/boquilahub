@@ -85,6 +85,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
   bool isSupportedIMG(File file) {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
         file.path.toLowerCase().endsWith('.png') ||
+        file.path.toLowerCase().endsWith('.webp') ||
+        file.path.toLowerCase().endsWith('.gif') ||
         file.path.toLowerCase().endsWith('.jpeg');
     return isPicture;
   }
@@ -129,7 +131,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   void selectFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowedExtensions: ['jpg', 'jpeg', "png"],
+      allowedExtensions: ['jpg', 'jpeg', "png","webp","gif"],
       type: FileType.custom,
     );
     if (result != null) {
