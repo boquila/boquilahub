@@ -857,7 +857,7 @@ pub fn get_ai_by_description(list_ais: &[AI], description: &str) -> AI {
         .clone()
 }
 
-pub struct Depndency {
-    name: String,
+pub struct Dependency {
     version: f32,
+    name: String,
 }
