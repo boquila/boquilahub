@@ -2,6 +2,7 @@ use crate::api::abstractions::BBox;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use reqwest::blocking::Client;
+use std::os::windows::process::CommandExt;
 use std::process::Command;
 use std::str;
 
@@ -55,7 +56,7 @@ pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
 
 fn get_ipv4_address() -> Option<String> {
     // Run the ipconfig command
-    let output = Command::new("ipconfig")
+    let output = Command::new("ipconfig").creation_flags(0)
         .output()
         .expect("Failed to execute ipconfig");
     

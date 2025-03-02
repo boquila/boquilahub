@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::os::windows::process::CommandExt;
 use std::process::Command;
 use std::str;
 
@@ -15,7 +16,7 @@ pub struct EP {
 pub fn get_ep_version(provider: &EP) -> f64 {
     match provider.name.as_str() {
         "CUDA" => {
-            let output = Command::new("nvcc").args(["--version"]).output().unwrap();
+            let output = Command::new("nvcc").args(["--version"]).creation_flags(0).output().unwrap();
 
             let output_text = match str::from_utf8(&output.stdout) {
                 Ok(v) => v,
