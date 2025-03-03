@@ -86,7 +86,7 @@ impl FrameProcessor {
 impl Iterator for FrameProcessor {
     type Item = usize;
 
-    pub fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item> {
         if let Some((time, mut frame)) = self.frame_iterator.next() {
             let predictions = detect_from_imgbuf(&frame);
             let predictions_bbox = simple_xyxy_to_bbox(predictions);
