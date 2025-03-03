@@ -13,9 +13,9 @@ pub fn image_buffer_to_ndarray(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ArrayBase
     for y in 0..height {
         for x in 0..width {
             let pixel = img.get_pixel(x as u32, y as u32);
-            array[[y, x, 0]] = pixel[0]; // R
-            array[[y, x, 1]] = pixel[1]; // G
             array[[y, x, 2]] = pixel[2]; // B
+            array[[y, x, 1]] = pixel[1]; // G
+            array[[y, x, 0]] = pixel[0]; // R            
         }
     }
     
