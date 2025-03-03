@@ -80,14 +80,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
     });
     if (isvideoselected && videoFile != null){
       await predictVideoFile(filePath: videoFile!);
+      simpleDialog(context, "Video exportado con predicciones");
     } else {
       await analyze(bool);
+      setState(() {
+        analyzecomplete = true;
+        isProcessing = false;
+      });
     }
-    
-    setState(() {
-      analyzecomplete = true;
-      isProcessing = false;
-    });
   }
 
   bool isSupportedIMG(File file) {
