@@ -98,9 +98,9 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([250, 128, 114]), // Salmon
 ];
 
-const FONT_SCALE: f32 = 18.4;
-const LABEL_PADDING: f32 = 3.0;
-const CHAR_WIDTH: usize = 10;
+const FONT_SCALE: f32 = 24.4;
+const LABEL_PADDING: f32 = FONT_SCALE / 6.13;
+const CHAR_WIDTH: f32= FONT_SCALE / 1.84 ;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../../assets//DejaVuSans.ttf");
 
@@ -140,7 +140,7 @@ pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prediction
         draw_filled_rect_mut(
             img,
             Rect::at(bbox.x1 as i32, (bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32)
-                .of_size((text.len() * CHAR_WIDTH) as u32, FONT_SCALE as u32 + 4),
+                .of_size((text.len() as f32 * CHAR_WIDTH) as u32, FONT_SCALE as u32 + 4),
             color,
         );
         draw_text_mut(

@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/api/exportutils.dart';
+import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/resources/objects.dart';
 import 'dart:core';
@@ -30,9 +31,11 @@ class ProcessingPage extends StatefulWidget {
 
 class _ProcessingPageState extends State<ProcessingPage> {
   bool isfolderselected = false;
+  bool isvideoselected = false;
   bool isProcessing = false;
   bool analyzecomplete = false;
   bool shouldContinue = true;
+  String? videoFile;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
   bool errorocurred = false;
@@ -75,7 +78,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
     setState(() {
       isProcessing = true;
     });
-    await analyze(bool);
+    if (isvideoselected && videoFile != null){
+      await predictVideoFile(filePath: videoFile!);
+    } else {
+      await analyze(bool);
+    }
+    
     setState(() {
       analyzecomplete = true;
       isProcessing = false;
@@ -121,6 +129,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       setState(() {
         listpredimgs = templist;
         isfolderselected = true;
+        isvideoselected = false;
         analyzecomplete = false;
         shouldContinue = false;
         isProcessing = false;
@@ -142,7 +151,27 @@ class _ProcessingPageState extends State<ProcessingPage> {
         listpredimgs = [temppred];
         analyzecomplete = false;
         isfolderselected = false;
+        isvideoselected = false;
       });
+    }
+  }
+
+  void selectVideoFile() async {
+    if (widget.currentep.local){    
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowedExtensions: ["mp4", "mov", "avi", "mkv", "flv", "webm", "wmv", "mpeg"],
+      type: FileType.custom,
+    );
+    if (result != null) {
+      setState(() {
+        isvideoselected = true;
+        videoFile = "my_file.mp4";
+        analyzecomplete = false;        
+        isfolderselected = false;
+      });
+    }
+    } else {
+      simpleDialog(context, "Por ahora, solo se permite procesar videos de forma local");
     }
   }
 
@@ -217,8 +246,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
         _buildSourceButton(
             icon: Icons.videocam_outlined,
             label: "Video",
-            onPressed: () {},
-            color: Colors.grey),
+            onPressed: selectVideoFile,
+            color: widget.currentcolors[4]),
         _buildSourceButton(
             icon: Icons.camera_alt_outlined,
             label: "Cámara",
@@ -243,7 +272,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (listpredimgs.isNotEmpty)
+            if (listpredimgs.isNotEmpty || isvideoselected)
               ElevatedButton(
                   onPressed: () async {
                     if (widget.currentai != null || !widget.currentep.local) {

@@ -3,6 +3,7 @@ use image::{ImageBuffer, Rgb};
 use ndarray::{Array3, ArrayBase, Dim, OwnedRepr};
 use video_rs::encode::Settings;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::{iter::Iterator, path::Path};
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
 use super::inference::{detect_from_imgbuf, simple_xyxy_to_bbox};
