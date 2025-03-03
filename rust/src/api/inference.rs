@@ -2,7 +2,7 @@
 use super::abstractions::{xyxy_to_bbox, BBox, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::preprocessing::{prepare_input, prepare_input_from_imgbuf};
+use super::preprocessing::{prepare_input_from_buf, prepare_input_from_filepath, prepare_input_from_imgbuf};
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, ArrayBase, Dim, Ix4, IxDyn, OwnedRepr};
 use once_cell::sync::Lazy;
@@ -97,13 +97,12 @@ where
     process_output(&output, img_width, img_height, input_width, input_height)
 }
 
-fn detect_from_file_path(file_path: String) -> Vec<XYXY> {
-    let buf = std::fs::read(file_path).unwrap_or(vec![]);
-    return detect_from_buf(&buf);
+fn detect_from_file_path(file_path: &str) -> Vec<XYXY> {
+    detect_common(file_path, prepare_input_from_filepath)
 }
 
 pub fn detect_from_buf(buf: &[u8]) -> Vec<XYXY> {
-    detect_common(buf, prepare_input)
+    detect_common(buf, prepare_input_from_buf)
 }
 
 pub fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
@@ -120,7 +119,7 @@ pub fn simple_xyxy_to_bbox(xyxy: Vec<XYXY>) -> Vec<BBox>{
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
-pub fn detect_bbox(file_path: String) -> Vec<BBox> {
+pub fn detect_bbox(file_path: &str) -> Vec<BBox> {
     let data = detect_from_file_path(file_path);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
