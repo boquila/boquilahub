@@ -80,7 +80,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
     });
     if (isvideoselected && videoFile != null){
       await predictVideoFile(filePath: videoFile!);
-      simpleDialog(context, "Video exportado con predicciones");
     } else {
       await analyze(bool);
       setState(() {
@@ -285,6 +284,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
                           }
                         } else {
                           analyzeW(true);
+                        }
+                        if (isvideoselected && videoFile != null && context.mounted){
+                          simpleDialog(context, "Video exportado con predicciones");
                         }
                       }
                     } else {
