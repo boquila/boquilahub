@@ -34,9 +34,9 @@ impl Iterator for FileVideoFrameIterator {
 
                 for y in 0..height {
                     for x in 0..width {
-                        let r = frame[[y, x, 0]];
-                        let g = frame[[y, x, 1]];
                         let b = frame[[y, x, 2]];
+                        let g = frame[[y, x, 1]];
+                        let r = frame[[y, x, 0]];
                         img.put_pixel(x as u32, y as u32, Rgb([r, g, b]));
                     }
                 }
