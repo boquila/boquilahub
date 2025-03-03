@@ -119,11 +119,11 @@ pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> Ima
 
 fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf).unwrap().to_rgb8();  
-    draw_bbox_from_img(&mut img, predictions);
+    draw_bbox_from_imgbuf(&mut img, predictions);
     return img
 }
 
-pub fn draw_bbox_from_img(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<BBox>) {
+pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<BBox>) {
     let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();    
     
     for bbox in predictions {        

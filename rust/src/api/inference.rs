@@ -1,10 +1,10 @@
 #![allow(dead_code)]
-use super::abstractions::{xyxy_to_bbox, BBox, ProbSpace, SEGn, AI, XYXY};
+use super::abstractions::{xyxy_to_bbox, BBox, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::preprocessing::{prepare_input, prepare_input_from_img};
+use super::preprocessing::{prepare_input, prepare_input_from_imgbuf};
 use image::{ImageBuffer, Rgb};
-use ndarray::{Array, ArrayBase, Dim, Ix4, IxDyn, IxDynImpl, OwnedRepr};
+use ndarray::{Array, ArrayBase, Dim, Ix4, IxDyn, OwnedRepr};
 use once_cell::sync::Lazy;
 use ort::inputs;
 use ort::session::builder::GraphOptimizationLevel;
@@ -106,13 +106,17 @@ pub fn detect_from_buf(buf: &[u8]) -> Vec<XYXY> {
     detect_common(buf, prepare_input)
 }
 
-pub fn detect_from_img(img: ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
-    detect_common(img, prepare_input_from_img)
+pub fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
+    detect_common(img, prepare_input_from_imgbuf)
 }
 
 pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<BBox> {
     let data = detect_from_buf(buf);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
+}
+
+pub fn simple_xyxy_to_bbox(xyxy: Vec<XYXY>) -> Vec<BBox>{
+    return xyxy_to_bbox(xyxy, &CURRENT_AI.lock().unwrap().clone());
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
