@@ -48,12 +48,11 @@ pub fn process_video_file(file_path: &str) -> Result<FileVideoFrameIterator, Box
     FileVideoFrameIterator::new(file_path)
 }
 
-// Example
-// fn main() {
-//     let frame_iterator = process_rtsp("rtsp://1.1.1.1:8000/101").unwrap();
-
-//     for frame in frame_iterator {
-//         // frame is now just the ndarray frame data
-//         println!("Got frame with shape: {:?}", frame.shape());
-//     }
-// }
+// Given a video file_path
+// We run inference for each frame then create a new videofile with the predictions
+fn predict_video(file_path: &str){
+    let a = FileVideoFrameIterator::new(file_path).unwrap();
+    for frame in a {
+        
+    }
+}

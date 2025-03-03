@@ -1,6 +1,6 @@
 use ab_glyph::FontRef;
 use image::codecs::jpeg::JpegEncoder;
-use image::Rgb;
+use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
 use super::abstractions::BBox;
@@ -111,14 +111,19 @@ pub fn image_buffer_to_jpg_buffer(image_buffer: image::ImageBuffer<image::Rgb<u8
     return jpeg_data;
 }
 
-pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
+pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let buf = std::fs::read(file_path).unwrap();
     let img = draw_bbox_from_buf(&buf,predictions);
     return img
 }
 
-fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> image::ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let mut img: image::ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf).unwrap().to_rgb8();  
+fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf).unwrap().to_rgb8();  
+    draw_bbox_from_img(&mut img, predictions);
+    return img
+}
+
+pub fn draw_bbox_from_img(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<BBox>) {
     let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();    
     
     for bbox in predictions {        
@@ -128,18 +133,18 @@ fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> image::ImageBuffer
         let text = bbox.strlabel();
 
         draw_hollow_rect_mut(
-            &mut img,
+            img,
             Rect::at(bbox.x1 as i32, bbox.y1 as i32).of_size(w as u32, h as u32),
             color,
         );
         draw_filled_rect_mut(
-            &mut img,
+            img,
             Rect::at(bbox.x1 as i32, (bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32)
                 .of_size((text.len() * CHAR_WIDTH) as u32, FONT_SCALE as u32 + 4),
             color,
         );
         draw_text_mut(
-            &mut img,
+            img,
             WHITE,
             bbox.x1 as i32,
             (bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
@@ -148,5 +153,4 @@ fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<BBox>) -> image::ImageBuffer
             &text,
         );
     }
-    return img
 }
