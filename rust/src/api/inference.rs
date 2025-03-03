@@ -97,7 +97,7 @@ where
     process_output(&output, img_width, img_height, input_width, input_height)
 }
 
-fn detect(file_path: String) -> Vec<XYXY> {
+fn detect_from_file_path(file_path: String) -> Vec<XYXY> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_from_buf(&buf);
 }
@@ -117,7 +117,7 @@ pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<BBox> {
 
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox(file_path: String) -> Vec<BBox> {
-    let data = detect(file_path);
+    let data = detect_from_file_path(file_path);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
 
@@ -131,24 +131,24 @@ pub fn detect_bbox(file_path: String) -> Vec<BBox> {
 
 // }
 
-enum AIOutputs {
-    ObjectDetection(Vec<XYXY>),
-    Classification(ProbSpace),
-    Segmentation(Vec<SEGn>),
-}
+// enum AIOutputs {
+//     ObjectDetection(Vec<XYXY>),
+//     Classification(ProbSpace),
+//     Segmentation(Vec<SEGn>),
+// }
 
-enum AIFunctions {
-    Classify,
-    Detect,
-    Segment,
-}
+// enum AIFunctions {
+//     Classify,
+//     Detect,
+//     Segment,
+// }
 
-impl AIFunctions {
-    fn execute(&self, input: String) -> AIOutputs {
-        match self {
-            AIFunctions::Classify => todo!("{}", input),
-            AIFunctions::Detect => AIOutputs::ObjectDetection(detect(input)),
-            AIFunctions::Segment => todo!("{}", input),
-        }
-    }
-}
+// impl AIFunctions {
+//     fn execute(&self, input: String) -> AIOutputs {
+//         match self {
+//             AIFunctions::Classify => todo!("{}", input),
+//             AIFunctions::Detect => AIOutputs::ObjectDetection(detect(input)),
+//             AIFunctions::Segment => todo!("{}", input),
+//         }
+//     }
+// }
