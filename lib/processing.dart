@@ -89,6 +89,32 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
+  void handleAnalysisRequest(context) async {
+  // Check if AI is selected
+  if (widget.currentai == null && widget.currentep.local) {
+    simpleDialog(context, "Primero, elige una IA");
+    return;
+  }
+  
+  // Don't proceed if already processing
+  if (isProcessing) return;
+  
+  // Handle analysis based on whether prediction boxes exist at all
+  if (areBoxesEmpty(listpredimgs)) {
+    analyzeW(true);
+  } else {
+    final checkall = await askUserWhatToAnalyze();
+    if (checkall != null) {
+      analyzeW(!checkall);
+    }
+  }
+  
+  // Show success dialog for video exports
+  if (isvideoselected && videoFile != null && context.mounted) {
+    simpleDialog(context, "Video exportado con predicciones");
+  }
+}
+
   bool isSupportedIMG(File file) {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
         file.path.toLowerCase().endsWith('.png') ||
@@ -274,24 +300,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             if (listpredimgs.isNotEmpty || isvideoselected)
               ElevatedButton(
                   onPressed: () async {
-                    if (widget.currentai != null || !widget.currentep.local) {
-                      if (isProcessing) {
-                      } else {
-                        if (!areBoxesEmpty(listpredimgs)) {
-                          bool? checkall = await askUserWhatToAnalyze();
-                          if (checkall != null) {
-                            analyzeW(!checkall);
-                          }
-                        } else {
-                          analyzeW(true);
-                        }
-                        if (isvideoselected && videoFile != null && context.mounted){
-                          simpleDialog(context, "Video exportado con predicciones");
-                        }
-                      }
-                    } else {
-                      simpleDialog(context, "Primero, elige una IA");
-                    }
+                    handleAnalysisRequest(context);
                   },
                   child: Row(
                     children: [
