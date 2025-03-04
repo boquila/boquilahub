@@ -34,6 +34,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
   String? aiDropDownValue;
   bool isAPIdeployed = false;
   bool apierror = false;
+  final String ip = getIp(); // Call getIp() only once
 
   @override
   Widget build(BuildContext context) {
@@ -49,8 +50,6 @@ class _SelectAIPageState extends State<SelectAIPage> {
         borderRadius: BorderRadius.all(Radius.circular(10)),
       ),
     );
-
-    final String ip = getIp(); // Call getIp() only once
 
     return Column(
       children: [

@@ -33,7 +33,7 @@ pub async fn run_api() {
     axum::serve(listener, app).await.unwrap();
 }
 
-fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<BBox>{
+pub fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<BBox>{
     let client = Client::new();
     let response = client
         .post(url)

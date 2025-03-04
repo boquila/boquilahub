@@ -1,26 +1,46 @@
 use super::inference::{detect_from_imgbuf, simple_xyxy_to_bbox};
 use super::render::draw_bbox_from_imgbuf;
+use super::rest::detect_bbox_from_buf_remotely;
 use super::utils::image_buffer_to_ndarray;
-use flutter_rust_bridge::frb;
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;
 use std::{iter::Iterator, path::Path};
 use video_rs::encode::Settings;
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
 
-struct FileVideoFrameIterator {
+struct VideofileProcessor {
     decoder: Decoder,
+    encoder: Encoder,
 }
 
-impl FileVideoFrameIterator {
-    fn new(file_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        video_rs::init()?;
-        let decoder = DecoderBuilder::new(Path::new(file_path)).build()?;
-        Ok(FileVideoFrameIterator { decoder })
+impl VideofileProcessor {
+    fn new(file_path: &str) -> Self {
+        video_rs::init().unwrap();
+        let decoder = DecoderBuilder::new(Path::new(file_path)).build().unwrap();
+
+        let (w, h) = decoder.size();
+
+        let mut options = HashMap::new();
+        options.insert(
+            "movflags".to_string(),
+            "frag_keyframe+empty_moov".to_string(),
+        );
+
+        let output_path = format!("predicted_{}", file_path);
+
+        let _writer = WriterBuilder::new(Path::new(&output_path))
+            .with_options(&options.into())
+            .build()
+            .unwrap();
+
+        let settings = Settings::preset_h264_yuv420p(w as _, h as _, false);
+        let encoder = Encoder::new(Path::new(&output_path), settings).unwrap();
+
+        Self { decoder, encoder }
     }
 }
 
-impl Iterator for FileVideoFrameIterator {
+impl Iterator for VideofileProcessor {
     type Item = (Time, ImageBuffer<Rgb<u8>, Vec<u8>>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -47,65 +67,28 @@ impl Iterator for FileVideoFrameIterator {
     }
 }
 
-#[frb(unignore)]
-pub struct FrameProcessor {
-    frame_iterator: FileVideoFrameIterator,
-    encoder: Encoder,
-    frame_count: usize,
-}
-
-impl FrameProcessor {
-    fn new(file_path: &str) -> Self {
-        let frame_iterator = FileVideoFrameIterator::new(file_path).unwrap();
-        let (w, h) = frame_iterator.decoder.size();
-
-        let mut options = HashMap::new();
-        options.insert(
-            "movflags".to_string(),
-            "frag_keyframe+empty_moov".to_string(),
-        );
-
-        let output_path = format!("predicted_{}", file_path);
-
-        let _writer = WriterBuilder::new(Path::new(&output_path))
-            .with_options(&options.into())
-            .build()
-            .unwrap();
-
-        let settings = Settings::preset_h264_yuv420p(w as _, h as _, false);
-        let encoder = Encoder::new(Path::new(&output_path), settings).unwrap();
-
-        FrameProcessor {
-            frame_iterator,
-            encoder,
-            frame_count: 0,
-        }
-    }
-}
-
-impl Iterator for FrameProcessor {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some((time, mut frame)) = self.frame_iterator.next() {
-            let predictions = detect_from_imgbuf(&frame);
-            let predictions_bbox = simple_xyxy_to_bbox(predictions);
-            draw_bbox_from_imgbuf(&mut frame, &predictions_bbox);
-            let array = image_buffer_to_ndarray(&frame);
-
-            self.encoder.encode(&array, time).unwrap();
-            self.frame_count += 1;
-            Some(self.frame_count)
-        } else {
-            None
-        }
+// Given a video file_path
+// We run inference for each frame then create a new videofile displayingthe predictions
+#[flutter_rust_bridge::frb(dart_async)]
+pub fn predict_videofile(file_path: &str) {
+    let mut frame_processor = VideofileProcessor::new(file_path);
+    while let Some((time, mut frame)) = frame_processor.next() {
+        let array = image_buffer_to_ndarray(&frame);
+        let predictions = simple_xyxy_to_bbox(detect_from_imgbuf(&frame));
+        draw_bbox_from_imgbuf(&mut frame, &predictions);        
+        frame_processor.encoder.encode(&array, time).unwrap();
     }
 }
 
 // Given a video file_path
 // We run inference for each frame then create a new videofile displayingthe predictions
 #[flutter_rust_bridge::frb(dart_async)]
-pub fn predict_video_file(file_path: &str) {
-    let mut frame_processor = FrameProcessor::new(file_path);
-    while let Some(_frame_count) = frame_processor.next(){}
+pub fn predict_videofile_remotely(file_path: &str, url: &str) {
+    let mut frame_processor = VideofileProcessor::new(file_path);
+    while let Some((time, mut frame)) = frame_processor.next() {
+        let array = image_buffer_to_ndarray(&frame);
+        let predictions = detect_bbox_from_buf_remotely(url.to_string(),frame.to_vec());
+        draw_bbox_from_imgbuf(&mut frame, &predictions);
+        frame_processor.encoder.encode(&array, time).unwrap();
+    }
 }
