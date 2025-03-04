@@ -79,7 +79,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
       isProcessing = true;
     });
     if (isvideoselected && videoFile != null) {
-      await predictVideoFile(filePath: videoFile!);
+      if (widget.currentep.local){
+        await predictVideofile(filePath: videoFile!);  
+      } else {
+        predictVideofileRemotely(filePath: videoFile!, url: "${widget.url!}/upload");
+      }
     } else {
       await analyze(bool);
       setState(() {
