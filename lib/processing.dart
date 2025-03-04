@@ -78,7 +78,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     setState(() {
       isProcessing = true;
     });
-    if (isvideoselected && videoFile != null){
+    if (isvideoselected && videoFile != null) {
       await predictVideoFile(filePath: videoFile!);
     } else {
       await analyze(bool);
@@ -90,30 +90,26 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   void handleAnalysisRequest(context) async {
-  // Check if AI is selected
-  if (widget.currentai == null && widget.currentep.local) {
-    simpleDialog(context, "Primero, elige una IA");
-    return;
-  }
-  
-  // Don't proceed if already processing
-  if (isProcessing) return;
-  
-  // Handle analysis based on whether prediction boxes exist at all
-  if (areBoxesEmpty(listpredimgs)) {
-    analyzeW(true);
-  } else {
-    final checkall = await askUserWhatToAnalyze();
-    if (checkall != null) {
-      analyzeW(!checkall);
+    if (widget.currentai == null && widget.currentep.local) {
+      simpleDialog(context, "Primero, elige una IA");
+      return;
+    }
+
+    if (isProcessing) return;
+
+    if (areBoxesEmpty(listpredimgs)) {
+      analyzeW(true);
+    } else {
+      final checkall = await askUserWhatToAnalyze();
+      if (checkall != null) {
+        analyzeW(!checkall);
+      }
+    }
+
+    if (isvideoselected && videoFile != null && context.mounted) {
+      simpleDialog(context, "Video exportado con predicciones");
     }
   }
-  
-  // Show success dialog for video exports
-  if (isvideoselected && videoFile != null && context.mounted) {
-    simpleDialog(context, "Video exportado con predicciones");
-  }
-}
 
   bool isSupportedIMG(File file) {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
@@ -165,7 +161,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   void selectFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowedExtensions: ['jpg', 'jpeg', "png","webp","gif"],
+      allowedExtensions: ['jpg', 'jpeg', "png", "webp", "gif"],
       type: FileType.custom,
     );
     if (result != null) {
@@ -182,21 +178,31 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   void selectVideoFile() async {
-    if (widget.currentep.local){    
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowedExtensions: ["mp4", "mov", "avi", "mkv", "flv", "webm", "wmv", "mpeg"],
-      type: FileType.custom,
-    );
-    if (result != null) {
-      setState(() {
-        isvideoselected = true;
-        videoFile = "my_file.mp4";
-        analyzecomplete = false;        
-        isfolderselected = false;
-      });
-    }
+    if (widget.currentep.local) {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        allowedExtensions: [
+          "mp4",
+          "mov",
+          "avi",
+          "mkv",
+          "flv",
+          "webm",
+          "wmv",
+          "mpeg"
+        ],
+        type: FileType.custom,
+      );
+      if (result != null) {
+        setState(() {
+          isvideoselected = true;
+          videoFile = "my_file.mp4";
+          analyzecomplete = false;
+          isfolderselected = false;
+        });
+      }
     } else {
-      simpleDialog(context, "Por ahora, solo se permite procesar videos de forma local");
+      simpleDialog(
+          context, "Por ahora, solo se permite procesar videos de forma local");
     }
   }
 
