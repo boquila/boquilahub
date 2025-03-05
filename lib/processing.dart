@@ -35,10 +35,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
   bool isProcessing = false;
   bool analyzecomplete = false;
   bool shouldContinue = true;
+  bool errorocurred = false;
   String? videoFile;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
-  bool errorocurred = false;
 
   @override
   void initState() {
@@ -182,9 +182,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   void selectVideoFile() async {
-    if (widget.currentep.local) {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
-        allowedExtensions: [
+        allowedExtensions: <String>[
           "mp4",
           "mov",
           "avi",
@@ -204,10 +203,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
           isfolderselected = false;
         });
       }
-    } else {
-      simpleDialog(
-          context, "Por ahora, solo se permite procesar videos de forma local");
-    }
   }
 
   Future<void> analyze(bool analyzeonlyempty) async {
