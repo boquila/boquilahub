@@ -1,7 +1,9 @@
 use flutter_rust_bridge::frb;
+use image::{ImageBuffer, Rgb};
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::iter::Iterator;
-use video_rs::{Decoder, DecoderBuilder, Options, Url};
+use video_rs::{Decoder, DecoderBuilder, Options, Time, Url};
+use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
 
 #[frb(ignore)]
 pub struct VideoFrameIterator {
@@ -21,11 +23,11 @@ impl VideoFrameIterator {
 }
 
 impl Iterator for VideoFrameIterator {
-    type Item = ArrayBase<OwnedRepr<u8>, Dim<[usize; 3]>>;
+    type Item = (Time, ImageBuffer<Rgb<u8>, Vec<u8>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.decoder.decode_iter().next() {
-            Some(Ok((_, frame))) => Some(frame),
+            Some(Ok((time, frame))) => Some((time, ndarray_to_image_buffer(&frame))),
             Some(Err(_)) => None, // Skip frames with errors
             None => None,
         }

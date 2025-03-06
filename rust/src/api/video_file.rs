@@ -1,7 +1,7 @@
 use super::inference::{detect_from_imgbuf, simple_xyxy_to_bbox};
 use super::render::draw_bbox_from_imgbuf;
 use super::rest::detect_bbox_from_buf_remotely;
-use super::utils::image_buffer_to_ndarray;
+use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;
 use std::{iter::Iterator, path::Path};
@@ -46,20 +46,7 @@ impl Iterator for VideofileProcessor {
     fn next(&mut self) -> Option<Self::Item> {
         match self.decoder.decode_iter().next() {
             Some(Ok((time, frame))) => {
-                let dims = frame.dim();
-                let height = dims.0;
-                let width = dims.1;
-
-                let mut img = ImageBuffer::new(width as u32, height as u32);
-
-                for y in 0..height {
-                    for x in 0..width {
-                        let b = frame[[y, x, 2]];
-                        let g = frame[[y, x, 1]];
-                        let r = frame[[y, x, 0]];
-                        img.put_pixel(x as u32, y as u32, Rgb([r, g, b]));
-                    }
-                }
+                let img = ndarray_to_image_buffer(&frame);
                 Some((time, img))
             }
             _ => None,

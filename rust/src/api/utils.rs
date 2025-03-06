@@ -25,12 +25,9 @@ pub fn image_buffer_to_ndarray(
 }
 
 pub fn ndarray_to_image_buffer(
-    ndarray: ArrayBase<OwnedRepr<u8>, Dim<[usize; 3]>>,
+    ndarray: &ArrayBase<OwnedRepr<u8>, Dim<[usize; 3]>>,
 ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let dims = ndarray.dim();
-    let height = dims.0;
-    let width = dims.1;
-
+    let (height,width,_) = ndarray.dim();
     let mut img = ImageBuffer::new(width as u32, height as u32);
 
     for y in 0..height {
