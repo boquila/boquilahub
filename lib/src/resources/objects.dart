@@ -12,7 +12,6 @@ class PredImg {
   PredImg(this.filePath, this.listbbox, this.wasprocessed);
 }
 
-
 Future<List<BBox>> readPredictionsFromFile(String inputPath) async {
   // Create expected filename based on input filepath
   

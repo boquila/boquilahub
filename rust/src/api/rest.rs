@@ -54,9 +54,11 @@ pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
     return detect_bbox_from_buf_remotely(url, buf);
 }
 
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 fn get_ipv4_address() -> Option<String> {
     // Run the ipconfig command
-    let output = Command::new("ipconfig").creation_flags(0)
+    let output = Command::new("ipconfig").creation_flags(CREATE_NO_WINDOW)
         .output()
         .expect("Failed to execute ipconfig");
     
