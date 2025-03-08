@@ -57,16 +57,13 @@ pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn get_ipv4_address() -> Option<String> {
-    // Run the ipconfig command
     let output = Command::new("ipconfig").creation_flags(CREATE_NO_WINDOW)
         .output()
         .expect("Failed to execute ipconfig");
     
-    // Convert output to a string
     let output_str = str::from_utf8(&output.stdout)
         .expect("Failed to convert output to string");
     
-    // Split the output into lines and find the IPv4 address
     for line in output_str.lines() {
         if line.contains("IPv4 Address") {
             // Extract the IP address (everything after the last ': ')
