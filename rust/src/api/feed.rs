@@ -1,12 +1,10 @@
 use flutter_rust_bridge::frb;
 use image::{ImageBuffer, Rgb};
-use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::iter::Iterator;
 use video_rs::{Decoder, DecoderBuilder, Options, Time, Url};
-use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
+use super::utils::ndarray_to_image_buffer;
 
-#[frb(ignore)]
-pub struct VideoFrameIterator {
+struct VideoFrameIterator {
     decoder: Decoder,
 }
 
@@ -35,6 +33,6 @@ impl Iterator for VideoFrameIterator {
 }
 
 #[frb(ignore)]
-fn process_rtsp(url: &str) -> Result<VideoFrameIterator, Box<dyn std::error::Error>> {
+pub fn process_rtsp(url: &str) -> Result<VideoFrameIterator, Box<dyn std::error::Error>> {
     VideoFrameIterator::new(url)
 }
