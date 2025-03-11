@@ -17,9 +17,11 @@ async fn upload(mut multipart: Multipart) -> String {
     return serialized;
 }
 
+const MAGIC_STR: &'static str = "BoquilaHUB Web API!";
+
 // basic handler that responds with a static string
 async fn root() -> &'static str {
-    "BoquilaHUB Web API!"
+    MAGIC_STR
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
@@ -83,5 +85,5 @@ pub fn get_ip() -> String {
 pub async fn check_boquila_hub_api(url: &str) -> bool {
     let response = reqwest::get(url).await.unwrap();
     let body = response.text().await.unwrap();
-    body.trim() == "BoquilaHUB Web API!"
+    body.trim() == MAGIC_STR
 }
