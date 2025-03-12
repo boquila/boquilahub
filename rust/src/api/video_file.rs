@@ -1,8 +1,8 @@
-use super::inference::{detect_from_imgbuf, simple_xyxy_to_bbox};
+use super::abstractions::BBox;
+use super::inference::detect_bbox_from_imgbuf;
 use super::render::draw_bbox_from_imgbuf;
 use super::rest::detect_bbox_from_buf_remotely;
-use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
-use image::{ImageBuffer, Rgb};
+use super::utils::{image_buffer_to_jpg_buffer, ndarray_to_image_buffer};
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::collections::HashMap;
 use std::{iter::Iterator, path::Path};
@@ -39,6 +39,28 @@ impl VideofileProcessor {
 
         Self { decoder, encoder }
     }
+
+    fn process_frame<F>(&mut self, prediction_fn: F) -> Vec<u8>
+    where
+        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<BBox>,
+    {
+        let (time, frame) = self.next().unwrap();
+        let mut img = ndarray_to_image_buffer(&frame);
+        let predictions = prediction_fn(&img);
+        draw_bbox_from_imgbuf(&mut img, &predictions);
+        self.encoder.encode(&frame, time).unwrap();
+        image_buffer_to_jpg_buffer(img)
+    }
+
+    pub fn run(&mut self) -> Vec<u8> {
+        self.process_frame(|img| detect_bbox_from_imgbuf(img))
+    }
+    
+    pub fn run_remotely(&mut self, url: &str) -> Vec<u8> {
+        self.process_frame(|img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()))
+    }
+    
+    
 }
 
 impl Iterator for VideofileProcessor {
@@ -56,13 +78,7 @@ impl Iterator for VideofileProcessor {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn predict_videofile(file_path: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
-    while let Some((time, frame)) = frame_processor.next() {
-        let mut img = ndarray_to_image_buffer(&frame);
-        let predictions = simple_xyxy_to_bbox(detect_from_imgbuf(&img));
-        draw_bbox_from_imgbuf(&mut img, &predictions);
-        frame_processor.encoder.encode(&frame, time).unwrap();
-        // return img
-    }
+    while let _jpg_buf = frame_processor.run() {}
 }
 
 // Given a video file_path
@@ -70,10 +86,5 @@ pub fn predict_videofile(file_path: &str) {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn predict_videofile_remotely(file_path: &str, url: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
-    while let Some((time, frame)) = frame_processor.next() {
-        let mut img = ndarray_to_image_buffer(&frame);
-        let predictions = detect_bbox_from_buf_remotely(url.to_string(), img.to_vec());
-        draw_bbox_from_imgbuf(&mut img, &predictions);
-        frame_processor.encoder.encode(&frame, time).unwrap();
-    }
+    while let _jpg_buf = frame_processor.run_remotely(url) {}
 }

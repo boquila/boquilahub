@@ -1,5 +1,4 @@
 use ab_glyph::FontRef;
-use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;

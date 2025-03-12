@@ -107,13 +107,14 @@ pub fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
     detect_common(img, prepare_input_from_imgbuf)
 }
 
-pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<BBox> {
-    let data = detect_from_buf(buf);
+pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<BBox> {
+    let data = detect_from_imgbuf(img);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
 
-pub fn simple_xyxy_to_bbox(xyxy: Vec<XYXY>) -> Vec<BBox>{
-    return xyxy_to_bbox(xyxy, &CURRENT_AI.lock().unwrap().clone());
+pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<BBox> {
+    let data = detect_from_buf(buf);
+    return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
