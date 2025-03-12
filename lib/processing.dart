@@ -10,16 +10,15 @@ import 'package:boquilahub/src/rust/api/exportutils.dart';
 import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/resources/objects.dart';
+import 'package:boquilahub/src/resources/palettes.dart';
 import 'dart:core';
 
 class ProcessingPage extends StatefulWidget {
-  final List<Color> currentcolors;
   final AI? currentai;
   final EP currentep;
   final String? url;
   const ProcessingPage({
     super.key,
-    required this.currentcolors,
     required this.currentai,
     required this.currentep,
     required this.url,
@@ -267,17 +266,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
             icon: Icons.folder_open,
             label: "Carpeta",
             onPressed: selectFolder,
-            color: widget.currentcolors[4]),
+            color: terra[4]),
         _buildSourceButton(
             icon: Icons.image_outlined,
             label: "Imagen",
             onPressed: selectFile,
-            color: widget.currentcolors[4]),
+            color: terra[4]),
         _buildSourceButton(
             icon: Icons.videocam_outlined,
             label: "Video",
             onPressed: selectVideoFile,
-            color: widget.currentcolors[4]),
+            color: terra[4]),
         _buildSourceButton(
             icon: Icons.camera_alt_outlined,
             label: "Cámara",
@@ -290,7 +289,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   @override
   Widget build(BuildContext context) {
     TextStyle textito =
-        TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
+        TextStyle(color: terra[4], fontWeight: FontWeight.bold);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,

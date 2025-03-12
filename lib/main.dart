@@ -38,7 +38,6 @@ class CoreApp extends StatefulWidget {
 }
 
 class _CoreAppState extends State<CoreApp> {
-  List<Color> currentcolors = terra;
   bool isLoadingAI = false;
   AI? currentAI;
   EP currentEP = listEPs[0]; // CPU as default
@@ -46,9 +45,9 @@ class _CoreAppState extends State<CoreApp> {
 
   @override
   Widget build(BuildContext context) {
-    Color sidebarColor = currentcolors[1];
-    Color backgroundStartColor = currentcolors[0];
-    Color backgroundEndColor = currentcolors[1];
+    Color sidebarColor = terra[1];
+    Color backgroundStartColor = terra[0];
+    Color backgroundEndColor = terra[1];
 
     changeAI(AI? newAI) async {
       setState(() {
@@ -100,7 +99,6 @@ class _CoreAppState extends State<CoreApp> {
                         aicallback: changeAI,
                         epcallback: changeEP,
                         urlcallback: changeURL,
-                        currentcolors: currentcolors,
                         listAIs: widget.listAIs,
                         currentEP: currentEP,
                         currentAI: currentAI,
@@ -130,7 +128,6 @@ class _CoreAppState extends State<CoreApp> {
                       ),
                     ),
                     ProcessingPage(
-                      currentcolors: currentcolors,
                       currentai: currentAI,
                       currentep: currentEP,
                       url: remoteUrl,

@@ -1,6 +1,7 @@
 import 'package:boquilahub/src/resources/hardware_dep.dart';
 import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
+import 'src/resources/palettes.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
@@ -11,7 +12,6 @@ class SelectAIPage extends StatefulWidget {
   final Function(AI?) aicallback;
   final Function(EP) epcallback;
   final Function(String?) urlcallback;
-  final List<Color> currentcolors;
   final EP currentEP;
   final AI? currentAI;
   final List<AI> listAIs;
@@ -20,7 +20,6 @@ class SelectAIPage extends StatefulWidget {
       required this.aicallback,
       required this.epcallback,
       required this.urlcallback,
-      required this.currentcolors,
       required this.currentEP,
       required this.currentAI,
       required this.listAIs});
@@ -39,11 +38,11 @@ class _SelectAIPageState extends State<SelectAIPage> {
   @override
   Widget build(BuildContext context) {
     TextStyle textito =
-        TextStyle(color: widget.currentcolors[4], fontWeight: FontWeight.bold);
+        TextStyle(color: terra[4], fontWeight: FontWeight.bold);
 
     ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
-      foregroundColor: widget.currentcolors[0],
-      backgroundColor: widget.currentcolors[4],
+      foregroundColor: terra[0],
+      backgroundColor: terra[4],
       minimumSize: const Size(100, 45),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       shape: const RoundedRectangleBorder(
@@ -59,11 +58,11 @@ class _SelectAIPageState extends State<SelectAIPage> {
           value: aiDropDownValue,
           icon: const Icon(Icons.search),
           elevation: 4,
-          style: TextStyle(color: widget.currentcolors[4]),
+          style: TextStyle(color: terra[4]),
           underline: Container(
             height: 0.25,
             width: 5,
-            color: widget.currentcolors[2],
+            color: terra[2],
           ),
           onChanged: (String? value) {
             if (true) {
@@ -89,11 +88,11 @@ class _SelectAIPageState extends State<SelectAIPage> {
           value: epDropdownValue,
           icon: const Icon(Icons.search),
           elevation: 1,
-          style: TextStyle(color: widget.currentcolors[4]),
+          style: TextStyle(color: terra[4]),
           underline: Container(
             height: 0.25,
             width: 5,
-            color: widget.currentcolors[2],
+            color: terra[2],
           ),
           onChanged: (String? value) async {
             if (value == "CUDA") {
