@@ -98,3 +98,27 @@ pub fn predict_videofile_remotely(file_path: &str, url: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
     while let Ok(_data) = frame_processor.run_remotely(url) {}
 }
+
+pub struct FrameIterator {
+    processor: VideofileProcessor,
+}
+
+impl FrameIterator {
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new(file_path: &str) -> Self {
+        FrameIterator {
+            processor: VideofileProcessor::new(file_path),
+        }
+    }
+}
+
+impl Iterator for FrameIterator {
+    type Item = (Vec<u8>, Vec<BBox>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.processor.run() {
+            Ok(data) => Some(data),
+            Err(_) => None,
+        }
+    }
+}
