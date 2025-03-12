@@ -5,7 +5,8 @@ pub mod eps;
 pub mod preprocessing;
 /// flutter_rust_bridge:ignore
 pub mod postprocessing;
-pub use ndarray::{s, Array, Axis, IxDyn,Ix4};
+use ndarray::{s, Array, Axis, IxDyn,Ix4};
+use image::{ImageBuffer, Rgb};
 pub mod exportutils;
 pub mod bq;
 pub mod rest;

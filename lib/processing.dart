@@ -73,23 +73,28 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return result;
   }
 
-  void analyzeW(bool bool) async {
+  void analyzeW(bool bool, context) async {
     setState(() {
       isProcessing = true;
     });
     if (isvideoselected && videoFile != null) {
-      if (widget.currentep.local){
-        await predictVideofile(filePath: videoFile!);  
+      if (widget.currentep.local) {
+        await predictVideofile(filePath: videoFile!);
       } else {
-        predictVideofileRemotely(filePath: videoFile!, url: "${widget.url!}/upload");
+        predictVideofileRemotely(
+            filePath: videoFile!, url: "${widget.url!}/upload");
+      }
+      if (isvideoselected && videoFile != null && context.mounted) {
+        simpleDialog(context, "Video exportado con predicciones");
       }
     } else {
       await analyze(bool);
-      setState(() {
-        analyzecomplete = true;
-        isProcessing = false;
-      });
     }
+
+    setState(() {
+      analyzecomplete = true;
+      isProcessing = false;
+    });
   }
 
   void handleAnalysisRequest(context) async {
@@ -101,16 +106,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
     if (isProcessing) return;
 
     if (areBoxesEmpty(listpredimgs)) {
-      analyzeW(true);
+      analyzeW(true, context);
     } else {
       final checkall = await askUserWhatToAnalyze();
       if (checkall != null) {
-        analyzeW(!checkall);
+        analyzeW(!checkall, context);
       }
-    }
-
-    if (isvideoselected && videoFile != null && context.mounted) {
-      simpleDialog(context, "Video exportado con predicciones");
     }
   }
 
@@ -181,27 +182,27 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   void selectVideoFile() async {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        allowedExtensions: <String>[
-          "mp4",
-          "mov",
-          "avi",
-          "mkv",
-          "flv",
-          "webm",
-          "wmv",
-          "mpeg"
-        ],
-        type: FileType.custom,
-      );
-      if (result != null) {
-        setState(() {
-          isvideoselected = true;
-          videoFile = "my_file.mp4";
-          analyzecomplete = false;
-          isfolderselected = false;
-        });
-      }
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowedExtensions: <String>[
+        "mp4",
+        "mov",
+        "avi",
+        "mkv",
+        "flv",
+        "webm",
+        "wmv",
+        "mpeg"
+      ],
+      type: FileType.custom,
+    );
+    if (result != null) {
+      setState(() {
+        isvideoselected = true;
+        videoFile = "my_file.mp4";
+        analyzecomplete = false;
+        isfolderselected = false;
+      });
+    }
   }
 
   Future<void> analyze(bool analyzeonlyempty) async {
@@ -288,8 +289,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   @override
   Widget build(BuildContext context) {
-    TextStyle textito =
-        TextStyle(color: terra[4], fontWeight: FontWeight.bold);
+    TextStyle textito = TextStyle(color: terra[4], fontWeight: FontWeight.bold);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,

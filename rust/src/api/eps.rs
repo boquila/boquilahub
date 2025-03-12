@@ -13,7 +13,7 @@ pub struct EP {
     pub dependencies: String,
 }
 
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub fn get_ep_version(provider: &EP) -> f64 {
     match provider.name.as_str() {

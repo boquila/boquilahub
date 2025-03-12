@@ -17,11 +17,9 @@ async fn upload(mut multipart: Multipart) -> String {
     return serialized;
 }
 
-const MAGIC_STR: &'static str = "BoquilaHUB Web API!";
-
 // basic handler that responds with a static string
 async fn root() -> &'static str {
-    MAGIC_STR
+    "BoquilaHUB Web API!"
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
@@ -56,7 +54,7 @@ pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<BBox>{
     return detect_bbox_from_buf_remotely(url, buf);
 }
 
-const CREATE_NO_WINDOW: u32 = 0x08000000;
+pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn get_ipv4_address() -> Option<String> {
     let output = Command::new("ipconfig").creation_flags(CREATE_NO_WINDOW)
@@ -85,5 +83,5 @@ pub fn get_ip() -> String {
 pub async fn check_boquila_hub_api(url: &str) -> bool {
     let response = reqwest::get(url).await.unwrap();
     let body = response.text().await.unwrap();
-    body.trim() == MAGIC_STR
+    body.trim() == "BoquilaHUB Web API!"
 }
