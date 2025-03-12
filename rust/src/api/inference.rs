@@ -10,12 +10,10 @@ use ort::inputs;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::{sync::Mutex, vec};
-
 use super::postprocessing::process_output;
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
-    // Default utilities - feel free to customize
     flutter_rust_bridge::setup_default_user_utils();
 }
 
@@ -122,7 +120,7 @@ pub fn simple_xyxy_to_bbox(xyxy: Vec<XYXY>) -> Vec<BBox>{
 pub fn detect_bbox(file_path: &str) -> Vec<BBox> {
     let data = detect_from_file_path(file_path);
     return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
-}
+}   
 
 // #[flutter_rust_bridge::frb(dart_async)]
 // pub fn classify(file_path: String) -> ProbSpace {

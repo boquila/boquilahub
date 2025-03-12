@@ -104,13 +104,6 @@ const CHAR_WIDTH: f32= FONT_SCALE / 1.84 ;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../../assets//DejaVuSans.ttf");
 
-pub fn image_buffer_to_jpg_buffer(image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<u8> {
-    let mut jpeg_data = Vec::new();
-    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 100);
-    encoder.encode_image(&image_buffer).unwrap();
-    return jpeg_data;
-}
-
 pub fn draw_bbox_from_file_path(file_path: &str, predictions: &Vec<BBox>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let buf = std::fs::read(file_path).unwrap();
     let img = draw_bbox_from_buf(&buf,predictions);
