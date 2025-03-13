@@ -147,7 +147,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           .toList();
       List<PredImg> templist = [];
       for (String filepath in jpgFiles) {
-        List<BBox> tempbbox = await readPredictionsFromFile(filepath);
+        List<BBox> tempbbox = await readPredictionsFromFile(inputPath: filepath);
         PredImg temppredimg = PredImg(filepath, tempbbox, tempbbox.isNotEmpty);
         templist.add(temppredimg);
       }
@@ -170,7 +170,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
     if (result != null) {
       File file = File(result.files.single.path!);
-      List<BBox> tempbbox = await readPredictionsFromFile(file.path);
+      List<BBox> tempbbox = await readPredictionsFromFile(inputPath: file.path);
       PredImg temppred = PredImg(file.path, tempbbox, tempbbox.isNotEmpty);
       setState(() {
         listpredimgs = [temppred];
@@ -327,7 +327,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                 ElevatedButton(
                                     onPressed: () async {
                                       for (PredImg predimg in listpredimgs) {
-                                        await writePredImgToFile(predimg);
+                                        ImgPred temp = ImgPred(filePath: predimg.filePath, listBbox: predimg.listbbox);
+                                        await writePredImgToFile(temp, predImg: temp);
                                       }
 
                                       if (context.mounted) {

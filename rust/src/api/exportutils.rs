@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 use std::fs::File;
-use std::io::{self};
+use std::io::{self, BufRead, Write};
+use std::path::Path;
 use csv::Writer;
 use csv::WriterBuilder;
 use std::collections::HashSet;
 use super::abstractions::ImgPred;
+use super::abstractions::BBox;
 
 pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
     let mut wtr = Writer::from_path(output_path)?;
@@ -19,7 +21,7 @@ pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
                 bbox.x2.to_string(),
                 bbox.y2.to_string(),
                 bbox.class_id.to_string(),
-                bbox.prob.to_string(),
+                bbox.confidence.to_string(),
             ])?;
         }
     }
@@ -50,7 +52,7 @@ pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> 
                 bbox.x2.to_string(),
                 bbox.y2.to_string(),
                 bbox.class_id.to_string(),
-                bbox.prob.to_string(),
+                bbox.confidence.to_string(),
             ]);
             // Add the label to the set of unique labels.
             labels.insert(bbox.class_id.to_string());
@@ -105,3 +107,98 @@ pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> 
 //     wtr.flush()?;
 //     Ok(())
 // }
+
+pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<BBox>> {
+    // Create expected filename based on input filepath
+    let input_path = Path::new(input_path);
+    let file_stem = input_path.file_stem().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path")
+    })?;
+    
+    let parent = input_path.parent().unwrap_or(Path::new(""));
+    let prediction_path = parent.join(format!("{}_predictions.txt", file_stem.to_string_lossy()));
+    
+    // Check if file exists
+    if !prediction_path.exists() {
+        // println!("No prediction file found at: {:?}", prediction_path);
+        return Ok(Vec::new());
+    }
+    
+    // Read and parse file
+    let mut bboxes = Vec::new();
+    let file = File::open(&prediction_path)?;
+    let reader = io::BufReader::new(file);
+    
+    for line_result in reader.lines() {
+        let line = line_result?;
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        
+        if parts.len() != 7 {
+            // println!("Warning: Skipping invalid line format: {}", line);
+            continue;
+        }
+        
+        match (
+            parts[1].parse::<f32>(),  // x1
+            parts[2].parse::<f32>(),  // y1
+            parts[3].parse::<f32>(),  // x2
+            parts[4].parse::<f32>(),  // y2
+            parts[5].parse::<u16>(),  // class_id
+            parts[6].parse::<f32>(),  // confidence
+        ) {
+            (Ok(x1), Ok(y1), Ok(x2), Ok(y2), Ok(class_id), Ok(confidence)) => {
+                bboxes.push(BBox {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    confidence,
+                    class_id,
+                    label: parts[0].to_string(),
+                });
+            }
+            _ => {
+                // println!("Warning: Error parsing line: {}", line);
+                continue;
+            }
+        }
+    }
+    
+    // println!("Successfully read {} predictions from: {:?}", bboxes.len(), prediction_path);
+    Ok(bboxes)
+}
+
+pub async fn write_pred_img_to_file(pred_img: &ImgPred) -> io::Result<()> {
+    // Create output filename based on input filepath
+    let input_path = Path::new(&pred_img.file_path);
+    let file_stem = input_path.file_stem().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path")
+    })?;
+    
+    let parent = input_path.parent().unwrap_or(Path::new(""));
+    let output_path = parent.join(format!("{}_predictions.txt", file_stem.to_string_lossy()));
+    
+    // Open file for writing - using tokio's async File
+    let mut file = File::create(&output_path)?;
+    
+    // Create the full content string
+    let mut content = String::new();
+    for bbox in &pred_img.list_bbox {
+        content.push_str(&format!(
+            "{} {} {} {} {} {} {}\n", 
+            bbox.label, 
+            bbox.x1, 
+            bbox.y1, 
+            bbox.x2, 
+            bbox.y2, 
+            bbox.class_id, 
+            bbox.confidence
+        ));
+    }
+    
+    // Write the content to file in one operation
+    file.write_all(content.as_bytes())?;
+    
+    // println!("Successfully wrote predictions to: {:?}", output_path);
+    Ok(())
+}

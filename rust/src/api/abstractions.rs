@@ -649,7 +649,8 @@ impl AI {
 
 pub struct ImgPred {
     pub file_path: String,
-    pub list_bbox: Vec<XYXY>,
+    pub list_bbox: Vec<BBox>,
+    pub wasprocessed: bool,
 }
 
 // What we'll use to print, render and stuff, just a frontend struct

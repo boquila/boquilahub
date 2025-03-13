@@ -40,24 +40,10 @@ const List<Color> bboxColor = <Color>[
   Color.fromARGB(255, 255, 160, 122), // Light Salmon
   Color.fromARGB(255, 60, 179, 113), // Medium Sea Green
   Color.fromARGB(255, 128, 0, 128), // Purple
-  Color.fromARGB(255, 107, 142, 35), // Olive Drab
-  Color.fromARGB(255, 70, 130, 180), // Steel Blue
-  Color.fromARGB(255, 255, 182, 193), // Light Pink
-  Color.fromARGB(255, 205, 133, 63), // Peru
-  Color.fromARGB(255, 107, 142, 35), // Olive Drab
-  Color.fromARGB(255, 143, 188, 143), // Dark Sea Green
-  Color.fromARGB(255, 255, 20, 147), // Deep Pink
-  Color.fromARGB(255, 255, 105, 180), // Hot Pink
-  Color.fromARGB(255, 218, 112, 214), // Orchid
-  Color.fromARGB(255, 128, 0, 0), // Maroon
-  Color.fromARGB(255, 178, 34, 34), // Fire Brick
-  Color.fromARGB(255, 160, 32, 240), // Purple
-  Color.fromARGB(255, 199, 21, 133), // Medium Violet Red
-  Color.fromARGB(255, 255, 228, 196), // Bisque
-  Color.fromARGB(255, 176, 224, 230), // Powder Blue
 ];
 
 const List<Color> bboxColors = [
+  ...bboxColor,
   ...bboxColor,
   ...bboxColor,
 ];
