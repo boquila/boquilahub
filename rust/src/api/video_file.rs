@@ -47,7 +47,11 @@ impl VideofileProcessor {
     }
 
     // If the annotation is provided, it will just use that instead of computing it.
-    fn process_frame<F>(&mut self, prediction_fn: F, vec: Option<Vec<BBox>>) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
+    fn process_frame<F>(
+        &mut self,
+        prediction_fn: F,
+        vec: Option<Vec<BBox>>,
+    ) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
     where
         F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<BBox>,
     {
@@ -59,7 +63,7 @@ impl VideofileProcessor {
                     predictions = vec.unwrap();
                 } else {
                     predictions = prediction_fn(&img);
-                }                
+                }
                 draw_bbox_from_imgbuf(&mut img, &predictions);
                 let final_frame = image_buffer_to_ndarray(&img);
                 self.encoder.encode(&final_frame, time).unwrap(); // You may want to handle this unwrap as well
@@ -74,8 +78,15 @@ impl VideofileProcessor {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
     }
 
-    fn run_remotely(&mut self, url: &str, vec: Option<Vec<BBox>>) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
-        self.process_frame(|img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),vec)
+    fn run_remotely(
+        &mut self,
+        url: &str,
+        vec: Option<Vec<BBox>>,
+    ) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+        self.process_frame(
+            |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
+            vec,
+        )
     }
 }
 
@@ -94,15 +105,28 @@ impl Iterator for VideofileProcessor {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn predict_videofile(file_path: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
-    while let Ok((_jpg,_bbox)) = frame_processor.run(None) {}
-}
+    let mut prev_bbox = None;
+    let mut use_prev = false;
 
+    while let Ok((_jpeg, bbox)) = frame_processor.run(if use_prev { prev_bbox } else { None }) {
+        prev_bbox = Some(bbox);
+        use_prev = !use_prev; // Toggle between true and false for the next iteration
+    }
+}
 // Given a video file_path
 // We run inference for each frame then create a new videofile displayingthe predictions
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn predict_videofile_remotely(file_path: &str, url: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
-    while let Ok((_jpg,_bbox)) = frame_processor.run_remotely(url, None) {}
+    let mut prev_bbox = None;
+    let mut use_prev = false;
+
+    while let Ok((_jpeg, bbox)) =
+        frame_processor.run_remotely(url, if use_prev { prev_bbox } else { None })
+    {
+        prev_bbox = Some(bbox);
+        use_prev = !use_prev; // Toggle between true and false for the next iteration
+    }
 }
 
 pub struct FrameIterator {
