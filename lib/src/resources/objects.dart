@@ -12,7 +12,6 @@ class PredImg {
   PredImg(this.filePath, this.listbbox, this.wasprocessed);
 }
 
-
 int countProcessedImages(List<PredImg> images) {
   return images.where((img) => img.wasprocessed).length;
 }

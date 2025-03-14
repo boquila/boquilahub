@@ -27,8 +27,6 @@ Future<void> main() async {
   });
 }
 
-const borderColor = Color(0xFF805306);
-
 class CoreApp extends StatefulWidget {
   final List<AI> listAIs;
   const CoreApp({super.key, required this.listAIs});
@@ -83,7 +81,7 @@ class _CoreAppState extends State<CoreApp> {
       home: Scaffold(
         backgroundColor: Colors.black,
         body: WindowBorder(
-          color: borderColor,
+          color: Color(0xFF805306),
           width: 0,
           child: Row(
             children: [

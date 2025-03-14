@@ -46,14 +46,20 @@ impl VideofileProcessor {
         self.decoder.frames().unwrap()
     }
 
-    fn process_frame<F>(&mut self, prediction_fn: F) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
+    // If the annotation is provided, it will just use that instead of computing it.
+    fn process_frame<F>(&mut self, prediction_fn: F, vec: Option<Vec<BBox>>) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
     where
         F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<BBox>,
     {
         match self.next() {
             Some((time, frame)) => {
                 let mut img = ndarray_to_image_buffer(&frame);
-                let predictions = prediction_fn(&img);
+                let predictions;
+                if vec.is_some() {
+                    predictions = vec.unwrap();
+                } else {
+                    predictions = prediction_fn(&img);
+                }                
                 draw_bbox_from_imgbuf(&mut img, &predictions);
                 let final_frame = image_buffer_to_ndarray(&img);
                 self.encoder.encode(&final_frame, time).unwrap(); // You may want to handle this unwrap as well
@@ -64,12 +70,12 @@ impl VideofileProcessor {
         }
     }
 
-    fn run(&mut self) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
-        self.process_frame(|img| detect_bbox_from_imgbuf(img))
+    fn run(&mut self, vec: Option<Vec<BBox>>) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+        self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
     }
 
-    fn run_remotely(&mut self, url: &str) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
-        self.process_frame(|img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()))
+    fn run_remotely(&mut self, url: &str, vec: Option<Vec<BBox>>) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+        self.process_frame(|img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),vec)
     }
 }
 
@@ -88,7 +94,7 @@ impl Iterator for VideofileProcessor {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn predict_videofile(file_path: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
-    while let Ok(_data) = frame_processor.run() {}
+    while let Ok((_jpg,_bbox)) = frame_processor.run(None) {}
 }
 
 // Given a video file_path
@@ -96,7 +102,7 @@ pub fn predict_videofile(file_path: &str) {
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn predict_videofile_remotely(file_path: &str, url: &str) {
     let mut frame_processor = VideofileProcessor::new(file_path);
-    while let Ok(_data) = frame_processor.run_remotely(url) {}
+    while let Ok((_jpg,_bbox)) = frame_processor.run_remotely(url, None) {}
 }
 
 pub struct FrameIterator {
@@ -116,7 +122,7 @@ impl Iterator for FrameIterator {
     type Item = (Vec<u8>, Vec<BBox>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.processor.run() {
+        match self.processor.run(None) {
             Ok(data) => Some(data),
             Err(_) => None,
         }

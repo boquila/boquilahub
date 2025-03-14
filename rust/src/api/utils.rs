@@ -43,7 +43,7 @@ pub fn ndarray_to_image_buffer(
 
 pub fn image_buffer_to_jpg_buffer(image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<u8> {
     let mut jpeg_data = Vec::new();
-    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 100);
+    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 95);
     encoder.encode_image(&image_buffer).unwrap();
     return jpeg_data;
 }
