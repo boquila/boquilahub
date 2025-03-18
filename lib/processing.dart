@@ -28,13 +28,17 @@ class ProcessingPage extends StatefulWidget {
   State<ProcessingPage> createState() => _ProcessingPageState();
 }
 
-class _ProcessingPageState extends State<ProcessingPage> {
-  bool isfolderselected = false;
-  bool isvideoselected = false;
+class MediaState {
+  bool isFolderSelected = false;
+  bool isVideoSelected = false;
   bool isProcessing = false;
-  bool analyzecomplete = false;
+  bool isAnalyzeComplete = false;
   bool shouldContinue = true;
-  bool errorocurred = false;
+  bool hasError = false;
+}
+
+class _ProcessingPageState extends State<ProcessingPage> {
+  MediaState state = MediaState();
   String? videoFile;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
@@ -46,7 +50,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   void pause() {
     setState(() {
-      shouldContinue = false;
+      state.shouldContinue = false;
     });
   }
 
@@ -75,16 +79,18 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   void analyzeW(bool bool, context) async {
     setState(() {
-      isProcessing = true;
+      state.isProcessing = true;
     });
-    if (isvideoselected && videoFile != null) {
+    if (state.isVideoSelected && videoFile != null) {
       if (widget.currentep.local) {
-        await predictVideofile(filePath: videoFile!);
+        await predictVideofile(filePath: videoFile!, n: BigInt.from(3));
       } else {
         predictVideofileRemotely(
-            filePath: videoFile!, url: "${widget.url!}/upload");
+            filePath: videoFile!,
+            url: "${widget.url!}/upload",
+            n: BigInt.from(3));
       }
-      if (isvideoselected && videoFile != null && context.mounted) {
+      if (state.isVideoSelected && videoFile != null && context.mounted) {
         simpleDialog(context, "Video exportado con predicciones");
       }
     } else {
@@ -92,8 +98,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
 
     setState(() {
-      analyzecomplete = true;
-      isProcessing = false;
+      state.isVideoSelected = true;
+      state.isProcessing = false;
     });
   }
 
@@ -103,7 +109,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       return;
     }
 
-    if (isProcessing) return;
+    if (state.isProcessing) return;
 
     if (areBoxesEmpty(listpredimgs)) {
       analyzeW(true, context);
@@ -147,17 +153,18 @@ class _ProcessingPageState extends State<ProcessingPage> {
           .toList();
       List<PredImg> templist = [];
       for (String filepath in jpgFiles) {
-        List<BBox> tempbbox = await readPredictionsFromFile(inputPath: filepath);
+        List<BBox> tempbbox =
+            await readPredictionsFromFile(inputPath: filepath);
         PredImg temppredimg = PredImg(filepath, tempbbox, tempbbox.isNotEmpty);
         templist.add(temppredimg);
       }
       setState(() {
         listpredimgs = templist;
-        isfolderselected = true;
-        isvideoselected = false;
-        analyzecomplete = false;
-        shouldContinue = false;
-        isProcessing = false;
+        state.isFolderSelected = true;
+        state.isVideoSelected= false;
+        state.isAnalyzeComplete = false;
+        state.shouldContinue = false;
+        state.isProcessing = false;
         nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
       });
     }
@@ -174,9 +181,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
       PredImg temppred = PredImg(file.path, tempbbox, tempbbox.isNotEmpty);
       setState(() {
         listpredimgs = [temppred];
-        analyzecomplete = false;
-        isfolderselected = false;
-        isvideoselected = false;
+        state.isAnalyzeComplete = false;
+        state.isFolderSelected = false;
+        state.isVideoSelected = false;
       });
     }
   }
@@ -197,21 +204,21 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
     if (result != null) {
       setState(() {
-        isvideoselected = true;
+        state.isVideoSelected = true;
         videoFile = "my_file.mp4";
-        analyzecomplete = false;
-        isfolderselected = false;
+        state.isAnalyzeComplete = false;
+        state.isFolderSelected = false;
       });
     }
   }
 
   Future<void> analyze(bool analyzeonlyempty) async {
     setState(() {
-      shouldContinue = true;
-      errorocurred = false;
+      state.shouldContinue = true;
+      state.hasError = false;
     });
     for (int i = 0; i < listpredimgs.length; i++) {
-      if (!shouldContinue) break;
+      if (!state.shouldContinue) break;
       if (analyzeonlyempty) {
         if (listpredimgs[i].listbbox.isNotEmpty) {
           continue;
@@ -227,14 +234,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
           tempbbox = await detectBboxRemotely(
               url: "${widget.url!}/upload", filePath: temppath);
         }
-        if (!shouldContinue) break;
+        if (!state.shouldContinue) break;
         setState(() {
           listpredimgs[i].listbbox = tempbbox;
           listpredimgs[i].wasprocessed = true;
         });
       } catch (e) {
         setState(() {
-          errorocurred = true;
+          state.hasError = true;
         });
       }
     }
@@ -301,7 +308,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (listpredimgs.isNotEmpty || isvideoselected)
+            if (listpredimgs.isNotEmpty || state.isVideoSelected)
               ElevatedButton(
                   onPressed: () async {
                     handleAnalysisRequest(context);
@@ -309,14 +316,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
                   child: Row(
                     children: [
                       const Text("Analizar"),
-                      if (isProcessing)
+                      if (state.isProcessing)
                         const SizedBox(
                             height: 15,
                             width: 15,
                             child: CircularProgressIndicator())
                     ],
                   )),
-            if (analyzecomplete)
+            if (state.isAnalyzeComplete && !state.isVideoSelected)
               ElevatedButton(
                   onPressed: () {
                     showDialog(
@@ -327,8 +334,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                 ElevatedButton(
                                     onPressed: () async {
                                       for (PredImg predimg in listpredimgs) {
-                                        ImgPred temp = ImgPred(filePath: predimg.filePath, listBbox: predimg.listbbox);
-                                        await writePredImgToFile(temp, predImg: temp);
+                                        ImgPred temp = ImgPred(
+                                            filePath: predimg.filePath,
+                                            listBbox: predimg.listbbox,
+                                            wasprocessed: true);
+                                        await writePredImgToFile(predImg: temp);
                                       }
 
                                       if (context.mounted) {
@@ -357,17 +367,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             title: const Text("Opciones")));
                   },
                   child: const Text("Exportar")),
-            if (isProcessing)
+            if (state.isProcessing)
               ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
           ],
         ),
-        if (errorocurred)
+        if (state.hasError)
           Text(
             "Ha ocurrido un error en la inferencia. \nProceso cancelado.",
             textAlign: TextAlign.center,
           ),
-        if (isfolderselected) Text(nfoundimagestext),
-        if (isfolderselected)
+        if (state.isFolderSelected) Text(nfoundimagestext),
+        if (state.isFolderSelected)
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
         const SizedBox(height: 20),
         SizedBox(
