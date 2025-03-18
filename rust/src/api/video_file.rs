@@ -27,7 +27,7 @@ fn get_output_path(file_path: &str) -> String {
 
 impl VideofileProcessor {
     #[flutter_rust_bridge::frb(sync)]
-    fn new(file_path: &str) -> Self {
+    pub fn new(file_path: &str) -> Self {
         video_rs::init().unwrap();
         let decoder = DecoderBuilder::new(Path::new(file_path)).build().unwrap();
 
@@ -51,7 +51,7 @@ impl VideofileProcessor {
         Self { decoder, encoder }
     }
 
-    fn get_n_frames(self) -> u64 {
+    pub fn get_n_frames(&self) -> u64 {
         self.decoder.frames().unwrap()
     }
 
@@ -96,6 +96,20 @@ impl VideofileProcessor {
             |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
             vec,
         )
+    }
+
+    pub fn run_exp(&mut self, vec: Option<Vec<BBox>>) -> (Vec<u8>, Vec<BBox>) {
+        self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
+            .unwrap()
+    }
+
+
+    pub fn run_remotely_exp(&mut self, url: &str, vec: Option<Vec<BBox>>) -> (Vec<u8>, Vec<BBox>) {
+        self.process_frame(
+            |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
+            vec,
+        )
+        .unwrap()
     }
 }
 

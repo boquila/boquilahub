@@ -35,6 +35,7 @@ class MediaState {
   bool isAnalyzeComplete = false;
   bool shouldContinue = true;
   bool hasError = false;
+  int stepFrame = 2;
 }
 
 class _ProcessingPageState extends State<ProcessingPage> {
@@ -42,6 +43,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String? videoFile;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
+  Uint8List? framebuffer;
 
   @override
   void initState() {
@@ -82,8 +84,21 @@ class _ProcessingPageState extends State<ProcessingPage> {
       state.isProcessing = true;
     });
     if (state.isVideoSelected && videoFile != null) {
+      final a = VideofileProcessor(filePath: videoFile!);
+      final int n = (await a.getNFrames()).toInt();
+      List<BBox>? tempbbox;
       if (widget.currentep.local) {
-        await predictVideofile(filePath: videoFile!, n: BigInt.from(3));
+        for (int i = 0; i < n; i++) {
+          if (i % state.stepFrame == 0) {
+            var (r, b) = await a.runExp();
+            tempbbox = b;
+            setState(() {
+              framebuffer = r;
+            });
+          } else {
+            await a.runExp(vec: tempbbox);
+          }
+        }
       } else {
         predictVideofileRemotely(
             filePath: videoFile!,
@@ -161,7 +176,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       setState(() {
         listpredimgs = templist;
         state.isFolderSelected = true;
-        state.isVideoSelected= false;
+        state.isVideoSelected = false;
         state.isAnalyzeComplete = false;
         state.shouldContinue = false;
         state.isProcessing = false;
@@ -203,7 +218,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
       type: FileType.custom,
     );
     if (result != null) {
-      print(result.files.single.path);
       setState(() {
         state.isVideoSelected = true;
         videoFile = result.files.single.path;
@@ -381,25 +395,32 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (state.isFolderSelected)
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
         const SizedBox(height: 20),
-        SizedBox(
-          height: MediaQuery.of(context).size.height * 0.58,
-          width: MediaQuery.of(context).size.width * 0.8,
-          child: ScrollConfiguration(
-            behavior: MyCustomScrollBehavior(),
-            child: ListView.builder(
-              addAutomaticKeepAlives: false,
-              shrinkWrap: true,
-              scrollDirection: Axis.vertical,
-              itemCount: listpredimgs.length,
-              itemBuilder: (context, index) {
-                return render(listpredimgs[index]);
-              },
+        displayImg(
+            ScrollConfiguration(
+              behavior: MyCustomScrollBehavior(),
+              child: ListView.builder(
+                addAutomaticKeepAlives: false,
+                shrinkWrap: true,
+                scrollDirection: Axis.vertical,
+                itemCount: listpredimgs.length,
+                itemBuilder: (context, index) {
+                  return render(listpredimgs[index]);
+                },
+              ),
             ),
-          ),
-        ),
+            context),
+        if (framebuffer != null) displayImg(Image.memory(framebuffer!), context)
       ],
     );
   }
+}
+
+Widget displayImg(Widget child, context) {
+  return SizedBox(
+    height: MediaQuery.of(context).size.height * 0.58,
+    width: MediaQuery.of(context).size.width * 0.8,
+    child: child,
+  );
 }
 
 class MyCustomScrollBehavior extends MaterialScrollBehavior {
