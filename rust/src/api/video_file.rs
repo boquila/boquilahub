@@ -103,52 +103,42 @@ impl Iterator for VideofileProcessor {
 // Given a video file_path
 // We run inference for each frame then create a new videofile displayingthe predictions
 #[flutter_rust_bridge::frb(dart_async)]
-pub fn predict_videofile(file_path: &str) {
+pub fn predict_videofile(file_path: &str, n: usize) {
     let mut frame_processor = VideofileProcessor::new(file_path);
     let mut prev_bbox = None;
-    let mut use_prev = false;
+    let mut frame_count = 0;
 
-    while let Ok((_jpeg, bbox)) = frame_processor.run(if use_prev { prev_bbox } else { None }) {
-        prev_bbox = Some(bbox);
-        use_prev = !use_prev; // Toggle between true and false for the next iteration
+    while let Ok((_jpeg, bbox)) = frame_processor.run(if frame_count % n == 0 {
+        None
+    } else {
+        prev_bbox.clone()
+    }) {
+        if frame_count % n == 0 {
+            prev_bbox = Some(bbox);
+        }
+        frame_count += 1;
     }
 }
+
 // Given a video file_path
 // We run inference for each frame then create a new videofile displayingthe predictions
 #[flutter_rust_bridge::frb(dart_async)]
-pub fn predict_videofile_remotely(file_path: &str, url: &str) {
+pub fn predict_videofile_remotely(file_path: &str, url: &str, n: usize) {
     let mut frame_processor = VideofileProcessor::new(file_path);
     let mut prev_bbox = None;
-    let mut use_prev = false;
+    let mut frame_count = 0;
 
-    while let Ok((_jpeg, bbox)) =
-        frame_processor.run_remotely(url, if use_prev { prev_bbox } else { None })
-    {
-        prev_bbox = Some(bbox);
-        use_prev = !use_prev; // Toggle between true and false for the next iteration
-    }
-}
-
-pub struct FrameIterator {
-    processor: VideofileProcessor,
-}
-
-impl FrameIterator {
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn new(file_path: &str) -> Self {
-        FrameIterator {
-            processor: VideofileProcessor::new(file_path),
+    while let Ok((_jpeg, bbox)) = frame_processor.run_remotely(
+        url,
+        if frame_count % n == 0 {
+            None
+        } else {
+            prev_bbox.clone()
+        },
+    ) {
+        if frame_count % n == 0 {
+            prev_bbox = Some(bbox);
         }
-    }
-}
-
-impl Iterator for FrameIterator {
-    type Item = (Vec<u8>, Vec<BBox>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.processor.run(None) {
-            Ok(data) => Some(data),
-            Err(_) => None,
-        }
+        frame_count += 1;
     }
 }

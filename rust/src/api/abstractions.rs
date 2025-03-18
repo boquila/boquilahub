@@ -655,7 +655,7 @@ pub struct ImgPred {
 
 // What we'll use to print, render and stuff, just a frontend struct
 // xyxyn
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BBox {
     pub x1: f32,
     pub y1: f32,
