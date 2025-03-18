@@ -35,6 +35,10 @@ class MediaState {
   bool isAnalyzeComplete = false;
   bool shouldContinue = true;
   bool hasError = false;
+
+  bool imgMode = false;
+  bool videoMode = false;
+  bool feedMode = false;
   int stepFrame = 2;
 }
 
@@ -43,7 +47,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String? videoFile;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
-  Uint8List? framebuffer;
+  Image? framebuffer;
 
   @override
   void initState() {
@@ -93,7 +97,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             var (r, b) = await a.runExp();
             tempbbox = b;
             setState(() {
-              framebuffer = r;
+              framebuffer = Image.memory(r);
             });
           } else {
             await a.runExp(vec: tempbbox);
@@ -395,6 +399,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (state.isFolderSelected)
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
         const SizedBox(height: 20),
+        if (framebuffer != null) displayImg(framebuffer!, context),
+        if (listpredimgs.isNotEmpty)
         displayImg(
             ScrollConfiguration(
               behavior: MyCustomScrollBehavior(),
@@ -409,17 +415,18 @@ class _ProcessingPageState extends State<ProcessingPage> {
               ),
             ),
             context),
-        if (framebuffer != null) displayImg(Image.memory(framebuffer!), context)
       ],
     );
   }
 }
 
-Widget displayImg(Widget child, context) {
+Widget displayImg(Widget child, BuildContext context) {
   return SizedBox(
     height: MediaQuery.of(context).size.height * 0.58,
     width: MediaQuery.of(context).size.width * 0.8,
-    child: child,
+    child: ClipRect(
+      child: child,
+    ),
   );
 }
 
