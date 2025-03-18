@@ -29,10 +29,8 @@ class ProcessingPage extends StatefulWidget {
 }
 
 class MediaState {
-  bool isFolderSelected = false;
-  bool isVideoSelected = false;
   bool isProcessing = false;
-  bool isAnalyzeComplete = false;
+  bool isAnalysisComplete = false;
   bool shouldContinue = true;
   bool hasError = false;
 
@@ -40,6 +38,12 @@ class MediaState {
   bool videoMode = false;
   bool feedMode = false;
   int stepFrame = 2;
+
+  void setMode({bool img = false, bool video = false, bool feed = false}) {
+    imgMode = img;
+    videoMode = video;
+    feedMode = feed;
+  }
 }
 
 class _ProcessingPageState extends State<ProcessingPage> {
@@ -87,7 +91,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     setState(() {
       state.isProcessing = true;
     });
-    if (state.isVideoSelected && videoFile != null) {
+    if (state.videoMode && videoFile != null) {
       final a = VideofileProcessor(filePath: videoFile!);
       final int n = (await a.getNFrames()).toInt();
       List<BBox>? tempbbox;
@@ -109,15 +113,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
             url: "${widget.url!}/upload",
             n: BigInt.from(3));
       }
-      if (state.isVideoSelected && videoFile != null && context.mounted) {
+      if (context.mounted) {
         simpleDialog(context, "Video exportado con predicciones");
       }
     } else {
       await analyze(bool);
     }
-
     setState(() {
-      state.isVideoSelected = true;
       state.isProcessing = false;
     });
   }
@@ -177,33 +179,37 @@ class _ProcessingPageState extends State<ProcessingPage> {
         PredImg temppredimg = PredImg(filepath, tempbbox, tempbbox.isNotEmpty);
         templist.add(temppredimg);
       }
-      setState(() {
-        listpredimgs = templist;
-        state.isFolderSelected = true;
-        state.isVideoSelected = false;
-        state.isAnalyzeComplete = false;
-        state.shouldContinue = false;
-        state.isProcessing = false;
-        nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
-      });
+      imgModeInitState(templist);
     }
+  }
+
+  void baseInitState() {
+    setState(() {
+      state.isAnalysisComplete = false;
+      state.shouldContinue = false;
+      state.isProcessing = false;
+    });
+  }
+
+  void imgModeInitState(List<PredImg> foundImgs) {
+    setState(() {
+      listpredimgs = foundImgs;
+      state.setMode(img: true);
+      baseInitState();
+      nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
+    });
   }
 
   void selectFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowedExtensions: ['jpg', 'jpeg', "png", "webp", "gif"],
+      allowedExtensions: ['jpg', 'jpeg', "png", "webp"],
       type: FileType.custom,
     );
     if (result != null) {
       File file = File(result.files.single.path!);
       List<BBox> tempbbox = await readPredictionsFromFile(inputPath: file.path);
       PredImg temppred = PredImg(file.path, tempbbox, tempbbox.isNotEmpty);
-      setState(() {
-        listpredimgs = [temppred];
-        state.isAnalyzeComplete = false;
-        state.isFolderSelected = false;
-        state.isVideoSelected = false;
-      });
+      imgModeInitState([temppred]);
     }
   }
 
@@ -223,10 +229,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
     if (result != null) {
       setState(() {
-        state.isVideoSelected = true;
+        state.setMode(video: true);
         videoFile = result.files.single.path;
-        state.isAnalyzeComplete = false;
-        state.isFolderSelected = false;
+        baseInitState();
       });
     }
   }
@@ -327,7 +332,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (listpredimgs.isNotEmpty || state.isVideoSelected)
+            if (listpredimgs.isNotEmpty || state.videoMode)
               ElevatedButton(
                   onPressed: () async {
                     handleAnalysisRequest(context);
@@ -342,7 +347,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             child: CircularProgressIndicator())
                     ],
                   )),
-            if (state.isAnalyzeComplete && !state.isVideoSelected)
+            if (state.isAnalysisComplete && !state.videoMode)
               ElevatedButton(
                   onPressed: () {
                     showDialog(
@@ -390,31 +395,32 @@ class _ProcessingPageState extends State<ProcessingPage> {
               ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
           ],
         ),
-        if (state.hasError)
+        if (state.hasError) ...[
           Text(
             "Ha ocurrido un error en la inferencia. \nProceso cancelado.",
             textAlign: TextAlign.center,
           ),
-        if (state.isFolderSelected) Text(nfoundimagestext),
-        if (state.isFolderSelected)
+        ],
+        if (state.imgMode) Text(nfoundimagestext),
+        if (state.imgMode)
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
         const SizedBox(height: 20),
         if (framebuffer != null) displayImg(framebuffer!, context),
         if (listpredimgs.isNotEmpty)
-        displayImg(
-            ScrollConfiguration(
-              behavior: MyCustomScrollBehavior(),
-              child: ListView.builder(
-                addAutomaticKeepAlives: false,
-                shrinkWrap: true,
-                scrollDirection: Axis.vertical,
-                itemCount: listpredimgs.length,
-                itemBuilder: (context, index) {
-                  return render(listpredimgs[index]);
-                },
+          displayImg(
+              ScrollConfiguration(
+                behavior: MyCustomScrollBehavior(),
+                child: ListView.builder(
+                  addAutomaticKeepAlives: false,
+                  shrinkWrap: true,
+                  scrollDirection: Axis.vertical,
+                  itemCount: listpredimgs.length,
+                  itemBuilder: (context, index) {
+                    return render(listpredimgs[index]);
+                  },
+                ),
               ),
-            ),
-            context),
+              context),
       ],
     );
   }
