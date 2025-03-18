@@ -15,6 +15,16 @@ pub struct VideofileProcessor {
     encoder: Encoder,
 }
 
+fn get_output_path(file_path: &str) -> String {
+    if let Some(pos) = file_path.rfind('\\') {
+        let (directory, file_name) = file_path.split_at(pos + 1);
+        let new_file_name = format!("predict_{}", file_name);
+        format!("{}{}", directory, new_file_name)
+    } else {
+        format!("predict_{}", file_path)
+    }
+}
+
 impl VideofileProcessor {
     #[flutter_rust_bridge::frb(sync)]
     fn new(file_path: &str) -> Self {
@@ -28,8 +38,7 @@ impl VideofileProcessor {
             "movflags".to_string(),
             "frag_keyframe+empty_moov".to_string(),
         );
-
-        let output_path = format!("predicted_{}", file_path);
+        let output_path = get_output_path(&file_path);
 
         let _writer = WriterBuilder::new(Path::new(&output_path))
             .with_options(&options.into())

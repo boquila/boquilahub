@@ -203,9 +203,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
       type: FileType.custom,
     );
     if (result != null) {
+      print(result.files.single.path);
       setState(() {
         state.isVideoSelected = true;
-        videoFile = "my_file.mp4";
+        videoFile = result.files.single.path;
         state.isAnalyzeComplete = false;
         state.isFolderSelected = false;
       });
