@@ -318,6 +318,40 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
   }
 
+  Widget errorText() {
+    if (state.hasError) {
+      return Text(
+        "Ha ocurrido un error en la inferencia. \nProceso cancelado.",
+        textAlign: TextAlign.center,
+      );
+    }
+    return SizedBox.shrink();
+  }
+
+  void exportImgData(context) async {
+    for (PredImg predimg in listpredimgs) {
+      ImgPred temp = ImgPred(
+          filePath: predimg.filePath,
+          listBbox: predimg.listbbox,
+          wasprocessed: true);
+      await writePredImgToFile(predImg: temp);
+    }
+
+    if (context.mounted) {
+      simpleDialog(context, "✅ Listo");
+    }
+  }
+
+  void copyImgs(context) async {
+    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    if (selectedDirectory != null) {
+      await copyToFolder(listpredimgs, "$selectedDirectory/export");
+      if (context.mounted) {
+        simpleDialog(context, "✅ Listo");
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     TextStyle textito = TextStyle(color: terra[4], fontWeight: FontWeight.bold);
@@ -329,10 +363,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
         const SizedBox(height: 20),
         _buildDataSourceButtons(),
         const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (listpredimgs.isNotEmpty || state.videoMode)
+        if (state.imgMode) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
               ElevatedButton(
                   onPressed: () async {
                     handleAnalysisRequest(context);
@@ -347,66 +381,40 @@ class _ProcessingPageState extends State<ProcessingPage> {
                             child: CircularProgressIndicator())
                     ],
                   )),
-            if (state.isAnalysisComplete && !state.videoMode)
-              ElevatedButton(
-                  onPressed: () {
-                    showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                            content: Row(
-                              children: [
-                                ElevatedButton(
-                                    onPressed: () async {
-                                      for (PredImg predimg in listpredimgs) {
-                                        ImgPred temp = ImgPred(
-                                            filePath: predimg.filePath,
-                                            listBbox: predimg.listbbox,
-                                            wasprocessed: true);
-                                        await writePredImgToFile(predImg: temp);
-                                      }
-
-                                      if (context.mounted) {
-                                        simpleDialog(context, "✅ Listo");
-                                      }
-                                    },
-                                    child: const Text("Exportar datos")),
-                                const SizedBox(width: 10),
-                                ElevatedButton(
-                                    onPressed: () async {
-                                      String? selectedDirectory =
-                                          await FilePicker.platform
-                                              .getDirectoryPath();
-                                      if (selectedDirectory != null) {
-                                        await copyToFolder(listpredimgs,
-                                            "$selectedDirectory/export");
-                                        if (context.mounted) {
-                                          simpleDialog(context, "✅ Listo");
-                                        }
-                                      }
-                                    },
-                                    child: const Text(
-                                        "Copiar imágenes \nsegún clasificación")),
-                              ],
-                            ),
-                            title: const Text("Opciones")));
-                  },
-                  child: const Text("Exportar")),
-            if (state.isProcessing)
-              ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
-          ],
-        ),
-        if (state.hasError) ...[
-          Text(
-            "Ha ocurrido un error en la inferencia. \nProceso cancelado.",
-            textAlign: TextAlign.center,
+              if (state.isAnalysisComplete)
+                ElevatedButton(
+                    onPressed: () {
+                      showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                              content: Row(
+                                children: [
+                                  ElevatedButton(
+                                      onPressed: () async {
+                                        exportImgData(context);
+                                      },
+                                      child:
+                                          const Text("Exportar observaciones")),
+                                  const SizedBox(width: 10),
+                                  ElevatedButton(
+                                      onPressed: () async {
+                                        copyImgs(context);
+                                      },
+                                      child: const Text(
+                                          "Copiar imágenes \nsegún clasificación")),
+                                ],
+                              ),
+                              title: const Text("Opciones")));
+                    },
+                    child: const Text("Exportar")),
+              if (state.isProcessing)
+                ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
+            ],
           ),
-        ],
-        if (state.imgMode) Text(nfoundimagestext),
-        if (state.imgMode)
+          Text(nfoundimagestext),
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
-        const SizedBox(height: 20),
-        if (framebuffer != null) displayImg(framebuffer!, context),
-        if (listpredimgs.isNotEmpty)
+          const SizedBox(height: 20),
+          errorText(),
           displayImg(
               ScrollConfiguration(
                 behavior: MyCustomScrollBehavior(),
@@ -421,6 +429,26 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 ),
               ),
               context),
+        ],
+        if (state.videoMode) ...[
+          if (framebuffer != null) displayImg(framebuffer!, context),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            ElevatedButton(
+                onPressed: () async {
+                  handleAnalysisRequest(context);
+                },
+                child: Row(
+                  children: [
+                    const Text("Analizar"),
+                    if (state.isProcessing)
+                      const SizedBox(
+                          height: 15,
+                          width: 15,
+                          child: CircularProgressIndicator())
+                  ],
+                )),
+          ])
+        ]
       ],
     );
   }
