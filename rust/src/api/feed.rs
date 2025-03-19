@@ -69,4 +69,8 @@ impl RTSPFrameIterator {
     pub fn run_remotely_exp(&mut self, url: &str) -> (Vec<u8>, Vec<BBox>) {
         self.run_remotely(url).unwrap()
     }
+
+    pub fn ignore_frame(&mut self) {
+        self.next();
+    }
 }
