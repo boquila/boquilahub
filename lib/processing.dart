@@ -87,8 +87,106 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return result;
   }
 
+  Future<int?> askUserForInt() async {
+    int? result = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        TextEditingController controller = TextEditingController();
+
+        return AlertDialog(
+          title: Text("¿Cada cuántos frames quieres analizar?"),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: "Elije un número entre 1 y 30",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                int? number = int.tryParse(controller.text);
+                if (number != null && number >= 1 && number <= 30) {
+                  Navigator.of(context).pop(number);
+                } else {
+                  // Show an error message or handle invalid input
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            "Por favor ingresa un número valido entre 1 y 30.")),
+                  );
+                }
+              },
+              child: Text("OK"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: Text("Cancel"),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result;
+  }
+
+  Future<void> analyzeImg(context) async {
+    aiCheck(context);
+    if (state.isProcessing) return; // Won't analyze
+
+    bool checkall = true;
+    if (!areBoxesEmpty(listpredimgs)) {
+      final bool? response = await askUserWhatToAnalyze();
+      if (response == null) return;
+      checkall = !response;
+    }
+
+    setState(() {
+      state.shouldContinue = true;
+      state.isProcessing = true;
+      state.hasError = false;
+    });
+    for (int i = 0; i < listpredimgs.length; i++) {
+      if (!state.shouldContinue) break;
+      if (checkall) {
+        if (listpredimgs[i].listbbox.isNotEmpty) {
+          continue;
+        }
+      }
+
+      try {
+        String temppath = listpredimgs[i].filePath;
+        List<BBox> tempbbox = [];
+        if (widget.currentep.local) {
+          tempbbox = await detectBbox(filePath: temppath);
+        } else {
+          tempbbox = await detectBboxRemotely(
+              url: "${widget.url!}/upload", filePath: temppath);
+        }
+        if (!state.shouldContinue) break;
+        setState(() {
+          listpredimgs[i].listbbox = tempbbox;
+          listpredimgs[i].wasprocessed = true;
+        });
+      } catch (e) {
+        setState(() {
+          state.hasError = true;
+        });
+      }
+    }
+    setState(() {
+      state.isProcessing = false;
+    });
+  }
+
   void analyzeVideoFile(context) async {
     aiCheck(context);
+
+    int? i = await askUserForInt();
+    if (i == null) return;
+    state.stepFrame = i;
+
     setState(() {
       state.isProcessing = true;
     });
@@ -117,30 +215,16 @@ class _ProcessingPageState extends State<ProcessingPage> {
       if (context.mounted) {
         simpleDialog(context, "Video exportado con predicciones");
       }
-    } 
+    }
     setState(() {
       state.isProcessing = false;
     });
   }
 
-  void aiCheck (context) {
+  void aiCheck(context) {
     if (widget.currentai == null && widget.currentep.local) {
       simpleDialog(context, "Primero, elige una IA");
       return;
-    }
-  }
-
-  void handleAnalysisRequest(context) async {
-    aiCheck(context);
-    if (state.isProcessing) return;
-
-    if (areBoxesEmpty(listpredimgs)) {
-      analyzeImg(true);
-    } else {
-      final checkall = await askUserWhatToAnalyze();
-      if (checkall != null) {
-        analyzeImg(!checkall);
-      }
     }
   }
 
@@ -235,45 +319,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
         baseInitState();
       });
     }
-  }
-
-  Future<void> analyzeImg(bool analyzeonlyempty) async {
-    setState(() {
-      state.shouldContinue = true;
-      state.isProcessing = true;
-      state.hasError = false;
-    });
-    for (int i = 0; i < listpredimgs.length; i++) {
-      if (!state.shouldContinue) break;
-      if (analyzeonlyempty) {
-        if (listpredimgs[i].listbbox.isNotEmpty) {
-          continue;
-        }
-      }
-
-      try {
-        String temppath = listpredimgs[i].filePath;
-        List<BBox> tempbbox = [];
-        if (widget.currentep.local) {
-          tempbbox = await detectBbox(filePath: temppath);
-        } else {
-          tempbbox = await detectBboxRemotely(
-              url: "${widget.url!}/upload", filePath: temppath);
-        }
-        if (!state.shouldContinue) break;
-        setState(() {
-          listpredimgs[i].listbbox = tempbbox;
-          listpredimgs[i].wasprocessed = true;
-        });
-      } catch (e) {
-        setState(() {
-          state.hasError = true;
-        });
-      }
-    }
-    setState(() {
-      state.isProcessing = false;
-    });
   }
 
   Widget _buildSourceButton(
@@ -382,7 +427,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             children: [
               ElevatedButton(
                   onPressed: () async {
-                    handleAnalysisRequest(context);
+                    analyzeImg(context);
                   },
                   child: const Text("Analizar")),
               procesingIndicator(),
@@ -454,9 +499,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           if (framebuffer != null) displayImg(framebuffer!, context),
         ],
         // RTSP Analysis section
-        if (state.feedMode) ...[
-
-        ]
+        if (state.feedMode) ...[]
       ],
     );
   }
