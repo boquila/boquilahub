@@ -1,6 +1,6 @@
 # BoquilaHUB
 
-Cross- platform app to run AI models to monitor and protect nature. Locally, no cloud.
+Cross-platform app to run AI models to monitor and protect nature. Locally, no cloud.
 
 ![readme](readme.jpg)
 
@@ -9,10 +9,9 @@ Cross- platform app to run AI models to monitor and protect nature. Locally, no 
 - Cross-platform. 
 - Run AIs for computer vision locally
 - Process image files
-- Process video files (BoquilaHUB 0.2)
-- Process camera feed (BoquilaHUB 0.2). Powered by [video-rs](https://github.com/oddity-ai/video-rs)
-- Deploy Web APIs, with maximum efficiency. Powered by [Axum](https://github.com/tokio-rs/axum)
-- Use these Web APIs to delegate processing, in case your computer doesn't have good hardware
+- Process video files 
+- Process camera feed, in real-time. Powered by [video-rs](https://github.com/oddity-ai/video-rs)
+- Deploy REST APIs, with maximum efficiency. Powered by [axum](https://github.com/tokio-rs/axum)
 
 ## AIs and binaries
 
@@ -20,9 +19,7 @@ Go to [boquila.org/hub](https://boquila.org/hub), download the models you want t
 
 You can load any [.bq model](https://github.com/boquila/.bq). Right now, only for object detection. But in the future we will expand the format.
 
-Segmentation code is being rewritten, available soon.
-
-Video files and Feed processing code is being rewritten, available soon.
+Right now, only object detection AIs are supported.
 
 ## List of Platforms
 
@@ -40,6 +37,7 @@ Video files and Feed processing code is being rewritten, available soon.
 |-------------------|------------------------------------------------------------------------------------|--------------|--------------|
 | CPU              | Your average CPU                                                                   | Having a CPU | ✅           |
 | NVIDIA CUDA      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | CUDA v12.8 + cuDNN 9.7 | ✅ |
+| Remote BoquilaHUB | A BoquilaHUB session in your network with a deployed REST API                     | Having the URL | ✅      |
 | NVIDIA TensorRT  | TensorRT execution provider for NVIDIA GPUs (GeForce 9xx series and above)         | 🚧           | 🚀 Soon      |
 | AMD ROCm         | ROCm execution provider for AMD GPUs                                               | 🚧           | 🚀 Soon      |
 | AMD MIGraphX     | MIGraphX execution provider for AMD GPUs                                           | 🚧           | 🚀 Soon      |
