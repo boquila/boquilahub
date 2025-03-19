@@ -37,7 +37,6 @@ class MediaState {
   bool imgMode = false;
   bool videoMode = false;
   bool feedMode = false;
-  int stepFrame = 2;
 
   void setMode({bool img = false, bool video = false, bool feed = false}) {
     imgMode = img;
@@ -52,7 +51,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
   Image? framebuffer;
-  Image? previous_framebuffer;
+  Image? previousFramebuffer;
+  int? totalFrames;
+  int? currentFrame;
+  int? stepFrame;
 
   @override
   void initState() {
@@ -186,7 +188,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
     int? i = await askUserForInt();
     if (i == null) return;
-    state.stepFrame = i;
+    stepFrame = i;
 
     setState(() {
       state.isProcessing = true;
@@ -194,15 +196,19 @@ class _ProcessingPageState extends State<ProcessingPage> {
     if (state.videoMode && videoFile != null) {
       final a = VideofileProcessor(filePath: videoFile!);
       final int n = (await a.getNFrames()).toInt();
+      setState(() {
+        totalFrames = n;
+      });
       List<BBox>? tempbbox;
       if (widget.currentep.local) {
         for (int i = 0; i < n; i++) {
-          if (i % state.stepFrame == 0) {
+          if (i % stepFrame! == 0) {
             var (r, b) = await a.runExp();
             tempbbox = b;
             setState(() {
-              previous_framebuffer = framebuffer;
+              previousFramebuffer = framebuffer;
               framebuffer = Image.memory(r);
+              currentFrame = i + 1;
             });
           } else {
             await a.runExp(vec: tempbbox);
@@ -498,11 +504,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
             ],
           ),
-          if (framebuffer != null)
+          if (currentFrame != null)
+            Text("$currentFrame frames analizados de un total de $totalFrames"),
+          if (framebuffer != null && previousFramebuffer != null)
             Stack(
               children: [
                 displayImg(framebuffer!, context),
-                displayImg(previous_framebuffer!, context),
+                displayImg(previousFramebuffer!, context),
               ],
             )
         ],
