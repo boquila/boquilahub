@@ -99,17 +99,12 @@ impl VideofileProcessor {
     }
 
     pub fn run_exp(&mut self, vec: Option<Vec<BBox>>) -> (Vec<u8>, Vec<BBox>) {
-        self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
-            .unwrap()
+        self.run(vec).unwrap()
     }
 
 
     pub fn run_remotely_exp(&mut self, url: &str, vec: Option<Vec<BBox>>) -> (Vec<u8>, Vec<BBox>) {
-        self.process_frame(
-            |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
-            vec,
-        )
-        .unwrap()
+        self.run_remotely(url, vec).unwrap()
     }
 }
 
