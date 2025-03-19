@@ -52,6 +52,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
   Image? framebuffer;
+  Image? previous_framebuffer;
 
   @override
   void initState() {
@@ -121,7 +122,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(null),
-              child: Text("Cancel"),
+              child: Text("Cancelar"),
             ),
           ],
         );
@@ -200,6 +201,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             var (r, b) = await a.runExp();
             tempbbox = b;
             setState(() {
+              previous_framebuffer = framebuffer;
               framebuffer = Image.memory(r);
             });
           } else {
@@ -496,7 +498,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
             ],
           ),
-          if (framebuffer != null) displayImg(framebuffer!, context),
+          if (framebuffer != null)
+            Stack(
+              children: [
+                displayImg(framebuffer!, context),
+                displayImg(previous_framebuffer!, context),
+              ],
+            )
         ],
         // RTSP Analysis section
         if (state.feedMode) ...[]
