@@ -73,4 +73,11 @@ impl RTSPFrameIterator {
     pub fn ignore_frame(&mut self) {
         self.next();
     }
+
+    pub fn get_jpg_frame(&mut self) -> Vec<u8> {
+        let (a,frame) = self.next().unwrap();
+        let img = ndarray_to_image_buffer(&frame);
+        let jpg_buffer = image_buffer_to_jpg_buffer(img);
+        jpg_buffer
+    }
 }

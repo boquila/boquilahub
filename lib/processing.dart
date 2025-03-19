@@ -48,6 +48,7 @@ class MediaState {
 class _ProcessingPageState extends State<ProcessingPage> {
   MediaState state = MediaState();
   String? videoFile;
+  String? rtspURL;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
   Image? framebuffer;
@@ -134,7 +135,68 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return result;
   }
 
-  Future<void> analyzeImg(context) async {
+  void selectFeed() async {
+    String? result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        TextEditingController controller = TextEditingController();
+
+        return AlertDialog(
+          title: Text("Ingresa la URL RTSP"),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              labelText:
+                  "URL RTSP (ejemplo: rtsp://usuario:contraseña@ip:puerto/stream)",
+              hintText: "rtsp://...",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                String url = controller.text.trim();
+                if (url.isNotEmpty && url.startsWith("rtsp://")) {
+                  setState(() {
+                    rtspURL = url;
+                    state.setMode(feed: true);
+                  });
+                  Navigator.of(context).pop(url);
+                } else {
+                  // Show an error message for invalid input
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          "Por favor ingresa una URL RTSP válida que comience con 'rtsp://'."),
+                    ),
+                  );
+                }
+              },
+              child: Text("OK"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: Text("Cancelar"),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) {
+      setState(() {
+        rtspURL = result;
+        state.setMode(feed: true);
+      });
+    }
+  }
+
+  void analyzeFeed(context) async {
+    aiCheck(context);
+    if (state.isProcessing) return; // Won't analyze
+    if (rtspURL == null) return;
+  }
+
+  void analyzeImg(context) async {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
 
@@ -332,15 +394,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
   Widget _buildSourceButton(
       {required IconData icon,
       required String label,
-      required VoidCallback onPressed,
-      required Color color}) {
+      required VoidCallback onPressed}) {
     return ElevatedButton.icon(
       icon: Icon(icon, size: 20),
       label: Text(label),
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
-        backgroundColor: color,
+        backgroundColor: terra[4],
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
         ),
@@ -353,25 +414,15 @@ class _ProcessingPageState extends State<ProcessingPage> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _buildSourceButton(
-            icon: Icons.folder_open,
-            label: "Carpeta",
-            onPressed: selectFolder,
-            color: terra[4]),
+            icon: Icons.folder_open, label: "Carpeta", onPressed: selectFolder),
         _buildSourceButton(
-            icon: Icons.image_outlined,
-            label: "Imagen",
-            onPressed: selectFile,
-            color: terra[4]),
+            icon: Icons.image_outlined, label: "Imagen", onPressed: selectFile),
         _buildSourceButton(
             icon: Icons.videocam_outlined,
             label: "Video",
-            onPressed: selectVideoFile,
-            color: terra[4]),
+            onPressed: selectVideoFile),
         _buildSourceButton(
-            icon: Icons.camera_alt_outlined,
-            label: "Cámara",
-            onPressed: () {},
-            color: Colors.grey),
+            icon: Icons.camera_alt_outlined, label: "Cámara", onPressed: () {})
       ],
     );
   }
