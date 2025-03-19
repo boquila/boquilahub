@@ -87,7 +87,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return result;
   }
 
-  void analyzeW(bool bool, context) async {
+  void analyzeVideoFile(context) async {
+    aiCheck(context);
     setState(() {
       state.isProcessing = true;
     });
@@ -116,28 +117,29 @@ class _ProcessingPageState extends State<ProcessingPage> {
       if (context.mounted) {
         simpleDialog(context, "Video exportado con predicciones");
       }
-    } else {
-      await analyze(bool);
-    }
+    } 
     setState(() {
       state.isProcessing = false;
     });
   }
 
-  void handleAnalysisRequest(context) async {
+  void aiCheck (context) {
     if (widget.currentai == null && widget.currentep.local) {
       simpleDialog(context, "Primero, elige una IA");
       return;
     }
+  }
 
+  void handleAnalysisRequest(context) async {
+    aiCheck(context);
     if (state.isProcessing) return;
 
     if (areBoxesEmpty(listpredimgs)) {
-      analyzeW(true, context);
+      analyzeImg(true);
     } else {
       final checkall = await askUserWhatToAnalyze();
       if (checkall != null) {
-        analyzeW(!checkall, context);
+        analyzeImg(!checkall);
       }
     }
   }
@@ -146,7 +148,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
         file.path.toLowerCase().endsWith('.png') ||
         file.path.toLowerCase().endsWith('.webp') ||
-        file.path.toLowerCase().endsWith('.gif') ||
         file.path.toLowerCase().endsWith('.jpeg');
     return isPicture;
   }
@@ -236,9 +237,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  Future<void> analyze(bool analyzeonlyempty) async {
+  Future<void> analyzeImg(bool analyzeonlyempty) async {
     setState(() {
       state.shouldContinue = true;
+      state.isProcessing = true;
       state.hasError = false;
     });
     for (int i = 0; i < listpredimgs.length; i++) {
@@ -269,6 +271,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
         });
       }
     }
+    setState(() {
+      state.isProcessing = false;
+    });
   }
 
   Widget _buildSourceButton(
@@ -328,6 +333,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return SizedBox.shrink();
   }
 
+  Widget procesingIndicator() {
+    if (state.isProcessing) {
+      const SizedBox(height: 15, width: 15, child: CircularProgressIndicator());
+    }
+    return SizedBox.shrink();
+  }
+
   void exportImgData(context) async {
     for (PredImg predimg in listpredimgs) {
       ImgPred temp = ImgPred(
@@ -363,6 +375,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         const SizedBox(height: 20),
         _buildDataSourceButtons(),
         const SizedBox(height: 10),
+        // Folder selected or single img selected
         if (state.imgMode) ...[
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -371,16 +384,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                   onPressed: () async {
                     handleAnalysisRequest(context);
                   },
-                  child: Row(
-                    children: [
-                      const Text("Analizar"),
-                      if (state.isProcessing)
-                        const SizedBox(
-                            height: 15,
-                            width: 15,
-                            child: CircularProgressIndicator())
-                    ],
-                  )),
+                  child: const Text("Analizar")),
+              procesingIndicator(),
               if (state.isAnalysisComplete)
                 ElevatedButton(
                     onPressed: () {
@@ -430,24 +435,27 @@ class _ProcessingPageState extends State<ProcessingPage> {
               ),
               context),
         ],
+        // VIDEO FILE
         if (state.videoMode) ...[
-          if (framebuffer != null) displayImg(framebuffer!, context),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            ElevatedButton(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
                 onPressed: () async {
-                  handleAnalysisRequest(context);
+                  analyzeVideoFile(context);
                 },
-                child: Row(
-                  children: [
-                    const Text("Analizar"),
-                    if (state.isProcessing)
-                      const SizedBox(
-                          height: 15,
-                          width: 15,
-                          child: CircularProgressIndicator())
-                  ],
-                )),
-          ])
+                child: const Text("Analizar"),
+              ),
+              procesingIndicator(),
+              if (state.isProcessing)
+                ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
+            ],
+          ),
+          if (framebuffer != null) displayImg(framebuffer!, context),
+        ],
+        // RTSP Analysis section
+        if (state.feedMode) ...[
+
         ]
       ],
     );
