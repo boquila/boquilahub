@@ -27,10 +27,8 @@ impl RTSPFrameIterator {
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(url: &str) -> Self {
         video_rs::init().unwrap();
-        let options = Options::preset_rtsp_transport_tcp();
         let source = url.parse::<Url>().unwrap();
         let decoder = DecoderBuilder::new(source)
-            .with_options(&options)
             .build()
             .unwrap();
         Self { decoder }
