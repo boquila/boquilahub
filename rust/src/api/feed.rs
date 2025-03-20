@@ -36,7 +36,6 @@ impl RTSPFrameIterator {
         Self { decoder }
     }
 
-    // If the annotation is provided, it will just use that instead of computing it.
     fn process_frame<F>(&mut self, prediction_fn: F) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
     where
         F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<BBox>,
@@ -75,7 +74,7 @@ impl RTSPFrameIterator {
     }
 
     pub fn get_jpg_frame(&mut self) -> Vec<u8> {
-        let (a,frame) = self.next().unwrap();
+        let (_,frame) = self.next().unwrap();
         let img = ndarray_to_image_buffer(&frame);
         let jpg_buffer = image_buffer_to_jpg_buffer(img);
         jpg_buffer

@@ -15,7 +15,7 @@ pub struct VideofileProcessor {
     encoder: Encoder,
 }
 
-fn get_output_path(file_path: &str) -> String {
+pub fn get_output_path(file_path: &str) -> String {
     if let Some(pos) = file_path.rfind('\\') {
         let (directory, file_name) = file_path.split_at(pos + 1);
         let new_file_name = format!("predict_{}", file_name);

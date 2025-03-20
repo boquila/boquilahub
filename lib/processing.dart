@@ -135,67 +135,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return result;
   }
 
-  void selectFeed() async {
-    String? result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        TextEditingController controller = TextEditingController();
-
-        return AlertDialog(
-          title: Text("Ingresa la URL RTSP"),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.url,
-            decoration: InputDecoration(
-              labelText:
-                  "URL RTSP (ejemplo: rtsp://usuario:contraseña@ip:puerto/stream)",
-              hintText: "rtsp://...",
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                String url = controller.text.trim();
-                if (url.isNotEmpty && url.startsWith("rtsp://")) {
-                  setState(() {
-                    rtspURL = url;
-                    state.setMode(feed: true);
-                  });
-                  Navigator.of(context).pop(url);
-                } else {
-                  // Show an error message for invalid input
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          "Por favor ingresa una URL RTSP válida que comience con 'rtsp://'."),
-                    ),
-                  );
-                }
-              },
-              child: Text("OK"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null),
-              child: Text("Cancelar"),
-            ),
-          ],
-        );
-      },
-    );
-    if (result != null) {
-      setState(() {
-        rtspURL = result;
-        state.setMode(feed: true);
-      });
-    }
-  }
-
-  void analyzeFeed(context) async {
-    aiCheck(context);
-    if (state.isProcessing) return; // Won't analyze
-    if (rtspURL == null) return;
-  }
-
+  // SECTION: Analysis
+  // The user has selcted some data, and now he pressed to analyze it
   void analyzeImg(context) async {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
@@ -291,6 +232,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
     });
   }
 
+  void analyzeFeed(context) async {
+    aiCheck(context);
+    if (state.isProcessing) return; // Won't analyze
+    if (rtspURL == null) return;
+  }
+
+  // SECTION: Checks and validations
   void aiCheck(context) {
     if (widget.currentai == null && widget.currentep.local) {
       simpleDialog(context, "Primero, elige una IA");
@@ -316,7 +264,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
       return true; // Image is corrupted or incomplete
     }
   }
-
+  
+  // SECTION: Select data
+  // The user clicked a button to process something
   void selectFolder() async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
     if (selectedDirectory != null) {
@@ -336,23 +286,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
       }
       imgModeInitState(templist);
     }
-  }
-
-  void baseInitState() {
-    setState(() {
-      state.isAnalysisComplete = false;
-      state.shouldContinue = false;
-      state.isProcessing = false;
-    });
-  }
-
-  void imgModeInitState(List<PredImg> foundImgs) {
-    setState(() {
-      listpredimgs = foundImgs;
-      state.setMode(img: true);
-      baseInitState();
-      nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
-    });
   }
 
   void selectFile() async {
@@ -389,6 +322,80 @@ class _ProcessingPageState extends State<ProcessingPage> {
         baseInitState();
       });
     }
+  }
+
+  void selectFeed() async {
+    String? result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        TextEditingController controller = TextEditingController();
+
+        return AlertDialog(
+          title: Text("Ingresa la URL RTSP"),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              labelText:
+                  "URL RTSP (ejemplo: rtsp://usuario:contraseña@ip:puerto/stream)",
+              hintText: "rtsp://...",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                String url = controller.text.trim();
+                if (url.isNotEmpty && url.startsWith("rtsp://")) {
+                  setState(() {
+                    rtspURL = url;
+                    state.setMode(feed: true);
+                  });
+                  Navigator.of(context).pop(url);
+                } else {
+                  // Show an error message for invalid input
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          "Por favor ingresa una URL RTSP válida que comience con 'rtsp://'."),
+                    ),
+                  );
+                }
+              },
+              child: Text("OK"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: Text("Cancelar"),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) {
+      setState(() {
+        rtspURL = result;
+        state.setMode(feed: true);
+        baseInitState();
+      });
+    }
+  }
+
+  // SECTION: States sugar code
+  void baseInitState() {
+    setState(() {
+      state.isAnalysisComplete = false;
+      state.shouldContinue = false;
+      state.isProcessing = false;
+    });
+  }
+
+  void imgModeInitState(List<PredImg> foundImgs) {
+    setState(() {
+      listpredimgs = foundImgs;
+      state.setMode(img: true);
+      baseInitState();
+      nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
+    });
   }
 
   Widget _buildSourceButton(

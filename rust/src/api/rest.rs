@@ -17,7 +17,6 @@ async fn upload(mut multipart: Multipart) -> String {
     return serialized;
 }
 
-// basic handler that responds with a static string
 async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
