@@ -353,13 +353,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
         TextEditingController controller = TextEditingController();
 
         return AlertDialog(
-          title: Text("Ingresa la URL RTSP"),
+          title: Text("Ingresa la URL"),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.url,
             decoration: InputDecoration(
               labelText:
-                  "URL RTSP (ejemplo: rtsp://usuario:contraseña@ip:puerto/stream)",
+                  "URL (ejemplo: rtsp://usuario:contraseña@ip:puerto/stream)",
               hintText: "rtsp://...",
             ),
           ),
@@ -367,14 +367,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
             TextButton(
               onPressed: () {
                 String url = controller.text.trim();
-                if (url.isNotEmpty && url.startsWith("rtsp://")) {
+                if (url.isNotEmpty && (url.startsWith("rtsp://") || url.startsWith("http://") || url.startsWith("https://"))) {
                   Navigator.of(context).pop(url);
                 } else {
                   // Show an error message for invalid input
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                          "Por favor ingresa una URL RTSP válida que comience con 'rtsp://'."),
+                          "Ingresa una URL válida"),
                     ),
                   );
                 }
