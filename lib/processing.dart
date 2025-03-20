@@ -142,7 +142,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   // SECTION: Analysis
   // The user has selcted some data, and now he pressed to analyze it
-  void analyzeImg(context) async {
+  void analyzeImg(BuildContext context) async {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
 
@@ -241,18 +241,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
     if (rtspURL == null) return;
-
-    int? i = await askUserForInt();
-    if (i == null) return;
-    stepFrame = i;
-
     setState(() {
       state.isProcessing = true;
     });
 
     final a = RtspFrameIterator(url: rtspURL!);
     for (int i = 0; i < 100; i++) {
-      var (r, b) = await a.runExp();
+      // var (r, b) = await a.runExp();
+      var r = await a.getJpgFrame();
       setState(() {
         previousFeedFramebuffer = feedFramebuffer;
         feedFramebuffer = Image.memory(r);
@@ -372,10 +368,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
               onPressed: () {
                 String url = controller.text.trim();
                 if (url.isNotEmpty && url.startsWith("rtsp://")) {
-                  setState(() {
-                    rtspURL = url;
-                    state.setMode(feed: true);
-                  });
                   Navigator.of(context).pop(url);
                 } else {
                   // Show an error message for invalid input
@@ -424,7 +416,24 @@ class _ProcessingPageState extends State<ProcessingPage> {
     });
   }
 
-  // SECTION: Custom Widgets
+  // SECTION: Widgets sugar code
+  Widget analyzeButton(
+      context, void Function(BuildContext context) onAnalyze) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ElevatedButton(
+          onPressed: () {
+            onAnalyze(context);
+          },
+          child: const Text("Analizar"),
+        ),
+        processingIndicator(),
+        pauseButton(),
+      ],
+    );
+  }
+
   Widget _buildSourceButton(
       {required IconData icon,
       required String label,
@@ -528,13 +537,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ElevatedButton(
-                  onPressed: () async {
-                    analyzeImg(context);
-                  },
-                  child: const Text("Analizar")),
-              processingIndicator(),
-              pauseButton(),
+              analyzeButton(context, analyzeImg),
               if (state.isAnalysisComplete)
                 ElevatedButton(
                     onPressed: () {
@@ -584,19 +587,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         ],
         // SECTION: VIDEO FILE
         if (state.videoMode) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () async {
-                  analyzeVideoFile(context);
-                },
-                child: const Text("Analizar"),
-              ),
-              processingIndicator(),
-              pauseButton(),
-            ],
-          ),
+          analyzeButton(context, analyzeVideoFile),
           if (currentFrame != null)
             Text("$currentFrame frames analizados de un total de $totalFrames"),
           if (framebuffer != null && previousFramebuffer != null)
@@ -609,19 +600,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         ],
         // SECTION: RTSP
         if (state.feedMode) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton(
-                onPressed: () async {
-                  analyzeVideoFile(context);
-                },
-                child: const Text("Analizar"),
-              ),
-              processingIndicator(),
-              pauseButton(),
-            ],
-          ),
+          analyzeButton(context, analyzeFeed),
           if (feedFramebuffer != null && previousFeedFramebuffer != null)
             Stack(
               children: [
