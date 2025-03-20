@@ -9,6 +9,7 @@ import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/api/exportutils.dart';
 import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
+import 'package:boquilahub/src/rust/api/feed.dart';
 import 'package:boquilahub/src/resources/objects.dart';
 import 'package:boquilahub/src/resources/palettes.dart';
 import 'dart:core';
@@ -53,6 +54,10 @@ class _ProcessingPageState extends State<ProcessingPage> {
   List<PredImg> listpredimgs = [];
   Image? framebuffer;
   Image? previousFramebuffer;
+
+  Image? feedFramebuffer;
+  Image? previousFeedFramebuffer;
+
   int? totalFrames;
   int? currentFrame;
   int? stepFrame;
@@ -236,6 +241,27 @@ class _ProcessingPageState extends State<ProcessingPage> {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
     if (rtspURL == null) return;
+
+    int? i = await askUserForInt();
+    if (i == null) return;
+    stepFrame = i;
+
+    setState(() {
+      state.isProcessing = true;
+    });
+
+    final a = RtspFrameIterator(url: rtspURL!);
+    for (int i = 0; i < 100; i++) {
+      var (r, b) = await a.runExp();
+      setState(() {
+        previousFeedFramebuffer = feedFramebuffer;
+        feedFramebuffer = Image.memory(r);
+      });
+    }
+
+    setState(() {
+      state.isProcessing = false;
+    });
   }
 
   // SECTION: Checks and validations
@@ -264,7 +290,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       return true; // Image is corrupted or incomplete
     }
   }
-  
+
   // SECTION: Select data
   // The user clicked a button to process something
   void selectFolder() async {
@@ -380,7 +406,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  // SECTION: States sugar code
+  // SECTION: State sugar code
   void baseInitState() {
     setState(() {
       state.isAnalysisComplete = false;
@@ -398,6 +424,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     });
   }
 
+  // SECTION: Custom Widgets
   Widget _buildSourceButton(
       {required IconData icon,
       required String label,
@@ -429,7 +456,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
             label: "Video",
             onPressed: selectVideoFile),
         _buildSourceButton(
-            icon: Icons.camera_alt_outlined, label: "Cámara", onPressed: () {})
+            icon: Icons.camera_alt_outlined,
+            label: "Cámara",
+            onPressed: selectFeed)
       ],
     );
   }
@@ -444,9 +473,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return SizedBox.shrink();
   }
 
-  Widget procesingIndicator() {
+  Widget processingIndicator() {
     if (state.isProcessing) {
-      const SizedBox(height: 15, width: 15, child: CircularProgressIndicator());
+      return const SizedBox(
+          height: 15, width: 15, child: CircularProgressIndicator());
+    }
+    return SizedBox.shrink();
+  }
+
+  Widget pauseButton() {
+    if (state.isProcessing) {
+      return ElevatedButton(onPressed: pause, child: Icon(Icons.pause));
     }
     return SizedBox.shrink();
   }
@@ -486,7 +523,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         const SizedBox(height: 20),
         _buildDataSourceButtons(),
         const SizedBox(height: 10),
-        // Folder selected or single img selected
+        // SECTION: IMAGES (or a folder full of images)
         if (state.imgMode) ...[
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -496,7 +533,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     analyzeImg(context);
                   },
                   child: const Text("Analizar")),
-              procesingIndicator(),
+              processingIndicator(),
+              pauseButton(),
               if (state.isAnalysisComplete)
                 ElevatedButton(
                     onPressed: () {
@@ -523,8 +561,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
                               title: const Text("Opciones")));
                     },
                     child: const Text("Exportar")),
-              if (state.isProcessing)
-                ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
             ],
           ),
           Text(nfoundimagestext),
@@ -546,7 +582,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
               ),
               context),
         ],
-        // VIDEO FILE
+        // SECTION: VIDEO FILE
         if (state.videoMode) ...[
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -557,9 +593,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 },
                 child: const Text("Analizar"),
               ),
-              procesingIndicator(),
-              if (state.isProcessing)
-                ElevatedButton(onPressed: pause, child: Icon(Icons.pause))
+              processingIndicator(),
+              pauseButton(),
             ],
           ),
           if (currentFrame != null)
@@ -572,8 +607,29 @@ class _ProcessingPageState extends State<ProcessingPage> {
               ],
             )
         ],
-        // RTSP Analysis section
-        if (state.feedMode) ...[]
+        // SECTION: RTSP
+        if (state.feedMode) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () async {
+                  analyzeVideoFile(context);
+                },
+                child: const Text("Analizar"),
+              ),
+              processingIndicator(),
+              pauseButton(),
+            ],
+          ),
+          if (feedFramebuffer != null && previousFeedFramebuffer != null)
+            Stack(
+              children: [
+                displayImg(feedFramebuffer!, context),
+                displayImg(previousFeedFramebuffer!, context),
+              ],
+            )
+        ]
       ],
     );
   }
