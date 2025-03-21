@@ -48,22 +48,21 @@ class MediaState {
 
 class _ProcessingPageState extends State<ProcessingPage> {
   MediaState state = MediaState();
-  String? videoFile;
-  String? rtspURL;
-  String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
   int? stepFrame; // for videofile and feed
 
   // Feed global variables
   Image? feedFramebuffer;
   Image? previousFeedFramebuffer;
+  String? rtspURL;
 
   // Video global variables
   Image? framebuffer;
   Image? previousFramebuffer;
   int? totalFrames;
   int? currentFrame;
-  
+  String? videoFile;
+
   @override
   void initState() {
     super.initState();
@@ -215,10 +214,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
           }
         }
       } else {
-        predictVideofileRemotely(
-            filePath: videoFile!,
-            url: "${widget.url!}/upload",
-            n: BigInt.from(3));
+        if (i % stepFrame! == 0) {
+          var (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
+          tempbbox = b;
+          setState(() {
+            previousFramebuffer = framebuffer;
+            framebuffer = Image.memory(r);
+            currentFrame = i;
+          });
+        } else {
+          await a.runRemotelyExp(url: "${widget.url!}/upload", vec: tempbbox);
+        }
       }
       if (context.mounted) {
         simpleDialog(context, "Video exportado con predicciones");
@@ -414,7 +420,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
       listpredimgs = foundImgs;
       state.setMode(img: true);
       baseInitState();
-      nfoundimagestext = "${listpredimgs.length} imágenes encontradas";
     });
   }
 
@@ -567,7 +572,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     child: const Text("Exportar")),
             ],
           ),
-          Text(nfoundimagestext),
+          Text("${listpredimgs.length} imágenes encontradas"),
           Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
           const SizedBox(height: 20),
           errorText(),
@@ -590,7 +595,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (state.videoMode) ...[
           analyzeButton(context, analyzeVideoFile),
           if (currentFrame != null)
-            Text("${currentFrame!+1} frames analizados de un total de $totalFrames"),
+            Text(
+                "${currentFrame! + 1} frames analizados de un total de $totalFrames"),
           if (framebuffer != null && previousFramebuffer != null)
             Stack(
               children: [
