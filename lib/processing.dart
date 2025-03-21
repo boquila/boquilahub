@@ -52,16 +52,18 @@ class _ProcessingPageState extends State<ProcessingPage> {
   String? rtspURL;
   String nfoundimagestext = "";
   List<PredImg> listpredimgs = [];
-  Image? framebuffer;
-  Image? previousFramebuffer;
+  int? stepFrame; // for videofile and feed
 
+  // Feed global variables
   Image? feedFramebuffer;
   Image? previousFeedFramebuffer;
 
+  // Video global variables
+  Image? framebuffer;
+  Image? previousFramebuffer;
   int? totalFrames;
   int? currentFrame;
-  int? stepFrame;
-
+  
   @override
   void initState() {
     super.initState();
@@ -199,14 +201,14 @@ class _ProcessingPageState extends State<ProcessingPage> {
       });
       List<BBox>? tempbbox;
       if (widget.currentep.local) {
-        for (int i = 0; i < n; i++) {
+        for (int i = currentFrame!; i < n; i++) {
           if (i % stepFrame! == 0) {
             var (r, b) = await a.runExp();
             tempbbox = b;
             setState(() {
               previousFramebuffer = framebuffer;
               framebuffer = Image.memory(r);
-              currentFrame = i + 1;
+              currentFrame = i;
             });
           } else {
             await a.runExp(vec: tempbbox);
@@ -339,6 +341,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         state.setMode(video: true);
         videoFile = result.files.single.path;
         baseInitState();
+        currentFrame = 0;
       });
     }
   }
@@ -587,7 +590,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         if (state.videoMode) ...[
           analyzeButton(context, analyzeVideoFile),
           if (currentFrame != null)
-            Text("$currentFrame frames analizados de un total de $totalFrames"),
+            Text("${currentFrame!+1} frames analizados de un total de $totalFrames"),
           if (framebuffer != null && previousFramebuffer != null)
             Stack(
               children: [
