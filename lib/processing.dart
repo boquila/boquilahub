@@ -153,19 +153,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
       checkall = !response;
     }
 
-    setState(() {
-      state.shouldContinue = true;
-      state.isProcessing = true;
-      state.hasError = false;
-    });
+    processingStart();
     for (int i = 0; i < listpredimgs.length; i++) {
-      if (!state.shouldContinue) break;
       if (checkall) {
         if (listpredimgs[i].listbbox.isNotEmpty) {
           continue;
         }
       }
-
       try {
         String temppath = listpredimgs[i].filePath;
         List<BBox> tempbbox = [];
@@ -175,7 +169,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
           tempbbox = await detectBboxRemotely(
               url: "${widget.url!}/upload", filePath: temppath);
         }
-        if (!state.shouldContinue) break;
         setState(() {
           listpredimgs[i].listbbox = tempbbox;
           listpredimgs[i].wasprocessed = true;
@@ -185,10 +178,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
           state.hasError = true;
         });
       }
+      if (!state.shouldContinue) break;
     }
-    setState(() {
-      state.isProcessing = false;
-    });
+    processingEnd();
   }
 
   void analyzeVideoFile(context) async {
@@ -198,9 +190,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     if (i == null) return;
     stepFrame = i;
 
-    setState(() {
-      state.isProcessing = true;
-    });
+    processingStart();
     if (state.videoMode && videoFile != null) {
       final a = VideofileProcessor(filePath: videoFile!);
       final int n = (await a.getNFrames()).toInt();
@@ -232,21 +222,17 @@ class _ProcessingPageState extends State<ProcessingPage> {
         simpleDialog(context, "Video exportado con predicciones");
       }
     }
-    setState(() {
-      state.isProcessing = false;
-    });
+    processingEnd();
   }
 
   void analyzeFeed(context) async {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
     if (rtspURL == null) return;
-    setState(() {
-      state.isProcessing = true;
-    });
+    processingStart();
 
     final a = RtspFrameIterator(url: rtspURL!);
-    for (int i = 0; i < 100; i++) {
+    while (state.shouldContinue) {
       // var (r, b) = await a.runExp();
       var r = await a.getJpgFrame();
       setState(() {
@@ -254,10 +240,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         feedFramebuffer = Image.memory(r);
       });
     }
-
-    setState(() {
-      state.isProcessing = false;
-    });
+    processingEnd();
   }
 
   // SECTION: Checks and validations
@@ -266,6 +249,20 @@ class _ProcessingPageState extends State<ProcessingPage> {
       simpleDialog(context, "Primero, elige una IA");
       return;
     }
+  }
+
+  void processingStart() {
+    setState(() {
+      state.shouldContinue = true;
+      state.isProcessing = true;
+      state.hasError = false;
+    });
+  }
+
+  void processingEnd() {
+    setState(() {
+      state.isProcessing = false;
+    });
   }
 
   bool isSupportedIMG(File file) {
@@ -367,14 +364,16 @@ class _ProcessingPageState extends State<ProcessingPage> {
             TextButton(
               onPressed: () {
                 String url = controller.text.trim();
-                if (url.isNotEmpty && (url.startsWith("rtsp://") || url.startsWith("http://") || url.startsWith("https://"))) {
+                if (url.isNotEmpty &&
+                    (url.startsWith("rtsp://") ||
+                        url.startsWith("http://") ||
+                        url.startsWith("https://"))) {
                   Navigator.of(context).pop(url);
                 } else {
                   // Show an error message for invalid input
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(
-                          "Ingresa una URL válida"),
+                      content: Text("Ingresa una URL válida"),
                     ),
                   );
                 }
@@ -417,8 +416,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   // SECTION: Widgets sugar code
-  Widget analyzeButton(
-      context, void Function(BuildContext context) onAnalyze) {
+  Widget analyzeButton(context, void Function(BuildContext context) onAnalyze) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
