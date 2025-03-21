@@ -240,13 +240,25 @@ class _ProcessingPageState extends State<ProcessingPage> {
     processingStart();
 
     final a = RtspFrameIterator(url: rtspURL!);
+    int i = 0;
     while (state.shouldContinue) {
-      // var (r, b) = await a.runExp();
-      var r = await a.getJpgFrame();
-      setState(() {
-        previousFeedFramebuffer = feedFramebuffer;
-        feedFramebuffer = Image.memory(r);
-      });
+      if (i % stepFrame! == 0) {
+        Uint8List r;
+        // ignore: unused_local_variable
+        List<BBox> b;
+        if (widget.currentep.local) {
+          (r, b) = await a.runExp();
+        } else {
+          (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
+        }
+        setState(() {
+          previousFeedFramebuffer = feedFramebuffer;
+          feedFramebuffer = Image.memory(r);
+        });
+      } else {
+        await a.ignoreFrame();
+      }
+      i = i + 1;
     }
     processingEnd();
   }
