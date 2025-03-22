@@ -271,20 +271,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
-  void processingStart() {
-    setState(() {
-      state.shouldContinue = true;
-      state.isProcessing = true;
-      state.hasError = false;
-    });
-  }
-
-  void processingEnd() {
-    setState(() {
-      state.isProcessing = false;
-    });
-  }
-
   bool isSupportedIMG(File file) {
     bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
         file.path.toLowerCase().endsWith('.png') ||
@@ -419,6 +405,20 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   // SECTION: State sugar code
+  void processingStart() {
+    setState(() {
+      state.shouldContinue = true;
+      state.isProcessing = true;
+      state.hasError = false;
+    });
+  }
+
+  void processingEnd() {
+    setState(() {
+      state.isProcessing = false;
+    });
+  }
+
   void baseInitState() {
     setState(() {
       state.isAnalysisComplete = false;
