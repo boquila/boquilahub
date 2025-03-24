@@ -237,6 +237,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
     aiCheck(context);
     if (state.isProcessing) return; // Won't analyze
     if (rtspURL == null) return;
+
+    int? step = await askUserForInt();
+    if (step == null) return;
+    stepFrame = step;
+
     processingStart();
 
     final a = RtspFrameIterator(url: rtspURL!);
@@ -444,9 +449,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
           onPressed: () {
             onAnalyze(context);
           },
-          child: const Text("Analizar"),
+          child: Row(
+            children: [
+              Text(state.isProcessing ? "Analizando" : "Analizar"),
+              processingIndicator(),
+            ],
+          ),
         ),
-        processingIndicator(),
         pauseButton(),
       ],
     );
