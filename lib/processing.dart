@@ -1,3 +1,4 @@
+import 'package:boquilahub/src/resources/utils.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 import 'dart:io';
@@ -205,9 +206,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
             var (r, b) = await a.runExp();
             tempbbox = b;
             setState(() {
-              previousFramebuffer = framebuffer;
-              framebuffer = Image.memory(r);
               currentFrame = i;
+              previousFramebuffer = framebuffer;
+              framebuffer = Image.memory(r);              
             });
           } else {
             await a.runExp(vec: tempbbox);
@@ -441,6 +442,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   // SECTION: Widgets sugar code
+
   Widget analyzeButton(context, void Function(BuildContext context) onAnalyze) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -452,6 +454,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           child: Row(
             children: [
               Text(state.isProcessing ? "Analizando" : "Analizar"),
+              if (state.isProcessing) SizedBox(width: 12),
               processingIndicator(),
             ],
           ),
@@ -615,31 +618,34 @@ class _ProcessingPageState extends State<ProcessingPage> {
         // SECTION: VIDEO FILE
         if (state.videoMode) ...[
           analyzeButton(context, analyzeVideoFile),
-          if (currentFrame != null)
+          if (framebuffer != null)
             Text(
                 "${currentFrame! + 1} frames analizados de un total de $totalFrames"),
-          if (framebuffer != null && previousFramebuffer != null)
-            Stack(
-              children: [
-                displayImg(framebuffer!, context),
-                displayImg(previousFramebuffer!, context),
-              ],
-            )
+          video(framebuffer, previousFramebuffer, context)
         ],
         // SECTION: RTSP
         if (state.feedMode) ...[
           analyzeButton(context, analyzeFeed),
-          if (feedFramebuffer != null && previousFeedFramebuffer != null)
-            Stack(
-              children: [
-                displayImg(feedFramebuffer!, context),
-                displayImg(previousFeedFramebuffer!, context),
-              ],
-            )
+          video(feedFramebuffer, previousFeedFramebuffer, context)
         ]
       ],
     );
   }
+}
+
+Widget video(Image? first, Image? second, context) {
+  if (first != null && second != null) {
+    return ClickableImage(
+      title: Text(""),
+      child: Stack(
+        children: [
+          displayImg(first, context),
+          displayImg(second, context),
+        ],
+      ),
+    );
+  }
+  return SizedBox.shrink();
 }
 
 Widget displayImg(Widget child, BuildContext context) {

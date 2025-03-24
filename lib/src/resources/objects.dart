@@ -43,7 +43,7 @@ String getMainLabel(List<BBox> listbbox) {
 }
 
 Widget render(predImg) {
-  return ClickableImage(predImg: predImg, child: BoxImg(predImg: predImg));
+  return ClickableImage(title: Text(predImg.filePath), child: BoxImg(predImg: predImg));
 }
 
 Widget getEPWidget(EP ep) {

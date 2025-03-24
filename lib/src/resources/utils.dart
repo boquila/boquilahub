@@ -5,7 +5,6 @@ import 'objects.dart';
 import 'dart:io';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 
-
 class BoxImg extends StatefulWidget {
   final PredImg predImg;
   const BoxImg({super.key, required this.predImg});
@@ -72,7 +71,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     Image img = Image.file(File(widget.predImg.filePath), key: key);
-    if (widget.predImg.listbbox.isEmpty){
+    if (widget.predImg.listbbox.isEmpty) {
       return img;
     }
     return Stack(
@@ -147,28 +146,41 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   }
 }
 
-class ClickableImage extends StatelessWidget {
-  final PredImg predImg;
+class ClickableImage extends StatefulWidget {
+  final Widget title;
   final Widget child;
 
-  const ClickableImage({required this.child, required this.predImg, super.key});
+  const ClickableImage({required this.child, required this.title, super.key});
+
+  @override
+  State<ClickableImage> createState() => _ClickableImageState();
+}
+
+class _ClickableImageState extends State<ClickableImage> {
+  void _openFullScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            centerTitle: true,
+            title: widget.title,
+            backgroundColor: terra[2],
+          ),
+          body: InteractiveViewer(
+            maxScale: 3.0,
+            child: Center(child: widget.child),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => Scaffold(
-            appBar: AppBar(
-                centerTitle: true,
-                title: Text(predImg.filePath),
-                backgroundColor: Color.fromARGB(255, 61, 163, 93)),
-            body: child,
-          ),
-        ),
-      ),
-      child: child,
+      onTap: _openFullScreen,
+      child: widget.child,
     );
   }
 }
