@@ -621,11 +621,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
           if (framebuffer != null)
             Text(
                 "${currentFrame! + 1} frames analizados de un total de $totalFrames"),
+          const SizedBox(height: 20),
           video(framebuffer, previousFramebuffer, context)
         ],
         // SECTION: RTSP
         if (state.feedMode) ...[
           analyzeButton(context, analyzeFeed),
+          const SizedBox(height: 20),
           video(feedFramebuffer, previousFeedFramebuffer, context)
         ]
       ],
@@ -635,14 +637,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
 Widget video(Image? first, Image? second, context) {
   if (first != null && second != null) {
-    return ClickableImage(
-      title: Text(""),
-      child: Stack(
-        children: [
-          displayImg(first, context),
-          displayImg(second, context),
-        ],
-      ),
+    return Stack(
+      children: [
+        displayImg(first, context),
+        displayImg(second, context),
+      ],
     );
   }
   return SizedBox.shrink();
@@ -653,11 +652,13 @@ Widget displayImg(Widget child, BuildContext context) {
     height: MediaQuery.of(context).size.height * 0.58,
     width: MediaQuery.of(context).size.width * 0.8,
     child: ClipRect(
-      child: child,
+      child: FittedBox(
+        fit: BoxFit.contain, // Maintains aspect ratio and fits within the box
+        child: child,
+      ),
     ),
   );
 }
-
 class MyCustomScrollBehavior extends MaterialScrollBehavior {
   // Override behavior methods and getters like dragDevices
   @override
