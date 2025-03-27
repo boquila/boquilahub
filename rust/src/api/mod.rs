@@ -7,7 +7,7 @@ pub mod preprocessing;
 pub mod postprocessing;
 // use ndarray::{s, Array, Axis, IxDyn,Ix4};
 // use image::{ImageBuffer, Rgb};
-pub mod exportutils;
+pub mod export;
 pub mod bq;
 pub mod rest;
 pub mod feed;

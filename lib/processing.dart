@@ -1,4 +1,3 @@
-import 'package:boquilahub/src/resources/utils.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 import 'dart:io';
@@ -7,7 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:boquilahub/src/rust/api/inference.dart';
-import 'package:boquilahub/src/rust/api/exportutils.dart';
+import 'package:boquilahub/src/rust/api/export.dart';
 import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/rust/api/feed.dart';
