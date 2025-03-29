@@ -1,4 +1,4 @@
-import 'package:boquilahub/src/resources/hardware_dep.dart';
+import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
 import 'src/resources/palettes.dart';

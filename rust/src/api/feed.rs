@@ -7,7 +7,7 @@ use super::{
 };
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::{error::Error, iter::Iterator};
-use video_rs::{Decoder, DecoderBuilder, Options, Time, Url};
+use video_rs::{Decoder, DecoderBuilder, Time, Url};
 
 pub struct RTSPFrameIterator {
     decoder: Decoder,
