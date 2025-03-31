@@ -48,7 +48,7 @@ pub fn image_buffer_to_jpg_buffer(image_buffer: image::ImageBuffer<image::Rgb<u8
     return jpeg_data;
 }
 
-const IMAGE_FORMATS: [&str; 15] = [
+pub const IMAGE_FORMATS: [&str; 15] = [
     "avif",
     "bmp",
     "dds",
@@ -66,7 +66,7 @@ const IMAGE_FORMATS: [&str; 15] = [
     "webp"
 ];
 
-const VIDEO_FORMATS: [&str; 25] = [
+pub const VIDEO_FORMATS: [&str; 25] = [
     "mp4",     // MPEG-4 Part 14
     "mkv",     // Matroska
     "avi",     // Audio Video Interleave
