@@ -238,3 +238,34 @@ fn get_main_label(listbbox: &Vec<BBox>) -> String {
         return main_label.clone();
     }
 }
+
+async fn copy_to_folder(pred_imgs: &Vec<ImgPred>, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    for pred_img in pred_imgs {
+        let image_file_path = &pred_img.file_path;
+        if std::path::Path::new(image_file_path).exists() {
+            let main_label = get_main_label(&pred_img.list_bbox);
+            
+            let folder_path = format!("{}/{}", output_path, main_label);
+            
+            // Create directory if it doesn't exist
+            if !std::path::Path::new(&folder_path).exists() {
+                std::fs::create_dir_all(&folder_path)?;
+            }
+            
+            // Extract the image name from path
+            let image_name = std::path::Path::new(image_file_path)
+                .file_name()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default();
+                
+            let new_image_path = format!("{}/{}", folder_path, image_name);
+            
+            // Read the original file and write to the new location
+            let image_data = tokio::fs::read(image_file_path).await?;
+            tokio::fs::write(&new_image_path, image_data).await?;
+        }
+    }
+    
+    Ok(())
+}
