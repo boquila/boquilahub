@@ -12,7 +12,7 @@ pub fn process_output(
     let mut boxes = Vec::new();
     let output = output.slice(s![.., .., 0]);
     for row in output.axis_iter(Axis(0)) {
-        let row: Vec<_> = row.iter().map(|x| *x).collect();
+        let row: Vec<f32> = row.iter().map(|x| *x).collect();
         let (class_id, prob) = row
             .iter()
             .skip(4)

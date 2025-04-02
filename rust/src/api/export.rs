@@ -202,3 +202,39 @@ pub async fn write_pred_img_to_file(pred_img: &ImgPred) -> io::Result<()> {
     // println!("Successfully wrote predictions to: {:?}", output_path);
     Ok(())
 }
+
+// Count processed images from a list of ImgPred structs
+fn count_processed_images(images: &Vec<ImgPred>) -> usize {
+    images.iter().filter(|img| img.wasprocessed).count()
+}
+
+// Check if all images have empty bounding boxes
+fn are_boxes_empty(images: &Vec<ImgPred>) -> bool {
+    for image in images {
+        if !image.list_bbox.is_empty() {
+            return false;
+        }
+    }
+    true
+}
+
+// Get the most frequent label from a list of bounding boxes
+fn get_main_label(listbbox: &Vec<BBox>) -> String {
+    if listbbox.is_empty() {
+        return String::from("no predictions");
+    } else {
+        let mut label_counts: std::collections::HashMap<&String, usize> = std::collections::HashMap::new();
+
+        for bbox in listbbox {
+            *label_counts.entry(&bbox.label).or_insert(0) += 1;
+        }
+
+        let main_label = label_counts
+            .iter()
+            .max_by_key(|&(_, count)| count)
+            .map(|(label, _)| *label)
+            .unwrap();
+
+        return main_label.clone();
+    }
+}
