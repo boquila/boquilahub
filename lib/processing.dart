@@ -602,21 +602,22 @@ class _ProcessingPageState extends State<ProcessingPage> {
               "${countProcessedImages(images: t(listpredimgs)).toInt().toString()} imágenes procesadas"),
           const SizedBox(height: 20),
           errorText(),
-          ScrollConfiguration(
-            behavior: MyCustomScrollBehavior(),
+        ],
+        if (state.imgMode)
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.58,
+            width: MediaQuery.of(context).size.width * 0.8,
             child: ListView.builder(
               addAutomaticKeepAlives: false,
               shrinkWrap: true,
               scrollDirection: Axis.vertical,
               itemCount: listpredimgs.length,
               itemBuilder: (context, index) {
-                return displayImg(
-                    Image.file(File(listpredimgs[index].filePath)), context);
+                return displayImg(render(listpredimgs[index]), context);
                 // return displayImg(render(listpredimgs[index]), context);
               },
             ),
           ),
-        ],
         // SECTION: VIDEO FILE
         if (state.videoMode) ...[
           analyzeButton(context, analyzeVideoFile),
@@ -653,7 +654,7 @@ Widget displayImg(Widget child, BuildContext context) {
   return SizedBox(
     height: MediaQuery.of(context).size.height * 0.58,
     width: MediaQuery.of(context).size.width * 0.8,
-    child: child,
+    child: Center(child: child),
   );
 }
 
