@@ -146,41 +146,28 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   }
 }
 
-class ClickableImage extends StatefulWidget {
+class ClickableImage extends StatelessWidget {
   final Widget title;
   final Widget child;
 
   const ClickableImage({required this.child, required this.title, super.key});
 
   @override
-  State<ClickableImage> createState() => _ClickableImageState();
-}
-
-class _ClickableImageState extends State<ClickableImage> {
-  void _openFullScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            centerTitle: true,
-            title: widget.title,
-            backgroundColor: terra[2],
-          ),
-          body: InteractiveViewer(
-            maxScale: 3.0,
-            child: Center(child: widget.child),
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(
+                centerTitle: true,
+                title: title,
+                backgroundColor: terra[4]),
+            body: child,
           ),
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _openFullScreen,
-      child: widget.child,
+      child: child,
     );
   }
 }

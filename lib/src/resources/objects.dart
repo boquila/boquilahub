@@ -1,4 +1,4 @@
-import 'dart:io';
+// import 'dart:io';
 import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
@@ -12,17 +12,10 @@ class PredImg {
   PredImg(this.filePath, this.listbbox, this.wasprocessed);
 }
 
-int countProcessedImages(List<PredImg> images) {
-  return images.where((img) => img.wasprocessed).length;
-}
-
-bool areBoxesEmpty(List<PredImg> images) {
-  for (var image in images) {
-    if (image.listbbox.isNotEmpty) {
-      return false;
-    }
-  }
-  return true;
+List<ImgPred> t(List<PredImg> predImgList) {
+  return predImgList.map((predImg) {
+    return ImgPred(filePath: predImg.filePath, listBbox: predImg.listbbox, wasprocessed: predImg.wasprocessed);
+  }).toList();
 }
 
 String getMainLabel(List<BBox> listbbox) {
@@ -42,7 +35,7 @@ String getMainLabel(List<BBox> listbbox) {
   }
 }
 
-Widget render(predImg) {
+Widget render(PredImg predImg) {
   return ClickableImage(title: Text(predImg.filePath), child: BoxImg(predImg: predImg));
 }
 
@@ -136,28 +129,6 @@ Widget getAIwidget(AI value) {
       ],
     ),
   );
-}
-
-Future<void> copyToFolder(List<PredImg> predImgs, String outputPath) async {
-  for (PredImg predImg in predImgs) {
-    final File imageFile = File(predImg.filePath);
-    if (await imageFile.exists()) {
-      final String mainLabel = getMainLabel(predImg.listbbox);
-      String folderPath;
-      if (mainLabel == 'no predictions') {
-        folderPath = '$outputPath/$mainLabel';
-      } else {
-        folderPath = '$outputPath/$mainLabel';
-      }
-      final Directory folder = Directory(folderPath);
-      if (!await folder.exists()) {
-        await folder.create(recursive: true);
-      }
-      final String imageName = imageFile.path.split('\\').last;
-      final File newImageFile = File('$folderPath/$imageName');
-      await newImageFile.writeAsBytes(await imageFile.readAsBytes());
-    }
-  }
 }
 
 simpleDialog(context, String text) {

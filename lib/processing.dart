@@ -144,11 +144,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
   // SECTION: Analysis
   // The user has selcted some data, and now he pressed to analyze it
   void analyzeImg(BuildContext context) async {
-    aiCheck(context);
+    if (!aiCheck(context)) return;
     if (state.isProcessing) return; // Won't analyze
 
     bool checkall = true;
-    if (!areBoxesEmpty(listpredimgs)) {
+    if (!areBoxesEmpty(images: t(listpredimgs))) {
       final bool? response = await askUserWhatToAnalyze();
       if (response == null) return;
       checkall = !response;
@@ -185,8 +185,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   void analyzeVideoFile(context) async {
-    aiCheck(context);
-
+    if (!aiCheck(context)) return;
     int? i = await askUserForInt();
     if (i == null) return;
     stepFrame = i;
@@ -207,7 +206,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             setState(() {
               currentFrame = i;
               previousFramebuffer = framebuffer;
-              framebuffer = Image.memory(r);              
+              framebuffer = Image.memory(r);
             });
           } else {
             await a.runExp(vec: tempbbox);
@@ -234,7 +233,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   void analyzeFeed(context) async {
-    aiCheck(context);
+    if (!aiCheck(context)) return;
     if (state.isProcessing) return; // Won't analyze
     if (rtspURL == null) return;
 
@@ -269,11 +268,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   // SECTION: Checks and validations
-  void aiCheck(context) {
+  bool aiCheck(context) {
     if (widget.currentai == null && widget.currentep.local) {
       simpleDialog(context, "Primero, elige una IA");
-      return;
+      return false;
     }
+    return true;
   }
 
   bool isSupportedIMG(File file) {
@@ -421,6 +421,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   void processingEnd() {
     setState(() {
       state.isProcessing = false;
+      state.isAnalysisComplete = true;
     });
   }
 
@@ -543,7 +544,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
   void copyImgs(context) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
     if (selectedDirectory != null) {
-      await copyToFolder(listpredimgs, "$selectedDirectory/export");
+      await copyToFolder(
+          predImgs: t(listpredimgs), outputPath: "$selectedDirectory/export");
       if (context.mounted) {
         simpleDialog(context, "✅ Listo");
       }
@@ -596,23 +598,24 @@ class _ProcessingPageState extends State<ProcessingPage> {
             ],
           ),
           Text("${listpredimgs.length} imágenes encontradas"),
-          Text("${countProcessedImages(listpredimgs)} imágenes procesadas"),
+          Text(
+              "${countProcessedImages(images: t(listpredimgs)).toInt().toString()} imágenes procesadas"),
           const SizedBox(height: 20),
           errorText(),
-          displayImg(
-              ScrollConfiguration(
-                behavior: MyCustomScrollBehavior(),
-                child: ListView.builder(
-                  addAutomaticKeepAlives: false,
-                  shrinkWrap: true,
-                  scrollDirection: Axis.vertical,
-                  itemCount: listpredimgs.length,
-                  itemBuilder: (context, index) {
-                    return render(listpredimgs[index]);
-                  },
-                ),
-              ),
-              context),
+          ScrollConfiguration(
+            behavior: MyCustomScrollBehavior(),
+            child: ListView.builder(
+              addAutomaticKeepAlives: false,
+              shrinkWrap: true,
+              scrollDirection: Axis.vertical,
+              itemCount: listpredimgs.length,
+              itemBuilder: (context, index) {
+                return displayImg(
+                    Image.file(File(listpredimgs[index].filePath)), context);
+                // return displayImg(render(listpredimgs[index]), context);
+              },
+            ),
+          ),
         ],
         // SECTION: VIDEO FILE
         if (state.videoMode) ...[
@@ -650,14 +653,10 @@ Widget displayImg(Widget child, BuildContext context) {
   return SizedBox(
     height: MediaQuery.of(context).size.height * 0.58,
     width: MediaQuery.of(context).size.width * 0.8,
-    child: ClipRect(
-      child: FittedBox(
-        fit: BoxFit.contain, // Maintains aspect ratio and fits within the box
-        child: child,
-      ),
-    ),
+    child: child,
   );
 }
+
 class MyCustomScrollBehavior extends MaterialScrollBehavior {
   // Override behavior methods and getters like dragDevices
   @override
