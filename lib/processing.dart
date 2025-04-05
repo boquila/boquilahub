@@ -148,7 +148,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     if (state.isProcessing) return; // Won't analyze
 
     bool checkall = true;
-    if (!areBoxesEmpty(images: t(listpredimgs))) {
+    if (!areBoxesEmpty(images: listpredimgs)) {
       final bool? response = await askUserWhatToAnalyze();
       if (response == null) return;
       checkall = !response;
@@ -157,7 +157,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     processingStart();
     for (int i = 0; i < listpredimgs.length; i++) {
       if (checkall) {
-        if (listpredimgs[i].listbbox.isNotEmpty) {
+        if (listpredimgs[i].listBbox.isNotEmpty) {
           continue;
         }
       }
@@ -171,7 +171,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
               url: "${widget.url!}/upload", filePath: temppath);
         }
         setState(() {
-          listpredimgs[i].listbbox = tempbbox;
+          listpredimgs[i].listBbox = tempbbox;
           listpredimgs[i].wasprocessed = true;
         });
       } catch (e) {
@@ -311,7 +311,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       for (String filepath in jpgFiles) {
         List<BBox> tempbbox =
             await readPredictionsFromFile(inputPath: filepath);
-        PredImg temppredimg = PredImg(filepath, tempbbox, tempbbox.isNotEmpty);
+        PredImg temppredimg = PredImg(filePath: filepath, listBbox: tempbbox, wasprocessed: tempbbox.isNotEmpty, );
         templist.add(temppredimg);
       }
       imgModeInitState(templist);
@@ -326,7 +326,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     if (result != null) {
       File file = File(result.files.single.path!);
       List<BBox> tempbbox = await readPredictionsFromFile(inputPath: file.path);
-      PredImg temppred = PredImg(file.path, tempbbox, tempbbox.isNotEmpty);
+      PredImg temppred = PredImg(filePath: file.path, listBbox: tempbbox, wasprocessed: tempbbox.isNotEmpty);
       imgModeInitState([temppred]);
     }
   }
@@ -529,11 +529,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   void exportImgData(context) async {
     for (PredImg predimg in listpredimgs) {
-      ImgPred temp = ImgPred(
-          filePath: predimg.filePath,
-          listBbox: predimg.listbbox,
-          wasprocessed: true);
-      await writePredImgToFile(predImg: temp);
+      // ImgPred temp = ImgPred(
+      //     filePath: predimg.filePath,
+      //     listBbox: predimg.listbbox,
+      //     wasprocessed: true);
+      await writePredImgToFile(predImg: predimg);
     }
 
     if (context.mounted) {
@@ -545,7 +545,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
     if (selectedDirectory != null) {
       await copyToFolder(
-          predImgs: t(listpredimgs), outputPath: "$selectedDirectory/export");
+          predImgs: listpredimgs, outputPath: "$selectedDirectory/export");
       if (context.mounted) {
         simpleDialog(context, "✅ Listo");
       }
@@ -599,7 +599,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           ),
           Text("${listpredimgs.length} imágenes encontradas"),
           Text(
-              "${countProcessedImages(images: t(listpredimgs)).toInt().toString()} imágenes procesadas"),
+              "${countProcessedImages(images: listpredimgs).toInt().toString()} imágenes procesadas"),
           const SizedBox(height: 20),
           errorText(),
         ],
@@ -656,14 +656,4 @@ Widget displayImg(Widget child, BuildContext context) {
     width: MediaQuery.of(context).size.width * 0.8,
     child: Center(child: child),
   );
-}
-
-class MyCustomScrollBehavior extends MaterialScrollBehavior {
-  // Override behavior methods and getters like dragDevices
-  @override
-  Set<ui.PointerDeviceKind> get dragDevices => {
-        ui.PointerDeviceKind.touch,
-        ui.PointerDeviceKind.mouse,
-        ui.PointerDeviceKind.trackpad,
-      };
 }

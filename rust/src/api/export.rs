@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use super::abstractions::BBox;
-use super::abstractions::ImgPred;
+use super::abstractions::PredImg;
 use csv::Writer;
 use csv::WriterBuilder;
 use std::collections::HashSet;
@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
+pub fn write_csv(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
     let mut wtr = Writer::from_path(output_path)?;
     wtr.write_record(&["File Path", "X1", "Y1", "X2", "Y2", "Label", "Confidence"])?;
 
@@ -30,7 +30,7 @@ pub fn write_csv(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> {
+pub fn write_csv2(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
     let file = File::create(output_path)?;
     let mut wtr = WriterBuilder::new().has_headers(true).from_writer(file);
 
@@ -73,12 +73,12 @@ pub fn write_csv2(pred_imgs: Vec<ImgPred>, output_path: &str) -> io::Result<()> 
 
 // The final implementation should be more like:
 
-// struct ImgPred<T: BoundingBoxTrait> {
+// struct PredImg<T: BoundingBoxTrait> {
 //     file_path: String,
 //     list_bbox: Vec<T>,
 // }
 
-// fn write_csv<T: BoundingBoxTrait>(pred_imgs: Vec<ImgPred<T>>, output_path: &str) -> io::Result<()> {
+// fn write_csv<T: BoundingBoxTrait>(pred_imgs: Vec<PredImg<T>>, output_path: &str) -> io::Result<()> {
 //     // Create a CSV writer.
 //     let mut wtr = Writer::from_path(output_path)?;
 
@@ -166,7 +166,7 @@ pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<BBox
     Ok(bboxes)
 }
 
-pub async fn write_pred_img_to_file(pred_img: &ImgPred) -> io::Result<()> {
+pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
     // Create output filename based on input filepath
     let input_path = Path::new(&pred_img.file_path);
     let file_stem = input_path
@@ -195,15 +195,15 @@ pub async fn write_pred_img_to_file(pred_img: &ImgPred) -> io::Result<()> {
     Ok(())
 }
 
-// Count processed images from a list of ImgPred structs
+// Count processed images from a list of PredImg structs
 #[flutter_rust_bridge::frb(sync)]
-pub fn count_processed_images(images: &Vec<ImgPred>) -> usize {
+pub fn count_processed_images(images: &Vec<PredImg>) -> usize {
     images.iter().filter(|img| img.wasprocessed).count()
 }
 
 // Check if all images have empty bounding boxes
 #[flutter_rust_bridge::frb(sync)]
-pub fn are_boxes_empty(images: &Vec<ImgPred>) -> bool {
+pub fn are_boxes_empty(images: &Vec<PredImg>) -> bool {
     for image in images {
         if !image.list_bbox.is_empty() {
             return false;
@@ -234,7 +234,7 @@ fn get_main_label(listbbox: &Vec<BBox>) -> String {
     }
 }
 
-pub async fn copy_to_folder(pred_imgs: &Vec<ImgPred>, output_path: &str) {
+pub async fn copy_to_folder(pred_imgs: &Vec<PredImg>, output_path: &str) {
     for pred_img in pred_imgs {
         let image_file_path = &pred_img.file_path;
         if std::path::Path::new(image_file_path).exists() {

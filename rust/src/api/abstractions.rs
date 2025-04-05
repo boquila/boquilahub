@@ -647,9 +647,12 @@ impl AI {
     }
 }
 
-pub struct ImgPred {
+#[flutter_rust_bridge::frb]
+pub struct PredImg {    
     pub file_path: String,
+    #[frb(non_final)]
     pub list_bbox: Vec<BBox>,
+    #[frb(non_final)]
     pub wasprocessed: bool,
 }
 

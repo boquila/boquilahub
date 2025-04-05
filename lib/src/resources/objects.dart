@@ -1,25 +1,10 @@
-// import 'dart:io';
 import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 
-class PredImg {
-  final String filePath;
-  List<BBox> listbbox;
-  bool wasprocessed;
-
-  PredImg(this.filePath, this.listbbox, this.wasprocessed);
-}
-
-List<ImgPred> t(List<PredImg> predImgList) {
-  return predImgList.map((predImg) {
-    return ImgPred(filePath: predImg.filePath, listBbox: predImg.listbbox, wasprocessed: predImg.wasprocessed);
-  }).toList();
-}
-
 Widget render(PredImg predImg) {
-  return ClickableImage(title: Text(predImg.filePath), child: BoxImg(predImg: predImg));
+  return ClickAbleWidget(title: Text(predImg.filePath), child: BoxImg(predImg: predImg));
 }
 
 Widget getEPWidget(EP ep) {

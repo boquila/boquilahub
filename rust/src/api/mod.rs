@@ -16,4 +16,5 @@ pub mod video_file;
 pub mod render;
 /// flutter_rust_bridge:ignore
 pub mod utils;
+/// flutter_rust_bridge:ignore
 pub mod global;

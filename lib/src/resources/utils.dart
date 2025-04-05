@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:boquilahub/src/resources/palettes.dart';
 import 'package:flutter/material.dart';
-import 'objects.dart';
 import 'dart:io';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 
@@ -71,7 +70,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     Image img = Image.file(File(widget.predImg.filePath), key: key);
-    if (widget.predImg.listbbox.isEmpty) {
+    if (widget.predImg.listBbox.isEmpty) {
       return img;
     }
     return Stack(
@@ -93,7 +92,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                   clipBehavior: Clip.none,
                   children: [
                     Container(),
-                    for (BBox data in widget.predImg.listbbox)
+                    for (BBox data in widget.predImg.listBbox)
                       Positioned(
                         left: data.x1 * ratioW,
                         top: data.y1 * ratioH,
@@ -108,7 +107,7 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                    for (BBox data in widget.predImg.listbbox)
+                    for (BBox data in widget.predImg.listBbox)
                       Positioned(
                         left: data.x1 * ratioW,
                         top: (data.y1 * ratioH) - 16,
@@ -146,11 +145,11 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   }
 }
 
-class ClickableImage extends StatelessWidget {
+class ClickAbleWidget extends StatelessWidget {
   final Widget title;
   final Widget child;
 
-  const ClickableImage({required this.child, required this.title, super.key});
+  const ClickAbleWidget({required this.child, required this.title, super.key});
 
   @override
   Widget build(BuildContext context) {
