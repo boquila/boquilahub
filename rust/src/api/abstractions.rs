@@ -700,6 +700,7 @@ pub trait BoundingBoxTraitC<T: BoundingBoxTrait> {
     fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
     fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
+    fn strlabel(&self) -> String;
 }
 
 impl BoundingBoxTraitC<XYXY> for XYXYc {
@@ -721,6 +722,11 @@ impl BoundingBoxTraitC<XYXY> for XYXYc {
 
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
         self.xyxy.to_xywhnc(w, h, label)
+    }
+
+    fn strlabel(&self) -> String {
+        let conf = format!("{:.2}", self.xyxy.prob);
+        format!("{} {}%", self.label, conf)
     }
 }
 
@@ -744,6 +750,11 @@ impl BoundingBoxTraitC<XYXYn> for XYXYnc {
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
         self.xyxyn.to_xywhnc(w, h, label)
     }
+
+    fn strlabel(&self) -> String {
+        let conf = format!("{:.2}", self.xyxyn.prob);
+        format!("{} {}%", self.label, conf)
+    }
 }
 
 impl BoundingBoxTraitC<XYWH> for XYWHc {
@@ -766,6 +777,11 @@ impl BoundingBoxTraitC<XYWH> for XYWHc {
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
         self.xywh.to_xywhnc(w, h, label)
     }
+
+    fn strlabel(&self) -> String {
+        let conf = format!("{:.2}", self.xywh.prob);
+        format!("{} {}%", self.label, conf)
+    }
 }
 
 impl BoundingBoxTraitC<XYWHn> for XYWHnc {
@@ -787,6 +803,11 @@ impl BoundingBoxTraitC<XYWHn> for XYWHnc {
 
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
         self.xywhn.to_xywhnc(w, h, label)
+    }
+
+    fn strlabel(&self) -> String {
+        let conf = format!("{:.2}", self.xywhn.prob);
+        format!("{} {}%", self.label, conf)
     }
 }
 
