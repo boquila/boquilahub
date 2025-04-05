@@ -18,23 +18,6 @@ List<ImgPred> t(List<PredImg> predImgList) {
   }).toList();
 }
 
-String getMainLabel(List<BBox> listbbox) {
-  if (listbbox.isEmpty) {
-    return 'no predictions';
-  } else {
-    final Map<String, int> labelCounts = {};
-
-    for (var bbox in listbbox) {
-      labelCounts[bbox.label] = (labelCounts[bbox.label] ?? 0) + 1;
-    }
-
-    final mainLabel =
-        labelCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-
-    return mainLabel;
-  }
-}
-
 Widget render(PredImg predImg) {
   return ClickableImage(title: Text(predImg.filePath), child: BoxImg(predImg: predImg));
 }
