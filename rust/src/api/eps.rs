@@ -5,17 +5,17 @@ use std::str;
 
 #[derive(Clone)]
 pub struct EP {
-    pub name: &'static str,
-    pub img_path: &'static str,
+    pub name: String,
+    pub img_path: String,
     pub version: f32,
     pub local: bool,
-    pub dependencies: &'static str,
+    pub dependencies: String,
 }
 
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 pub fn get_ep_version(provider: &EP) -> f64 {
-    match provider.name {
+    match provider.name.as_str() {
         "CUDA" => {
             let output = Command::new("nvcc").args(["--version"]).creation_flags(CREATE_NO_WINDOW).output().unwrap();
 

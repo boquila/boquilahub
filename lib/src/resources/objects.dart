@@ -78,21 +78,18 @@ Widget getEPWidget(EP ep) {
 const List<EP> listEPs = <EP>[
   EP(
       name: "CPU",
-      description: "Just your CPU",
       imgPath: "tiny_cpu.png",
       version: 0.0,
       local: true,
       dependencies: "none"),
   EP(
       name: "CUDA",
-      description: "NVIDIA GPU",
       imgPath: "tiny_nvidia.png",
       version: 12.4,
       local: true,
       dependencies: "cuDNN"),
   EP(
-      name: "BoquilaHUB Remoto",
-      description: "Sesión remota de BoquilaHUB",
+      name: "BoquilaHUB Remoto",      
       imgPath: "tiny_boquila.png",
       version: 0.0,
       local: false,
