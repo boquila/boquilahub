@@ -163,7 +163,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       }
       try {
         String temppath = listpredimgs[i].filePath;
-        List<BBox> tempbbox = [];
+        List<XYXYc> tempbbox = [];
         if (widget.currentep.local) {
           tempbbox = await detectBbox(filePath: temppath);
         } else {
@@ -197,7 +197,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       setState(() {
         totalFrames = n;
       });
-      List<BBox>? tempbbox;
+      List<XYXYc>? tempbbox;
       if (widget.currentep.local) {
         for (int i = currentFrame!; i < n; i++) {
           if (i % stepFrame! == 0) {
@@ -249,7 +249,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
       if (i % stepFrame! == 0) {
         Uint8List r;
         // ignore: unused_local_variable
-        List<BBox> b;
+        List<XYXYc> b;
         if (widget.currentep.local) {
           (r, b) = await a.runExp();
         } else {
@@ -309,7 +309,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           .toList();
       List<PredImg> templist = [];
       for (String filepath in jpgFiles) {
-        List<BBox> tempbbox =
+        List<XYXYc> tempbbox =
             await readPredictionsFromFile(inputPath: filepath);
         PredImg temppredimg = PredImg(filePath: filepath, listBbox: tempbbox, wasprocessed: tempbbox.isNotEmpty, );
         templist.add(temppredimg);
@@ -325,7 +325,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
     if (result != null) {
       File file = File(result.files.single.path!);
-      List<BBox> tempbbox = await readPredictionsFromFile(inputPath: file.path);
+      List<XYXYc> tempbbox = await readPredictionsFromFile(inputPath: file.path);
       PredImg temppred = PredImg(filePath: file.path, listBbox: tempbbox, wasprocessed: tempbbox.isNotEmpty);
       imgModeInitState([temppred]);
     }

@@ -1,9 +1,6 @@
 use super::{
-    abstractions::BBox,
-    inference::detect_bbox_from_imgbuf,
-    render::draw_bbox_from_imgbuf,
-    rest::detect_bbox_from_buf_remotely,
-    utils::{image_buffer_to_jpg_buffer, ndarray_to_image_buffer},
+    
+    abstractions::XYXYc, inference::detect_bbox_from_imgbuf, render::draw_bbox_from_imgbuf, rest::detect_bbox_from_buf_remotely, utils::{image_buffer_to_jpg_buffer, ndarray_to_image_buffer}
 };
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::{error::Error, iter::Iterator};
@@ -34,9 +31,9 @@ impl RTSPFrameIterator {
         Self { decoder }
     }
 
-    fn process_frame<F>(&mut self, prediction_fn: F) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
+    fn process_frame<F>(&mut self, prediction_fn: F) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>>
     where
-        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<BBox>,
+        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
     {
         match self.next() {
             Some((_, frame)) => {
@@ -51,19 +48,19 @@ impl RTSPFrameIterator {
         }
     }
 
-    fn run(&mut self) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+    fn run(&mut self) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img))
     }
 
-    fn run_remotely(&mut self, url: &str) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+    fn run_remotely(&mut self, url: &str) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()))
     }
 
-    pub fn run_exp(&mut self) -> (Vec<u8>, Vec<BBox>) {
+    pub fn run_exp(&mut self) -> (Vec<u8>, Vec<XYXYc>) {
         self.run().unwrap()
     }
 
-    pub fn run_remotely_exp(&mut self, url: &str) -> (Vec<u8>, Vec<BBox>) {
+    pub fn run_remotely_exp(&mut self, url: &str) -> (Vec<u8>, Vec<XYXYc>) {
         self.run_remotely(url).unwrap()
     }
 

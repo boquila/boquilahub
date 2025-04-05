@@ -1,6 +1,8 @@
 #![allow(dead_code)]
-use super::abstractions::BBox;
+use super::abstractions::BoundingBoxTrait;
 use super::abstractions::PredImg;
+use super::abstractions::XYXYc;
+use super::abstractions::XYXY;
 use csv::Writer;
 use csv::WriterBuilder;
 use std::collections::HashSet;
@@ -16,12 +18,12 @@ pub fn write_csv(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
         for bbox in pred_img.list_bbox {
             wtr.write_record(&[
                 pred_img.file_path.clone(),
-                bbox.x1.to_string(),
-                bbox.y1.to_string(),
-                bbox.x2.to_string(),
-                bbox.y2.to_string(),
-                bbox.class_id.to_string(),
-                bbox.confidence.to_string(),
+                bbox.xyxy.x1.to_string(),
+                bbox.xyxy.y1.to_string(),
+                bbox.xyxy.x2.to_string(),
+                bbox.xyxy.y2.to_string(),
+                bbox.xyxy.class_id.to_string(),
+                bbox.xyxy.prob.to_string(),
             ])?;
         }
     }
@@ -46,15 +48,15 @@ pub fn write_csv2(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> 
         for bbox in pred_img.list_bbox {
             // Add the bounding box details to the bbox_rows.
             bbox_rows.push(vec![
-                bbox.x1.to_string(),
-                bbox.y1.to_string(),
-                bbox.x2.to_string(),
-                bbox.y2.to_string(),
-                bbox.class_id.to_string(),
-                bbox.confidence.to_string(),
+                bbox.xyxy.x1.to_string(),
+                bbox.xyxy.y1.to_string(),
+                bbox.xyxy.x2.to_string(),
+                bbox.xyxy.y2.to_string(),
+                bbox.xyxy.class_id.to_string(),
+                bbox.xyxy.prob.to_string(),
             ]);
             // Add the label to the set of unique labels.
-            labels.insert(bbox.class_id.to_string());
+            labels.insert(bbox.xyxy.class_id.to_string());
         }
 
         // Write a row for the predicted image, including the count of bounding boxes
@@ -106,7 +108,7 @@ pub fn write_csv2(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> 
 //     Ok(())
 // }
 
-pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<BBox>> {
+pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXYc>> {
     // Create expected filename based on input filepath
     let input_path = Path::new(input_path);
     let file_stem = input_path
@@ -145,13 +147,8 @@ pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<BBox
             parts[6].parse::<f32>(), // confidence
         ) {
             (Ok(x1), Ok(y1), Ok(x2), Ok(y2), Ok(class_id), Ok(confidence)) => {
-                bboxes.push(BBox {
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    confidence,
-                    class_id,
+                bboxes.push(XYXYc {
+                    xyxy: XYXY::new(x1, y1, x2, y2, confidence, class_id),
                     label: parts[0].to_string(),
                 });
             }
@@ -184,7 +181,7 @@ pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
     for bbox in &pred_img.list_bbox {
         content.push_str(&format!(
             "{} {} {} {} {} {} {}\n",
-            bbox.label, bbox.x1, bbox.y1, bbox.x2, bbox.y2, bbox.class_id, bbox.confidence
+            bbox.label, bbox.xyxy.x1, bbox.xyxy.y1, bbox.xyxy.x2, bbox.xyxy.y2, bbox.xyxy.class_id, bbox.xyxy.prob
         ));
     }
 
@@ -213,7 +210,7 @@ pub fn are_boxes_empty(images: &Vec<PredImg>) -> bool {
 }
 
 // Get the most frequent label from a list of bounding boxes
-fn get_main_label(listbbox: &Vec<BBox>) -> String {
+fn get_main_label(listbbox: &Vec<XYXYc>) -> String {
     if listbbox.is_empty() {
         return String::from("no predictions");
     } else {

@@ -1,4 +1,4 @@
-use super::abstractions::BBox;
+use super::abstractions::XYXYc;
 use super::inference::detect_bbox_from_imgbuf;
 use super::render::draw_bbox_from_imgbuf;
 use super::rest::detect_bbox_from_buf_remotely;
@@ -59,10 +59,10 @@ impl VideofileProcessor {
     fn process_frame<F>(
         &mut self,
         prediction_fn: F,
-        vec: Option<Vec<BBox>>,
-    ) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>>
+        vec: Option<Vec<XYXYc>>,
+    ) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>>
     where
-        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<BBox>,
+        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
     {
         match self.next() {
             Some((time, frame)) => {
@@ -83,27 +83,27 @@ impl VideofileProcessor {
         }
     }
 
-    fn run(&mut self, vec: Option<Vec<BBox>>) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+    fn run(&mut self, vec: Option<Vec<XYXYc>>) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
     }
 
     fn run_remotely(
         &mut self,
         url: &str,
-        vec: Option<Vec<BBox>>,
-    ) -> Result<(Vec<u8>, Vec<BBox>), Box<dyn Error>> {
+        vec: Option<Vec<XYXYc>>,
+    ) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(
             |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
             vec,
         )
     }
 
-    pub fn run_exp(&mut self, vec: Option<Vec<BBox>>) -> (Vec<u8>, Vec<BBox>) {
+    pub fn run_exp(&mut self, vec: Option<Vec<XYXYc>>) -> (Vec<u8>, Vec<XYXYc>) {
         self.run(vec).unwrap()
     }
 
 
-    pub fn run_remotely_exp(&mut self, url: &str, vec: Option<Vec<BBox>>) -> (Vec<u8>, Vec<BBox>) {
+    pub fn run_remotely_exp(&mut self, url: &str, vec: Option<Vec<XYXYc>>) -> (Vec<u8>, Vec<XYXYc>) {
         self.run_remotely(url, vec).unwrap()
     }
 }

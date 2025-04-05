@@ -92,31 +92,31 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
                   clipBehavior: Clip.none,
                   children: [
                     Container(),
-                    for (BBox data in widget.predImg.listBbox)
+                    for (XYXYc data in widget.predImg.listBbox)
                       Positioned(
-                        left: data.x1 * ratioW,
-                        top: data.y1 * ratioH,
-                        width: (data.x2 - data.x1) * ratioW,
-                        height: (data.y2 - data.y1) * ratioH,
+                        left: data.xyxy.x1 * ratioW,
+                        top: data.xyxy.y1 * ratioH,
+                        width: (data.xyxy.x2 - data.xyxy.x1) * ratioW,
+                        height: (data.xyxy.y2 - data.xyxy.y1) * ratioH,
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: bboxColors[data.classId],
+                              color: bboxColors[data.xyxy.classId],
                               width: 2.0,
                             ),
                           ),
                         ),
                       ),
-                    for (BBox data in widget.predImg.listBbox)
+                    for (XYXYc data in widget.predImg.listBbox)
                       Positioned(
-                        left: data.x1 * ratioW,
-                        top: (data.y1 * ratioH) - 16,
-                        width: data.x2 * ratioW,
-                        height: data.y2 + 10 * ratioH,
+                        left: data.xyxy.x1 * ratioW,
+                        top: (data.xyxy.y1 * ratioH) - 16,
+                        width: data.xyxy.x2 * ratioW,
+                        height: data.xyxy.y2 + 10 * ratioH,
                         child: Align(
                           alignment: Alignment.topLeft,
                           child: Container(
-                            color: bboxColors[data.classId],
+                            color: bboxColors[data.xyxy.classId],
                             child: Padding(
                               padding: const EdgeInsets.all(2.0),
                               child: Text(

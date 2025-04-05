@@ -648,28 +648,15 @@ impl AI {
 }
 
 #[flutter_rust_bridge::frb]
-pub struct PredImg {    
+pub struct PredImg {
     pub file_path: String,
     #[frb(non_final)]
-    pub list_bbox: Vec<BBox>,
+    pub list_bbox: Vec<XYXYc>,
     #[frb(non_final)]
     pub wasprocessed: bool,
 }
 
-// What we'll use to print, render and stuff, just a frontend struct
-// xyxyn
 #[derive(Serialize, Deserialize, Clone)]
-pub struct BBox {
-    pub x1: f32,
-    pub y1: f32,
-    pub x2: f32,
-    pub y2: f32,
-    pub confidence: f32,
-    pub class_id: u16,
-    pub label: String,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct XYXYc {
     pub xyxy: XYXY,
     pub label: String,
@@ -700,10 +687,13 @@ pub trait BoundingBoxTraitC<T: BoundingBoxTrait> {
     fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
     fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
+    // The string that is used to render a bounding box in an image
+    // "0.92% animal"
     fn strlabel(&self) -> String;
 }
 
 impl BoundingBoxTraitC<XYXY> for XYXYc {
+    #[flutter_rust_bridge::frb(sync)]
     fn new(xyxy: XYXY, label: String) -> Self {
         Self { xyxy, label }
     }
@@ -724,6 +714,7 @@ impl BoundingBoxTraitC<XYXY> for XYXYc {
         self.xyxy.to_xywhnc(w, h, label)
     }
 
+    #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xyxy.prob);
         format!("{} {}%", self.label, conf)
@@ -751,6 +742,7 @@ impl BoundingBoxTraitC<XYXYn> for XYXYnc {
         self.xyxyn.to_xywhnc(w, h, label)
     }
 
+    #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xyxyn.prob);
         format!("{} {}%", self.label, conf)
@@ -778,6 +770,7 @@ impl BoundingBoxTraitC<XYWH> for XYWHc {
         self.xywh.to_xywhnc(w, h, label)
     }
 
+    #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xywh.prob);
         format!("{} {}%", self.label, conf)
@@ -805,72 +798,11 @@ impl BoundingBoxTraitC<XYWHn> for XYWHnc {
         self.xywhn.to_xywhnc(w, h, label)
     }
 
+    #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xywhn.prob);
         format!("{} {}%", self.label, conf)
     }
-}
-
-impl BBox {
-    pub fn new(
-        x1: f32,
-        y1: f32,
-        x2: f32,
-        y2: f32,
-        confidence: f32,
-        class_id: u16,
-        label: String,
-    ) -> Self {
-        BBox {
-            x1,
-            y1,
-            x2,
-            y2,
-            confidence,
-            class_id,
-            label,
-        }
-    }
-
-    pub fn stringify(&self) -> String {
-        format!(
-            "{},{},{},{},{},{}",
-            self.x1, self.y1, self.x2, self.y2, self.confidence, self.label
-        )
-    }
-
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn strlabel(&self) -> String {
-        let conf = format!("{:.2}", self.confidence);
-        format!("{} {}%", self.label, conf)
-    }
-}
-
-pub fn xyxy_to_bbox(orig: Vec<XYXY>, ai: &AI) -> Vec<BBox> {
-    let mut to_return: Vec<BBox> = Vec::new();
-    for xyxy in orig {
-        let label = ai.classes[xyxy.class_id as usize].clone();
-        let bbox = BBox {
-            x1: xyxy.x1,
-            y1: xyxy.y1,
-            x2: xyxy.x2,
-            y2: xyxy.y2,
-            confidence: xyxy.prob,
-            class_id: xyxy.class_id,
-            label,
-        };
-        to_return.push(bbox);
-    }
-    to_return
-}
-
-pub fn list_xyxy_to_xyxyc(orig: Vec<XYXY>, ai: &AI) -> Vec<XYXYc> {
-    let mut to_return = Vec::with_capacity(orig.len());
-    to_return.extend(orig.into_iter().map(|xyxy| {
-        let label = ai.classes[xyxy.class_id as usize].clone();
-        xyxy.to_xyxyc(None, None, label)
-    }));
-    to_return
 }
 
 #[flutter_rust_bridge::frb(sync)]

@@ -1,8 +1,11 @@
 #![allow(dead_code)]
-use super::abstractions::{xyxy_to_bbox, BBox, AI, XYXY};
+use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::preprocessing::{prepare_input_from_buf, prepare_input_from_filepath, prepare_input_from_imgbuf};
+use super::postprocessing::process_output;
+use super::preprocessing::{
+    prepare_input_from_buf, prepare_input_from_filepath, prepare_input_from_imgbuf,
+};
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, ArrayBase, Dim, Ix4, IxDyn, OwnedRepr};
 use once_cell::sync::Lazy;
@@ -10,7 +13,6 @@ use ort::inputs;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::{sync::Mutex, vec};
-use super::postprocessing::process_output;
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
@@ -107,21 +109,32 @@ pub fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
     detect_common(img, prepare_input_from_imgbuf)
 }
 
-pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<BBox> {
+pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
     let data = detect_from_imgbuf(img);
-    return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
+    return t(data)
+    // return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
 }
 
-pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<BBox> {
+pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<XYXYc> {
     let data = detect_from_buf(buf);
-    return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
+    return t(data)
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
-pub fn detect_bbox(file_path: &str) -> Vec<BBox> {
+pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
     let data = detect_from_file_path(file_path);
-    return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
-}   
+    return t(data)
+}
+
+fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {
+    xyxy_vec
+        .into_iter()
+        .map(|xyxy| {
+            let label = &CURRENT_AI.lock().unwrap().clone().classes[xyxy.class_id as usize];
+            xyxy.to_xyxyc(None, None, label.to_string())
+        })
+        .collect()
+}
 
 // #[flutter_rust_bridge::frb(dart_async)]
 // pub fn classify(file_path: String) -> ProbSpace {
