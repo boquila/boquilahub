@@ -130,8 +130,8 @@ class ClickAbleWidget extends StatelessWidget {
         MaterialPageRoute(
           builder: (context) => Scaffold(
             appBar: AppBar(
-                centerTitle: true, title: title, backgroundColor: terra[4]),
-            body: child,
+                centerTitle: true, title: title, backgroundColor: terra[2]),
+            body: Center(child: child),
           ),
         ),
       ),

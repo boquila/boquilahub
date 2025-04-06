@@ -622,7 +622,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
               itemCount: listpredimgs.length,
               itemBuilder: (context, index) {
                 return SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.58,
+                  height: MediaQuery.of(context).size.height * 0.43,
                   width: MediaQuery.of(context).size.width * 0.8,
                   child: FutureBuilder<Uint8List>(
                     future: listpredimgs[index].draw(),
@@ -635,9 +635,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                       } else if (snapshot.hasError) {
                         return Text('Error: ${snapshot.error}');
                       } else {
-                        return SizedBox(
-                            child:
-                                CircularProgressIndicator()); // Or any loading widget
+                        return SizedBox(height: 100, width: 100, child: CircularProgressIndicator()); // Or any loading widget
                       }
                     },
                   ),
