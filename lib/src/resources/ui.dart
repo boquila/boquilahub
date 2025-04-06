@@ -57,3 +57,40 @@ class _WindowButtonsState extends State<WindowButtons> {
     );
   }
 }
+
+simpleDialog(context, String text) {
+  return showDialog(
+    context: context,
+    builder: (context) => AlertDialog(actions: [
+      ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text("Ok"))
+    ], title: Text(text)),
+  );
+}
+
+class ClickAbleWidget extends StatelessWidget {
+  final Widget title;
+  final Widget child;
+
+  const ClickAbleWidget({required this.child, required this.title, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(
+                centerTitle: true, title: title, backgroundColor: terra[2]),
+            body: Center(child: child),
+          ),
+        ),
+      ),
+      child: child,
+    );
+  }
+}

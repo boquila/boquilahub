@@ -1,4 +1,3 @@
-import 'package:boquilahub/src/resources/objects.dart';
 import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 import 'package:boquilahub/src/rust/frb_generated.dart';

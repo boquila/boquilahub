@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'src/resources/objects.dart';
 import 'src/resources/ui.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
@@ -34,10 +33,88 @@ class _SelectAIPageState extends State<SelectAIPage> {
   bool apierror = false;
   final String ip = getIp(); // Call getIp() only once
 
+  String cudaText(double cudaversion) {
+    if (cudaversion == 12.8) {
+      return "se encontró la versión correcta";
+    } else if (cudaversion == 0) {
+      return "no se encontró una versión";
+    } else {
+      String text = cudaversion.toString();
+      return "se encontró versión $text";
+    }
+  }
+
+  Widget aiWidget(AI value) {
+    return Tooltip(
+      message: value.classes.join(', '),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Text('🖼️ '),
+              Text(value.name),
+            ],
+          ),
+          if (value.classes.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'classes: ${value.classes.length}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget epWidget(EP ep) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color.fromARGB(31, 85, 194, 64),
+                  blurRadius: 3,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Image.asset(
+              'assets/${ep.imgPath}',
+              width: 32,
+              height: 32,
+            ),
+          ),
+          SizedBox(width: 12),
+          Text(
+            ep.name,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    TextStyle textito =
-        TextStyle(color: terra[4], fontWeight: FontWeight.bold);
+    TextStyle textito = TextStyle(color: terra[4], fontWeight: FontWeight.bold);
 
     ButtonStyle botoncitostyle = ElevatedButton.styleFrom(
       foregroundColor: terra[0],
@@ -96,8 +173,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
           onChanged: (String? value) async {
             if (value == "CUDA") {
               EP tempEP = getEpByName(listEps: listEPs, name: value!);
-              double cudaVersion =
-                  await getEpVersion(provider: tempEP);
+              double cudaVersion = await getEpVersion(provider: tempEP);
               bool iscudnnAvailable = true; // TODO: implement isCUDNNAvailable
               if (cudaVersion == 12.8 && iscudnnAvailable) {
                 setState(() {
@@ -220,8 +296,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
                   ),
                   recognizer: TapGestureRecognizer()
                     ..onTap = () {
-                      Clipboard.setData(
-                          ClipboardData(text: 'http://$ip:8791'));
+                      Clipboard.setData(ClipboardData(text: 'http://$ip:8791'));
                       // Optional: Show a snackbar or toast to indicate copying
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('URL copiada al portapapeles')),
@@ -283,9 +358,31 @@ Future<String?> showUrlInputDialog(BuildContext context) async {
     },
   );
 }
+
 String removeTrailingSlash(String input) {
   if (input.isNotEmpty && input.endsWith('/')) {
     return input.substring(0, input.length - 1);
   }
   return input;
 }
+
+const List<EP> listEPs = <EP>[
+  EP(
+      name: "CPU",
+      imgPath: "tiny_cpu.png",
+      version: 0.0,
+      local: true,
+      dependencies: "none"),
+  EP(
+      name: "CUDA",
+      imgPath: "tiny_nvidia.png",
+      version: 12.4,
+      local: true,
+      dependencies: "cuDNN"),
+  EP(
+      name: "BoquilaHUB Remoto",
+      imgPath: "tiny_boquila.png",
+      version: 0.0,
+      local: false,
+      dependencies: "none"),
+];

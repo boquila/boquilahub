@@ -10,7 +10,6 @@ import 'package:boquilahub/src/rust/api/export.dart';
 import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/rust/api/feed.dart';
-import 'package:boquilahub/src/resources/objects.dart';
 import 'package:boquilahub/src/resources/ui.dart';
 import 'dart:core';
 
@@ -82,6 +81,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
             snapshot.hasData) {
           return ClickAbleWidget(
               title: Text(predimg.filePath),
+              // herE!
               child: Image.memory(snapshot.data!));
         } else {
           return SizedBox(
