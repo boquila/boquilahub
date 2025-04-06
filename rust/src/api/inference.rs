@@ -126,11 +126,11 @@ pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
 }
 
 fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {
-    let ai = &CURRENT_AI.lock().unwrap().clone();
+    let classes = &CURRENT_AI.lock().unwrap().classes;
     xyxy_vec
         .into_iter()
         .map(|xyxy| {
-            let label = &ai.classes[xyxy.class_id as usize];
+            let label = &classes[xyxy.class_id as usize];
             xyxy.to_xyxyc(None, None, label.to_string())
         })
         .collect()
