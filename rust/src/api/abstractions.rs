@@ -656,6 +656,14 @@ pub struct PredImg {
     pub wasprocessed: bool,
 }
 
+impl PredImg {
+    fn draw(&self) -> Vec<u8> {
+        let mut img = image::open(self.file_path.clone()).unwrap().into_rgb8();
+        super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
+        return super::utils::image_buffer_to_jpg_buffer(img)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct XYXYc {
     pub xyxy: XYXY,

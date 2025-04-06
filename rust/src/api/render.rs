@@ -1,8 +1,9 @@
 use ab_glyph::FontRef;
-use image::{ImageBuffer, Rgb};
+use image::{open, ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
-use super::abstractions::{BoundingBoxTraitC, XYXYc};
+use super::abstractions::{BoundingBoxTraitC, XYXYc, PredImg};
+use super::utils::image_buffer_to_jpg_buffer;
 
 const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([255, 0, 0]),     // Red
