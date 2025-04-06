@@ -1,12 +1,7 @@
-import 'package:boquilahub/src/resources/utils.dart';
 import 'package:boquilahub/src/resources/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
-
-Widget render(PredImg predImg) {
-  return ClickAbleWidget(title: Text(predImg.filePath), child: BoxImg(predImg: predImg));
-}
 
 Widget getEPWidget(EP ep) {
   return Padding(

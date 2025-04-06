@@ -311,7 +311,11 @@ class _ProcessingPageState extends State<ProcessingPage> {
       for (String filepath in jpgFiles) {
         List<XYXYc> tempbbox =
             await readPredictionsFromFile(inputPath: filepath);
-        PredImg temppredimg = PredImg(filePath: filepath, listBbox: tempbbox, wasprocessed: tempbbox.isNotEmpty, );
+        PredImg temppredimg = PredImg(
+          filePath: filepath,
+          listBbox: tempbbox,
+          wasprocessed: tempbbox.isNotEmpty,
+        );
         templist.add(temppredimg);
       }
       imgModeInitState(templist);
@@ -325,8 +329,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
     );
     if (result != null) {
       File file = File(result.files.single.path!);
-      List<XYXYc> tempbbox = await readPredictionsFromFile(inputPath: file.path);
-      PredImg temppred = PredImg(filePath: file.path, listBbox: tempbbox, wasprocessed: tempbbox.isNotEmpty);
+      List<XYXYc> tempbbox =
+          await readPredictionsFromFile(inputPath: file.path);
+      PredImg temppred = PredImg(
+          filePath: file.path,
+          listBbox: tempbbox,
+          wasprocessed: tempbbox.isNotEmpty);
       imgModeInitState([temppred]);
     }
   }
@@ -613,7 +621,30 @@ class _ProcessingPageState extends State<ProcessingPage> {
               scrollDirection: Axis.vertical,
               itemCount: listpredimgs.length,
               itemBuilder: (context, index) {
-                return displayImg(render(listpredimgs[index]), context);
+                return SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.58,
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  child: FutureBuilder<Uint8List>(
+                    future: listpredimgs[index].draw(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.done &&
+                          snapshot.hasData) {
+                        return ClickAbleWidget(
+                            title: Text(listpredimgs[index].filePath),
+                            child: Image.memory(snapshot.data!));
+                      } else if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      } else {
+                        return SizedBox(
+                            child:
+                                CircularProgressIndicator()); // Or any loading widget
+                      }
+                    },
+                  ),
+                );
+                // final Future<Uint8List> a = listpredimgs[index].draw();
+                // return Image.memory(a);
+                // return displayImg(render(listpredimgs[index]), context);
                 // return displayImg(render(listpredimgs[index]), context);
               },
             ),
