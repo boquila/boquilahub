@@ -1,6 +1,9 @@
 use super::{
-    
-    abstractions::XYXYc, inference::detect_bbox_from_imgbuf, render::draw_bbox_from_imgbuf, rest::detect_bbox_from_buf_remotely, utils::{image_buffer_to_jpg_buffer, ndarray_to_image_buffer}
+    abstractions::XYXYc,
+    inference::detect_bbox_from_imgbuf,
+    render::draw_bbox_from_imgbuf,
+    rest::detect_bbox_from_buf_remotely,
+    utils::{image_buffer_to_jpg_buffer, ndarray_to_image_buffer},
 };
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::{error::Error, iter::Iterator};
@@ -25,13 +28,14 @@ impl RTSPFrameIterator {
     pub fn new(url: &str) -> Self {
         video_rs::init().unwrap();
         let source = url.parse::<Url>().unwrap();
-        let decoder = DecoderBuilder::new(source)
-            .build()
-            .unwrap();
+        let decoder = DecoderBuilder::new(source).build().unwrap();
         Self { decoder }
     }
 
-    fn process_frame<F>(&mut self, prediction_fn: F) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>>
+    fn process_frame<F>(
+        &mut self,
+        prediction_fn: F,
+    ) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>>
     where
         F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
     {
@@ -69,7 +73,7 @@ impl RTSPFrameIterator {
     }
 
     pub fn get_jpg_frame(&mut self) -> Vec<u8> {
-        let (_,frame) = self.next().unwrap();
+        let (_, frame) = self.next().unwrap();
         let img = ndarray_to_image_buffer(&frame);
         let jpg_buffer = image_buffer_to_jpg_buffer(img);
         jpg_buffer

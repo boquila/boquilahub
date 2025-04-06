@@ -102,8 +102,11 @@ impl VideofileProcessor {
         self.run(vec).unwrap()
     }
 
-
-    pub fn run_remotely_exp(&mut self, url: &str, vec: Option<Vec<XYXYc>>) -> (Vec<u8>, Vec<XYXYc>) {
+    pub fn run_remotely_exp(
+        &mut self,
+        url: &str,
+        vec: Option<Vec<XYXYc>>,
+    ) -> (Vec<u8>, Vec<XYXYc>) {
         self.run_remotely(url, vec).unwrap()
     }
 }

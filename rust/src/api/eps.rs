@@ -17,7 +17,11 @@ pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 pub fn get_ep_version(provider: &EP) -> f64 {
     match provider.name.as_str() {
         "CUDA" => {
-            let output = Command::new("nvcc").args(["--version"]).creation_flags(CREATE_NO_WINDOW).output().unwrap();
+            let output = Command::new("nvcc")
+                .args(["--version"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+                .unwrap();
 
             let output_text = match str::from_utf8(&output.stdout) {
                 Ok(v) => v,
@@ -48,7 +52,7 @@ pub fn get_ep_version(provider: &EP) -> f64 {
         }
         "BoquilaHUBRemoto" => {
             todo!();
-        } 
+        }
         _ => 0.0, // Default case
     }
 }

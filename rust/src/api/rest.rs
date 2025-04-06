@@ -32,23 +32,27 @@ pub async fn run_api() {
     axum::serve(listener, app).await.unwrap();
 }
 
-pub fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>)  -> Vec<XYXYc>{
+pub fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>) -> Vec<XYXYc> {
     let client = Client::new();
     let response = client
         .post(url)
-        .multipart(reqwest::blocking::multipart::Form::new()
-            .part("file", reqwest::blocking::multipart::Part::bytes(buffer)
-                .mime_str("image/jpeg").unwrap())
+        .multipart(
+            reqwest::blocking::multipart::Form::new().part(
+                "file",
+                reqwest::blocking::multipart::Part::bytes(buffer)
+                    .mime_str("image/jpeg")
+                    .unwrap(),
+            ),
         )
         .send()
         .expect("Failed to send request");
 
-    let deserialized: Vec<XYXYc>  = serde_json::from_str(&response.text().unwrap()).unwrap();    
+    let deserialized: Vec<XYXYc> = serde_json::from_str(&response.text().unwrap()).unwrap();
     return deserialized;
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
-pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<XYXYc>{
+pub fn detect_bbox_remotely(url: String, file_path: &str) -> Vec<XYXYc> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_bbox_from_buf_remotely(url, buf);
 }
@@ -56,18 +60,17 @@ pub fn detect_bbox_remotely(url: String, file_path: &str)  -> Vec<XYXYc>{
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn get_ipv4_address() -> Option<String> {
-    let output = Command::new("ipconfig").creation_flags(CREATE_NO_WINDOW)
+    let output = Command::new("ipconfig")
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .expect("Failed to execute ipconfig");
-    
-    let output_str = str::from_utf8(&output.stdout)
-        .expect("Failed to convert output to string");
-    
+
+    let output_str = str::from_utf8(&output.stdout).expect("Failed to convert output to string");
+
     for line in output_str.lines() {
         if line.contains("IPv4 Address") {
             // Extract the IP address (everything after the last ': ')
-            return line.split(": ").last()
-                .map(|ip| ip.trim().to_string());
+            return line.split(": ").last().map(|ip| ip.trim().to_string());
         }
     }
 

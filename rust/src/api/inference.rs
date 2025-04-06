@@ -111,19 +111,18 @@ pub fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
 
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
     let data = detect_from_imgbuf(img);
-    return t(data)
-    // return xyxy_to_bbox(data, &CURRENT_AI.lock().unwrap().clone());
+    return t(data);
 }
 
 pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<XYXYc> {
     let data = detect_from_buf(buf);
-    return t(data)
+    return t(data);
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
     let data = detect_from_file_path(file_path);
-    return t(data)
+    return t(data);
 }
 
 fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {

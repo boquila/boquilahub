@@ -1,13 +1,13 @@
-use ndarray::{s, Array, Axis, IxDyn};
 use super::abstractions::{nms, BoundingBoxTrait, XYXY};
+use ndarray::{s, Array, Axis, IxDyn};
 
 // Function used to convert the output tensor from YOLO to an Vec<XYXY>
 pub fn process_output(
     output: &Array<f32, IxDyn>,
     img_width: u32,
     img_height: u32,
-    input_width: u32, 
-    input_height: u32
+    input_width: u32,
+    input_height: u32,
 ) -> Vec<XYXY> {
     let mut boxes = Vec::new();
     let output = output.slice(s![.., .., 0]);
@@ -32,10 +32,10 @@ pub fn process_output(
         let x2 = xc + w / 2.0;
         let y1 = yc - h / 2.0;
         let y2 = yc + h / 2.0;
-        let temp = XYXY::new(x1,y1,x2,y2,prob,label,);
+        let temp = XYXY::new(x1, y1, x2, y2, prob, label);
         boxes.push(temp);
     }
 
-    let result = nms(boxes,0.7);
+    let result = nms(boxes, 0.7);
     return result;
 }

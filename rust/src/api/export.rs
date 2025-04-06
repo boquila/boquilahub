@@ -181,7 +181,13 @@ pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
     for bbox in &pred_img.list_bbox {
         content.push_str(&format!(
             "{} {} {} {} {} {} {}\n",
-            bbox.label, bbox.xyxy.x1, bbox.xyxy.y1, bbox.xyxy.x2, bbox.xyxy.y2, bbox.xyxy.class_id, bbox.xyxy.prob
+            bbox.label,
+            bbox.xyxy.x1,
+            bbox.xyxy.y1,
+            bbox.xyxy.x2,
+            bbox.xyxy.y2,
+            bbox.xyxy.class_id,
+            bbox.xyxy.prob
         ));
     }
 

@@ -1,7 +1,7 @@
+use super::abstractions::AI;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::Path;
-use super::abstractions::AI;
 
 pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
     // Open the .bq file
@@ -57,13 +57,19 @@ pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
 
     // Validate magic string
     if &file_content[..7] != b"BQMODEL" {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid file format"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid file format",
+        ));
     }
 
     // Read version
     let version = file_content[7];
     if version != 1 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Unsupported version"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Unsupported version",
+        ));
     }
 
     // Read JSON section length
@@ -81,12 +87,14 @@ pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to deserialize JSON"))
 }
 
-
 fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
     // Validate the folder path
     let path = Path::new(folder_path);
     if !path.is_dir() {
-        return Err(io::Error::new(io::ErrorKind::NotFound, "Specified path is not a directory"));
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Specified path is not a directory",
+        ));
     }
 
     // Collect BQ files and process them

@@ -27,7 +27,7 @@ pub fn image_buffer_to_ndarray(
 pub fn ndarray_to_image_buffer(
     ndarray: &ArrayBase<OwnedRepr<u8>, Dim<[usize; 3]>>,
 ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let (height,width,_) = ndarray.dim();
+    let (height, width, _) = ndarray.dim();
     let mut img = ImageBuffer::new(width as u32, height as u32);
 
     for y in 0..height {
@@ -41,7 +41,9 @@ pub fn ndarray_to_image_buffer(
     return img;
 }
 
-pub fn image_buffer_to_jpg_buffer(image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<u8> {
+pub fn image_buffer_to_jpg_buffer(
+    image_buffer: image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+) -> Vec<u8> {
     let mut jpeg_data = Vec::new();
     let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 95);
     encoder.encode_image(&image_buffer).unwrap();
