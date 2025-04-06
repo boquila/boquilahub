@@ -1,4 +1,5 @@
 import 'package:boquilahub/src/resources/utils.dart';
+import 'package:boquilahub/src/resources/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
@@ -107,4 +108,41 @@ simpleDialog(context, String text) {
           child: const Text("Ok"))
     ], title: Text(text)),
   );
+}
+
+String cudaText(double cudaversion){
+  if (cudaversion == 12.8){
+    return "se encontró la versión correcta";
+  } else if (cudaversion == 0){
+    return "no se encontró una versión";
+  } else {
+    String text = cudaversion.toString();
+    return "se encontró versión $text";
+  }
+}
+
+class ClickAbleWidget extends StatelessWidget {
+  final Widget title;
+  final Widget child;
+
+  const ClickAbleWidget({required this.child, required this.title, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(
+                centerTitle: true,
+                title: title,
+                backgroundColor: terra[4]),
+            body: child,
+          ),
+        ),
+      ),
+      child: child,
+    );
+  }
 }

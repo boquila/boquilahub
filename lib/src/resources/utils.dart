@@ -1,8 +1,46 @@
 import 'dart:async';
-import 'package:boquilahub/src/resources/palettes.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
+
+const List<Color> bboxColor = <Color>[
+  Colors.red,
+  Colors.deepPurple,
+  Colors.lightBlueAccent,
+  Colors.lightGreen,
+  Colors.lime,
+  Colors.orange,
+  Colors.amber,
+  Colors.purpleAccent,
+  Colors.blue,
+  Colors.deepOrange,
+  Colors.purple,
+  Colors.yellow,
+  Colors.cyan,
+  Colors.brown,
+  Colors.pinkAccent,
+  Colors.indigoAccent,
+  Colors.teal,
+  Colors.pink,
+  Colors.indigo,
+  Color.fromARGB(255, 128, 169, 179), // Blue Gray
+  Color.fromARGB(255, 153, 102, 153), // Dark Lilac
+  Color.fromARGB(255, 85, 107, 47), // Dark Olive Green
+  Color.fromARGB(255, 240, 230, 140), // Khaki
+  Color.fromARGB(255, 210, 180, 140), // Tan
+  Color.fromARGB(255, 219, 112, 147), // Dusty Rose
+  Color.fromARGB(255, 255, 218, 185), // Peach
+  Color.fromARGB(255, 139, 117, 85), // Rosy Brown
+  Color.fromARGB(255, 255, 160, 122), // Light Salmon
+  Color.fromARGB(255, 60, 179, 113), // Medium Sea Green
+  Color.fromARGB(255, 128, 0, 128), // Purple
+];
+
+const List<Color> bboxColors = [
+  ...bboxColor,
+  ...bboxColor,
+  ...bboxColor,
+];
 
 class BoxImg extends StatefulWidget {
   final PredImg predImg;
@@ -142,42 +180,5 @@ class _BoxImgState extends State<BoxImg> with WidgetsBindingObserver {
   Size getRedBoxSize(BuildContext context) {
     final box = context.findRenderObject() as RenderBox;
     return box.size;
-  }
-}
-
-class ClickAbleWidget extends StatelessWidget {
-  final Widget title;
-  final Widget child;
-
-  const ClickAbleWidget({required this.child, required this.title, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => Scaffold(
-            appBar: AppBar(
-                centerTitle: true,
-                title: title,
-                backgroundColor: terra[4]),
-            body: child,
-          ),
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-String cudaText(double cudaversion){
-  if (cudaversion == 12.8){
-    return "se encontró la versión correcta";
-  } else if (cudaversion == 0){
-    return "no se encontró una versión";
-  } else {
-    String text = cudaversion.toString();
-    return "se encontró versión $text";
   }
 }

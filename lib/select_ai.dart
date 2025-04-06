@@ -1,7 +1,6 @@
-import 'package:boquilahub/src/resources/utils.dart';
 import 'package:flutter/material.dart';
 import 'src/resources/objects.dart';
-import 'src/resources/palettes.dart';
+import 'src/resources/ui.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';

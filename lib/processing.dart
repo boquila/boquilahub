@@ -11,7 +11,7 @@ import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
 import 'package:boquilahub/src/rust/api/feed.dart';
 import 'package:boquilahub/src/resources/objects.dart';
-import 'package:boquilahub/src/resources/palettes.dart';
+import 'package:boquilahub/src/resources/ui.dart';
 import 'dart:core';
 
 class ProcessingPage extends StatefulWidget {

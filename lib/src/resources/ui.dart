@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:bitsdojo_window/bitsdojo_window.dart';
 
+const List<Color> terra = <Color>[
+  Color.fromARGB(255, 232, 252, 207),
+  Color.fromARGB(255, 150, 224, 114),
+  Color.fromARGB(255, 61, 163, 93),
+  Color.fromARGB(255, 62, 137, 20),
+  Color.fromARGB(255, 19, 70, 17)
+];
+
 final buttonColors = WindowButtonColors(
     iconNormal: const Color(0xFF805306),
     mouseOver: const Color(0xFFF6A00C),
