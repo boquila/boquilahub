@@ -56,5 +56,4 @@ class _WindowButtonsState extends State<WindowButtons> {
       ],
     );
   }
-
 }

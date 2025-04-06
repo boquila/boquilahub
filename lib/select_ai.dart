@@ -76,7 +76,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
           items: widget.listAIs.map<DropdownMenuItem<String>>((AI value) {
             return DropdownMenuItem<String>(
               value: value.name,
-              child: getAIwidget(value),
+              child: aiWidget(value),
             );
           }).toList(),
         ),
@@ -161,7 +161,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
           items: listEPs.map<DropdownMenuItem<String>>((EP value) {
             return DropdownMenuItem(
               value: value.name,
-              child: getEPWidget(value),
+              child: epWidget(value),
             );
           }).toList(),
         ),

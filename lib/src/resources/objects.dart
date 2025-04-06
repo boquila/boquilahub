@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:boquilahub/src/rust/api/abstractions.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 
-Widget getEPWidget(EP ep) {
+Widget epWidget(EP ep) {
   return Padding(
     padding: EdgeInsets.symmetric(horizontal: 12),
     child: Row(
@@ -53,14 +53,14 @@ const List<EP> listEPs = <EP>[
       local: true,
       dependencies: "cuDNN"),
   EP(
-      name: "BoquilaHUB Remoto",      
+      name: "BoquilaHUB Remoto",
       imgPath: "tiny_boquila.png",
       version: 0.0,
       local: false,
       dependencies: "none"),
 ];
 
-Widget getAIwidget(AI value) {
+Widget aiWidget(AI value) {
   return Tooltip(
     message: value.classes.join(', '),
     child: Row(
@@ -105,10 +105,10 @@ simpleDialog(context, String text) {
   );
 }
 
-String cudaText(double cudaversion){
-  if (cudaversion == 12.8){
+String cudaText(double cudaversion) {
+  if (cudaversion == 12.8) {
     return "se encontró la versión correcta";
-  } else if (cudaversion == 0){
+  } else if (cudaversion == 0) {
     return "no se encontró una versión";
   } else {
     String text = cudaversion.toString();
@@ -130,9 +130,7 @@ class ClickAbleWidget extends StatelessWidget {
         MaterialPageRoute(
           builder: (context) => Scaffold(
             appBar: AppBar(
-                centerTitle: true,
-                title: title,
-                backgroundColor: terra[4]),
+                centerTitle: true, title: title, backgroundColor: terra[4]),
             body: child,
           ),
         ),
