@@ -74,6 +74,25 @@ class _ProcessingPageState extends State<ProcessingPage> {
     });
   }
 
+  render(PredImg predimg) {
+    return FutureBuilder<Uint8List>(
+      future: predimg.draw(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
+          return ClickAbleWidget(
+              title: Text(predimg.filePath),
+              child: Image.memory(snapshot.data!));
+        } else {
+          return SizedBox(
+              height: 100,
+              width: 100,
+              child: CircularProgressIndicator()); // Or any loading widget
+        }
+      },
+    );
+  }
+
   Future<bool?> askUserWhatToAnalyze() async {
     bool? result = await showDialog<bool>(
       context: context,
@@ -622,28 +641,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
               itemCount: listpredimgs.length,
               itemBuilder: (context, index) {
                 return SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.43,
-                  width: MediaQuery.of(context).size.width * 0.8,
-                  child: FutureBuilder<Uint8List>(
-                    future: listpredimgs[index].draw(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.done &&
-                          snapshot.hasData) {
-                        return ClickAbleWidget(
-                            title: Text(listpredimgs[index].filePath),
-                            child: Image.memory(snapshot.data!));
-                      } else if (snapshot.hasError) {
-                        return Text('Error: ${snapshot.error}');
-                      } else {
-                        return SizedBox(height: 100, width: 100, child: CircularProgressIndicator()); // Or any loading widget
-                      }
-                    },
-                  ),
-                );
-                // final Future<Uint8List> a = listpredimgs[index].draw();
-                // return Image.memory(a);
-                // return displayImg(render(listpredimgs[index]), context);
-                // return displayImg(render(listpredimgs[index]), context);
+                    height: MediaQuery.of(context).size.height * 0.43,
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: render(listpredimgs[index]));
               },
             ),
           ),
