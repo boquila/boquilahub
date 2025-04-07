@@ -1,4 +1,3 @@
-#[flutter_rust_bridge::frb(ignore)]
 pub const IMAGE_FORMATS: [&'static str; 24] = [
     "avif", // AV1 Image File Format
     "bmp",  // Bitmap Image File
@@ -26,7 +25,6 @@ pub const IMAGE_FORMATS: [&'static str; 24] = [
     "webp", // WebP
 ];
 
-#[flutter_rust_bridge::frb(ignore)]
 pub const VIDEO_FORMATS: [&'static str; 35] = [
     "mp4",    // MPEG-4 Part 14
     "m4v",    // MPEG-4 Video
@@ -64,17 +62,3 @@ pub const VIDEO_FORMATS: [&'static str; 35] = [
     "h265",   // H.265 Video
     "h264",   // H.264 Video
 ];
-
-pub fn is_supported_img(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return IMAGE_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
-}
-
-pub fn is_supported_videofile(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return VIDEO_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
-}

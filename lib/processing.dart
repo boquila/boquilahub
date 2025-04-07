@@ -1,4 +1,5 @@
 import 'package:boquilahub/src/rust/api/abstractions.dart';
+import 'package:boquilahub/src/rust/api/import.dart';
 import 'package:boquilahub/src/rust/api/eps.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -295,14 +296,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return true;
   }
 
-  bool isSupportedIMG(File file) {
-    bool isPicture = file.path.toLowerCase().endsWith('.jpg') ||
-        file.path.toLowerCase().endsWith('.png') ||
-        file.path.toLowerCase().endsWith('.webp') ||
-        file.path.toLowerCase().endsWith('.jpeg');
-    return isPicture;
-  }
-
   Future<bool> isImageCorrupted(String filePath) async {
     try {
       Uint8List bytes = File(filePath).readAsBytesSync();
@@ -323,7 +316,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           await Directory(selectedDirectory.toString()).list().toList();
       final Iterable<File> filesInDirectory = entities.whereType<File>();
       List<String> jpgFiles = filesInDirectory
-          .where((file) => isSupportedIMG(file))
+          .where((file) => isSupportedImg(filePath: file.path))
           .map((file) => file.path)
           .toList();
       List<PredImg> templist = [];
