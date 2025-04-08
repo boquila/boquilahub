@@ -128,6 +128,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
 
     return Column(
       children: [
+        // SECTION: AI 
         Text("Selecciona una IA", style: textito),
         const SizedBox(height: 10),
         DropdownButton<String>(
@@ -158,6 +159,8 @@ class _SelectAIPageState extends State<SelectAIPage> {
           }).toList(),
         ),
         const SizedBox(height: 30),
+        // SECTION: EP selection
+        // at the end, it will call setmodel() with the new EP data
         Text("Procesador", style: textito),
         const SizedBox(height: 10),
         DropdownButton<String>(
@@ -242,6 +245,7 @@ class _SelectAIPageState extends State<SelectAIPage> {
           }).toList(),
         ),
         const SizedBox(height: 30),
+        // SECTION: API deployment
         Text("API", style: textito),
         const SizedBox(height: 10),
         if (!isAPIdeployed && widget.currentEP.local)
@@ -307,7 +311,9 @@ class _SelectAIPageState extends State<SelectAIPage> {
             ),
             textAlign: TextAlign.center,
           ),
-        if (apierror) Text("Ocurrió un error")
+        if (apierror) Text("Ocurrió un error"),
+        const SizedBox(height: 30),
+        // SECTION: Extra configs
       ],
     );
   }
