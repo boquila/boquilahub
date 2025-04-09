@@ -195,9 +195,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
           listpredimgs[i].wasprocessed = true;
         });
       } catch (e) {
-        setState(() {
-          state.hasError = true;
-        });
+        errorOcurred();
       }
       if (!state.shouldContinue) break;
     }
@@ -211,43 +209,47 @@ class _ProcessingPageState extends State<ProcessingPage> {
     stepFrame = i;
 
     processingStart();
-    if (state.videoMode && videoFile != null) {
-      final a = VideofileProcessor(filePath: videoFile!);
-      final int n = (await a.getNFrames()).toInt();
-      setState(() {
-        totalFrames = n;
-      });
-      List<XYXYc>? tempbbox;
-      if (widget.currentep.local) {
-        for (int i = currentFrame!; i < n; i++) {
+    try {
+      if (state.videoMode && videoFile != null) {
+        final a = VideofileProcessor(filePath: videoFile!);
+        final int n = (await a.getNFrames()).toInt();
+        setState(() {
+          totalFrames = n;
+        });
+        List<XYXYc>? tempbbox;
+        if (widget.currentep.local) {
+          for (int i = currentFrame!; i < n; i++) {
+            if (i % stepFrame! == 0) {
+              var (r, b) = await a.runExp();
+              tempbbox = b;
+              setState(() {
+                currentFrame = i;
+                previousFramebuffer = framebuffer;
+                framebuffer = Image.memory(r);
+              });
+            } else {
+              await a.runExp(vec: tempbbox);
+            }
+          }
+        } else {
           if (i % stepFrame! == 0) {
-            var (r, b) = await a.runExp();
+            var (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
             tempbbox = b;
             setState(() {
-              currentFrame = i;
               previousFramebuffer = framebuffer;
               framebuffer = Image.memory(r);
+              currentFrame = i;
             });
           } else {
-            await a.runExp(vec: tempbbox);
+            await a.runRemotelyExp(url: "${widget.url!}/upload", vec: tempbbox);
           }
         }
-      } else {
-        if (i % stepFrame! == 0) {
-          var (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
-          tempbbox = b;
-          setState(() {
-            previousFramebuffer = framebuffer;
-            framebuffer = Image.memory(r);
-            currentFrame = i;
-          });
-        } else {
-          await a.runRemotelyExp(url: "${widget.url!}/upload", vec: tempbbox);
+        if (context.mounted) {
+          simpleDialog(context, "Video exportado con predicciones");
         }
       }
-      if (context.mounted) {
-        simpleDialog(context, "Video exportado con predicciones");
-      }
+    } catch (e) {
+      errorOcurred();
     }
     processingEnd();
   }
@@ -263,26 +265,37 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
     processingStart();
 
-    final a = RtspFrameIterator(url: rtspURL!);
+    RtspFrameIterator? a;
+    try {
+      final a = RtspFrameIterator(url: rtspURL!);
+    } catch (e) {
+      errorOcurred();
+      return;
+    }
+
     int i = 0;
     while (state.shouldContinue) {
-      if (i % stepFrame! == 0) {
-        Uint8List r;
-        // ignore: unused_local_variable
-        List<XYXYc> b;
-        if (widget.currentep.local) {
-          (r, b) = await a.runExp();
+      try {
+        if (i % stepFrame! == 0) {
+          Uint8List r;
+          // ignore: unused_local_variable
+          List<XYXYc> b;
+          if (widget.currentep.local) {
+            (r, b) = await a!.runExp();
+          } else {
+            (r, b) = await a!.runRemotelyExp(url: "${widget.url!}/upload");
+          }
+          setState(() {
+            previousFeedFramebuffer = feedFramebuffer;
+            feedFramebuffer = Image.memory(r);
+          });
         } else {
-          (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
+          await a!.ignoreFrame();
         }
-        setState(() {
-          previousFeedFramebuffer = feedFramebuffer;
-          feedFramebuffer = Image.memory(r);
-        });
-      } else {
-        await a.ignoreFrame();
+        i = i + 1;
+      } catch (e) {
+        errorOcurred();
       }
-      i = i + 1;
     }
     processingEnd();
   }
@@ -430,6 +443,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
   }
 
   // SECTION: State sugar code
+  void errorOcurred() {
+    setState(() {
+      state.hasError = true;
+    });
+  }
+
   void processingStart() {
     setState(() {
       state.shouldContinue = true;
@@ -525,7 +544,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
   Widget errorText() {
     if (state.hasError) {
       return Text(
-        "Ha ocurrido un error en la inferencia. \nProceso cancelado.",
+        "Ha ocurrido un error.",
         textAlign: TextAlign.center,
       );
     }
