@@ -7,7 +7,8 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-flutter_rust_bridge = "=2.8.0"
+flutter_rust_bridge = "=2.9.0"
+flutter_rust_bridge_macros = "=2.9.0"
 image = "0.25.6"
 ndarray = "0.16.1"
 serde = { version = "1.0.219", features = ["derive"] }
@@ -24,3 +25,6 @@ video-rs = { version = "0.10.3", features = ["ndarray"] }
 imageproc = "0.25.0"
 ab_glyph = "0.2.29"
 pulp = "0.21.4"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] } 
