@@ -10,6 +10,49 @@ use std::{iter::Iterator, path::Path};
 use video_rs::encode::Settings;
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
 
+// pub struct VideoSteamWrapper {
+//     videostream: VideoStream,
+// }
+
+// unsafe impl Sync for VideoSteamWrapper {}
+
+// impl VideoSteamWrapper {
+//     pub fn new(path_or_url: &str) -> Self {
+//         let videostream = VideoStream::new(path_or_url);
+//         Self { videostream }
+//     }
+
+//     pub fn run_exp(&mut self) -> (Vec<u8>, Vec<XYXYc>) {
+//         self.videostream.run_exp()
+//     }
+
+//     pub fn run_remotely_exp(&mut self, url: &str) -> (Vec<u8>, Vec<XYXYc>) {
+//         self.videostream.run_remotely_exp(url)
+//     }
+
+//     pub fn ignore_frame(&mut self) {
+//         self.videostream.next();
+//     }
+
+//     pub fn get_jpg_frame(&mut self) -> Vec<u8> {
+//         let img = self.videostream.next().unwrap();
+//         let jpg_buffer = image_buffer_to_jpg_buffer(img);
+//         return jpg_buffer;
+//     }
+
+//     pub fn measure_fps(&mut self, iterations: u32) -> u32 {
+//         self.videostream.measure_fps(iterations)
+//     }
+
+//     pub fn measure_inference(&mut self, iterations: u32) -> u32 {
+//         self.videostream.measure_inference(iterations)
+//     }
+
+//     pub fn measure_remote_inference(&mut self, iterations: u32, url: &str) -> u32 {
+//         self.videostream.measure_remote_inference(iterations,url)
+//     }
+// }
+
 pub struct VideofileProcessor {
     decoder: Decoder,
     encoder: Encoder,

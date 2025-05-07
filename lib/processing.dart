@@ -10,7 +10,7 @@ import 'package:boquilahub/src/rust/api/inference.dart';
 import 'package:boquilahub/src/rust/api/export.dart';
 import 'package:boquilahub/src/rust/api/video_file.dart';
 import 'package:boquilahub/src/rust/api/rest.dart';
-import 'package:boquilahub/src/rust/api/feed.dart';
+import 'package:boquilahub/src/rust/api/stream.dart';
 import 'package:boquilahub/src/resources/ui.dart';
 import 'dart:core';
 
@@ -265,9 +265,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
     processingStart();
 
-    RtspFrameIterator? a;
+    VideoStream? a;    
     try {
-      final a = RtspFrameIterator(url: rtspURL!);
+      a = VideoStream(pathOrUrl: rtspURL!);
     } catch (e) {
       errorOcurred();
       return;
@@ -281,16 +281,16 @@ class _ProcessingPageState extends State<ProcessingPage> {
           // ignore: unused_local_variable
           List<XYXYc> b;
           if (widget.currentep.local) {
-            (r, b) = await a!.runExp();
+            (r, b) = await a.runExp();
           } else {
-            (r, b) = await a!.runRemotelyExp(url: "${widget.url!}/upload");
+            (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
           }
           setState(() {
             previousFeedFramebuffer = feedFramebuffer;
             feedFramebuffer = Image.memory(r);
           });
         } else {
-          await a!.ignoreFrame();
+          await a.ignoreFrame();
         }
         i = i + 1;
       } catch (e) {

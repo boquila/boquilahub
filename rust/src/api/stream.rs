@@ -11,9 +11,11 @@ use std::time::{Duration, Instant};
 pub struct VideoStream {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
-    index: usize,
+    index: usize,   
     decoded: ffmpeg::frame::Video,
 }
+
+unsafe impl Sync for VideoStream {}
 
 impl Iterator for VideoStream {
     // The iterator yields image buffers
@@ -50,9 +52,9 @@ impl Iterator for VideoStream {
 
 impl VideoStream {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(path_or_url: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(path_or_url: &str) -> Self {
         // Initialize FFmpeg
-        ffmpeg::init()?;
+        ffmpeg::init().unwrap();
 
         // Open the RTSP stream with options for better RTSP handling
         let mut opts: ffmpeg::Dictionary<'_> = ffmpeg::Dictionary::new();
@@ -61,27 +63,30 @@ impl VideoStream {
         opts.set("timeout", "5000000"); // General timeout value
 
         // Open input with options
-        let input_ctx = ffmpeg::format::input_with_dictionary(path_or_url, opts)?;
+        let input_ctx = ffmpeg::format::input_with_dictionary(path_or_url, opts).unwrap();
 
         // Find the first video stream
         let video_stream: ffmpeg::Stream<'_> = input_ctx
             .streams()
             .best(ffmpeg::media::Type::Video)
-            .ok_or("No video stream found")?;
+            .ok_or("No video stream found")
+            .unwrap();
 
         let index = video_stream.index();
 
-        let decoder = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())?
+        let decoder = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())
+            .unwrap()
             .decoder()
-            .video()?;
+            .video()
+            .unwrap();
         let decoded = ffmpeg::frame::Video::empty();
 
-        Ok(Self {
+        Self {
             input_ctx,
             decoder,
             index,
             decoded,
-        })
+        }
     }
 
     fn process_frame<F>(
@@ -148,15 +153,30 @@ impl VideoStream {
     }
 
     pub fn measure_fps(&mut self, iterations: u32) -> u32 {
-        self.measure_method(|s| { s.next(); }, iterations)
+        self.measure_method(
+            |s| {
+                s.next();
+            },
+            iterations,
+        )
     }
 
     pub fn measure_inference(&mut self, iterations: u32) -> u32 {
-        self.measure_method(|s| { s.run_exp(); }, iterations)
+        self.measure_method(
+            |s| {
+                s.run_exp();
+            },
+            iterations,
+        )
     }
 
     pub fn measure_remote_inference(&mut self, iterations: u32, url: &str) -> u32 {
-        self.measure_method(|s| { s.run_remotely_exp(url); }, iterations)
+        self.measure_method(
+            |s| {
+                s.run_remotely_exp(url);
+            },
+            iterations,
+        )
     }
 }
 
