@@ -210,7 +210,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
     processingStart();
     try {
-      if (state.videoMode && videoFile != null) {
+      if (state.videoMode && videoFile != null) {        
         final a = VideofileProcessor(filePath: videoFile!);
         final int n = (await a.getNFrames()).toInt();
         setState(() {
