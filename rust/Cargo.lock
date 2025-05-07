@@ -2308,6 +2308,7 @@ dependencies = [
  "ab_glyph",
  "axum",
  "csv",
+ "ffmpeg-next",
  "flutter_rust_bridge",
  "flutter_rust_bridge_macros",
  "image",

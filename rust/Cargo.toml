@@ -9,6 +9,7 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 flutter_rust_bridge = "=2.9.0"
 flutter_rust_bridge_macros = "=2.9.0"
+ffmpeg-next = "7.1.0"
 image = "0.25.6"
 ndarray = "0.16.1"
 serde = { version = "1.0.219", features = ["derive"] }
