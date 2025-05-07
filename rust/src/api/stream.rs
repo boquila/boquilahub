@@ -13,6 +13,7 @@ pub struct VideoStream {
     decoder: ffmpeg::decoder::Video,
     index: usize,   
     decoded: ffmpeg::frame::Video,
+    frames: i64,
 }
 
 unsafe impl Sync for VideoStream {}
@@ -72,6 +73,8 @@ impl VideoStream {
             .ok_or("No video stream found")
             .unwrap();
 
+        let frames = video_stream.frames();
+
         let index = video_stream.index();
 
         let decoder = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())
@@ -86,6 +89,7 @@ impl VideoStream {
             decoder,
             index,
             decoded,
+            frames,
         }
     }
 
@@ -177,6 +181,10 @@ impl VideoStream {
             },
             iterations,
         )
+    }
+
+    pub fn get_n_frames(&self) -> i64 {
+        self.frames
     }
 }
 
