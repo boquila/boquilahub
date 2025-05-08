@@ -6,7 +6,6 @@ use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::error::Error;
 use std::iter::Iterator;
-use std::path::Path;
 use std::time::{Duration, Instant};
 use std::{fs::File, io::Write};
 use chrono::Local;

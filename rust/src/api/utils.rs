@@ -1,5 +1,3 @@
-use std::{fs::File, io::Write, path::Path};
-
 use image::{codecs::jpeg::JpegEncoder, ImageBuffer, Rgb};
 use ndarray::{Array3, ArrayBase, Dim, OwnedRepr};
 
@@ -50,8 +48,4 @@ pub fn image_buffer_to_jpg_buffer(
     let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_data, 95);
     encoder.encode_image(&image_buffer).unwrap();
     return jpeg_data;
-}
-
-fn save_image_buffer(image_buffer: ImageBuffer<image::Rgb<u8>, Vec<u8>>, filename: String){
-    image_buffer.save(Path::new(&filename)).unwrap();
 }

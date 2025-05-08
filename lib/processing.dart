@@ -213,7 +213,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
     processingStart();
     try {
-      if (state.videoMode && videoFile != null) {        
+      if (state.videoMode && videoFile != null) {
         final a = VideofileProcessor(filePath: videoFile!);
         final int n = (await a.getNFrames()).toInt();
         setState(() {
@@ -268,7 +268,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
     processingStart();
 
-    VideoStream? a;    
+    VideoStream? a;
     try {
       a = VideoStream(pathOrUrl: rtspURL!);
     } catch (e) {
@@ -286,7 +286,8 @@ class _ProcessingPageState extends State<ProcessingPage> {
           if (widget.currentep.local) {
             (r, b) = await a.runExp(log: state.saveImgFromStream);
           } else {
-            (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload",log: state.saveImgFromStream);
+            (r, b) = await a.runRemotelyExp(
+                url: "${widget.url!}/upload", log: state.saveImgFromStream);
           }
           setState(() {
             previousFeedFramebuffer = feedFramebuffer;
@@ -569,6 +570,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
     return SizedBox.shrink();
   }
 
+  void exportfeed() {
+    setState(() {
+      state.saveImgFromStream = !state.saveImgFromStream;
+    });
+  }
+
   void exportImgData(context) async {
     for (PredImg predimg in listpredimgs) {
       // ImgPred temp = ImgPred(
@@ -673,7 +680,27 @@ class _ProcessingPageState extends State<ProcessingPage> {
         ],
         // SECTION: RTSP
         if (state.feedMode) ...[
-          analyzeButton(context, analyzeFeed),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              analyzeButton(context, analyzeFeed),
+              SizedBox(width: 20),
+              Checkbox(
+                value: state.saveImgFromStream,
+                onChanged: (bool? value) {
+                  setState(() {
+                    state.saveImgFromStream = value!;
+                  });
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              Text(
+                'Exportar predicciones',
+              )
+            ],
+          ),
           const SizedBox(height: 20),
           video(feedFramebuffer, previousFeedFramebuffer, context)
         ]
