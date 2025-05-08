@@ -97,7 +97,7 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([250, 128, 114]), // Salmon
 ];
 
-const FONT_SCALE: f32 = 24.4;
+const FONT_SCALE: f32 = 36.4;
 const LABEL_PADDING: f32 = FONT_SCALE / 6.13;
 const CHAR_WIDTH: f32= FONT_SCALE / 1.84 ;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
