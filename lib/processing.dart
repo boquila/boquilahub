@@ -35,6 +35,9 @@ class MediaState {
   bool shouldContinue = true;
   bool hasError = false;
 
+  bool saveImgFromStream = false;
+  bool saveObservation = false;
+
   bool imgMode = false;
   bool videoMode = false;
   bool feedMode = false;
@@ -281,9 +284,9 @@ class _ProcessingPageState extends State<ProcessingPage> {
           // ignore: unused_local_variable
           List<XYXYc> b;
           if (widget.currentep.local) {
-            (r, b) = await a.runExp();
+            (r, b) = await a.runExp(log: state.saveImgFromStream);
           } else {
-            (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload");
+            (r, b) = await a.runRemotelyExp(url: "${widget.url!}/upload",log: state.saveImgFromStream);
           }
           setState(() {
             previousFeedFramebuffer = feedFramebuffer;

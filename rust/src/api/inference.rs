@@ -17,6 +17,7 @@ use std::{sync::Mutex, vec};
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();
+    std::fs::create_dir_all("output_feed").unwrap();
 }
 
 fn default_model() -> Session {
