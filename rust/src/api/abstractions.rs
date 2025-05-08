@@ -766,8 +766,7 @@ impl BoundingBoxTraitC<XYXY> for XYXYc {
 
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
-        let conf = format!("{:.2}", self.xyxy.prob);
-        format!("{} {}", self.label, conf)
+        detection_label(&self.label, &self.xyxy.prob)
     }
 }
 
@@ -794,8 +793,7 @@ impl BoundingBoxTraitC<XYXYn> for XYXYnc {
 
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
-        let conf = format!("{:.2}", self.xyxyn.prob);
-        format!("{} {}", self.label, conf)
+        detection_label(&self.label, &self.xyxyn.prob)
     }
 }
 
@@ -822,8 +820,7 @@ impl BoundingBoxTraitC<XYWH> for XYWHc {
 
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
-        let conf = format!("{:.2}", self.xywh.prob);
-        format!("{} {}", self.label, conf)
+        detection_label(&self.label, &self.xywh.prob)
     }
 }
 
@@ -850,8 +847,7 @@ impl BoundingBoxTraitC<XYWHn> for XYWHnc {
 
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
-        let conf = format!("{:.2}", self.xywhn.prob);
-        format!("{} {}", self.label, conf)
+        detection_label(&self.label, &self.xywhn.prob)
     }
 }
 
@@ -867,4 +863,9 @@ pub fn get_ai_by_description(list_ais: &[AI], description: &str) -> AI {
 pub struct Dependency {
     version: f32,
     name: String,
+}
+
+fn detection_label(label: &String, conf: &f32) -> String {
+    let conf = format!("{:.2}", conf);
+    format!("{} {}", label, conf)
 }
