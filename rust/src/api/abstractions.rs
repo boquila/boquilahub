@@ -666,29 +666,43 @@ impl PredImg {
     }
 
     pub fn save(&self) {
-        let jpg_data = self.draw();
+        if self.wasprocessed {
+
+        
+        let jpg_data = &self.draw();
         let filename = &self.file_path;
         let path = std::path::Path::new(filename);
-
-        // Extract directory and file name components
-        let parent = path.parent().unwrap_or(Path::new(""));
-        let file_stem = path.file_stem().unwrap_or_default().to_str().unwrap_or("");
-        let extension = path.extension().unwrap_or_default().to_str().unwrap_or("");
-
+        
+        // Create export directory if it doesn't exist
+        std::fs::create_dir_all("export").unwrap_or_else(|e| {
+            eprintln!("Failed to create export directory: {}", e);
+        });
+        
+        // Extract file name component
+        let file_stem = path.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unnamed");
+            
+        let extension = path.extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        
         // Construct new path with "exported_" prefix
-        let exported_filename = format!("export/exported_{}", file_stem);
-        let mut new_path = std::path::PathBuf::from(parent);
-        new_path.push(exported_filename);
-
+        let mut new_path = std::path::PathBuf::from("export");
+        new_path.push(format!("exported_{}", file_stem));
+        
         // Add extension if it exists
         if !extension.is_empty() {
             new_path.set_extension(extension);
         }
-
-        let filepath = new_path.to_string_lossy().into_owned();
+        
+        let filepath = new_path.to_str()
+            .unwrap_or("export/exported_file")
+            .to_string();
 
         let mut file = std::fs::File::create(filepath).unwrap();
         std::io::Write::write_all(&mut file, &jpg_data).unwrap();    
+    }
     }
 }
 
@@ -753,7 +767,7 @@ impl BoundingBoxTraitC<XYXY> for XYXYc {
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xyxy.prob);
-        format!("{} {}%", self.label, conf)
+        format!("{} {}", self.label, conf)
     }
 }
 
@@ -781,7 +795,7 @@ impl BoundingBoxTraitC<XYXYn> for XYXYnc {
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xyxyn.prob);
-        format!("{} {}%", self.label, conf)
+        format!("{} {}", self.label, conf)
     }
 }
 
@@ -809,7 +823,7 @@ impl BoundingBoxTraitC<XYWH> for XYWHc {
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xywh.prob);
-        format!("{} {}%", self.label, conf)
+        format!("{} {}", self.label, conf)
     }
 }
 
@@ -837,7 +851,7 @@ impl BoundingBoxTraitC<XYWHn> for XYWHnc {
     #[flutter_rust_bridge::frb(sync)]
     fn strlabel(&self) -> String {
         let conf = format!("{:.2}", self.xywhn.prob);
-        format!("{} {}%", self.label, conf)
+        format!("{} {}", self.label, conf)
     }
 }
 

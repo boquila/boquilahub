@@ -590,6 +590,16 @@ class _ProcessingPageState extends State<ProcessingPage> {
     }
   }
 
+  void saveimgs(context) async {
+    for (PredImg predimg in listpredimgs) {
+      await predimg.save();
+    }
+
+    if (context.mounted) {
+      simpleDialog(context, "✅ Listo");
+    }
+  }
+
   void copyImgs(context) async {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
     if (selectedDirectory != null) {
@@ -639,6 +649,13 @@ class _ProcessingPageState extends State<ProcessingPage> {
                                       },
                                       child: const Text(
                                           "Copiar imágenes \nsegún clasificación")),
+                                const SizedBox(width: 10),
+                                  ElevatedButton(
+                                      onPressed: () async {
+                                        saveimgs(context);
+                                      },
+                                      child: const Text(
+                                          "Exportar imágenes")),
                                 ],
                               ),
                               title: const Text("Opciones")));
