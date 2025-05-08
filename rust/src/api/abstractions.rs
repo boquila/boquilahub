@@ -1,6 +1,8 @@
 // The idea is to have the core funcionality that will alow us to do everything we need in the app
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
 
 /// Probabilities in the YOLO format
@@ -661,6 +663,32 @@ impl PredImg {
         let mut img = image::open(self.file_path.clone()).unwrap().into_rgb8();
         super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
         return super::utils::image_buffer_to_jpg_buffer(img);
+    }
+
+    pub fn save(&self) {
+        let jpg_data = self.draw();
+        let filename = &self.file_path;
+        let path = std::path::Path::new(filename);
+
+        // Extract directory and file name components
+        let parent = path.parent().unwrap_or(Path::new(""));
+        let file_stem = path.file_stem().unwrap_or_default().to_str().unwrap_or("");
+        let extension = path.extension().unwrap_or_default().to_str().unwrap_or("");
+
+        // Construct new path with "exported_" prefix
+        let exported_filename = format!("export/exported_{}", file_stem);
+        let mut new_path = std::path::PathBuf::from(parent);
+        new_path.push(exported_filename);
+
+        // Add extension if it exists
+        if !extension.is_empty() {
+            new_path.set_extension(extension);
+        }
+
+        let filepath = new_path.to_string_lossy().into_owned();
+
+        let mut file = std::fs::File::create(filepath).unwrap();
+        std::io::Write::write_all(&mut file, &jpg_data).unwrap();    
     }
 }
 
