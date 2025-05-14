@@ -19,3 +19,5 @@ pub mod utils;
 pub mod file_formats;
 pub mod import;
 pub mod stream;
+/// flutter_rust_bridge:ignore
+pub mod models;

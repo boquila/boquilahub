@@ -24,6 +24,7 @@ pub fn process_output(
             continue;
         }
         let label = class_id as u16;
+        // XYWHn::new(row[0],row[1],row[0],row[3],prob,label);
         let xc = row[0] / input_width as f32 * (img_width as f32);
         let yc = row[1] / input_height as f32 * (img_height as f32);
         let w = row[2] / input_width as f32 * (img_width as f32);
@@ -37,7 +38,7 @@ pub fn process_output(
     }
     
     let indices = nms_indices(&boxes, 0.5);
-    let result: Vec<XYXY> = indices.iter().map(|&idx| boxes[idx].clone()).collect();
-    // let result = nms(boxes, 0.7);
+    let result = indices.iter().map(|&idx| boxes[idx].clone()).collect();
+
     return result;
 }
