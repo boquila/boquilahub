@@ -8,16 +8,18 @@ pub struct AIModel {
     pub name: String,
     pub description: String,
     pub version: f32,
-    pub model: ModelType,
+    pub classes: Vec<String>,
+    pub model: Architecture,
 }
 
 impl AIModel {
     // Basic constructor
-    pub fn new(name: String, description: String, version: f32, model: ModelType) -> Self {
+    pub fn new(name: String, description: String, version: f32, classes: Vec<String>, model: Architecture) -> Self {
         AIModel {
             name,
             description,
             version,
+            classes,
             model,
         }
     }
@@ -27,14 +29,14 @@ impl AIModel {
             "boquilanet-gen".to_string(),
             "Generic animal detection".to_string(),
             0.1,
-            ModelType::Yolo(Yolo::new(
+            vec!["animal".to_string()],
+            Architecture::Yolo(Yolo::new(
                 1024,
                 1024,
                 0.45,
                 0.5,
                 1,
-                0,
-                vec!["animal".to_string()],
+                0,                
                 Task::Detect,
             )),
         )
@@ -49,9 +51,15 @@ impl AIModel {
         input_height: u32,
     ) -> Vec<XYXY> {
         match &self.model {
-            ModelType::Yolo(yolo) => {
+            Architecture::Yolo(yolo) => {
                 yolo.process_output(output, img_width, img_height, input_width, input_height)
             }
+        }
+    }
+
+    pub fn get_input_dimensions(&self) -> (u32, u32) {
+        match &self.model {
+            Architecture::Yolo(yolo) => (yolo.input_height, yolo.input_width),
         }
     }
 }
@@ -77,20 +85,7 @@ pub enum PostProcessing {
     NMS,
 }
 
-pub enum ModelType {
+pub enum Architecture {
     Yolo(Yolo),
 }
 
-impl ModelType {
-    pub fn get_input_dimensions(&self) -> (u32, u32) {
-        match self {
-            ModelType::Yolo(yolo) => (yolo.input_height, yolo.input_width),
-        }
-    }
-
-    pub fn get_classes(&self) -> &[String] {
-        match self {
-            ModelType::Yolo(yolo) => &yolo.classes,
-        }
-    }
-}

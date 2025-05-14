@@ -2,7 +2,9 @@ pub mod inference;
 pub mod abstractions;
 pub mod eps;
 /// flutter_rust_bridge:ignore
-pub mod preprocessing;
+pub mod pre_processing;
+/// flutter_rust_bridge:ignore
+pub mod post_processing;
 // use ndarray::{s, Array, Axis, IxDyn,Ix4};
 // use image::{ImageBuffer, Rgb};
 pub mod export;

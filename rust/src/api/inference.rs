@@ -2,8 +2,8 @@
 use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::models::{AIModel, ModelType, Task, Yolo};
-use super::preprocessing::{
+use super::models::{AIModel, Architecture, Task, Yolo};
+use super::pre_processing::{
     prepare_input_from_filepath, prepare_input_from_imgbuf,
 };
 use image::{ImageBuffer, Rgb};
@@ -69,18 +69,20 @@ pub fn set_model(value: String, ep: EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
     *MODEL.lock().unwrap() = import_model(&data, ep);
 
+    let len = model_metadata.classes.len() as u32;
     let aimodel = AIModel::new(
         model_metadata.name,
         model_metadata.description,
         model_metadata.version,
-        ModelType::Yolo(Yolo::new(
+        model_metadata.classes,
+        Architecture::Yolo(Yolo::new(
             model_metadata.input_height,
             model_metadata.input_height,
             0.45,
             0.5,
-            model_metadata.classes.len() as u32,
+            len,
             0,
-            model_metadata.classes,
+            
             Task::from(model_metadata.task.as_str())
         ))
     );
@@ -108,7 +110,7 @@ where
     P: FnOnce(I, u32, u32) -> (ArrayBase<OwnedRepr<f32>, Dim<[usize; 4]>>, u32, u32),
 {
     let ai = CURRENT_AI.lock().unwrap();
-    let (input_width, input_height) = ai.model.get_input_dimensions();
+    let (input_width, input_height) = ai.get_input_dimensions();
 
     let (input, img_width, img_height) = prepare_fn(input, input_width, input_height);
     let output = run_model(&input);
@@ -135,9 +137,10 @@ pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
     return t(data);
 }
 
-fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {
-    let binding = CURRENT_AI.lock().unwrap();
-    let classes = &binding.model.get_classes();
+fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {    
+
+    let classes = &CURRENT_AI.lock().unwrap().classes;
+    
     xyxy_vec
         .into_iter()
         .map(|xyxy| {

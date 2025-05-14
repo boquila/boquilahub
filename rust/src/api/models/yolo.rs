@@ -1,4 +1,5 @@
-use crate::api::abstractions::{nms_indices, BoundingBoxTrait, XYXY};
+use crate::api::abstractions::{BoundingBoxTrait, XYXY};
+use crate::api::post_processing::{nms_indices};
 
 use super::*;
 use ndarray::{s, Array, Axis, IxDyn};
@@ -10,7 +11,6 @@ pub struct Yolo {
     pub nms_threshold: f32,
     pub num_classes: u32,
     pub num_masks: u32,
-    pub classes: Vec<String>,
     pub task: Task,
 }
 
@@ -22,7 +22,6 @@ impl Yolo {
         nms_threshold: f32,
         num_classes: u32,
         num_masks: u32,
-        classes: Vec<String>,
         task: Task,
     ) -> Self {
         Self {
@@ -32,7 +31,6 @@ impl Yolo {
             nms_threshold,
             num_classes,
             num_masks,
-            classes,
             task,
         }
     }
