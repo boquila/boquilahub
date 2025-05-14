@@ -1,8 +1,6 @@
 // The idea is to have the core funcionality that will alow us to do everything we need in the app
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
 
 /// Probabilities in the YOLO format
@@ -16,8 +14,10 @@ pub struct ProbSpace {
 /// Segmentation in the YOLO format, normalized
 /// # Fields
 /// - `vertices` represents a polygon
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SEGn {
-    pub vertices: Vec<f32>,
+    pub x: Vec<i32>,
+    pub y: Vec<i32>,
     pub prob: f32,
     pub class_id: u16,
 }
@@ -25,8 +25,10 @@ pub struct SEGn {
 /// Segmentation in the YOLO format, not normalized
 /// # Fields
 /// - `vertices` represents a polygon
+#[derive(Serialize, Deserialize, Clone)]
 struct SEG {
-    pub vertices: Vec<f32>,
+    pub x: Vec<i32>,
+    pub y: Vec<i32>,
     pub prob: f32,
     pub class_id: u16,
 }
