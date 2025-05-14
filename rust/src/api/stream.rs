@@ -128,7 +128,7 @@ impl VideoStream {
     }
 
     fn run_remotely(&mut self, url: &str, log: bool) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
-        self.process_frame(|img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()), log)
+        self.process_frame(|img: &ImageBuffer<Rgb<u8>, Vec<u8>>| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()), log)
     }
 
     pub fn run_exp(&mut self, log: bool) -> (Vec<u8>, Vec<XYXYc>) {

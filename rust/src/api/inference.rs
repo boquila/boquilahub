@@ -3,9 +3,8 @@ use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{AIModel, ModelType, Task, Yolo};
-use super::postprocessing::process_output;
 use super::preprocessing::{
-    prepare_input_from_buf, prepare_input_from_filepath, prepare_input_from_imgbuf,
+    prepare_input_from_filepath, prepare_input_from_imgbuf,
 };
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, ArrayBase, Dim, Ix4, IxDyn, OwnedRepr};
@@ -114,28 +113,19 @@ where
     let (input, img_width, img_height) = prepare_fn(input, input_width, input_height);
     let output = run_model(&input);
 
-    process_output(&output, img_width, img_height, input_width, input_height)
+    ai.process_output(&output, img_width, img_height, input_width, input_height)
 }
 
 fn detect_from_file_path(file_path: &str) -> Vec<XYXY> {
     detect_common(file_path, prepare_input_from_filepath)
 }
 
-pub fn detect_from_buf(buf: &[u8]) -> Vec<XYXY> {
-    detect_common(buf, prepare_input_from_buf)
-}
-
-pub fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
+fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
     detect_common(img, prepare_input_from_imgbuf)
 }
 
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
     let data = detect_from_imgbuf(img);
-    return t(data);
-}
-
-pub fn detect_bbox_from_buf(buf: &[u8]) -> Vec<XYXYc> {
-    let data = detect_from_buf(buf);
     return t(data);
 }
 

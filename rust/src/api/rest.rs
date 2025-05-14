@@ -11,7 +11,8 @@ async fn upload(mut multipart: Multipart) -> String {
     while let Some(field) = multipart.next_field().await.unwrap() {
         // let name = field.name().unwrap().to_string();
         let data = field.bytes().await.unwrap();
-        let test = detect_bbox_from_buf(&data.to_vec());
+        let imgbuf = image::load_from_memory(&data.to_vec()).unwrap().into_rgb8();
+        let test = detect_bbox_from_imgbuf(&imgbuf);
         serialized = serde_json::to_string(&test).unwrap_or("Error".to_string());
     }
     return serialized;

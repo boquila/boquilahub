@@ -1,5 +1,8 @@
 pub mod yolo;
+use ndarray::{Array, IxDyn};
 pub use yolo::Yolo;
+
+use super::abstractions::XYXY;
 
 pub struct AIModel {
     pub name: String,
@@ -36,6 +39,21 @@ impl AIModel {
             )),
         )
     }
+
+    pub fn process_output(
+        &self,
+        output: &Array<f32, IxDyn>,
+        img_width: u32,
+        img_height: u32,
+        input_width: u32,
+        input_height: u32,
+    ) -> Vec<XYXY> {
+        match &self.model {
+            ModelType::Yolo(yolo) => {
+                yolo.process_output(output, img_width, img_height, input_width, input_height)
+            }
+        }
+    }
 }
 
 pub enum Task {
@@ -69,7 +87,7 @@ impl ModelType {
             ModelType::Yolo(yolo) => (yolo.input_height, yolo.input_width),
         }
     }
-    
+
     pub fn get_classes(&self) -> &[String] {
         match self {
             ModelType::Yolo(yolo) => &yolo.classes,
