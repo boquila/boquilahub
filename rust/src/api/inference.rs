@@ -1,18 +1,15 @@
 #![allow(dead_code)]
-use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
+use super::abstractions::{BoundingBoxTrait, BoundingBoxTraitC, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{AIModel, Architecture, Task, Yolo};
-use super::pre_processing::{
-    prepare_input_from_filepath, prepare_input_from_imgbuf,
-};
+use super::pre_processing::{prepare_input_from_filepath, prepare_input_from_imgbuf};
 use image::{ImageBuffer, Rgb};
-use ndarray::{Array, ArrayBase, Dim, Ix4, IxDyn, OwnedRepr};
+use ndarray::{ArrayBase, Dim, OwnedRepr};
 use once_cell::sync::Lazy;
-use ort::inputs;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
-use std::{sync::Mutex, vec};
+use std::{sync::Mutex};
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
@@ -21,22 +18,8 @@ pub fn init_app() {
     std::fs::create_dir_all("export").unwrap();
 }
 
-fn default_model() -> Session {
-    let (_model_metadata, data): (AI, Vec<u8>) = import_bq("models/boquilanet-gen.bq").unwrap();
-    let model = Session::builder()
-        .unwrap()
-        .with_execution_providers([CUDAExecutionProvider::default().build()])
-        .unwrap()
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .unwrap()
-        .commit_from_memory(&data)
-        .unwrap();
-    return model;
-}
-
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: Lazy<Mutex<AIModel>> = Lazy::new(|| Mutex::new(AIModel::default())); //
-static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
 static IOU_THRESHOLD: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.7));
 static MIN_PROB: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.45));
 
@@ -67,7 +50,6 @@ fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {
 
 pub fn set_model(value: String, ep: EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
-    *MODEL.lock().unwrap() = import_model(&data, ep);
 
     let len = model_metadata.classes.len() as u32;
     let aimodel = AIModel::new(
@@ -82,27 +64,12 @@ pub fn set_model(value: String, ep: EP) {
             0.5,
             len,
             0,
-            
-            Task::from(model_metadata.task.as_str())
-        ))
+            Task::from(model_metadata.task.as_str()),
+        )),
+        import_model(&data, ep),
     );
 
     *CURRENT_AI.lock().unwrap() = aimodel;
-}
-
-fn run_model(input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
-    let binding = MODEL.lock().unwrap();
-
-    let outputs = binding
-        .run(inputs!["images" => input.view()].unwrap())
-        .unwrap();
-
-    let predictions = outputs["output0"]
-        .try_extract_tensor::<f32>()
-        .unwrap()
-        .t()
-        .into_owned();
-    return predictions;
 }
 
 fn detect_common<I, P>(input: I, prepare_fn: P) -> Vec<XYXY>
@@ -113,7 +80,7 @@ where
     let (input_width, input_height) = ai.get_input_dimensions();
 
     let (input, img_width, img_height) = prepare_fn(input, input_width, input_height);
-    let output = run_model(&input);
+    let output = ai.run_model(&input);
 
     ai.process_output(&output, img_width, img_height, input_width, input_height)
 }
@@ -137,14 +104,14 @@ pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
     return t(data);
 }
 
-fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {    
-
+// Function that transforms T -> T2
+fn t<T: BoundingBoxTrait>(boxes: Vec<T>) -> Vec<XYXYc> {
     let classes = &CURRENT_AI.lock().unwrap().classes;
-    
-    xyxy_vec
+
+    boxes
         .into_iter()
         .map(|xyxy| {
-            let label = &classes[xyxy.class_id as usize];
+            let label = &classes[xyxy.get_class_id() as usize];
             xyxy.to_xyxyc(None, None, label.to_string())
         })
         .collect()

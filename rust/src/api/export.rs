@@ -30,7 +30,7 @@ pub fn write_csv(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
 
     wtr.flush()?;
     Ok(())
-}
+}   
 
 pub fn write_csv2(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
     let file = File::create(output_path)?;
