@@ -2,6 +2,7 @@
 use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
+use super::models::{AIModel, ModelType, Task, Yolo};
 use super::postprocessing::process_output;
 use super::preprocessing::{
     prepare_input_from_buf, prepare_input_from_filepath, prepare_input_from_imgbuf,
@@ -35,7 +36,7 @@ fn default_model() -> Session {
 }
 
 // Lazily initialized global variables for the MODEL
-static CURRENT_AI: Lazy<Mutex<AI>> = Lazy::new(|| Mutex::new(AI::default())); //
+static CURRENT_AI: Lazy<Mutex<AIModel>> = Lazy::new(|| Mutex::new(AIModel::default())); //
 static MODEL: Lazy<Mutex<Session>> = Lazy::new(|| Mutex::new(default_model()));
 static IOU_THRESHOLD: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.7));
 static MIN_PROB: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.45));
@@ -68,7 +69,24 @@ fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {
 pub fn set_model(value: String, ep: EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
     *MODEL.lock().unwrap() = import_model(&data, ep);
-    *CURRENT_AI.lock().unwrap() = model_metadata.clone();
+
+    let aimodel = AIModel::new(
+        model_metadata.name,
+        model_metadata.description,
+        model_metadata.version,
+        ModelType::Yolo(Yolo::new(
+            model_metadata.input_height,
+            model_metadata.input_height,
+            0.45,
+            0.5,
+            model_metadata.classes.len() as u32,
+            0,
+            model_metadata.classes,
+            Task::from(model_metadata.task.as_str())
+        ))
+    );
+
+    *CURRENT_AI.lock().unwrap() = aimodel;
 }
 
 fn run_model(input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
@@ -91,7 +109,7 @@ where
     P: FnOnce(I, u32, u32) -> (ArrayBase<OwnedRepr<f32>, Dim<[usize; 4]>>, u32, u32),
 {
     let ai = CURRENT_AI.lock().unwrap();
-    let (input_width, input_height) = (ai.input_width, ai.input_height);
+    let (input_width, input_height) = ai.model.get_input_dimensions();
 
     let (input, img_width, img_height) = prepare_fn(input, input_width, input_height);
     let output = run_model(&input);
@@ -128,7 +146,8 @@ pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
 }
 
 fn t(xyxy_vec: Vec<XYXY>) -> Vec<XYXYc> {
-    let classes = &CURRENT_AI.lock().unwrap().classes;
+    let binding = CURRENT_AI.lock().unwrap();
+    let classes = &binding.model.get_classes();
     xyxy_vec
         .into_iter()
         .map(|xyxy| {

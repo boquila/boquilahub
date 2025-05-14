@@ -1,16 +1,41 @@
-mod yolo;
-use yolo::Yolo;
+pub mod yolo;
+pub use yolo::Yolo;
 
-pub struct AIModel{
+pub struct AIModel {
     pub name: String,
-    pub description: String,          
-    pub version: f32, 
-    pub model: ModelType
+    pub description: String,
+    pub version: f32,
+    pub model: ModelType,
 }
 
-// Supported models
-pub enum ModelType {
-    Yolo(Yolo),
+impl AIModel {
+    // Basic constructor
+    pub fn new(name: String, description: String, version: f32, model: ModelType) -> Self {
+        AIModel {
+            name,
+            description,
+            version,
+            model,
+        }
+    }
+
+    pub fn default() -> Self {
+        AIModel::new(
+            "boquilanet-gen".to_string(),
+            "Generic animal detection".to_string(),
+            0.1,
+            ModelType::Yolo(Yolo::new(
+                1024,
+                1024,
+                0.45,
+                0.5,
+                1,
+                0,
+                vec!["animal".to_string()],
+                Task::Detect,
+            )),
+        )
+    }
 }
 
 pub enum Task {
@@ -19,3 +44,35 @@ pub enum Task {
     Detect,
 }
 
+impl From<&str> for Task {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "detect" => Task::Detect,
+            "classify" => Task::Classify,
+            "segment" => Task::Segment,
+            _ => Task::Detect, // Default to Detect if unknown
+        }
+    }
+}
+
+pub enum PostProcessing {
+    NMS,
+}
+
+pub enum ModelType {
+    Yolo(Yolo),
+}
+
+impl ModelType {
+    pub fn get_input_dimensions(&self) -> (u32, u32) {
+        match self {
+            ModelType::Yolo(yolo) => (yolo.input_height, yolo.input_width),
+        }
+    }
+    
+    pub fn get_classes(&self) -> &[String] {
+        match self {
+            ModelType::Yolo(yolo) => &yolo.classes,
+        }
+    }
+}
