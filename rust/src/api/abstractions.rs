@@ -128,20 +128,6 @@ fn iou<T: BoundingBoxTrait>(a: &T, b: &T) -> f32 {
     intersection / union
 }
 
-// pub fn nms<T: BoundingBox>(mut boxes: Vec<T>) -> Vec<T> {
-//     boxes.sort_by(|box1, box2| box2.get_prob().total_cmp(&box1.get_prob()));
-//     let mut result = Vec::new();
-//     while boxes.len() > 0 {
-//         result.push(boxes[0]);
-//         boxes = boxes
-//             .iter()
-//             .filter(|box1| boxes[0].iou(box1) < 0.7)
-//             .map(|x| *x)
-//             .collect()
-//     }
-//     return result
-// }
-
 impl BoundingBoxTrait for XYXYn {
     fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u16) -> Self {
         Self {
@@ -566,28 +552,33 @@ impl BoundingBoxTrait for XYWH {
     }
 }
 
-pub fn nms<T: BoundingBoxTrait>(mut boxes: Vec<T>, iou_threshold: f32) -> Vec<T> {
-    boxes.sort_by(|a, b| {
-        b.get_prob()
-            .partial_cmp(&a.get_prob())
+pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
+    // Create indices and sort them by probability (descending)
+    let mut indices: Vec<usize> = (0..boxes.len()).collect();
+    indices.sort_by(|&a, &b| {
+        boxes[b].get_prob()
+            .partial_cmp(&boxes[a].get_prob())
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-
+    
     let mut keep = Vec::new();
-
-    while let Some(current) = boxes.first() {
-        let current = current.clone();
-        keep.push(current);
-
-        boxes = boxes
+    
+    while !indices.is_empty() {
+        // Keep the highest scoring box
+        let current_idx = indices[0];
+        keep.push(current_idx);
+        
+        // Filter remaining indices
+        indices = indices
             .into_iter()
             .skip(1)
-            .filter(|bbox| {
-                bbox.get_class_id() != current.get_class_id() || bbox.iou(&current) <= iou_threshold
+            .filter(|&idx| {
+                boxes[idx].get_class_id() != boxes[current_idx].get_class_id() || 
+                boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
             })
             .collect();
     }
-
+    
     keep
 }
 

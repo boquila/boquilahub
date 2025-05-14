@@ -1,4 +1,4 @@
-use super::abstractions::{nms, BoundingBoxTrait, XYXY};
+use super::abstractions::{nms_indices, BoundingBoxTrait, XYXY};
 use ndarray::{s, Array, Axis, IxDyn};
 
 // Function used to convert the output tensor from YOLO to an Vec<XYXY>
@@ -35,7 +35,9 @@ pub fn process_output(
         let temp = XYXY::new(x1, y1, x2, y2, prob, label);
         boxes.push(temp);
     }
-
-    let result = nms(boxes, 0.7);
+    
+    let indices = nms_indices(&boxes, 0.5);
+    let result: Vec<XYXY> = indices.iter().map(|&idx| boxes[idx].clone()).collect();
+    // let result = nms(boxes, 0.7);
     return result;
 }
