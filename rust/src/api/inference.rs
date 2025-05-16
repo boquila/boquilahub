@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::abstractions::{BoundingBoxTrait, BoundingBoxTraitC, XYXYc, AI, XYXY};
+use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{AIModel, Architecture, Task, Yolo};
@@ -104,7 +104,6 @@ pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
     return t(data);
 }
 
-// Function that transforms T -> T2
 fn t<T: BoundingBoxTrait>(boxes: Vec<T>) -> Vec<XYXYc> {
     let classes = &CURRENT_AI.lock().unwrap().classes;
 
