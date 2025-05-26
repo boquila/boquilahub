@@ -1,5 +1,5 @@
 use crate::api::abstractions::{BoundingBoxTrait, XYXY};
-use crate::api::post_processing::{nms_indices};
+use crate::api::post_processing::nms_indices;
 
 use super::*;
 use ndarray::{s, Array, Axis, IxDyn};

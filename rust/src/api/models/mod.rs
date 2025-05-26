@@ -1,7 +1,10 @@
 pub mod yolo;
 use super::{abstractions::*, bq::import_bq};
 use ndarray::{Array, Ix4, IxDyn};
-use ort::{inputs, session::{builder::GraphOptimizationLevel, Session}};
+use ort::{
+    inputs,
+    session::{builder::GraphOptimizationLevel, Session},
+};
 pub use yolo::Yolo;
 
 pub struct AIModel {
@@ -68,8 +71,8 @@ impl AIModel {
     }
 
     pub fn run_model(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
-        
-        let outputs = self.session
+        let outputs = self
+            .session
             .run(inputs!["images" => input.view()].unwrap())
             .unwrap();
 
@@ -113,7 +116,7 @@ impl From<&str> for PostProcessing {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "NMS" => PostProcessing::NMS,
-            _ => PostProcessing::NMS
+            _ => PostProcessing::NMS,
         }
     }
 }
@@ -121,7 +124,6 @@ impl From<&str> for PostProcessing {
 pub enum Architecture {
     Yolo(Yolo),
 }
-
 
 enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
