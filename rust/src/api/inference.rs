@@ -65,8 +65,9 @@ pub fn set_model(value: String, ep: EP) {
             len,
             0,
             Task::from(model_metadata.task.as_str()),
+            import_model(&data, ep),
         )),
-        import_model(&data, ep),
+        
     );
 
     *CURRENT_AI.lock().unwrap() = aimodel;

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub mod yolo;
 use super::{abstractions::*, bq::import_bq};
 use ndarray::{Array, Ix4, IxDyn};
@@ -13,7 +14,6 @@ pub struct AIModel {
     pub version: f32,
     pub classes: Vec<String>,
     pub model: Architecture,
-    pub session: Session,
 }
 
 impl AIModel {
@@ -24,7 +24,6 @@ impl AIModel {
         version: f32,
         classes: Vec<String>,
         model: Architecture,
-        session: Session,
     ) -> Self {
         AIModel {
             name,
@@ -32,7 +31,6 @@ impl AIModel {
             version,
             classes,
             model,
-            session,
         }
     }
 
@@ -50,8 +48,7 @@ impl AIModel {
             "Generic animal detection".to_string(),
             0.1,
             vec!["animal".to_string()],
-            Architecture::Yolo(Yolo::new(1024, 1024, 0.45, 0.5, 1, 0, Task::Detect)),
-            session,
+            Architecture::Yolo(Yolo::new(1024, 1024, 0.45, 0.5, 1, 0, Task::Detect,session)),
         )
     }
 
@@ -68,20 +65,6 @@ impl AIModel {
                 yolo.process_output(output, img_width, img_height, input_width, input_height)
             }
         }
-    }
-
-    pub fn run_model(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
-        let outputs = self
-            .session
-            .run(inputs!["images" => input.view()].unwrap())
-            .unwrap();
-
-        let predictions = outputs["output0"]
-            .try_extract_tensor::<f32>()
-            .unwrap()
-            .t()
-            .into_owned();
-        return predictions;
     }
 
     pub fn get_input_dimensions(&self) -> (u32, u32) {
@@ -121,6 +104,7 @@ impl From<&str> for PostProcessing {
     }
 }
 
+// All supported architectures
 pub enum Architecture {
     Yolo(Yolo),
 }

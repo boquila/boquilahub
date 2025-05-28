@@ -1,7 +1,7 @@
 use crate::api::abstractions::{BoundingBoxTrait, XYXY};
-use crate::api::post_processing::nms_indices;
 
 use super::*;
+use image::imageops::{resize, FilterType};
 use ndarray::{s, Array, Axis, IxDyn};
 
 pub struct Yolo {
@@ -12,6 +12,7 @@ pub struct Yolo {
     pub num_classes: u32,
     pub num_masks: u32,
     pub task: Task,
+    pub session: Session,
 }
 
 impl Yolo {
@@ -23,6 +24,7 @@ impl Yolo {
         num_classes: u32,
         num_masks: u32,
         task: Task,
+        session: Session,
     ) -> Self {
         Self {
             input_width,
@@ -32,7 +34,46 @@ impl Yolo {
             num_classes,
             num_masks,
             task,
+            session,
         }
+    }
+
+    pub fn prepare_input_from_buf(&self, buf: &[u8]) -> (Array<f32, Ix4>, u32, u32) {
+        let img = image::load_from_memory(buf).unwrap().into_rgb8();
+        let (img_width, img_height) = (img.width(), img.height());
+
+        let resized = resize(
+            &img,
+            self.input_width,
+            self.input_height,
+            FilterType::Nearest,
+        );
+
+        let mut input = Array::zeros((1, 3, self.input_height as usize, self.input_width as usize));
+
+        for (x, y, pixel) in resized.enumerate_pixels() {
+            let x_u = x as usize;
+            let y_u = y as usize;
+            input[[0, 2, y_u, x_u]] = (pixel[2] as f32) / 255.0;
+            input[[0, 1, y_u, x_u]] = (pixel[1] as f32) / 255.0;
+            input[[0, 0, y_u, x_u]] = (pixel[0] as f32) / 255.0;
+        }
+
+        (input, img_width, img_height)
+    }
+
+    pub fn run_model(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
+        let outputs = self
+            .session
+            .run(inputs!["images" => input.view()].unwrap())
+            .unwrap();
+
+        let predictions = outputs["output0"]
+            .try_extract_tensor::<f32>()
+            .unwrap()
+            .t()
+            .into_owned();
+        return predictions;
     }
 
     pub fn process_output(
@@ -76,4 +117,35 @@ impl Yolo {
 
         return result;
     }
+}
+
+fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
+    // Create indices and sort them by probability (descending)
+    let mut indices: Vec<usize> = (0..boxes.len()).collect();
+    indices.sort_by(|&a, &b| {
+        boxes[b]
+            .get_prob()
+            .partial_cmp(&boxes[a].get_prob())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut keep = Vec::new();
+
+    while !indices.is_empty() {
+        // Keep the highest scoring box
+        let current_idx = indices[0];
+        keep.push(current_idx);
+
+        // Filter remaining indices
+        indices = indices
+            .into_iter()
+            .skip(1)
+            .filter(|&idx| {
+                boxes[idx].get_class_id() != boxes[current_idx].get_class_id()
+                    || boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
+            })
+            .collect();
+    }
+
+    keep
 }

@@ -1,6 +1,5 @@
 use image::{
-    imageops::{resize, FilterType},
-    open, ImageBuffer, Rgb,
+    imageops::{resize, FilterType}, open, ImageBuffer, Rgb
 };
 use ndarray::{Array, Ix4};
 
@@ -10,6 +9,15 @@ pub fn prepare_input_from_filepath(
     input_height: u32,
 ) -> (Array<f32, Ix4>, u32, u32) {
     let img = open(file_path).unwrap().into_rgb8();
+    return prepare_input_from_imgbuf(&img, input_width, input_height);
+}
+
+pub fn prepare_input_from_buf(
+    buf: &[u8],
+    input_width: u32,
+    input_height: u32,
+) -> (Array<f32, Ix4>, u32, u32) {
+    let img = image::load_from_memory(buf).unwrap().into_rgb8();
     return prepare_input_from_imgbuf(&img, input_width, input_height);
 }
 
