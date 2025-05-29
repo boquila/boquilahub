@@ -5,6 +5,10 @@ use image::imageops::{resize, FilterType};
 use ndarray::{s, Array, Axis, IxDyn};
 
 pub struct Yolo {
+    pub name: String,
+    pub description: String,
+    pub version: f32,
+    pub classes: Vec<String>,
     pub input_width: u32,
     pub input_height: u32,
     pub confidence_threshold: f32,
@@ -17,6 +21,10 @@ pub struct Yolo {
 
 impl Yolo {
     pub fn new(
+        name: String,
+        description: String,
+        version: f32,
+        classes: Vec<String>,
         input_width: u32,
         input_height: u32,
         confidence_threshold: f32,
@@ -27,6 +35,10 @@ impl Yolo {
         session: Session,
     ) -> Self {
         Self {
+            name,
+            description,
+            version,
+            classes,
             input_width,
             input_height,
             confidence_threshold,
@@ -36,6 +48,31 @@ impl Yolo {
             task,
             session,
         }
+    }
+
+    pub fn default() -> Self {
+        let (_, data) = import_bq("models/boquilanet-gen.bq").unwrap();
+        let session = Session::builder()
+            .unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .unwrap()
+            .commit_from_memory(&data)
+            .unwrap();
+
+        Yolo::new(
+            "boquilanet-gen".to_string(),
+            "Generic animal detection".to_string(),
+            0.1,
+            vec!["animal".to_string()],
+            1024,
+            1024,
+            0.45,
+            0.5,
+            1,
+            0,
+            Task::Detect,
+            session,
+        )
     }
 
     pub fn prepare_input_from_buf(&self, buf: &[u8]) -> (Array<f32, Ix4>, u32, u32) {
@@ -116,6 +153,20 @@ impl Yolo {
         let result = indices.iter().map(|&idx| boxes[idx].clone()).collect();
 
         return result;
+    }
+
+    pub fn get_input_dimensions(&self) -> (u32, u32) {
+        (self.input_height, self.input_width)        
+    }
+
+    fn t(&self, boxes: Vec<XYXY>) -> Vec<XYXYc> {
+        boxes
+            .into_iter()
+            .map(|xyxy| {
+                let label = &self.classes[xyxy.get_class_id() as usize];
+                xyxy.to_xyxyc(None, None, label.to_string())
+            })
+            .collect()
     }
 }
 

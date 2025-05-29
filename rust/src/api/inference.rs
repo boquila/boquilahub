@@ -2,7 +2,7 @@
 use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::models::{AIModel, Architecture, Task, Yolo};
+use super::models::{Task, Yolo};
 use super::pre_processing::{prepare_input_from_filepath, prepare_input_from_imgbuf};
 use image::{ImageBuffer, Rgb};
 use ndarray::{ArrayBase, Dim, OwnedRepr};
@@ -19,7 +19,7 @@ pub fn init_app() {
 }
 
 // Lazily initialized global variables for the MODEL
-static CURRENT_AI: Lazy<Mutex<AIModel>> = Lazy::new(|| Mutex::new(AIModel::default())); //
+static CURRENT_AI: Lazy<Mutex<Yolo>> = Lazy::new(|| Mutex::new(Yolo::default())); //
 static IOU_THRESHOLD: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.7));
 static MIN_PROB: Lazy<Mutex<f32>> = Lazy::new(|| Mutex::new(0.45));
 
@@ -52,12 +52,11 @@ pub fn set_model(value: String, ep: EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(&value).unwrap();
 
     let len = model_metadata.classes.len() as u32;
-    let aimodel = AIModel::new(
-        model_metadata.name,
-        model_metadata.description,
-        model_metadata.version,
-        model_metadata.classes,
-        Architecture::Yolo(Yolo::new(
+    let aimodel = Yolo::new(
+            model_metadata.name,
+            model_metadata.description,
+            model_metadata.version,
+            model_metadata.classes,
             model_metadata.input_height,
             model_metadata.input_height,
             0.45,
@@ -66,7 +65,7 @@ pub fn set_model(value: String, ep: EP) {
             0,
             Task::from(model_metadata.task.as_str()),
             import_model(&data, ep),
-        )),
+        
         
     );
 
@@ -116,35 +115,3 @@ fn t<T: BoundingBoxTrait>(boxes: Vec<T>) -> Vec<XYXYc> {
         })
         .collect()
 }
-
-// #[flutter_rust_bridge::frb(dart_async)]
-// pub fn classify(file_path: String) -> ProbSpace {
-
-// }
-
-// #[flutter_rust_bridge::frb(dart_async)]
-// pub fn segment(file_path: String) -> Vec<SEG> {
-
-// }
-
-// enum AIOutputs {
-//     ObjectDetection(Vec<XYXY>),
-//     Classification(ProbSpace),
-//     Segmentation(Vec<SEGn>),
-// }
-
-// enum AIFunctions {
-//     Classify,
-//     Detect,
-//     Segment,
-// }
-
-// impl AIFunctions {
-//     fn execute(&self, input: String) -> AIOutputs {
-//         match self {
-//             AIFunctions::Classify => todo!("{}", input),
-//             AIFunctions::Detect => AIOutputs::ObjectDetection(detect(input)),
-//             AIFunctions::Segment => todo!("{}", input),
-//         }
-//     }
-// }

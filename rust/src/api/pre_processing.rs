@@ -18,6 +18,7 @@ pub fn prepare_input_from_buf(
     input_height: u32,
 ) -> (Array<f32, Ix4>, u32, u32) {
     let img = image::load_from_memory(buf).unwrap().into_rgb8();
+        
     return prepare_input_from_imgbuf(&img, input_width, input_height);
 }
 
