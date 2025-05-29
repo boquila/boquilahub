@@ -1,8 +1,9 @@
-use crate::api::abstractions::{BoundingBoxTrait, XYXY};
+use crate::api::{abstractions::{BoundingBoxTrait, XYXY}, bq::import_bq};
 
 use super::*;
 use image::imageops::{resize, FilterType};
-use ndarray::{s, Array, Axis, IxDyn};
+use ndarray::{s, Array, Axis, Ix4, IxDyn};
+use ort::{inputs, session::{builder::GraphOptimizationLevel, Session}};
 
 pub struct Yolo {
     pub name: String,
