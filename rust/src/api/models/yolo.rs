@@ -84,12 +84,15 @@ impl Yolo {
         )
     }
 
-    pub fn prepare_input_from_buf(&self, buf: &[u8]) -> (Array<f32, Ix4>, u32, u32) {
+    fn prepare_input_from_buf(&self, buf: &[u8]) -> (Array<f32, Ix4>, u32, u32) {
         let img = image::load_from_memory(buf).unwrap().into_rgb8();
         self.prepare_input_from_imgbuf(&img)
     }
 
-    pub fn prepare_input_from_imgbuf(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> (Array<f32, Ix4>, u32, u32) {
+    fn prepare_input_from_imgbuf(
+        &self,
+        img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) -> (Array<f32, Ix4>, u32, u32) {
         let (img_width, img_height) = (img.width(), img.height());
 
         let resized = resize(
@@ -112,7 +115,7 @@ impl Yolo {
         (input, img_width, img_height)
     }
 
-    pub fn run_model(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
+    fn run_detect(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
         let outputs = self
             .session
             .run(inputs!["images" => input.view()].unwrap())
@@ -126,13 +129,11 @@ impl Yolo {
         return predictions;
     }
 
-    pub fn process_output(
+    fn process_detect_output(
         &self,
         output: &Array<f32, IxDyn>,
         img_width: u32,
         img_height: u32,
-        input_width: u32,
-        input_height: u32,
     ) -> Vec<XYXYc> {
         let mut boxes = Vec::new();
         let output = output.slice(s![.., .., 0]);
@@ -150,10 +151,10 @@ impl Yolo {
             }
             let label = class_id as u16;
             // XYWHn::new(row[0],row[1],row[0],row[3],prob,label);
-            let xc = row[0] / input_width as f32 * (img_width as f32);
-            let yc = row[1] / input_height as f32 * (img_height as f32);
-            let w = row[2] / input_width as f32 * (img_width as f32);
-            let h = row[3] / input_height as f32 * (img_height as f32);
+            let xc = row[0] / self.input_width as f32 * (img_width as f32);
+            let yc = row[1] / self.input_height as f32 * (img_height as f32);
+            let w = row[2] / self.input_width as f32 * (img_width as f32);
+            let h = row[3] / self.input_height as f32 * (img_height as f32);
             let x1 = xc - w / 2.0;
             let x2 = xc + w / 2.0;
             let y1 = yc - h / 2.0;
@@ -167,10 +168,6 @@ impl Yolo {
         return self.t(&result);
     }
 
-    pub fn get_input_dimensions(&self) -> (u32, u32) {
-        (self.input_height, self.input_width)
-    }
-
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
         boxes
             .into_iter()
@@ -180,12 +177,22 @@ impl Yolo {
             })
             .collect()
     }
-    
+
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let (input, img_width, img_height) =self.prepare_input_from_imgbuf(img);
-        let output = self.run_model(&input);
-        let boxes = self.process_output(&output, img_width, img_height, self.input_width, self.input_height);
-        return AIOutputs::ObjectDetection(boxes);
+        let (input, img_width, img_height) = self.prepare_input_from_imgbuf(img);
+        match self.task {
+            Task::Detect => {
+                let output = self.run_detect(&input);
+                let boxes = self.process_detect_output(&output, img_width, img_height);
+                return AIOutputs::ObjectDetection(boxes);
+            }
+            Task::Classify => {
+                todo!();
+            }
+            Task::Segment => {
+                todo!();
+            }
+        }
     }
 }
 
