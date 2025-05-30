@@ -2,12 +2,12 @@
 use super::abstractions::{XYXYc, AI};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::models::{Task, Yolo};
+use super::models::{AIOutputs, Task, Yolo};
 use image::{open, ImageBuffer, Rgb};
 use once_cell::sync::Lazy;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
-use std::{sync::Mutex};
+use std::sync::Mutex;
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
@@ -51,31 +51,40 @@ pub fn set_model(value: String, ep: EP) {
 
     let len = model_metadata.classes.len() as u32;
     let aimodel = Yolo::new(
-            model_metadata.name,
-            model_metadata.description,
-            model_metadata.version,
-            model_metadata.classes,
-            model_metadata.input_height,
-            model_metadata.input_height,
-            0.45,
-            0.5,
-            len,
-            0,
-            Task::from(model_metadata.task.as_str()),
-            import_model(&data, ep),
-        
-        
+        model_metadata.name,
+        model_metadata.description,
+        model_metadata.version,
+        model_metadata.classes,
+        model_metadata.input_height,
+        model_metadata.input_height,
+        0.45,
+        0.5,
+        len,
+        0,
+        Task::from(model_metadata.task.as_str()),
+        import_model(&data, ep),
     );
 
     *CURRENT_AI.lock().unwrap() = aimodel;
 }
 
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
-    CURRENT_AI.lock().unwrap().run(&img)    
+    match CURRENT_AI.lock().unwrap().run(&img) {
+        AIOutputs::ObjectDetection(boxes) => return boxes,
+        _ => {
+            panic!("Expected ObjectDetection output");
+        }
+    }
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
     let img = open(file_path).unwrap().into_rgb8();
-    CURRENT_AI.lock().unwrap().run(&img)    
+
+    match CURRENT_AI.lock().unwrap().run(&img) {
+        AIOutputs::ObjectDetection(boxes) => return boxes,
+        _ => {
+            panic!("Expected ObjectDetection output");
+        }
+    }
 }

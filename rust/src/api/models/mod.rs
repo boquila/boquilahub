@@ -38,7 +38,7 @@ pub enum Architecture {
     Yolo(Yolo),
 }
 
-enum AIOutputs {
+pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),
     Segmentation(Vec<SEGn>),

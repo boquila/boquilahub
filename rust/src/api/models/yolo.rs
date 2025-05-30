@@ -181,10 +181,11 @@ impl Yolo {
             .collect()
     }
     
-    pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
+    pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) =self.prepare_input_from_imgbuf(img);
         let output = self.run_model(&input);
-        self.process_output(&output, img_width, img_height, self.input_width, self.input_height)
+        let boxes = self.process_output(&output, img_width, img_height, self.input_width, self.input_height);
+        return AIOutputs::ObjectDetection(boxes);
     }
 }
 
