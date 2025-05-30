@@ -1,11 +1,9 @@
 #![allow(dead_code)]
-use super::abstractions::{BoundingBoxTrait, XYXYc, AI, XYXY};
+use super::abstractions::{XYXYc, AI};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{Task, Yolo};
-use super::pre_processing::{prepare_input_from_filepath, prepare_input_from_imgbuf};
-use image::{ImageBuffer, Rgb};
-use ndarray::{ArrayBase, Dim, OwnedRepr};
+use image::{open, ImageBuffer, Rgb};
 use once_cell::sync::Lazy;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
@@ -72,46 +70,12 @@ pub fn set_model(value: String, ep: EP) {
     *CURRENT_AI.lock().unwrap() = aimodel;
 }
 
-fn detect_common<I, P>(input: I, prepare_fn: P) -> Vec<XYXY>
-where
-    P: FnOnce(I, u32, u32) -> (ArrayBase<OwnedRepr<f32>, Dim<[usize; 4]>>, u32, u32),
-{
-    let ai = CURRENT_AI.lock().unwrap();
-    let (input_width, input_height) = ai.get_input_dimensions();
-
-    let (input, img_width, img_height) = prepare_fn(input, input_width, input_height);
-    let output = ai.run_model(&input);
-
-    ai.process_output(&output, img_width, img_height, input_width, input_height)
-}
-
-fn detect_from_file_path(file_path: &str) -> Vec<XYXY> {
-    detect_common(file_path, prepare_input_from_filepath)
-}
-
-fn detect_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXY> {
-    detect_common(img, prepare_input_from_imgbuf)
-}
-
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
-    let data = detect_from_imgbuf(img);
-    return t(data);
+    CURRENT_AI.lock().unwrap().run(&img)    
 }
 
 #[flutter_rust_bridge::frb(dart_async)]
 pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
-    let data = detect_from_file_path(file_path);
-    return t(data);
-}
-
-fn t<T: BoundingBoxTrait>(boxes: Vec<T>) -> Vec<XYXYc> {
-    let classes = &CURRENT_AI.lock().unwrap().classes;
-
-    boxes
-        .into_iter()
-        .map(|xyxy| {
-            let label = &classes[xyxy.get_class_id() as usize];
-            xyxy.to_xyxyc(None, None, label.to_string())
-        })
-        .collect()
+    let img = open(file_path).unwrap().into_rgb8();
+    CURRENT_AI.lock().unwrap().run(&img)    
 }

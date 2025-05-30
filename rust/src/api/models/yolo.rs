@@ -1,9 +1,17 @@
-use crate::api::{abstractions::{BoundingBoxTrait, XYXY}, bq::import_bq};
-
 use super::*;
-use image::imageops::{resize, FilterType};
+use crate::api::{
+    abstractions::{BoundingBoxTrait, XYXY},
+    bq::import_bq,
+};
+use image::{
+    imageops::{resize, FilterType},
+    ImageBuffer, Rgb,
+};
 use ndarray::{s, Array, Axis, Ix4, IxDyn};
-use ort::{inputs, session::{builder::GraphOptimizationLevel, Session}};
+use ort::{
+    inputs,
+    session::{builder::GraphOptimizationLevel, Session},
+};
 
 pub struct Yolo {
     pub name: String,
@@ -78,10 +86,14 @@ impl Yolo {
 
     pub fn prepare_input_from_buf(&self, buf: &[u8]) -> (Array<f32, Ix4>, u32, u32) {
         let img = image::load_from_memory(buf).unwrap().into_rgb8();
+        self.prepare_input_from_imgbuf(&img)
+    }
+
+    pub fn prepare_input_from_imgbuf(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> (Array<f32, Ix4>, u32, u32) {
         let (img_width, img_height) = (img.width(), img.height());
 
         let resized = resize(
-            &img,
+            img,
             self.input_width,
             self.input_height,
             FilterType::Nearest,
@@ -121,7 +133,7 @@ impl Yolo {
         img_height: u32,
         input_width: u32,
         input_height: u32,
-    ) -> Vec<XYXY> {
+    ) -> Vec<XYXYc> {
         let mut boxes = Vec::new();
         let output = output.slice(s![.., .., 0]);
         for row in output.axis_iter(Axis(0)) {
@@ -151,16 +163,15 @@ impl Yolo {
         }
 
         let indices = nms_indices(&boxes, self.nms_threshold);
-        let result = indices.iter().map(|&idx| boxes[idx].clone()).collect();
-
-        return result;
+        let result: Vec<XYXY> = indices.iter().map(|&idx| boxes[idx].clone()).collect();
+        return self.t(&result);
     }
 
     pub fn get_input_dimensions(&self) -> (u32, u32) {
-        (self.input_height, self.input_width)        
+        (self.input_height, self.input_width)
     }
 
-    fn t(&self, boxes: Vec<XYXY>) -> Vec<XYXYc> {
+    fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
         boxes
             .into_iter()
             .map(|xyxy| {
@@ -168,6 +179,12 @@ impl Yolo {
                 xyxy.to_xyxyc(None, None, label.to_string())
             })
             .collect()
+    }
+    
+    pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
+        let (input, img_width, img_height) =self.prepare_input_from_imgbuf(img);
+        let output = self.run_model(&input);
+        self.process_output(&output, img_width, img_height, self.input_width, self.input_height)
     }
 }
 
