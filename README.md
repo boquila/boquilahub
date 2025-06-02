@@ -7,6 +7,7 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 ## Features
 
 - Cross-platform. 
+- CLI tool
 - Run AIs for computer vision locally
 - Process image files
 - Process video files  

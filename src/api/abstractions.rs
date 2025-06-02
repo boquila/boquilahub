@@ -36,8 +36,6 @@ struct SEG {
     pub class_id: u16,
 }
 
-pub struct T {}
-
 // Trait for all bounding boxes (that don't have a string)
 pub trait BoundingBoxTrait: Copy {
     fn new(a: f32, b: f32, c: f32, d: f32, prob: f32, class_id: u16) -> Self;
