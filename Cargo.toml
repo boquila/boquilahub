@@ -1,0 +1,52 @@
+[package]
+name = "boquilahub"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.31.1"
+eframe = { version = "0.31.1", default-features = false, features = [
+    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+    "wayland",       # To support Linux (and CI)
+] }
+log = "0.4"
+ffmpeg-next = "7.1.0"
+image = { version = "0.25.6", features = ["jpeg", "png"] } 
+ndarray = "0.16.1"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+ort = { version = "2.0.0-rc.9", features = ["cuda"]}
+once_cell = "1.19.0"
+regex = "1.11.1"
+axum = { version = "0.8.3", features = ["multipart"]}
+tokio = { version = "1.44.2", features = ["full"] }
+sonogram = "=0.2.1"
+csv = "1.3.1"
+reqwest = { version = "0.12.15", features = ["blocking", "multipart"] }
+video-rs = { version = "0.10.3", features = ["ndarray"] }
+imageproc = "0.25.0"
+ab_glyph = "0.2.29"
+pulp = "0.21.4"
+chrono = "0.4.41"
+rfd = "0.15.3"
+egui_extras = { version = "0.31.1", features = ["all_loaders"] }
+clap = "4.5.39"
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+web-sys = "0.3.70"           # to access the DOM (to hide the loading text)
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2
