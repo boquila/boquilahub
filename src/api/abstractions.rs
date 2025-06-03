@@ -2,7 +2,7 @@
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
 use std::path::PathBuf;
-
+use derive_new::new;
 use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ pub struct ProbSpace {
 /// Segmentation in the YOLO format, normalized
 /// # Fields
 /// - `vertices` represents a polygon
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEGn {
     pub x: Vec<i32>,
     pub y: Vec<i32>,
@@ -28,7 +28,7 @@ pub struct SEGn {
 /// Segmentation in the YOLO format, not normalized
 /// # Fields
 /// - `vertices` represents a polygon
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, new)]
 struct SEG {
     pub x: Vec<i32>,
     pub y: Vec<i32>,
@@ -38,7 +38,6 @@ struct SEG {
 
 // Trait for all bounding boxes (that don't have a string)
 pub trait BoundingBoxTrait: Copy {
-    fn new(a: f32, b: f32, c: f32, d: f32, prob: f32, class_id: u16) -> Self;
     fn area(&self) -> f32;
     fn intersect(&self, other: &Self) -> f32;
     fn iou(&self, other: &Self) -> f32;
@@ -61,7 +60,7 @@ pub trait BoundingBoxTrait: Copy {
 /// # Fields
 /// - `x1` and `y1` represent the top-left corner
 /// - `x2` and `y2` represent the bottom-right  corner
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, new)]
 pub struct XYXYn {
     pub x1: f32,
     pub y1: f32,
@@ -71,7 +70,7 @@ pub struct XYXYn {
     pub class_id: u16,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, new)]
 pub struct XYXY {
     pub x1: f32,
     pub y1: f32,
@@ -85,7 +84,7 @@ pub struct XYXY {
 /// # Fields
 /// - `x` and `y` represent the center
 /// - `w` and `h` represent width and height
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, new)]
 pub struct XYWHn {
     pub x: f32,
     pub y: f32,
@@ -95,7 +94,7 @@ pub struct XYWHn {
     pub class_id: u16,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, new)]
 pub struct XYWH {
     pub x: f32,
     pub y: f32,
@@ -130,17 +129,6 @@ fn iou<T: BoundingBoxTrait>(a: &T, b: &T) -> f32 {
 }
 
 impl BoundingBoxTrait for XYXYn {
-    fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u16) -> Self {
-        Self {
-            x1,
-            y1,
-            x2,
-            y2,
-            prob,
-            class_id,
-        }
-    }
-
     fn area(&self) -> f32 {
         (self.x2 - self.x1) * (self.y2 - self.y1)
     }
@@ -241,17 +229,6 @@ impl BoundingBoxTrait for XYXYn {
 }
 
 impl BoundingBoxTrait for XYXY {
-    fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u16) -> Self {
-        Self {
-            x1,
-            y1,
-            x2,
-            y2,
-            prob,
-            class_id,
-        }
-    }
-
     fn area(&self) -> f32 {
         (self.x2 - self.x1) * (self.y2 - self.y1)
     }
@@ -341,17 +318,6 @@ impl BoundingBoxTrait for XYXY {
 }
 
 impl BoundingBoxTrait for XYWHn {
-    fn new(x: f32, y: f32, w: f32, h: f32, prob: f32, class_id: u16) -> Self {
-        Self {
-            x,
-            y,
-            w,
-            h,
-            prob,
-            class_id,
-        }
-    }
-
     fn area(&self) -> f32 {
         self.w * self.h
     }
@@ -453,17 +419,6 @@ impl BoundingBoxTrait for XYWHn {
 }
 
 impl BoundingBoxTrait for XYWH {
-    fn new(x: f32, y: f32, w: f32, h: f32, prob: f32, class_id: u16) -> Self {
-        Self {
-            x,
-            y,
-            w,
-            h,
-            prob,
-            class_id,
-        }
-    }
-
     fn area(&self) -> f32 {
         self.w * self.h
     }
@@ -612,6 +567,7 @@ impl AI {
         format!("models/{}.bq", self.name)
     }
 }
+
 
 pub struct PredImg {
     pub file_path: PathBuf,

@@ -8,5 +8,7 @@ dist
 target
 target_ra
 target_wasm
-deps
-models
+
+# binaries and .bq models
+/deps
+/models
