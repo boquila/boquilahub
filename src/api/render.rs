@@ -1,6 +1,4 @@
-use crate::api::abstractions::strlabel;
-
-use super::abstractions::{BoundingBoxTraitC, XYXYc};
+use super::abstractions::{XYXYc};
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
@@ -105,21 +103,6 @@ const CHAR_WIDTH: f32 = FONT_SCALE / 1.84;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../assets//DejaVuSans.ttf");
 
-pub fn draw_bbox_from_file_path(
-    file_path: &str,
-    predictions: &Vec<XYXYc>,
-) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let buf = std::fs::read(file_path).unwrap();
-    let img = draw_bbox_from_buf(&buf, predictions);
-    return img;
-}
-
-fn draw_bbox_from_buf(buf: &[u8], predictions: &Vec<XYXYc>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let mut img: ImageBuffer<Rgb<u8>, Vec<u8>> = image::load_from_memory(buf).unwrap().to_rgb8();
-    draw_bbox_from_imgbuf(&mut img, predictions);
-    return img;
-}
-
 pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<XYXYc>) {
     if !predictions.is_empty() {
         let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();
@@ -128,7 +111,7 @@ pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prediction
             let w = bbox.xyxy.x2 - bbox.xyxy.x1;
             let h = bbox.xyxy.y2 - bbox.xyxy.y1;
             let color = BBOX_COLORS[bbox.xyxy.class_id as usize];
-            let text = strlabel(bbox);
+            let text = str_label(&bbox.label,bbox.xyxy.prob);
 
             draw_hollow_rect_mut(
                 img,
@@ -160,3 +143,6 @@ pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prediction
     }
 }
 
+fn str_label(label: &str, prob: f32) -> String {
+    format!("{} {:.2}", label, prob)
+}
