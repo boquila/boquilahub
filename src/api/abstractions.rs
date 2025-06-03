@@ -509,7 +509,7 @@ impl BoundingBoxTrait for XYWH {
 }
 
 // AI model for Image Processing
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, new)]
 pub struct AI {
     pub name: String,
     pub version: f32, // complement tothe name
@@ -523,30 +523,6 @@ pub struct AI {
 }
 
 impl AI {
-    pub fn new(
-        name: String,
-        version: f32,
-        input_width: u32,
-        input_height: u32,
-        description: String,
-        color_code: String,
-        task: String,
-        post_processing: Vec<String>,
-        classes: Vec<String>,
-    ) -> Self {
-        Self {
-            name,
-            version,
-            input_width,
-            input_height,
-            description,
-            color_code,
-            task,
-            post_processing,
-            classes,
-        }
-    }
-
     // The `default` function returns a dummy instance
     pub fn default() -> Self {
         AI::new(
@@ -568,7 +544,7 @@ impl AI {
     }
 }
 
-
+#[derive(new)]
 pub struct PredImg {
     pub file_path: PathBuf,
     pub list_bbox: Vec<XYXYc>,
@@ -576,14 +552,6 @@ pub struct PredImg {
 }
 
 impl PredImg {
-    pub fn new(file_path: PathBuf, list_bbox: Vec<XYXYc>, wasprocessed: bool) -> Self {
-        PredImg {
-            file_path,
-            list_bbox,
-            wasprocessed,
-        }
-    }
-
     // Simple constructor: only file_path is provided
     pub fn new_simple(file_path: PathBuf) -> Self {
         PredImg {
@@ -660,25 +628,25 @@ impl PredImgSugar for Vec<PredImg> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, new)]
 pub struct XYXYc {
     pub xyxy: XYXY,
     pub label: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, new)]
 pub struct XYXYnc {
     pub xyxyn: XYXYn,
     pub label: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, new)]
 pub struct XYWHc {
     pub xywh: XYWH,
     pub label: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, new)]
 pub struct XYWHnc {
     pub xywhn: XYWHn,
     pub label: String,
@@ -686,21 +654,16 @@ pub struct XYWHnc {
 
 // Trait for all bounding boxes with a label string
 pub trait BoundingBoxTraitC<T: BoundingBoxTrait> {
-    fn new(boundingbox: T, label: String) -> Self;
     fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc;
     fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
     fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
     // The string that is used to render a bounding box in an image
-    // "0.92% animal"
+    // "0.92 animal"
     fn strlabel(&self) -> String;
 }
 
 impl BoundingBoxTraitC<XYXY> for XYXYc {
-    fn new(xyxy: XYXY, label: String) -> Self {
-        Self { xyxy, label }
-    }
-
     fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
         self.xyxy.to_xyxyc(w, h, label)
     }
@@ -723,10 +686,6 @@ impl BoundingBoxTraitC<XYXY> for XYXYc {
 }
 
 impl BoundingBoxTraitC<XYXYn> for XYXYnc {
-    fn new(xyxyn: XYXYn, label: String) -> Self {
-        Self { xyxyn, label }
-    }
-
     fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
         self.xyxyn.to_xyxyc(w, h, label)
     }
@@ -749,10 +708,6 @@ impl BoundingBoxTraitC<XYXYn> for XYXYnc {
 }
 
 impl BoundingBoxTraitC<XYWH> for XYWHc {
-    fn new(xywh: XYWH, label: String) -> Self {
-        Self { xywh, label }
-    }
-
     fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
         self.xywh.to_xyxyc(w, h, label)
     }
@@ -775,10 +730,6 @@ impl BoundingBoxTraitC<XYWH> for XYWHc {
 }
 
 impl BoundingBoxTraitC<XYWHn> for XYWHnc {
-    fn new(xywhn: XYWHn, label: String) -> Self {
-        Self { xywhn, label }
-    }
-
     fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
         self.xywhn.to_xyxyc(w, h, label)
     }
