@@ -324,8 +324,8 @@ impl eframe::App for MainApp {
                                     break;
                                 }
 
-                                let path = path.clone();
-                                let bbox = tokio::task::spawn_blocking(move || detect_bbox(&path))
+                                let img = open(path).unwrap().into_rgb8();
+                                let bbox = tokio::task::spawn_blocking(move || detect_bbox_from_imgbuf(&img))
                                     .await
                                     .unwrap();
                                 if tx.send((i, bbox)).is_err() {

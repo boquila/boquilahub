@@ -57,11 +57,6 @@ impl Yolo {
         )
     }
 
-    fn prepare_input_from_buf(&self, buf: &[u8]) -> (Array<f32, Ix4>, u32, u32) {
-        let img = image::load_from_memory(buf).unwrap().into_rgb8();
-        self.prepare_input_from_imgbuf(&img)
-    }
-
     fn prepare_input_from_imgbuf(
         &self,
         img: &ImageBuffer<Rgb<u8>, Vec<u8>>,

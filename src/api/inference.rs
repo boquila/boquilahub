@@ -18,28 +18,17 @@ pub fn init_app() {
 static CURRENT_AI: Lazy<Mutex<Yolo>> = Lazy::new(|| Mutex::new(Yolo::default())); //
 
 fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {
+    let mut builder = Session::builder().unwrap()
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .unwrap();
+
     if ep.name == "CUDA" {
-        let model = Session::builder()
-            .unwrap()
+        builder = builder
             .with_execution_providers([CUDAExecutionProvider::default().build().error_on_failure()])
-            .unwrap()
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .unwrap()
-            .commit_from_memory(&model_data)
             .unwrap();
-
-        return model;
-    } else {
-        let model = Session::builder()
-            .unwrap()
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .unwrap()
-            .commit_from_memory(&model_data)
-            // .with_execution_providers([cuda.build()]).unwrap()
-            .unwrap();
-
-        return model;
     }
+
+    builder.commit_from_memory(model_data).unwrap()
 }
 
 pub fn set_model(value: String, ep: EP) {
@@ -65,17 +54,6 @@ pub fn set_model(value: String, ep: EP) {
 }
 
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
-    match CURRENT_AI.lock().unwrap().run(&img) {
-        AIOutputs::ObjectDetection(boxes) => return boxes,
-        _ => {
-            panic!("Expected ObjectDetection output");
-        }
-    }
-}
-
-pub fn detect_bbox(file_path: &str) -> Vec<XYXYc> {
-    let img = open(file_path).unwrap().into_rgb8();
-
     match CURRENT_AI.lock().unwrap().run(&img) {
         AIOutputs::ObjectDetection(boxes) => return boxes,
         _ => {
