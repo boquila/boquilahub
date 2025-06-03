@@ -122,7 +122,6 @@ impl Yolo {
             if prob < self.confidence_threshold {
                 continue;
             }
-            let label = class_id as u16;
             // XYWHn::new(row[0],row[1],row[0],row[3],prob,label);
             let xc = row[0] / self.input_width as f32 * (img_width as f32);
             let yc = row[1] / self.input_height as f32 * (img_height as f32);
@@ -132,8 +131,7 @@ impl Yolo {
             let x2 = xc + w / 2.0;
             let y1 = yc - h / 2.0;
             let y2 = yc + h / 2.0;
-            let temp = XYXY::new(x1, y1, x2, y2, prob, label);
-            boxes.push(temp);
+            boxes.push(XYXY::new(x1, y1, x2, y2, prob, class_id as u16));
         }
 
         let indices = nms_indices(&boxes, self.nms_threshold);

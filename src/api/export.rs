@@ -46,7 +46,7 @@ pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXY
         ) {
             (Ok(x1), Ok(y1), Ok(x2), Ok(y2), Ok(class_id), Ok(confidence)) => {
                 bboxes.push(XYXYc {
-                    xyxy: XYXY::new(x1, y1, x2, y2, confidence, class_id),
+                    bbox: XYXY::new(x1, y1, x2, y2, confidence, class_id),
                     label: parts[0].to_string(),
                 });
             }
@@ -80,12 +80,12 @@ pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
         content.push_str(&format!(
             "{} {} {} {} {} {} {}\n",
             bbox.label,
-            bbox.xyxy.x1,
-            bbox.xyxy.y1,
-            bbox.xyxy.x2,
-            bbox.xyxy.y2,
-            bbox.xyxy.class_id,
-            bbox.xyxy.prob
+            bbox.bbox.x1,
+            bbox.bbox.y1,
+            bbox.bbox.x2,
+            bbox.bbox.y2,
+            bbox.bbox.class_id,
+            bbox.bbox.prob
         ));
     }
 

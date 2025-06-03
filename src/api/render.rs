@@ -108,21 +108,21 @@ pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prediction
         let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();
 
         for bbox in predictions {
-            let w = bbox.xyxy.x2 - bbox.xyxy.x1;
-            let h = bbox.xyxy.y2 - bbox.xyxy.y1;
-            let color = BBOX_COLORS[bbox.xyxy.class_id as usize];
-            let text = str_label(&bbox.label,bbox.xyxy.prob);
+            let w = bbox.bbox.x2 - bbox.bbox.x1;
+            let h = bbox.bbox.y2 - bbox.bbox.y1;
+            let color = BBOX_COLORS[bbox.bbox.class_id as usize];
+            let text = str_label(&bbox.label,bbox.bbox.prob);
 
             draw_hollow_rect_mut(
                 img,
-                Rect::at(bbox.xyxy.x1 as i32, bbox.xyxy.y1 as i32).of_size(w as u32, h as u32),
+                Rect::at(bbox.bbox.x1 as i32, bbox.bbox.y1 as i32).of_size(w as u32, h as u32),
                 color,
             );
             draw_filled_rect_mut(
                 img,
                 Rect::at(
-                    bbox.xyxy.x1 as i32,
-                    (bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+                    bbox.bbox.x1 as i32,
+                    (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
                 )
                 .of_size(
                     (text.len() as f32 * CHAR_WIDTH) as u32,
@@ -133,8 +133,8 @@ pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prediction
             draw_text_mut(
                 img,
                 WHITE,
-                bbox.xyxy.x1 as i32,
-                (bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+                bbox.bbox.x1 as i32,
+                (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
                 FONT_SCALE,
                 &font,
                 &text,

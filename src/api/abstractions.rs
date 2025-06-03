@@ -53,7 +53,6 @@ pub trait BoundingBoxTrait: Copy {
     fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
     fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
-    fn jsonify(&self) -> String;
 }
 
 /// Bounding box in normalized XYXY format
@@ -219,13 +218,6 @@ impl BoundingBoxTrait for XYXYn {
         let temp = self.to_xywhn(w, h);
         return XYWHnc::new(temp, label);
     }
-
-    fn jsonify(&self) -> String {
-        format!(
-            "{{\"x1\":{},\"y1\":{},\"x2\":{},\"y2\":{},\"class_id\":{},\"prob\":{}}}",
-            self.x1, self.y1, self.x2, self.y2, self.class_id, self.prob
-        )
-    }
 }
 
 impl BoundingBoxTrait for XYXY {
@@ -307,13 +299,6 @@ impl BoundingBoxTrait for XYXY {
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
         let temp = self.to_xywhn(w, h);
         return XYWHnc::new(temp, label);
-    }
-
-    fn jsonify(&self) -> String {
-        format!(
-            "{{\"x1\":{},\"y1\":{},\"x2\":{},\"y2\":{},\"class_id\":{},\"prob\":{}}}",
-            self.x1, self.y1, self.x2, self.y2, self.class_id, self.prob
-        )
     }
 }
 
@@ -409,13 +394,6 @@ impl BoundingBoxTrait for XYWHn {
         let temp = self.to_xywhn(w, h);
         return XYWHnc::new(temp, label);
     }
-
-    fn jsonify(&self) -> String {
-        format!(
-            "{{\"x\":{},\"y\":{},\"w\":{},\"h\":{},\"class_id\":{},\"prob\":{}}}",
-            self.x, self.y, self.w, self.h, self.class_id, self.prob
-        )
-    }
 }
 
 impl BoundingBoxTrait for XYWH {
@@ -498,13 +476,6 @@ impl BoundingBoxTrait for XYWH {
     fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
         let temp = self.to_xywhn(w, h);
         return XYWHnc::new(temp, label);
-    }
-
-    fn jsonify(&self) -> String {
-        format!(
-            "{{\"x\":{},\"y\":{},\"w\":{},\"h\":{},\"class_id\":{},\"prob\":{}}}",
-            self.x, self.y, self.w, self.h, self.class_id, self.prob
-        )
     }
 }
 
@@ -630,25 +601,25 @@ impl PredImgSugar for Vec<PredImg> {
 
 #[derive(Serialize, Deserialize, Clone, Debug, new)]
 pub struct XYXYc {
-    pub xyxy: XYXY,
+    pub bbox: XYXY,
     pub label: String,
 }
 
 #[derive(Serialize, Deserialize, new)]
 pub struct XYXYnc {
-    pub xyxyn: XYXYn,
+    pub bbox: XYXYn,
     pub label: String,
 }
 
 #[derive(Serialize, Deserialize, new)]
 pub struct XYWHc {
-    pub xywh: XYWH,
+    pub bbox: XYWH,
     pub label: String,
 }
 
 #[derive(Serialize, Deserialize, new)]
 pub struct XYWHnc {
-    pub xywhn: XYWHn,
+    pub bbox: XYWHn,
     pub label: String,
 }
 
