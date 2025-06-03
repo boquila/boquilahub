@@ -22,12 +22,14 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-pub async fn run_api() {
+
+pub async fn run_api(port: u16) {
     let app: Router = Router::new()
         .route("/", get(root))
         .route("/upload", post(upload));
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8791").await.unwrap();
+    
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 

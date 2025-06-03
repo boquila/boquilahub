@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use super::abstractions::BoundingBoxTrait;
 use super::abstractions::PredImg;
 use super::abstractions::XYXYc;
 use super::abstractions::XYXY;
@@ -72,41 +71,6 @@ pub fn write_csv2(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> 
     wtr.flush()?;
     Ok(())
 }
-
-// The final implementation should be more like:
-
-// struct PredImg<T: BoundingBoxTrait> {
-//     file_path: String,
-//     list_bbox: Vec<T>,
-// }
-
-// fn write_csv<T: BoundingBoxTrait>(pred_imgs: Vec<PredImg<T>>, output_path: &str) -> io::Result<()> {
-//     // Create a CSV writer.
-//     let mut wtr = Writer::from_path(output_path)?;
-
-//     // Write the header row.
-//     wtr.write_record(&["File Path", "X1", "Y1", "X2", "Y2", "Label", "Confidence"])?;
-
-//     // Write each row for the bounding boxes.
-//     for pred_img in pred_imgs {
-//         for bbox in pred_img.list_bbox {
-//             let coords = bbox.get_coords();
-//             wtr.write_record(&[
-//                 pred_img.file_path.clone(),
-//                 coords.0.to_string(),
-//                 coords.1.to_string(),
-//                 coords.2.to_string(),
-//                 coords.3.to_string(),
-//                 bbox.get_class_id().to_string(),
-//                 bbox.get_prob().to_string(),
-//             ])?;
-//         }
-//     }
-
-//     // Flush the writer to ensure all data is written.
-//     wtr.flush()?;
-//     Ok(())
-// }
 
 pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXYc>> {
     // Create expected filename based on input filepath
