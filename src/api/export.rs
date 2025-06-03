@@ -2,75 +2,9 @@
 use super::abstractions::PredImg;
 use super::abstractions::XYXYc;
 use super::abstractions::XYXY;
-use csv::Writer;
-use csv::WriterBuilder;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
-
-pub fn write_csv(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
-    let mut wtr = Writer::from_path(output_path)?;
-    wtr.write_record(&["File Path", "X1", "Y1", "X2", "Y2", "Label", "Confidence"])?;
-
-    for pred_img in pred_imgs {
-        for bbox in pred_img.list_bbox {
-            wtr.write_record(&[
-                pred_img.file_path.to_string_lossy().into_owned(),
-                bbox.xyxy.x1.to_string(),
-                bbox.xyxy.y1.to_string(),
-                bbox.xyxy.x2.to_string(),
-                bbox.xyxy.y2.to_string(),
-                bbox.xyxy.class_id.to_string(),
-                bbox.xyxy.prob.to_string(),
-            ])?;
-        }
-    }
-
-    wtr.flush()?;
-    Ok(())
-}   
-
-pub fn write_csv2(pred_imgs: Vec<PredImg>, output_path: &str) -> io::Result<()> {
-    let file = File::create(output_path)?;
-    let mut wtr = WriterBuilder::new().has_headers(true).from_writer(file);
-
-    wtr.write_record(&["File Path", "n", "observaciones"])?;
-
-    // Iterate through each predicted image.
-    for pred_img in pred_imgs {
-        // Track unique labels for the current image.
-        let mut labels = HashSet::new();
-        let mut bbox_rows = Vec::new();
-
-        // Process each bounding box in the predicted image.
-        for bbox in pred_img.list_bbox {
-            // Add the bounding box details to the bbox_rows.
-            bbox_rows.push(vec![
-                bbox.xyxy.x1.to_string(),
-                bbox.xyxy.y1.to_string(),
-                bbox.xyxy.x2.to_string(),
-                bbox.xyxy.y2.to_string(),
-                bbox.xyxy.class_id.to_string(),
-                bbox.xyxy.prob.to_string(),
-            ]);
-            // Add the label to the set of unique labels.
-            labels.insert(bbox.xyxy.class_id.to_string());
-        }
-
-        // Write a row for the predicted image, including the count of bounding boxes
-        // and the unique labels.
-        wtr.write_record(&[
-            &pred_img.file_path.to_string_lossy().into_owned(),
-            &bbox_rows.len().to_string(),
-            &labels.into_iter().collect::<Vec<String>>().join(", "),
-        ])?;
-    }
-
-    // Flush and write the CSV.
-    wtr.flush()?;
-    Ok(())
-}
 
 pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXYc>> {
     // Create expected filename based on input filepath

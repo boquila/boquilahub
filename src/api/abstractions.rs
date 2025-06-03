@@ -694,8 +694,3 @@ pub struct Dependency {
     version: f32,
     name: String,
 }
-
-fn detection_label(label: &String, conf: &f32) -> String {
-    let conf = format!("{:.2}", conf);
-    format!("{} {}", label, conf)
-}
