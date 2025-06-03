@@ -1,3 +1,5 @@
+use crate::api::abstractions::strlabel;
+
 use super::abstractions::{BoundingBoxTraitC, XYXYc};
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
@@ -126,7 +128,7 @@ pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prediction
             let w = bbox.xyxy.x2 - bbox.xyxy.x1;
             let h = bbox.xyxy.y2 - bbox.xyxy.y1;
             let color = BBOX_COLORS[bbox.xyxy.class_id as usize];
-            let text = bbox.strlabel();
+            let text = strlabel(bbox);
 
             draw_hollow_rect_mut(
                 img,

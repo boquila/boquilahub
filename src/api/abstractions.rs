@@ -653,32 +653,33 @@ pub struct XYWHnc {
 }
 
 // Trait for all bounding boxes with a label string
-pub trait BoundingBoxTraitC<T: BoundingBoxTrait> {
-    fn strlabel(&self) -> String;
+pub trait BoundingBoxTraitC {
+    fn get_label(&self) -> &str;
+    fn get_prob(&self) -> f32;
 }
 
-impl BoundingBoxTraitC<XYXY> for XYXYc {
-    fn strlabel(&self) -> String {
-        detection_label(&self.label, &self.xyxy.prob)
-    }
+impl BoundingBoxTraitC for XYXYc {
+    fn get_label(&self) -> &str { &self.label }
+    fn get_prob(&self) -> f32 { self.xyxy.prob }
 }
 
-impl BoundingBoxTraitC<XYXYn> for XYXYnc {
-    fn strlabel(&self) -> String {
-        detection_label(&self.label, &self.xyxyn.prob)
-    }
+impl BoundingBoxTraitC for XYXYnc {
+    fn get_label(&self) -> &str { &self.label }
+    fn get_prob(&self) -> f32 { self.xyxyn.prob }
 }
 
-impl BoundingBoxTraitC<XYWH> for XYWHc {
-    fn strlabel(&self) -> String {
-        detection_label(&self.label, &self.xywh.prob)
-    }
+impl BoundingBoxTraitC for XYWHc {
+    fn get_label(&self) -> &str { &self.label }
+    fn get_prob(&self) -> f32 { self.xywh.prob }
 }
 
-impl BoundingBoxTraitC<XYWHn> for XYWHnc {
-    fn strlabel(&self) -> String {
-        detection_label(&self.label, &self.xywhn.prob)
-    }
+impl BoundingBoxTraitC for XYWHnc {
+    fn get_label(&self) -> &str { &self.label }
+    fn get_prob(&self) -> f32 { self.xywhn.prob }
+}
+
+pub fn strlabel<T: BoundingBoxTraitC>(boxes: &T) -> String {
+    format!("{} {:.2}", boxes.get_label(), boxes.get_prob())
 }
 
 pub fn get_ai_by_description(list_ais: &[AI], description: &str) -> AI {
