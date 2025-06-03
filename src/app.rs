@@ -53,6 +53,7 @@ pub struct MainApp {
     save_img_from_strema: bool,
     error_ocurred: bool,
     is_analysis_complete: bool,
+    screen: Screens,
 }
 
 impl MainApp {
@@ -82,6 +83,7 @@ impl MainApp {
             save_img_from_strema: false,
             error_ocurred: false,
             is_analysis_complete: false,
+            screen: Screens::ImgScreen,
         }
     }
 
@@ -271,10 +273,10 @@ impl eframe::App for MainApp {
                     {
                         match FileDialog::new()
                             .add_filter("Video", &VIDEO_FORMATS)
-                            .pick_files()
+                            .pick_file()
                         {
-                            Some(paths) => {
-                                todo!()
+                            Some(path) => {
+                                self.video_file_path = Some(path);
                             }
                             _ => (), // no selection, do nothing
                         }
@@ -325,9 +327,11 @@ impl eframe::App for MainApp {
                                 }
 
                                 let img = open(path).unwrap().into_rgb8();
-                                let bbox = tokio::task::spawn_blocking(move || detect_bbox_from_imgbuf(&img))
-                                    .await
-                                    .unwrap();
+                                let bbox = tokio::task::spawn_blocking(move || {
+                                    detect_bbox_from_imgbuf(&img)
+                                })
+                                .await
+                                .unwrap();
                                 if tx.send((i, bbox)).is_err() {
                                     break;
                                 }
@@ -336,18 +340,18 @@ impl eframe::App for MainApp {
                     }
 
                     if self.is_processing {
-   if ui
-       .add_sized([85.0, 40.0], egui::Button::new("Cancel"))
-       .clicked()
-   {
-       self.should_continue = false;
-       if let Some(cancel_tx) = self.cancel_sender.take() {
-           let _ = cancel_tx.send(());
-       }
-       self.is_processing = false;
-       self.processing_receiver = None;
-   }
-}
+                        if ui
+                            .add_sized([85.0, 40.0], egui::Button::new("Cancel"))
+                            .clicked()
+                        {
+                            self.should_continue = false;
+                            if let Some(cancel_tx) = self.cancel_sender.take() {
+                                let _ = cancel_tx.send(());
+                            }
+                            self.is_processing = false;
+                            self.processing_receiver = None;
+                        }
+                    }
                 });
 
                 // Handle results
@@ -395,31 +399,54 @@ impl eframe::App for MainApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // ui.image("https://i.pinimg.com/736x/a3/f5/d9/a3f5d95d519315eb158c867d7121dd3a.jpg");
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.style_mut().spacing.slider_width = 300.0;
-                if self.selected_files.len() > 1 {
-                    let response = ui.add(
-                        egui::Slider::new(&mut self.image_texture_n, 1..=self.selected_files.len())
-                            .text(""),
-                    );
-                    if response.changed() {
-                        self.paint(ctx, self.image_texture_n - 1);
-                    }
+            let cond1 = self.selected_files.len() >= 1;
+            let cond2 = self.video_file_path.is_some();
+            let cond3  = self.feed_url.is_some();
+            ui.horizontal(|ui| {
+                if cond1 && (cond2 || cond3) {
+                    ui.selectable_value(&mut self.screen, Screens::ImgScreen, "Images processing");
                 }
-
-                // If any textuure has been defined, we render it
-                match &self.screen_texture {
-                    Some(texture) => {
-                        ui.add(
-                            egui::Image::new(texture)
-                                .max_height(800.0)
-                                .corner_radius(10.0),
-                        );
-                    }
-                    None => {}
+                if cond2 && (cond1 || cond3) {
+                    ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Video processing");
+                }
+                if cond3 && (cond1 || cond2) {
+                    ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Feed processing");
                 }
             });
+            ui.separator();
+            match self.screen {
+                Screens::ImgScreen => {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.style_mut().spacing.slider_width = 300.0;
+                        if self.selected_files.len() > 1 {
+                            let response = ui.add(
+                                egui::Slider::new(
+                                    &mut self.image_texture_n,
+                                    1..=self.selected_files.len(),
+                                )
+                                .text(""),
+                            );
+                            if response.changed() {
+                                self.paint(ctx, self.image_texture_n - 1);
+                            }
+                        }
+
+                        // If any textuure has been defined, we render it
+                        match &self.screen_texture {
+                            Some(texture) => {
+                                ui.add(
+                                    egui::Image::new(texture)
+                                        .max_height(800.0)
+                                        .corner_radius(10.0),
+                                );
+                            }
+                            None => {}
+                        }
+                    });
+                }
+                Screens::VideoScreen => {}
+                Screens::FeedScreen => {}
+            }
         });
     }
 }
@@ -440,4 +467,11 @@ fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
     };
 
     ctx.load_texture("current_img", image_data, TextureOptions::default())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Screens {
+    ImgScreen,
+    VideoScreen,
+    FeedScreen,
 }
