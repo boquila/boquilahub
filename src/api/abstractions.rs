@@ -1,10 +1,10 @@
 // The idea is to have the core funcionality that will alow us to do everything we need in the app
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
-use std::path::PathBuf;
 use derive_new::new;
 use image::DynamicImage;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
@@ -654,98 +654,28 @@ pub struct XYWHnc {
 
 // Trait for all bounding boxes with a label string
 pub trait BoundingBoxTraitC<T: BoundingBoxTrait> {
-    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc;
-    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc;
-    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc;
-    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc;
-    // The string that is used to render a bounding box in an image
-    // "0.92 animal"
     fn strlabel(&self) -> String;
 }
 
 impl BoundingBoxTraitC<XYXY> for XYXYc {
-    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
-        self.xyxy.to_xyxyc(w, h, label)
-    }
-
-    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
-        self.xyxy.to_xyxync(w, h, label)
-    }
-
-    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
-        self.xyxy.to_xywhc(w, h, label)
-    }
-
-    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
-        self.xyxy.to_xywhnc(w, h, label)
-    }
-
     fn strlabel(&self) -> String {
         detection_label(&self.label, &self.xyxy.prob)
     }
 }
 
 impl BoundingBoxTraitC<XYXYn> for XYXYnc {
-    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
-        self.xyxyn.to_xyxyc(w, h, label)
-    }
-
-    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
-        self.xyxyn.to_xyxync(w, h, label)
-    }
-
-    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
-        self.xyxyn.to_xywhc(w, h, label)
-    }
-
-    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
-        self.xyxyn.to_xywhnc(w, h, label)
-    }
-
     fn strlabel(&self) -> String {
         detection_label(&self.label, &self.xyxyn.prob)
     }
 }
 
 impl BoundingBoxTraitC<XYWH> for XYWHc {
-    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
-        self.xywh.to_xyxyc(w, h, label)
-    }
-
-    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
-        self.xywh.to_xyxync(w, h, label)
-    }
-
-    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
-        self.xywh.to_xywhc(w, h, label)
-    }
-
-    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
-        self.xywh.to_xywhnc(w, h, label)
-    }
-
     fn strlabel(&self) -> String {
         detection_label(&self.label, &self.xywh.prob)
     }
 }
 
 impl BoundingBoxTraitC<XYWHn> for XYWHnc {
-    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
-        self.xywhn.to_xyxyc(w, h, label)
-    }
-
-    fn to_xyxync(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYnc {
-        self.xywhn.to_xyxync(w, h, label)
-    }
-
-    fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
-        self.xywhn.to_xywhc(w, h, label)
-    }
-
-    fn to_xywhnc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHnc {
-        self.xywhn.to_xywhnc(w, h, label)
-    }
-
     fn strlabel(&self) -> String {
         detection_label(&self.label, &self.xywhn.prob)
     }

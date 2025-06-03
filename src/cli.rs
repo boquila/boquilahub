@@ -81,6 +81,6 @@ const ASCII_ART: &'static str = r#"
 |_______/  \______/  \____  $$ \______/ |__/|__/ \_______/|__/  |__/ \______/ |_______/ 
                           | $$                                                          
                           | $$                                                          
-                          |__/                                      AI for Biodiversity                             
+                          |__/                                      AI for Biodiversity
 
     "#;
