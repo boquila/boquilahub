@@ -29,6 +29,7 @@ Right now, only object detection AIs are supported.
 | Windows          | ✅ |
 | Linux          | On the way |
 | Android          | On the way |
+| Web        | On the way |
 | MacOS          | Not soon |
 | iOS          | Not soon |
 
