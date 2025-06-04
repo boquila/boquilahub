@@ -10,6 +10,7 @@ use crate::api::inference::*;
 use api::import::IMAGE_FORMATS;
 use api::import::VIDEO_FORMATS;
 use egui::{ColorImage, TextureHandle, TextureOptions};
+use ffmpeg_next::codec::video;
 use image::open;
 use rfd::FileDialog;
 use std::fs::{self};
@@ -402,18 +403,25 @@ impl eframe::App for MainApp {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = self.video_file_path.is_some();
             let cond3  = self.feed_url.is_some();
+            let img_mode = cond1 && (cond2 || cond3);
+            let video_mode =  cond2 && (cond1 || cond3);
+            let feed_mode = cond3 && (cond1 || cond2) ;
+
             ui.horizontal(|ui| {
-                if cond1 && (cond2 || cond3) {
+                if img_mode {
                     ui.selectable_value(&mut self.screen, Screens::ImgScreen, "Images processing");
                 }
-                if cond2 && (cond1 || cond3) {
+                if video_mode {
                     ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Video processing");
                 }
-                if cond3 && (cond1 || cond2) {
+                if feed_mode {
                     ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Feed processing");
                 }
             });
+
+            if img_mode || video_mode || feed_mode {            
             ui.separator();
+        }
             match self.screen {
                 Screens::ImgScreen => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
