@@ -40,7 +40,7 @@ pub fn set_model(value: String, ep: EP) {
         model_metadata.description,
         model_metadata.version,
         model_metadata.classes,
-        model_metadata.input_height,
+        model_metadata.input_width,
         model_metadata.input_height,
         0.45,
         0.5,
