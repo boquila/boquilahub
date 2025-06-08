@@ -33,7 +33,7 @@ pub struct MainApp {
     feed_frame: Option<TextureHandle>,
 
     // usize fields (8 bytes on 64-bit)
-    ai_selected: usize,
+    ai_selected: Option<usize>,
     ep_selected: usize,
     image_texture_n: usize,
 
@@ -70,7 +70,7 @@ impl MainApp {
             screen_texture: None,
             video_frame: None,
             feed_frame: None,
-            ai_selected: 0,
+            ai_selected: None,
             ep_selected: 0,
             image_texture_n: 1, // this starts at 1
             step_frame: None,
@@ -140,19 +140,24 @@ impl eframe::App for MainApp {
             let previous_ai = self.ai_selected;
             // AI Selection Widget
             egui::ComboBox::from_id_salt("AI")
-                .selected_text(&self.ais[self.ai_selected].name)
+                .selected_text(match self.ai_selected {
+                    Some(i) => &self.ais[i].name,
+                    None => "",
+                })
                 .show_ui(ui, |ui| {
                     for (i, ai) in self.ais.iter().enumerate() {
-                        ui.selectable_value(&mut self.ai_selected, i, &ai.name)
+                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
                             .on_hover_text(&ai.classes.join(", "));
                     }
                 });
 
             if self.ai_selected != previous_ai {
-                set_model(
-                    &self.ais[self.ai_selected].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
+                if self.ai_selected.is_some() {
+                    set_model(
+                        &self.ais[self.ai_selected.unwrap()].get_path(),
+                        &LIST_EPS[self.ep_selected],
+                    );
+                }
             }
 
             ui.add_space(8.0);
@@ -175,7 +180,7 @@ impl eframe::App for MainApp {
 
             if self.ep_selected != previous_ep {
                 set_model(
-                    &self.ais[self.ai_selected].get_path(),
+                    &self.ais[self.ai_selected.unwrap()].get_path(),
                     &LIST_EPS[self.ep_selected],
                 );
             }
