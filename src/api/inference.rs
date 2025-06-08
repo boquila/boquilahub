@@ -53,6 +53,7 @@ pub fn set_model(value: String, ep: EP) {
     *CURRENT_AI.lock().unwrap() = aimodel;
 }
 
+#[inline(always)]
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
     match CURRENT_AI.lock().unwrap().run(&img) {
         AIOutputs::ObjectDetection(boxes) => return boxes,

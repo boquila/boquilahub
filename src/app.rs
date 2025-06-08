@@ -137,6 +137,7 @@ impl eframe::App for MainApp {
 
             ui.label(self.t(Key::select_ai));
 
+            let previous_selection = self.ai_selected;
             // AI Selection Widget
             egui::ComboBox::from_id_salt("AI")
                 .selected_text(&self.ais[self.ai_selected].name)
@@ -146,6 +147,13 @@ impl eframe::App for MainApp {
                             .on_hover_text(&ai.classes.join(", "));
                     }
                 });
+
+            if self.ai_selected != previous_selection {
+                println!(
+                    "AI selection changed from {} to {}: {}",
+                    previous_selection, self.ai_selected, &self.ais[self.ai_selected].name
+                );
+            }
 
             ui.add_space(8.0);
 
@@ -402,10 +410,10 @@ impl eframe::App for MainApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = self.video_file_path.is_some();
-            let cond3  = self.feed_url.is_some();
+            let cond3 = self.feed_url.is_some();
             let img_mode = cond1 && (cond2 || cond3);
-            let video_mode =  cond2 && (cond1 || cond3);
-            let feed_mode = cond3 && (cond1 || cond2) ;
+            let video_mode = cond2 && (cond1 || cond3);
+            let feed_mode = cond3 && (cond1 || cond2);
 
             ui.horizontal(|ui| {
                 if img_mode {
@@ -415,13 +423,13 @@ impl eframe::App for MainApp {
                     ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Video processing");
                 }
                 if feed_mode {
-                    ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Feed processing");
+                    ui.selectable_value(&mut self.screen, Screens::FeedScreen, "Feed processing");
                 }
             });
 
-            if img_mode || video_mode || feed_mode {            
-            ui.separator();
-        }
+            if img_mode || video_mode || feed_mode {
+                ui.separator();
+            }
             match self.screen {
                 Screens::ImgScreen => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
