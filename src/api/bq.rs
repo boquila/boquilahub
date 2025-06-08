@@ -52,37 +52,37 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
 
 pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
     let mut file = File::open(file_path)?;
-    let mut file_content = Vec::new();
-    file.read_to_end(&mut file_content)?;
-
+    
+    // Read header (magic + version + length)
+    let mut header = [0u8; 12];
+    file.read_exact(&mut header)?;
+    
     // Validate magic string
-    if &file_content[..7] != b"BQMODEL" {
+    if &header[..7] != b"BQMODEL" {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Invalid file format",
         ));
     }
-
-    // Read version
-    let version = file_content[7];
-    if version != 1 {
+    
+    // Check version
+    if header[7] != 1 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Unsupported version",
         ));
     }
-
-    // Read JSON section length
-    let json_length = u32::from_le_bytes(file_content[8..12].try_into().unwrap()) as usize;
-
-    // Extract JSON section
-    let json_start = 12;
-    let json_end = json_start + json_length;
-    let json_data = &file_content[json_start..json_end];
-    let json_str = String::from_utf8(json_data.to_vec())
+    
+    // Get JSON length
+    let json_length = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
+    
+    // Read only the JSON section
+    let mut json_data = vec![0u8; json_length];
+    file.read_exact(&mut json_data)?;
+    
+    let json_str = String::from_utf8(json_data)
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse JSON"))?;
-
-    // Deserialize JSON into AI
+    
     serde_json::from_str(&json_str)
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to deserialize JSON"))
 }

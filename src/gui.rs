@@ -71,7 +71,7 @@ impl MainApp {
             video_frame: None,
             feed_frame: None,
             ai_selected: None,
-            ep_selected: 0,
+            ep_selected: 0, // CPU is the default
             image_texture_n: 1, // this starts at 1
             step_frame: None,
             total_frames: None,
