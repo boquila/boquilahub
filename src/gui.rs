@@ -151,7 +151,7 @@ impl eframe::App for MainApp {
             if self.ai_selected != previous_ai {
                 set_model(
                     &self.ais[self.ai_selected].get_path(),
-                    LIST_EPS[self.ep_selected].clone(),
+                    &LIST_EPS[self.ep_selected],
                 );
             }
 
@@ -176,7 +176,7 @@ impl eframe::App for MainApp {
             if self.ep_selected != previous_ep {
                 set_model(
                     &self.ais[self.ai_selected].get_path(),
-                    LIST_EPS[self.ep_selected].clone(),
+                    &LIST_EPS[self.ep_selected],
                 );
             }
 

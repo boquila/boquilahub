@@ -17,7 +17,7 @@ pub fn init_app() {
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: Lazy<Mutex<Yolo>> = Lazy::new(|| Mutex::new(Yolo::default())); //
 
-fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {
+fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
     let mut builder = Session::builder().unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap();
@@ -31,7 +31,7 @@ fn import_model(model_data: &Vec<u8>, ep: EP) -> Session {
     builder.commit_from_memory(model_data).unwrap()
 }
 
-pub fn set_model(value: &String, ep: EP) {
+pub fn set_model(value: &String, ep: &EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
 
     let len = model_metadata.classes.len() as u32;
