@@ -58,7 +58,7 @@ pub async fn run_cli() {
             );
         }
 
-        set_model(model_path, LIST_EPS[1].clone());
+        set_model(&model_path, LIST_EPS[1].clone());
         run_api(port).await;
         // CLI mode
 

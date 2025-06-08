@@ -59,7 +59,7 @@ pub struct MainApp {
 
 impl MainApp {
     pub fn new() -> Self {
-        set_model("models/boquilanet-gen.bq".to_owned(), LIST_EPS[1].clone());
+        // set_model("models/boquilanet-gen.bq".to_owned(), LIST_EPS[1].clone());
         Self {
             ais: get_bqs(),
             selected_files: Vec::new(),
@@ -137,7 +137,7 @@ impl eframe::App for MainApp {
 
             ui.label(self.t(Key::select_ai));
 
-            let previous_selection = self.ai_selected;
+            let previous_ai = self.ai_selected;
             // AI Selection Widget
             egui::ComboBox::from_id_salt("AI")
                 .selected_text(&self.ais[self.ai_selected].name)
@@ -148,24 +148,37 @@ impl eframe::App for MainApp {
                     }
                 });
 
-            if self.ai_selected != previous_selection {
-                println!(
-                    "AI selection changed from {} to {}: {}",
-                    previous_selection, self.ai_selected, &self.ais[self.ai_selected].name
+            if self.ai_selected != previous_ai {
+                set_model(
+                    &self.ais[self.ai_selected].get_path(),
+                    LIST_EPS[self.ep_selected].clone(),
                 );
             }
 
             ui.add_space(8.0);
 
             // EP Selection Widget
-            let ep_alternatives = ["CPU", "CUDA", "Remote BoquilaHUB"];
             ui.label(self.t(Key::select_ep));
-            egui::ComboBox::from_id_salt("EP").show_index(
-                ui,
-                &mut self.ep_selected,
-                ep_alternatives.len(),
-                |i| ep_alternatives[i],
-            );
+
+            let previous_ep = self.ep_selected;
+            egui::ComboBox::from_id_salt("EP")
+                .selected_text(LIST_EPS[self.ep_selected].name)
+                .show_ui(ui, |ui| {
+                    for (i, ep) in LIST_EPS.iter().enumerate() {
+                        ui.selectable_value(&mut self.ep_selected, i, ep.name)
+                            .on_hover_text(format!(
+                                "Version: {:.1}, Local: {}, Dependencies: {}",
+                                ep.version, ep.local, ep.dependencies
+                            ));
+                    }
+                });
+
+            if self.ep_selected != previous_ep {
+                set_model(
+                    &self.ais[self.ai_selected].get_path(),
+                    LIST_EPS[self.ep_selected].clone(),
+                );
+            }
 
             ui.add_space(8.0);
             ui.label("API ");
