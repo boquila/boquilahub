@@ -138,7 +138,6 @@ impl eframe::App for MainApp {
                 ui.menu_button(self.t(Key::about), |ui| {
                     ui.hyperlink_to(self.t(Key::website), self.t(Key::website_url));
                     ui.hyperlink_to(self.t(Key::donate), self.t(Key::donate_url));
-                    ui.hyperlink_to(self.t(Key::model_hub), self.t(Key::model_hub_url));
                     ui.hyperlink_to(
                         self.t(Key::source_code),
                         "https://github.com/boquila/boquilahub/",
