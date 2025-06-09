@@ -39,7 +39,7 @@ derive-new = "0.7.0"
 [profile.release]
 lto = "fat"
 strip = true
-codegen-units = 2
+codegen-units = 1
 
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]

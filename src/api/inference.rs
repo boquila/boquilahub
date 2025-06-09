@@ -24,7 +24,7 @@ fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 
     if ep.name == "CUDA" {
         builder = builder
-            .with_execution_providers([CUDAExecutionProvider::default().build().error_on_failure()])
+            .with_execution_providers([CUDAExecutionProvider::default().build()])
             .unwrap();
     }
 

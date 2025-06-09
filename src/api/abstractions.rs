@@ -623,14 +623,6 @@ pub struct XYWHnc {
     pub label: String,
 }
 
-pub fn get_ai_by_description(list_ais: &[AI], description: &str) -> AI {
-    list_ais
-        .iter()
-        .find(|ai| ai.name == description)
-        .unwrap()
-        .clone()
-}
-
 pub struct Dependency {
     version: f32,
     name: String,

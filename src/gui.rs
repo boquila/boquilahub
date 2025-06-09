@@ -1,16 +1,10 @@
 use super::localization::*;
 use crate::api;
-use crate::api::abstractions::PredImg;
-use crate::api::abstractions::PredImgSugar;
-use crate::api::abstractions::XYXYc;
-use crate::api::abstractions::AI;
+use crate::api::abstractions::*;
 use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
 use crate::api::inference::*;
-use api::import::IMAGE_FORMATS;
-use api::import::VIDEO_FORMATS;
-use egui::Color32;
-use egui::RichText;
+use api::import::*;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use ffmpeg_next::codec::video;
 use image::open;
@@ -59,7 +53,14 @@ pub struct MainApp {
     save_img_from_strema: bool,
     error_ocurred: bool,
     is_analysis_complete: bool,
-    screen: Screens,
+
+    // what it can do
+    img_mode: bool,
+    video_mode: bool,
+    feed_mode: bool,
+
+    // the active mode
+    mode: Mode,
 }
 
 impl MainApp {
@@ -91,7 +92,10 @@ impl MainApp {
             save_img_from_strema: false,
             error_ocurred: false,
             is_analysis_complete: false,
-            screen: Screens::ImgScreen,
+            img_mode: false,
+            video_mode: false,
+            feed_mode: false,
+            mode: Mode::Image,
         }
     }
 
@@ -107,6 +111,10 @@ impl MainApp {
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
         self.screen_texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
     }
+
+    pub fn any_mode(&self) -> bool {
+        self.img_mode || self.video_mode || self.feed_mode
+    }
 }
 
 impl eframe::App for MainApp {
@@ -116,12 +124,19 @@ impl eframe::App for MainApp {
         // For inspiration and more examples, go to https://emilk.github.io/egui
         egui_extras::install_image_loaders(ctx);
 
+        let cond1 = self.selected_files.len() >= 1;
+        let cond2 = self.video_file_path.is_some();
+        let cond3 = self.feed_url.is_some();
+        self.img_mode = cond1 && (cond2 || cond3);
+        self.video_mode = cond2 && (cond1 || cond3);
+        self.feed_mode = cond3 && (cond1 || cond2);
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
             egui::menu::bar(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
-                    ui.hyperlink_to("Website", "https://boquila.org/en");
+                    ui.hyperlink_to(self.t(Key::website), "https://boquila.org/en");
                     ui.hyperlink_to(self.t(Key::donate), "https://boquila.org/donate");
                     ui.hyperlink_to(
                         self.t(Key::source_code),
@@ -129,7 +144,7 @@ impl eframe::App for MainApp {
                     );
                 });
                 ui.menu_button(self.t(Key::models), |ui| {
-                    ui.hyperlink_to("Model HUB", "https://boquila.org/hub");
+                    ui.hyperlink_to(self.t(Key::model_hub), "https://boquila.org/hub");
                 });
 
                 ui.menu_button(self.t(Key::idiom), |ui| {
@@ -271,11 +286,10 @@ impl eframe::App for MainApp {
                                                 .collect();
 
                                             self.paint(ctx, 0);
-
-                                            // self.selected_files = image_files;
+                                            self.mode = Mode::Image;
                                         }
                                     }
-                                    Err(e) => {
+                                    Err(_e) => {
                                         self.error_ocurred = true;
                                     }
                                 }
@@ -298,7 +312,8 @@ impl eframe::App for MainApp {
                                     .into_iter()
                                     .map(|path| PredImg::new_simple(path))
                                     .collect();
-                                self.paint(ctx, 0)
+                                self.paint(ctx, 0);
+                                self.mode = Mode::Image;
                             }
                             _ => (), // no selection, do nothing
                         }
@@ -316,6 +331,7 @@ impl eframe::App for MainApp {
                         {
                             Some(path) => {
                                 self.video_file_path = Some(path);
+                                self.mode = Mode::Video;
                             }
                             _ => (), // no selection, do nothing
                         }
@@ -326,11 +342,12 @@ impl eframe::App for MainApp {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::camera_feed)))
                         .clicked()
                     {
-                        // Camera feed logic here
+                        self.feed_url = Some("test".to_owned());
+                        self.mode = Mode::Feed;
                     }
                 });
 
-            if self.selected_files.len() > 0 {
+            if self.any_mode() && self.ai_selected.is_some() {
                 ui.separator();
                 ui.vertical_centered(|ui| {
                     ui.heading(format!("📋 {}", self.t(Key::analysis)));
@@ -450,30 +467,27 @@ impl eframe::App for MainApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let cond1 = self.selected_files.len() >= 1;
-            let cond2 = self.video_file_path.is_some();
-            let cond3 = self.feed_url.is_some();
-            let img_mode = cond1 && (cond2 || cond3);
-            let video_mode = cond2 && (cond1 || cond3);
-            let feed_mode = cond3 && (cond1 || cond2);
-
             ui.horizontal(|ui| {
-                if img_mode {
-                    ui.selectable_value(&mut self.screen, Screens::ImgScreen, "Images processing");
+                if self.img_mode {
+                    let text = self.t(Key::image_processing);
+                    ui.selectable_value(&mut self.mode, Mode::Image, text);
                 }
-                if video_mode {
-                    ui.selectable_value(&mut self.screen, Screens::VideoScreen, "Video processing");
+                if self.video_mode {
+                    let text = self.t(Key::video_processing);
+                    ui.selectable_value(&mut self.mode, Mode::Video, text);
                 }
-                if feed_mode {
-                    ui.selectable_value(&mut self.screen, Screens::FeedScreen, "Feed processing");
+                if self.feed_mode {
+                    let text = self.t(Key::feed_processing);
+                    ui.selectable_value(&mut self.mode, Mode::Feed, text);
+
                 }
             });
 
-            if img_mode || video_mode || feed_mode {
+            if self.any_mode() {
                 ui.separator();
             }
-            match self.screen {
-                Screens::ImgScreen => {
+            match self.mode {
+                Mode::Image => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.style_mut().spacing.slider_width = 300.0;
                         if self.selected_files.len() > 1 {
@@ -502,8 +516,12 @@ impl eframe::App for MainApp {
                         }
                     });
                 }
-                Screens::VideoScreen => {}
-                Screens::FeedScreen => {}
+                Mode::Video => {
+                    todo!()
+                }
+                Mode::Feed => {
+                    todo!()
+                }
             }
         });
     }
@@ -528,8 +546,8 @@ fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Screens {
-    ImgScreen,
-    VideoScreen,
-    FeedScreen,
+enum Mode {
+    Image,
+    Video,
+    Feed,
 }
