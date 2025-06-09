@@ -145,6 +145,10 @@ impl eframe::App for MainApp {
                     );
                 });
 
+                ui.menu_button(self.t(Key::models), |ui| {
+                    ui.hyperlink_to(self.t(Key::model_hub), self.t(Key::model_hub_url));
+                });
+
                 ui.menu_button(self.t(Key::idiom), |ui| {
                     ui.radio_value(&mut self.lang, Lang::EN, "English");
                     ui.radio_value(&mut self.lang, Lang::ES, "Español");
