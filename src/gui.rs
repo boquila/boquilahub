@@ -9,6 +9,8 @@ use crate::api::eps::LIST_EPS;
 use crate::api::inference::*;
 use api::import::IMAGE_FORMATS;
 use api::import::VIDEO_FORMATS;
+use egui::Color32;
+use egui::RichText;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use ffmpeg_next::codec::video;
 use image::open;
@@ -16,7 +18,7 @@ use rfd::FileDialog;
 use std::fs::{self};
 use std::path::PathBuf;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub struct MainApp {
     // Large types first (Vec, Option<PathBuf>, Option<String>)
@@ -41,6 +43,9 @@ pub struct MainApp {
     step_frame: Option<usize>,
     total_frames: Option<usize>,
     current_frame: Option<usize>,
+
+    is_done: bool,
+    done_time: Option<Instant>,
 
     progress_bar: f32,
 
@@ -71,11 +76,13 @@ impl MainApp {
             video_frame: None,
             feed_frame: None,
             ai_selected: None,
-            ep_selected: 0, // CPU is the default
+            ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
             step_frame: None,
             total_frames: None,
             current_frame: None,
+            is_done: false,
+            done_time: None,
             progress_bar: 0.0,
             lang: Lang::EN,
             isapi_deployed: false,
@@ -86,6 +93,11 @@ impl MainApp {
             is_analysis_complete: false,
             screen: Screens::ImgScreen,
         }
+    }
+
+    pub fn process_done(&mut self) {
+        self.is_done = true;
+        self.done_time = Some(Instant::now());
     }
 
     pub fn t(&self, key: Key) -> &'static str {
@@ -368,7 +380,7 @@ impl eframe::App for MainApp {
 
                     if self.is_processing {
                         if ui
-                            .add_sized([85.0, 40.0], egui::Button::new("Cancel"))
+                            .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                             .clicked()
                         {
                             self.should_continue = false;
@@ -420,8 +432,20 @@ impl eframe::App for MainApp {
                         .clicked()
                     {
                         // EXPORT logic
+                        self.process_done();
                     }
                 });
+
+                if let Some(done_time) = self.done_time {
+                    if done_time.elapsed().as_secs_f32() < 3.0 {
+                        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                            ui.label(self.t(Key::done));
+                        });
+                        ctx.request_repaint();
+                    } else {
+                        self.done_time = None;
+                    }
+                }
             }
         });
 

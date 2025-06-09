@@ -25,6 +25,10 @@ pub enum Key {
     analyze,
     export,
     analysis,
+    cancel,
+    process_completed,
+    done,
+    error_ocurred,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -100,6 +104,22 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::analysis => match lang {
             Lang::EN => "Analysis",
             Lang::ES => "Análisis",
+        }
+        Key::cancel => match lang {
+            Lang::EN => "Cancel",
+            Lang::ES => "Cancelar",
+        }
+        Key::process_completed => match lang {
+            Lang::EN => "Process completed",
+            Lang::ES => "Proceso completado",
+        }
+        Key::done => match lang {
+            Lang::EN => "✅ Done",
+            Lang::ES => "✅ Listo",
+        }
+        Key::error_ocurred => match lang {
+            Lang::EN => "Error ocurred",
+            Lang::ES => "Ocurrió un error",
         }
     }
 }
