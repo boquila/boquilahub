@@ -4,7 +4,6 @@ pub enum Lang {
     ES,
 }
 
-#[derive(Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub enum Key {
     select_ai,
@@ -35,6 +34,9 @@ pub enum Key {
     image_processing,
     video_processing,
     feed_processing,
+    model_hub_url,
+    donate_url,
+    website_url,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -149,6 +151,19 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::feed_processing => match lang {
             Lang::EN => "Feed processing",
             Lang::ES => "Procesamiento en vivo",
+        },
+        // check boquila.org to see all available languages, there's quite a few
+        Key::model_hub_url => match lang {
+            Lang::EN => "https://boquila.org/hub",
+            Lang::ES => "https://boquila.org/es/hub",
+        },        
+        Key::website_url => match lang {
+            Lang::EN => "https://boquila.org/en",
+            Lang::ES => "https://boquila.org/",
+        },        
+        Key::donate_url => match lang {
+            Lang::EN => "https://boquila.org/donate",
+            Lang::ES => "https://boquila.org/donar",
         },
     }
 }

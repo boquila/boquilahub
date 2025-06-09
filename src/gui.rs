@@ -136,15 +136,13 @@ impl eframe::App for MainApp {
 
             egui::menu::bar(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
-                    ui.hyperlink_to(self.t(Key::website), "https://boquila.org/en");
-                    ui.hyperlink_to(self.t(Key::donate), "https://boquila.org/donate");
+                    ui.hyperlink_to(self.t(Key::website), self.t(Key::website_url));
+                    ui.hyperlink_to(self.t(Key::donate), self.t(Key::donate_url));
+                    ui.hyperlink_to(self.t(Key::model_hub), self.t(Key::model_hub_url));
                     ui.hyperlink_to(
                         self.t(Key::source_code),
                         "https://github.com/boquila/boquilahub/",
                     );
-                });
-                ui.menu_button(self.t(Key::models), |ui| {
-                    ui.hyperlink_to(self.t(Key::model_hub), "https://boquila.org/hub");
                 });
 
                 ui.menu_button(self.t(Key::idiom), |ui| {
@@ -545,7 +543,7 @@ fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
     ctx.load_texture("current_img", image_data, TextureOptions::default())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(PartialEq)]
 enum Mode {
     Image,
     Video,
