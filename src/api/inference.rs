@@ -3,11 +3,11 @@ use super::abstractions::{XYXYc, AI};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{AIOutputs, Task, Yolo};
+use egui::mutex::RwLock;
 use image::{open, ImageBuffer, Rgb};
 use once_cell::sync::Lazy;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
-use std::sync::Mutex;
 
 pub fn init_app() {
     std::fs::create_dir_all("output_feed").unwrap();
@@ -15,7 +15,7 @@ pub fn init_app() {
 }
 
 // Lazily initialized global variables for the MODEL
-static CURRENT_AI: Lazy<Mutex<Yolo>> = Lazy::new(|| Mutex::new(Yolo::default())); //
+static CURRENT_AI: Lazy<RwLock<Yolo>> = Lazy::new(|| RwLock::new(Yolo::default())); //
 
 fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
     let mut builder = Session::builder().unwrap()
@@ -50,12 +50,12 @@ pub fn set_model(value: &String, ep: &EP) {
         import_model(&data, ep),
     );
 
-    *CURRENT_AI.lock().unwrap() = aimodel;
+    *CURRENT_AI.write() = aimodel;
 }
 
 #[inline(always)]
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
-    match CURRENT_AI.lock().unwrap().run(&img) {
+    match CURRENT_AI.read().run(&img) {
         AIOutputs::ObjectDetection(boxes) => return boxes,
         _ => {
             panic!("Expected ObjectDetection output");

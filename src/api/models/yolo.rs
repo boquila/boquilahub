@@ -83,7 +83,7 @@ impl Yolo {
         (input, img_width, img_height)
     }
 
-    fn run_detect(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
+    fn inference(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
         let outputs = self
             .session
             .run(inputs!["images" => input.view()].unwrap())
@@ -148,7 +148,7 @@ impl Yolo {
         let (input, img_width, img_height) = self.prepare_input_from_imgbuf(img);
         match self.task {
             Task::Detect => {
-                let output = self.run_detect(&input);
+                let output = self.inference(&input);
                 let boxes = self.process_detect_output(&output, img_width, img_height);
                 return AIOutputs::ObjectDetection(boxes);
             }
