@@ -4,7 +4,7 @@ use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{AIOutputs, Task, Yolo};
 use egui::mutex::RwLock;
-use image::{open, ImageBuffer, Rgb};
+use image::{ImageBuffer, Rgb};
 use once_cell::sync::Lazy;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};

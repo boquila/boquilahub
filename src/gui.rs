@@ -233,12 +233,10 @@ impl eframe::App for MainApp {
             });
             ui.separator();
 
-            // File selection logic
-
-            // Option 1: Grid layout with consistent sizing and spacing
             ui.spacing_mut().button_padding = egui::vec2(12.0, 8.0);
             ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
 
+            // Data Selection Widget
             egui::Grid::new("file_selection_grid")
                 .num_columns(2)
                 .spacing([10.0, 10.0])
@@ -352,7 +350,7 @@ impl eframe::App for MainApp {
                 });
                 ui.separator();
 
-                // ANALYZE BUTTON SECTION
+                // Analyze button Widget
                 ui.vertical_centered(|ui| {
                     if ui
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
@@ -441,15 +439,18 @@ impl eframe::App for MainApp {
 
                 ui.add_space(8.0);
 
-                ui.vertical_centered(|ui| {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
-                        .clicked()
-                    {
-                        // EXPORT logic
-                        self.process_done();
-                    }
-                });
+                // Export button Widget
+                if self.mode == Mode::Image {
+                    ui.vertical_centered(|ui| {
+                        if ui
+                            .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
+                            .clicked()
+                        {
+                            // EXPORT logic
+                            self.process_done();
+                        }
+                    });
+                }
 
                 if let Some(done_time) = self.done_time {
                     if done_time.elapsed().as_secs_f32() < 3.0 {
@@ -477,7 +478,6 @@ impl eframe::App for MainApp {
                 if self.feed_mode {
                     let text = self.t(Key::feed_processing);
                     ui.selectable_value(&mut self.mode, Mode::Feed, text);
-
                 }
             });
 
