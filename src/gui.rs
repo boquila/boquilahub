@@ -343,7 +343,7 @@ impl eframe::App for MainApp {
                     }
                 });
 
-            if self.any_mode() && self.ai_selected.is_some() {
+            if self.selected_files.len() >= 1 && self.ai_selected.is_some() {
                 ui.separator();
                 ui.vertical_centered(|ui| {
                     ui.heading(format!("📋 {}", self.t(Key::analysis)));
