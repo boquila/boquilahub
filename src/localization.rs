@@ -37,6 +37,12 @@ pub enum Key {
     model_hub_url,
     donate_url,
     website_url,
+    export_predictions,
+    export_imgs_with_predictions,
+    copy_with_classification,
+    input_feed_url,
+    example,
+    every_how_many_frames,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -156,14 +162,39 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::model_hub_url => match lang {
             Lang::EN => "https://boquila.org/hub",
             Lang::ES => "https://boquila.org/es/hub",
-        },        
+        },
         Key::website_url => match lang {
             Lang::EN => "https://boquila.org/en",
             Lang::ES => "https://boquila.org/",
-        },        
+        },
         Key::donate_url => match lang {
             Lang::EN => "https://boquila.org/donate",
             Lang::ES => "https://boquila.org/donar",
+        },
+        Key::export_predictions => match lang {
+            Lang::EN => "Export predictions (.txt)",
+            Lang::ES => "Exportar predicciones (.txt)",
+        },
+        Key::export_imgs_with_predictions => match lang {
+            Lang::EN => "Export images with predictions (.jpg)",
+            Lang::ES => "Exportar imágenes con predicciones (.jpg)",
+        },
+        Key::copy_with_classification => match lang {
+            Lang::EN => "Copy and separate in folders according to classification",
+            Lang::ES => "Copiar y separar en carpetas según clasificación",
+        },
+        Key::input_feed_url => match lang {
+            Lang::EN => "Add the URL",
+            Lang::ES => "Ingresa la dirección URL",
+        },
+        Key::example => match lang {
+            Lang::EN => "Example",
+            Lang::ES => "Ejemplo",
+        },
+        // 1 = every single frame, 2 = every second frame, and so on.
+        Key::every_how_many_frames => match lang {
+            Lang::EN => "Analyze every how many frames?",
+            Lang::ES => "¿Cada cuántos frames quiere analizar?",
         },
     }
 }
