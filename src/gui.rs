@@ -151,6 +151,8 @@ impl eframe::App for MainApp {
                 ui.menu_button(self.t(Key::idiom), |ui| {
                     ui.radio_value(&mut self.lang, Lang::EN, "English");
                     ui.radio_value(&mut self.lang, Lang::ES, "Español");
+                    ui.radio_value(&mut self.lang, Lang::FR, "Français");
+                    ui.radio_value(&mut self.lang, Lang::DE, "Deutsch");
                 });
 
                 egui::widgets::global_theme_preference_switch(ui);

@@ -2,6 +2,8 @@
 pub enum Lang {
     EN,
     ES,
+    FR,
+    DE,
 }
 
 #[allow(non_camel_case_types)]
@@ -50,98 +52,146 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::select_ai => match lang {
             Lang::EN => "Select an AI",
             Lang::ES => "Selecciona una IA",
+            Lang::FR => "Sélectionnez une IA",
+            Lang::DE => "Wählen Sie eine KI aus",
         },
         Key::select_ep => match lang {
             Lang::EN => "Select a processor",
             Lang::ES => "Selecciona un procesador",
+            Lang::FR => "Sélectionnez un processeur",
+            Lang::DE => "Wählen Sie einen Prozessor aus",
         },
         Key::setup => match lang {
             Lang::EN => "Setup",
             Lang::ES => "Configuración",
+            Lang::FR => "Configuration",
+            Lang::DE => "Einrichtung",
         },
         Key::deploy => match lang {
             Lang::EN => "Deploy",
             Lang::ES => "Desplegar",
+            Lang::FR => "Déployer",
+            Lang::DE => "Bereitstellen",
         },
         Key::deployed_api => match lang {
             Lang::EN => "Deployed API",
             Lang::ES => "API desplegada",
+            Lang::FR => "API déployée",
+            Lang::DE => "Bereitgestellte API",
         },
         Key::select_your_data => match lang {
             Lang::EN => "Select your data",
             Lang::ES => "Selecciona tus datos",
+            Lang::FR => "Sélectionnez vos données",
+            Lang::DE => "Wählen Sie Ihre Daten aus",
         },
         Key::folder => match lang {
             Lang::EN => "Folder",
             Lang::ES => "Carpeta",
+            Lang::FR => "Dossier",
+            Lang::DE => "Ordner",
         },
         Key::image => match lang {
             Lang::EN => "Image",
             Lang::ES => "Imagen",
+            Lang::FR => "Image",
+            Lang::DE => "Bild",
         },
         Key::video_file => match lang {
             Lang::EN => "Video",
             Lang::ES => "Video",
+            Lang::FR => "Vidéo",
+            Lang::DE => "Video",
         },
         Key::camera_feed => match lang {
             Lang::EN => "Feed",
             Lang::ES => "Cámara",
+            Lang::FR => "Flux",
+            Lang::DE => "Kamerafeed",
         },
         Key::about => match lang {
             Lang::EN => "About",
             Lang::ES => "Información",
+            Lang::FR => "À propos",
+            Lang::DE => "Über",
         },
         Key::idiom => match lang {
             Lang::EN => "Language",
             Lang::ES => "Idioma",
+            Lang::FR => "Langue",
+            Lang::DE => "Sprache",
         },
         Key::models => match lang {
             Lang::EN => "Models",
             Lang::ES => "Modelos",
+            Lang::FR => "Modèles",
+            Lang::DE => "Modelle",
         },
         Key::donate => match lang {
             Lang::EN => "Donate",
             Lang::ES => "Donar",
+            Lang::FR => "Faire un don",
+            Lang::DE => "Spenden",
         },
         Key::source_code => match lang {
             Lang::EN => "Source code",
             Lang::ES => "Código fuente",
+            Lang::FR => "Code source",
+            Lang::DE => "Quellcode",
         },
         Key::analyze => match lang {
             Lang::EN => "Analyze",
             Lang::ES => "Analizar",
+            Lang::FR => "Analyser",
+            Lang::DE => "Analysieren",
         },
         Key::export => match lang {
             Lang::EN => "Export",
             Lang::ES => "Exportar",
+            Lang::FR => "Exporter",
+            Lang::DE => "Exportieren",
         },
         Key::analysis => match lang {
             Lang::EN => "Analysis",
             Lang::ES => "Análisis",
+            Lang::FR => "Analyse",
+            Lang::DE => "Analyse",
         },
         Key::cancel => match lang {
             Lang::EN => "Cancel",
             Lang::ES => "Cancelar",
+            Lang::FR => "Annuler",
+            Lang::DE => "Abbrechen",
         },
         Key::process_completed => match lang {
             Lang::EN => "Process completed",
             Lang::ES => "Proceso completado",
+            Lang::FR => "Processus terminé",
+            Lang::DE => "Prozess abgeschlossen",
         },
         Key::done => match lang {
             Lang::EN => "✅ Done",
             Lang::ES => "✅ Listo",
+            Lang::FR => "✅ Terminé",
+            Lang::DE => "✅ Fertig",
         },
         Key::error_ocurred => match lang {
-            Lang::EN => "Error ocurred",
+            Lang::EN => "Error occurred",
             Lang::ES => "Ocurrió un error",
+            Lang::FR => "Une erreur est survenue",
+            Lang::DE => "Ein Fehler ist aufgetreten",
         },
         Key::website => match lang {
             Lang::EN => "Website",
             Lang::ES => "Sitio web",
+            Lang::FR => "Site web",
+            Lang::DE => "Website",
         },
         Key::model_hub => match lang {
             Lang::EN => "Model HUB",
             Lang::ES => "HUB de Modelos",
+            Lang::FR => "HUB de Modèles",
+            Lang::DE => "Modell-HUB",
         },
         Key::api => match lang {
             _ => "API",
@@ -149,52 +199,76 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::image_processing => match lang {
             Lang::EN => "Images processing",
             Lang::ES => "Procesamiento de imágenes",
+            Lang::FR => "Traitement d'images",
+            Lang::DE => "Bildverarbeitung",
         },
         Key::video_processing => match lang {
             Lang::EN => "Video processing",
             Lang::ES => "Procesamiento de video",
+            Lang::FR => "Traitement vidéo",
+            Lang::DE => "Videoverarbeitung",
         },
         Key::feed_processing => match lang {
             Lang::EN => "Feed processing",
             Lang::ES => "Procesamiento en vivo",
+            Lang::FR => "Traitement en direct",
+            Lang::DE => "Live-Verarbeitung",
         },
         // check boquila.org to see all available languages, there's quite a few
         Key::model_hub_url => match lang {
             Lang::EN => "https://boquila.org/hub",
             Lang::ES => "https://boquila.org/es/hub",
+            Lang::FR => "https://boquila.org/fr/hub",
+            Lang::DE => "https://boquila.org/de/hub",
         },
         Key::website_url => match lang {
             Lang::EN => "https://boquila.org/en",
             Lang::ES => "https://boquila.org/",
+            Lang::FR => "https://boquila.org/fr",
+            Lang::DE => "https://boquila.org/de",
         },
         Key::donate_url => match lang {
             Lang::EN => "https://boquila.org/donate",
             Lang::ES => "https://boquila.org/donar",
+            Lang::FR => "https://boquila.org/faire-un-don",
+            Lang::DE => "https://boquila.org/spenden",
         },
         Key::export_predictions => match lang {
             Lang::EN => "Export predictions (.txt)",
             Lang::ES => "Exportar predicciones (.txt)",
+            Lang::FR => "Exporter les prédictions (.txt)",
+            Lang::DE => "Vorhersagen exportieren (.txt)",
         },
         Key::export_imgs_with_predictions => match lang {
             Lang::EN => "Export images with predictions (.jpg)",
             Lang::ES => "Exportar imágenes con predicciones (.jpg)",
+            Lang::FR => "Exporter les images avec prédictions (.jpg)",
+            Lang::DE => "Bilder mit Vorhersagen exportieren (.jpg)",
         },
         Key::copy_with_classification => match lang {
             Lang::EN => "Copy and separate in folders according to classification",
             Lang::ES => "Copiar y separar en carpetas según clasificación",
+            Lang::FR => "Copier et séparer dans des dossiers selon la classification",
+            Lang::DE => "Kopieren und nach Klassifizierung in Ordner trennen",
         },
         Key::input_feed_url => match lang {
             Lang::EN => "Add the URL",
             Lang::ES => "Ingresa la dirección URL",
+            Lang::FR => "Ajoutez l'URL",
+            Lang::DE => "URL hinzufügen",
         },
         Key::example => match lang {
             Lang::EN => "Example",
             Lang::ES => "Ejemplo",
+            Lang::FR => "Exemple",
+            Lang::DE => "Beispiel",
         },
         // 1 = every single frame, 2 = every second frame, and so on.
         Key::every_how_many_frames => match lang {
             Lang::EN => "Analyze every how many frames?",
             Lang::ES => "¿Cada cuántos frames quiere analizar?",
+            Lang::FR => "Analyser toutes les combien de trames?",
+            Lang::DE => "Alle wie viele Frames analysieren?",
         },
     }
 }
