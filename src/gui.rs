@@ -3,6 +3,7 @@ use crate::api;
 use crate::api::abstractions::*;
 use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
+use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use api::import::*;
 use egui::{ColorImage, TextureHandle, TextureOptions};
@@ -120,8 +121,6 @@ impl MainApp {
 impl eframe::App for MainApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
         egui_extras::install_image_loaders(ctx);
 
         let cond1 = self.selected_files.len() >= 1;
@@ -452,6 +451,9 @@ impl eframe::App for MainApp {
                             .clicked()
                         {
                             // EXPORT logic
+                            for files in &self.selected_files {
+                                let _ = write_pred_img_to_file(files);
+                            }
                             self.process_done();
                         }
                     });
