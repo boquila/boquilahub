@@ -3,7 +3,6 @@ pub mod abstractions;
 pub mod eps;
 // use ndarray::{s, Array, Axis, IxDyn,Ix4};
 // use image::{ImageBuffer, Rgb};
-pub mod post_processing;
 pub mod export;
 pub mod bq;
 pub mod rest;

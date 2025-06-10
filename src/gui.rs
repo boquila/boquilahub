@@ -7,7 +7,6 @@ use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use api::import::*;
 use egui::{ColorImage, TextureHandle, TextureOptions};
-use ffmpeg_next::codec::video;
 use image::open;
 use rfd::FileDialog;
 use std::fs::{self};
@@ -66,7 +65,6 @@ pub struct MainApp {
 
 impl MainApp {
     pub fn new() -> Self {
-        // set_model("models/boquilanet-gen.bq".to_owned(), LIST_EPS[1].clone());
         Self {
             ais: get_bqs(),
             selected_files: Vec::new(),
@@ -208,10 +206,12 @@ impl eframe::App for MainApp {
                 });
 
             if self.ep_selected != previous_ep {
-                set_model(
-                    &self.ais[self.ai_selected.unwrap()].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
+                if self.ai_selected.is_some() {
+                    set_model(
+                        &self.ais[self.ai_selected.unwrap()].get_path(),
+                        &LIST_EPS[self.ep_selected],
+                    );
+                }
             }
 
             ui.add_space(8.0);

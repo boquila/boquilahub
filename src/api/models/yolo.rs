@@ -1,9 +1,9 @@
 use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
-    bq::import_bq,
-    post_processing::nms_indices
+    bq::import_bq, models::processing::{post_processing::nms_indices, pre_processing::imgbuf_to_input_array},
 };
+use derive_new::new;
 use image::{
     imageops::{resize, FilterType},
     ImageBuffer, Rgb,
@@ -13,7 +13,6 @@ use ort::{
     inputs,
     session::{builder::GraphOptimizationLevel, Session},
 };
-use derive_new::new;
 
 #[derive(new)]
 pub struct Yolo {
@@ -32,57 +31,6 @@ pub struct Yolo {
 }
 
 impl Yolo {
-    pub fn default() -> Self {
-        let (_, data) = import_bq("models/boquilanet-gen.bq").unwrap();
-        let session = Session::builder()
-            .unwrap()
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .unwrap()
-            .commit_from_memory(&data)
-            .unwrap();
-
-        Yolo::new(
-            "boquilanet-gen".to_string(),
-            "Generic animal detection".to_string(),
-            0.1,
-            vec!["animal".to_string()],
-            1024,
-            1024,
-            0.45,
-            0.5,
-            1,
-            0,
-            Task::Detect,
-            session,
-        )
-    }
-
-    fn prepare_input_from_imgbuf(
-        &self,
-        img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
-    ) -> (Array<f32, Ix4>, u32, u32) {
-        let (img_width, img_height) = (img.width(), img.height());
-
-        let resized = resize(
-            img,
-            self.input_width,
-            self.input_height,
-            FilterType::Nearest,
-        );
-
-        let mut input = Array::zeros((1, 3, self.input_height as usize, self.input_width as usize));
-
-        for (x, y, pixel) in resized.enumerate_pixels() {
-            let x_u = x as usize;
-            let y_u = y as usize;
-            input[[0, 2, y_u, x_u]] = (pixel[2] as f32) / 255.0;
-            input[[0, 1, y_u, x_u]] = (pixel[1] as f32) / 255.0;
-            input[[0, 0, y_u, x_u]] = (pixel[0] as f32) / 255.0;
-        }
-
-        (input, img_width, img_height)
-    }
-
     fn inference(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
         let outputs = self
             .session
@@ -145,7 +93,7 @@ impl Yolo {
     }
 
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let (input, img_width, img_height) = self.prepare_input_from_imgbuf(img);
+        let (input, img_width, img_height) = imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
         match self.task {
             Task::Detect => {
                 let output = self.inference(&input);

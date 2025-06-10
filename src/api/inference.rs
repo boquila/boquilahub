@@ -8,6 +8,7 @@ use image::{ImageBuffer, Rgb};
 use once_cell::sync::Lazy;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
+use std::sync::OnceLock;
 
 pub fn init_app() {
     std::fs::create_dir_all("output_feed").unwrap();
@@ -15,10 +16,11 @@ pub fn init_app() {
 }
 
 // Lazily initialized global variables for the MODEL
-static CURRENT_AI: Lazy<RwLock<Yolo>> = Lazy::new(|| RwLock::new(Yolo::default())); //
+static CURRENT_AI: OnceLock<RwLock<Yolo>> = OnceLock::new();
 
 fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
-    let mut builder = Session::builder().unwrap()
+    let mut builder = Session::builder()
+        .unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap();
 
@@ -49,13 +51,16 @@ pub fn set_model(value: &String, ep: &EP) {
         Task::from(model_metadata.task.as_str()),
         import_model(&data, ep),
     );
-
-    *CURRENT_AI.write() = aimodel;
+    if CURRENT_AI.get().is_some() {
+        *CURRENT_AI.get().unwrap().write() = aimodel;
+    } else {
+        let _ = CURRENT_AI.set(RwLock::new(aimodel));
+    }
 }
 
 #[inline(always)]
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
-    match CURRENT_AI.read().run(&img) {
+    match CURRENT_AI.get().unwrap().read().run(&img) {
         AIOutputs::ObjectDetection(boxes) => return boxes,
         _ => {
             panic!("Expected ObjectDetection output");
