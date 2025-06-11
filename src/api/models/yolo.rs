@@ -1,18 +1,12 @@
 use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
-    bq::import_bq, models::processing::{post_processing::nms_indices, pre_processing::imgbuf_to_input_array},
+    models::processing::{post_processing::nms_indices, pre_processing::imgbuf_to_input_array},
 };
 use derive_new::new;
-use image::{
-    imageops::{resize, FilterType},
-    ImageBuffer, Rgb,
-};
+use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Axis, Ix4, IxDyn};
-use ort::{
-    inputs,
-    session::{builder::GraphOptimizationLevel, Session},
-};
+use ort::{inputs, session::Session};
 
 #[derive(new)]
 pub struct Yolo {
@@ -93,7 +87,8 @@ impl Yolo {
     }
 
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let (input, img_width, img_height) = imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
+        let (input, img_width, img_height) =
+            imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
         match self.task {
             Task::Detect => {
                 let output = self.inference(&input);

@@ -28,43 +28,51 @@ pub struct MainApp {
     video_frame: Option<TextureHandle>,
     feed_frame: Option<TextureHandle>,
 
-    // usize fields (8 bytes on 64-bit)
-    ai_selected: Option<usize>,
-    ep_selected: usize,
-    image_texture_n: usize,
+    // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
+    done_time: Option<Instant>,
 
-    // Option<usize> fields (likely 16 bytes due to Option overhead)
+    // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
+    ai_selected: Option<usize>,
     step_frame: Option<usize>,
     total_frames: Option<usize>,
     current_frame: Option<usize>,
+    ep_selected: usize,
+    image_texture_n: usize,
 
-    is_done: bool,
-    done_time: Option<Instant>,
-
+    // f32 (4 bytes)
     progress_bar: f32,
 
-    // Enums
+    // Enums (size depends on variants, but typically 1-8 bytes)
     lang: Lang,
+    mode: Mode,
 
-    // Media State
+    // bool fields grouped together (1 byte each, but will be padded)
+    is_done: bool,
     isapi_deployed: bool,
     is_processing: bool,
     should_continue: bool,
     save_img_from_strema: bool,
     error_ocurred: bool,
     is_analysis_complete: bool,
-
-    // what it can do
     img_mode: bool,
     video_mode: bool,
     feed_mode: bool,
-
-    // the active mode
-    mode: Mode,
 }
 
 impl MainApp {
     pub fn new() -> Self {
+        let local_lang = {
+            let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
+            let lang_code = locale.get(0..2).unwrap_or("en").to_lowercase();
+            match lang_code.as_str() {
+                "en" => Lang::EN,
+                "es" => Lang::ES,
+                "fr" => Lang::FR,
+                "de" => Lang::DE,
+                _ => Lang::EN,
+            }
+        };
+
         Self {
             ais: get_bqs(),
             selected_files: Vec::new(),
@@ -84,7 +92,7 @@ impl MainApp {
             is_done: false,
             done_time: None,
             progress_bar: 0.0,
-            lang: Lang::EN,
+            lang: local_lang,
             isapi_deployed: false,
             is_processing: false,
             should_continue: true,
