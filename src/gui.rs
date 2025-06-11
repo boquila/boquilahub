@@ -69,6 +69,7 @@ impl MainApp {
                 "es" => Lang::ES,
                 "fr" => Lang::FR,
                 "de" => Lang::DE,
+                "zh" => Lang::ZH,
                 _ => Lang::EN,
             }
         };
@@ -158,6 +159,7 @@ impl eframe::App for MainApp {
                     ui.radio_value(&mut self.lang, Lang::ES, "Español");
                     ui.radio_value(&mut self.lang, Lang::FR, "Français");
                     ui.radio_value(&mut self.lang, Lang::DE, "Deutsch");
+                    ui.radio_value(&mut self.lang, Lang::ZH, "简体中文");
                 });
 
                 egui::widgets::global_theme_preference_switch(ui);
@@ -295,6 +297,7 @@ impl eframe::App for MainApp {
 
                                             self.paint(ctx, 0);
                                             self.mode = Mode::Image;
+                                            self.progress_bar = self.selected_files.get_progress()
                                         }
                                     }
                                     Err(_e) => {
@@ -322,6 +325,7 @@ impl eframe::App for MainApp {
                                     .collect();
                                 self.paint(ctx, 0);
                                 self.mode = Mode::Image;
+                                self.progress_bar = self.selected_files.get_progress()
                             }
                             _ => (), // no selection, do nothing
                         }
