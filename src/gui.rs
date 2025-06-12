@@ -57,6 +57,7 @@ pub struct MainApp {
     img_mode: bool,
     video_mode: bool,
     feed_mode: bool,
+    show_export_dialog: bool,
 }
 
 impl MainApp {
@@ -103,6 +104,7 @@ impl MainApp {
             img_mode: false,
             video_mode: false,
             feed_mode: false,
+            show_export_dialog: false,
             mode: Mode::Image,
         }
     }
@@ -466,9 +468,47 @@ impl eframe::App for MainApp {
                             for files in &self.selected_files {
                                 let _ = write_pred_img_to_file(files);
                             }
-                            self.process_done();
+                            self.show_export_dialog = true;
                         }
                     });
+                }
+
+                // Export dialog logic
+                if self.show_export_dialog {
+                    egui::Window::new("Export Options")
+                        .collapsible(false)
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            if ui.button(self.t(Key::export_predictions)).clicked() {
+                                for file in &self.selected_files {
+                                    let _ = write_pred_img_to_file(file);
+                                }
+                                self.process_done();
+                                self.show_export_dialog = false;
+                            }
+
+                            if ui
+                                .button(self.t(Key::export_imgs_with_predictions))
+                                .clicked()
+                            {   
+                                for file in &self.selected_files {
+                                    file.save();
+                                }
+                                self.process_done();
+                                self.show_export_dialog = false;
+                            }
+
+                            if ui.button(self.t(Key::copy_with_classification)).clicked() {
+                                let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+                                let _ = api::export::copy_to_folder(&self.selected_files,&format!("export/export_{}", timestamp));
+                                self.process_done();
+                                self.show_export_dialog = false;
+                            }
+
+                            if ui.button(self.t(Key::cancel)).clicked() {
+                                self.show_export_dialog = false;
+                            }
+                        });
                 }
 
                 if let Some(done_time) = self.done_time {
