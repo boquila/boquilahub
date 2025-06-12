@@ -464,10 +464,6 @@ impl eframe::App for MainApp {
                             .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
                             .clicked()
                         {
-                            // EXPORT logic
-                            for files in &self.selected_files {
-                                let _ = write_pred_img_to_file(files);
-                            }
                             self.show_export_dialog = true;
                         }
                     });
@@ -480,9 +476,12 @@ impl eframe::App for MainApp {
                         .resizable(false)
                         .show(ctx, |ui| {
                             if ui.button(self.t(Key::export_predictions)).clicked() {
-                                for file in &self.selected_files {
-                                    let _ = write_pred_img_to_file(file);
+                                for file in self.selected_files.clone() {
+                                    tokio::spawn(async move {
+                                        let _ = write_pred_img_to_file(&file).await;
+                                    });
                                 }
+
                                 self.process_done();
                                 self.show_export_dialog = false;
                             }
@@ -490,7 +489,7 @@ impl eframe::App for MainApp {
                             if ui
                                 .button(self.t(Key::export_imgs_with_predictions))
                                 .clicked()
-                            {   
+                            {
                                 for file in &self.selected_files {
                                     file.save();
                                 }
@@ -499,8 +498,16 @@ impl eframe::App for MainApp {
                             }
 
                             if ui.button(self.t(Key::copy_with_classification)).clicked() {
-                                let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                                let _ = api::export::copy_to_folder(&self.selected_files,&format!("export/export_{}", timestamp));
+                                let timestamp =
+                                    chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+                                tokio::spawn({
+                                    let selected_files = self.selected_files.clone(); // Make sure it's Send + 'static
+                                    let path = format!("export/export_{}", timestamp);
+                                    async move {
+                                        let _ = api::export::copy_to_folder(&selected_files, &path)
+                                            .await;
+                                    }
+                                });
                                 self.process_done();
                                 self.show_export_dialog = false;
                             }

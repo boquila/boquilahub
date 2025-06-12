@@ -515,7 +515,7 @@ impl AI {
     }
 }
 
-#[derive(new)]
+#[derive(new, Clone)]
 pub struct PredImg {
     pub file_path: PathBuf,
     pub list_bbox: Vec<XYXYc>,
