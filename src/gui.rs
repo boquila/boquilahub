@@ -59,10 +59,8 @@ pub struct MainApp {
     save_img_from_strema: bool,
     error_ocurred: bool,
     is_analysis_complete: bool,
-    img_mode: bool,
-    video_mode: bool,
-    feed_mode: bool,
     show_export_dialog: bool,
+    it_ran: bool,
 }
 
 impl MainApp {
@@ -109,11 +107,9 @@ impl MainApp {
             save_img_from_strema: false,
             error_ocurred: false,
             is_analysis_complete: false,
-            img_mode: false,
-            video_mode: false,
-            feed_mode: false,
             show_export_dialog: false,
             mode: Mode::Image,
+            it_ran: false,
         }
     }
 
@@ -129,23 +125,15 @@ impl MainApp {
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
         self.screen_texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
     }
-
-    pub fn any_mode(&self) -> bool {
-        self.img_mode || self.video_mode || self.feed_mode
-    }
 }
 
 impl eframe::App for MainApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui_extras::install_image_loaders(ctx);
-
-        let cond1 = self.selected_files.len() >= 1;
-        let cond2 = self.video_file_path.is_some();
-        let cond3 = self.feed_url.is_some();
-        self.img_mode = cond1 && (cond2 || cond3);
-        self.video_mode = cond2 && (cond1 || cond3);
-        self.feed_mode = cond3 && (cond1 || cond2);
+        if !self.it_ran {
+            egui_extras::install_image_loaders(ctx);
+            self.it_ran = true;
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -177,14 +165,17 @@ impl eframe::App for MainApp {
         });
 
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
+            // vars
+            let previous_ai = self.ai_selected;
+            let previous_ep = self.ep_selected;
+
+            // Title 
             ui.vertical_centered(|ui| {
                 ui.heading(format!("💻 {}", self.t(Key::setup)));
             });
             ui.separator();
 
             ui.label(self.t(Key::select_ai));
-
-            let previous_ai = self.ai_selected;
             // AI Selection Widget
             egui::ComboBox::from_id_salt("AI")
                 .selected_text(match self.ai_selected {
@@ -204,13 +195,12 @@ impl eframe::App for MainApp {
                     &LIST_EPS[self.ep_selected],
                 );
             }
-
             ui.add_space(8.0);
 
             // EP Selection Widget
             ui.label(self.t(Key::select_ep));
 
-            let previous_ep = self.ep_selected;
+            
             egui::ComboBox::from_id_salt("EP")
                 .selected_text(LIST_EPS[self.ep_selected].name)
                 .show_ui(ui, |ui| {
@@ -541,22 +531,29 @@ impl eframe::App for MainApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            let cond1 = self.selected_files.len() >= 1;
+            let cond2 = self.video_file_path.is_some();
+            let cond3 = self.feed_url.is_some();
+            // it has a mode AND another
+            let img_mode = cond1 && (cond2 || cond3);
+            let video_mode = cond2 && (cond1 || cond3);
+            let feed_mode = cond3 && (cond1 || cond2);
             ui.horizontal(|ui| {
-                if self.img_mode {
+                if img_mode {
                     let text = self.t(Key::image_processing);
                     ui.selectable_value(&mut self.mode, Mode::Image, text);
                 }
-                if self.video_mode {
+                if video_mode {
                     let text = self.t(Key::video_processing);
                     ui.selectable_value(&mut self.mode, Mode::Video, text);
                 }
-                if self.feed_mode {
+                if feed_mode {
                     let text = self.t(Key::feed_processing);
                     ui.selectable_value(&mut self.mode, Mode::Feed, text);
                 }
             });
 
-            if self.any_mode() {
+            if img_mode || video_mode || feed_mode {
                 ui.separator();
             }
             match self.mode {
