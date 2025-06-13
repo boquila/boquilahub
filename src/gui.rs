@@ -169,7 +169,7 @@ impl eframe::App for MainApp {
             let previous_ai = self.ai_selected;
             let previous_ep = self.ep_selected;
 
-            // Title 
+            // Title
             ui.vertical_centered(|ui| {
                 ui.heading(format!("💻 {}", self.t(Key::setup)));
             });
@@ -200,7 +200,6 @@ impl eframe::App for MainApp {
             // EP Selection Widget
             ui.label(self.t(Key::select_ep));
 
-            
             egui::ComboBox::from_id_salt("EP")
                 .selected_text(LIST_EPS[self.ep_selected].name)
                 .show_ui(ui, |ui| {
@@ -375,10 +374,11 @@ impl eframe::App for MainApp {
                             self.should_continue = true;
                             self.is_processing = true;
 
+                            //  Async processing: Images
                             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
                             self.processing_receiver = Some(rx);
 
-                            let file_paths: Vec<_> = self
+                            let file_paths: Vec<String> = self
                                 .selected_files
                                 .iter()
                                 .map(|f| f.file_path.to_str().unwrap().to_string())
@@ -421,29 +421,6 @@ impl eframe::App for MainApp {
                         }
                     }
                 });
-
-                // Handle results
-                if let Some(rx) = &mut self.processing_receiver {
-                    let mut updates = Vec::new();
-                    while let Ok((i, bbox)) = rx.try_recv() {
-                        updates.push((i, bbox));
-                    }
-
-                    for (i, bbox) in updates {
-                        self.selected_files[i].list_bbox = bbox;
-                        self.selected_files[i].wasprocessed = true;
-                        if i == self.image_texture_n - 1 {
-                            self.paint(ctx, i);
-                        }
-                    }
-
-                    if self.selected_files.iter().all(|f| f.wasprocessed) {
-                        self.is_processing = false;
-                        self.processing_receiver = None;
-                    }
-                    self.progress_bar = self.selected_files.get_progress();
-                    ctx.request_repaint();
-                }
 
                 // Cancel button widget
                 if self.selected_files.len() > 0 {
@@ -590,18 +567,42 @@ impl eframe::App for MainApp {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         if self.video_file_path.is_some() {
                             if ui.button("▶️").clicked() {
-                                // let n_frames = &self.video_file_processor.unwrap().get_n_frames();
-                                let (img, _b) = self
-                                    .video_file_processor
-                                    .as_mut()
-                                    .unwrap()
-                                    .run(None)
-                                    .unwrap();
-                                self.video_frame_texture = Some(ctx.load_texture(
-                                    "current_frame",
-                                    load_image_from_buffer_ref(&img),
-                                    TextureOptions::default(),
-                                ));
+                                // Async processing: Video
+                                let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                                self.video_processing_receiver = Some(rx);
+                                let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+                                self.video_cancel_sender = Some(cancel_tx);
+
+                                let mut processor = self.video_file_processor.take().unwrap();
+                                tokio::spawn(async move {
+                                    let n = processor.get_n_frames();
+                                    let (frame_tx, mut frame_rx) =
+                                        tokio::sync::mpsc::unbounded_channel();
+
+                                    // Spawn blocking task to generate frames
+                                    let processor_handle = tokio::task::spawn_blocking(move || {
+                                        for _i in 0..=n {
+                                            let (img, _b) = processor.run(None).unwrap();
+                                            if frame_tx.send(img).is_err() {
+                                                break; // Receiver dropped
+                                            }
+                                        }
+                                    });
+
+                                    // Stream frames as they're produced
+                                    while let Some(img) = frame_rx.recv().await {
+                                        if cancel_rx.try_recv().is_ok() {
+                                            break;
+                                        }
+
+                                        if tx.send(img).is_err() {
+                                            break;
+                                        }
+                                    }
+
+                                    // Clean up the blocking task
+                                    let _ = processor_handle.await;
+                                });
                             }
                             // If any textuure has been defined, we render it
                             match &self.video_frame_texture {
@@ -622,6 +623,46 @@ impl eframe::App for MainApp {
                 }
             }
         });
+
+        // Handle results: Images
+        if let Some(rx) = &mut self.processing_receiver {
+            let mut updates = Vec::new();
+            while let Ok((i, bbox)) = rx.try_recv() {
+                updates.push((i, bbox));
+            }
+
+            for (i, bbox) in updates {
+                self.selected_files[i].list_bbox = bbox;
+                self.selected_files[i].wasprocessed = true;
+                if i == self.image_texture_n - 1 {
+                    self.paint(ctx, i);
+                }
+            }
+
+            if self.selected_files.iter().all(|f| f.wasprocessed) {
+                self.is_processing = false;
+                self.processing_receiver = None;
+            }
+            self.progress_bar = self.selected_files.get_progress();
+            ctx.request_repaint();
+        }
+
+        // Handle results: Video
+        if let Some(rx) = &mut self.video_processing_receiver {
+            let mut updates = Vec::new();
+            while let Ok(img) = rx.try_recv() {
+                updates.push(img);
+            }
+
+            for img in updates {
+                self.video_frame_texture = Some(ctx.load_texture(
+                    "current_frame",
+                    load_image_from_buffer_ref(&img),
+                    TextureOptions::default(),
+                ));
+            }
+            ctx.request_repaint();
+        }
     }
 }
 
