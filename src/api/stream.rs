@@ -130,22 +130,8 @@ impl VideoStream {
         self.process_frame(|img: &ImageBuffer<Rgb<u8>, Vec<u8>>| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()), log)
     }
 
-    pub fn run_exp(&mut self, log: bool) -> (Vec<u8>, Vec<XYXYc>) {
-        self.run(log).unwrap()
-    }
-
-    pub fn run_remotely_exp(&mut self, url: &str, log: bool) -> (Vec<u8>, Vec<XYXYc>) {
-        self.run_remotely(url, log).unwrap()
-    }
-
     pub fn ignore_frame(&mut self) {
         self.next();
-    }
-
-    pub fn get_jpg_frame(&mut self) -> Vec<u8> {
-        let img = self.next().unwrap();
-        let jpg_buffer = image_buffer_to_jpg_buffer(img);
-        return jpg_buffer;
     }
 
     fn measure_method<F>(&mut self, method: F, iterations: u32) -> u32
@@ -178,7 +164,7 @@ impl VideoStream {
     pub fn measure_inference(&mut self, iterations: u32) -> u32 {
         self.measure_method(
             |s| {
-                s.run_exp(false);
+                let _ = s.run(false);
             },
             iterations,
         )
@@ -187,7 +173,7 @@ impl VideoStream {
     pub fn measure_remote_inference(&mut self, iterations: u32, url: &str) -> u32 {
         self.measure_method(
             |s| {
-                s.run_remotely_exp(url,false);
+                let _ = s.run_remotely(url,false);
             },
             iterations,
         )

@@ -1,13 +1,14 @@
 use super::localization::*;
-use crate::api::{self, video_file};
 use crate::api::abstractions::*;
 use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
+use crate::api::video_file::VideofileProcessor;
+use crate::api::{self, video_file};
 use api::import::*;
 use egui::{ColorImage, TextureHandle, TextureOptions};
-use image::open;
+use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
 use std::fs::{self};
 use std::path::PathBuf;
@@ -21,6 +22,10 @@ pub struct MainApp {
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
     processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
+    video_processing_receiver:
+        Option<tokio::sync::mpsc::UnboundedReceiver<ImageBuffer<Rgba<u8>, Vec<u8>>>>,
+    video_file_processor: Option<VideofileProcessor>,
+    video_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
 
     // Medium-sized types (TextureHandle options)
@@ -82,6 +87,9 @@ impl MainApp {
             feed_url: None,
             processing_receiver: None,
             cancel_sender: None,
+            video_processing_receiver: None,
+            video_cancel_sender: None,
+            video_file_processor: None,
             screen_texture: None,
             video_frame_texture: None,
             feed_frame: None,
@@ -190,13 +198,11 @@ impl eframe::App for MainApp {
                     }
                 });
 
-            if self.ai_selected != previous_ai {
-                if self.ai_selected.is_some() {
-                    set_model(
-                        &self.ais[self.ai_selected.unwrap()].get_path(),
-                        &LIST_EPS[self.ep_selected],
-                    );
-                }
+            if (self.ai_selected != previous_ai) && self.ai_selected.is_some() {
+                set_model(
+                    &self.ais[self.ai_selected.unwrap()].get_path(),
+                    &LIST_EPS[self.ep_selected],
+                );
             }
 
             ui.add_space(8.0);
@@ -217,13 +223,11 @@ impl eframe::App for MainApp {
                     }
                 });
 
-            if self.ep_selected != previous_ep {
-                if self.ai_selected.is_some() {
-                    set_model(
-                        &self.ais[self.ai_selected.unwrap()].get_path(),
-                        &LIST_EPS[self.ep_selected],
-                    );
-                }
+            if (self.ep_selected != previous_ep) && self.ai_selected.is_some() {
+                set_model(
+                    &self.ais[self.ai_selected.unwrap()].get_path(),
+                    &LIST_EPS[self.ep_selected],
+                );
             }
 
             ui.add_space(8.0);
@@ -275,7 +279,6 @@ impl eframe::App for MainApp {
 
                                                 // Only process files (not subdirectories)
                                                 if path.is_file() {
-                                                    // Check if file extension matches IMAGE_FORMATS
                                                     if let Some(extension) = path.extension() {
                                                         if let Some(ext_str) = extension.to_str() {
                                                             if IMAGE_FORMATS.iter().any(|&format| {
@@ -345,6 +348,9 @@ impl eframe::App for MainApp {
                         {
                             Some(path) => {
                                 self.video_file_path = Some(path);
+                                self.video_file_processor = Some(VideofileProcessor::new(
+                                    &self.video_file_path.clone().unwrap().to_str().unwrap(),
+                                ));
                                 self.mode = Mode::Video;
                             }
                             _ => (), // no selection, do nothing
@@ -375,38 +381,40 @@ impl eframe::App for MainApp {
                         .clicked()
                         && self.processing_receiver.is_none()
                     {
-                        self.should_continue = true;
-                        self.is_processing = true;
+                        if !self.is_processing {
+                            self.should_continue = true;
+                            self.is_processing = true;
 
-                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                        self.processing_receiver = Some(rx);
+                            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                            self.processing_receiver = Some(rx);
 
-                        let file_paths: Vec<_> = self
-                            .selected_files
-                            .iter()
-                            .map(|f| f.file_path.to_str().unwrap().to_string())
-                            .collect();
-                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                        self.cancel_sender = Some(cancel_tx);
+                            let file_paths: Vec<_> = self
+                                .selected_files
+                                .iter()
+                                .map(|f| f.file_path.to_str().unwrap().to_string())
+                                .collect();
+                            let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+                            self.cancel_sender = Some(cancel_tx);
 
-                        tokio::spawn(async move {
-                            for (i, path) in file_paths.iter().enumerate() {
-                                // CHECK FOR CANCELLATION HERE
-                                if cancel_rx.try_recv().is_ok() {
-                                    break;
+                            tokio::spawn(async move {
+                                for (i, path) in file_paths.iter().enumerate() {
+                                    // CHECK FOR CANCELLATION HERE
+                                    if cancel_rx.try_recv().is_ok() {
+                                        break;
+                                    }
+
+                                    let img = open(path).unwrap().into_rgb8();
+                                    let bbox = tokio::task::spawn_blocking(move || {
+                                        detect_bbox_from_imgbuf(&img)
+                                    })
+                                    .await
+                                    .unwrap();
+                                    if tx.send((i, bbox)).is_err() {
+                                        break;
+                                    }
                                 }
-
-                                let img = open(path).unwrap().into_rgb8();
-                                let bbox = tokio::task::spawn_blocking(move || {
-                                    detect_bbox_from_imgbuf(&img)
-                                })
-                                .await
-                                .unwrap();
-                                if tx.send((i, bbox)).is_err() {
-                                    break;
-                                }
-                            }
-                        });
+                            });
+                        }
                     }
 
                     if self.is_processing {
@@ -447,6 +455,7 @@ impl eframe::App for MainApp {
                     ctx.request_repaint();
                 }
 
+                // Cancel button widget
                 if self.selected_files.len() > 0 {
                     ui.add(
                         egui::ProgressBar::new(self.progress_bar)
@@ -584,14 +593,18 @@ impl eframe::App for MainApp {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         if self.video_file_path.is_some() {
                             if ui.button("▶️").clicked() {
-                                let mut video= video_file::VideofileProcessor::new(&self.video_file_path.clone().unwrap().to_str().unwrap());
-                                let n_frames = video.get_n_frames();
-                                for _i in 0..=n_frames {
-                                    let (a,_b) = video.run(None).unwrap();
-                                   
-                                    let d = load_image_from_buffer_ref( &image::DynamicImage::ImageRgb8(a).into_rgba8());
-                                    self.video_frame_texture = Some(ctx.load_texture("current_img", d, TextureOptions::default()));
-                                }                                                                
+                                // let n_frames = &self.video_file_processor.unwrap().get_n_frames();
+                                let (img, _b) = self
+                                    .video_file_processor
+                                    .as_mut()
+                                    .unwrap()
+                                    .run(None)
+                                    .unwrap();
+                                self.video_frame_texture = Some(ctx.load_texture(
+                                    "current_frame",
+                                    load_image_from_buffer_ref(&img),
+                                    TextureOptions::default(),
+                                ));
                             }
                             // If any textuure has been defined, we render it
                             match &self.video_frame_texture {

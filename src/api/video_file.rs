@@ -2,56 +2,13 @@ use super::abstractions::XYXYc;
 use super::inference::detect_bbox_from_imgbuf;
 use super::render::draw_bbox_from_imgbuf;
 use super::rest::detect_bbox_from_buf_remotely;
-use super::utils::{image_buffer_to_jpg_buffer, image_buffer_to_ndarray, ndarray_to_image_buffer};
+use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::collections::HashMap;
 use std::error::Error;
 use std::{iter::Iterator, path::Path};
 use video_rs::encode::Settings;
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
-
-// pub struct VideoSteamWrapper {
-//     videostream: VideoStream,
-// }
-
-// unsafe impl Sync for VideoSteamWrapper {}
-
-// impl VideoSteamWrapper {
-//     pub fn new(path_or_url: &str) -> Self {
-//         let videostream = VideoStream::new(path_or_url);
-//         Self { videostream }
-//     }
-
-//     pub fn run_exp(&mut self) -> (Vec<u8>, Vec<XYXYc>) {
-//         self.videostream.run_exp()
-//     }
-
-//     pub fn run_remotely_exp(&mut self, url: &str) -> (Vec<u8>, Vec<XYXYc>) {
-//         self.videostream.run_remotely_exp(url)
-//     }
-
-//     pub fn ignore_frame(&mut self) {
-//         self.videostream.next();
-//     }
-
-//     pub fn get_jpg_frame(&mut self) -> Vec<u8> {
-//         let img = self.videostream.next().unwrap();
-//         let jpg_buffer = image_buffer_to_jpg_buffer(img);
-//         return jpg_buffer;
-//     }
-
-//     pub fn measure_fps(&mut self, iterations: u32) -> u32 {
-//         self.videostream.measure_fps(iterations)
-//     }
-
-//     pub fn measure_inference(&mut self, iterations: u32) -> u32 {
-//         self.videostream.measure_inference(iterations)
-//     }
-
-//     pub fn measure_remote_inference(&mut self, iterations: u32, url: &str) -> u32 {
-//         self.videostream.measure_remote_inference(iterations,url)
-//     }
-// }
 
 pub struct VideofileProcessor {
     decoder: Decoder,
@@ -102,7 +59,7 @@ impl VideofileProcessor {
         &mut self,
         prediction_fn: F,
         vec: Option<Vec<XYXYc>>,
-    ) -> Result<(image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
+    ) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
     where
         F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
     {
@@ -118,13 +75,14 @@ impl VideofileProcessor {
                 draw_bbox_from_imgbuf(&mut img, &predictions);
                 let final_frame = image_buffer_to_ndarray(&img);
                 self.encoder.encode(&final_frame, time).unwrap(); // You may want to handle this unwrap as well
-                Ok((img, predictions))
+                let d = image::DynamicImage::ImageRgb8(img).into_rgba8();
+                Ok((d, predictions))
             }
             None => Err("Failed to retrieve the next frame.".into()), // Handle None case by returning a descriptive error
         }
     }
 
-    pub fn run(&mut self, vec: Option<Vec<XYXYc>>) -> Result<(image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
+    pub fn run(&mut self, vec: Option<Vec<XYXYc>>) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
     }
 
@@ -132,7 +90,7 @@ impl VideofileProcessor {
         &mut self,
         url: &str,
         vec: Option<Vec<XYXYc>>,
-    ) -> Result<(image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
+    ) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(
             |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
             vec,

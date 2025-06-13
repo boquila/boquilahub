@@ -64,12 +64,8 @@ pub async fn run_cli() {
             println!("Model deployed: {}", model_name);
             println!("IP Address: {}", ip_text);
         }
-        _ => {
-            // Handle case where no subcommand is provided
-            println!("Please specify a subcommand. Use --help for more information.");
-        }
+        _ => {}
     }
-    if matches.get_flag("deploy") {}
 }
 
 const ASCII_ART: &'static str = r#"
