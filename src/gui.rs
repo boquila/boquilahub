@@ -1,5 +1,5 @@
 use super::localization::*;
-use crate::api;
+use crate::api::{self, video_file};
 use crate::api::abstractions::*;
 use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
@@ -25,7 +25,7 @@ pub struct MainApp {
 
     // Medium-sized types (TextureHandle options)
     screen_texture: Option<TextureHandle>,
-    video_frame: Option<TextureHandle>,
+    video_frame_texture: Option<TextureHandle>,
     feed_frame: Option<TextureHandle>,
 
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
@@ -83,7 +83,7 @@ impl MainApp {
             processing_receiver: None,
             cancel_sender: None,
             screen_texture: None,
-            video_frame: None,
+            video_frame_texture: None,
             feed_frame: None,
             ai_selected: None,
             ep_selected: 0,     // CPU is the default
@@ -581,7 +581,31 @@ impl eframe::App for MainApp {
                     });
                 }
                 Mode::Video => {
-                    todo!()
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        if self.video_file_path.is_some() {
+                            if ui.button("▶️").clicked() {
+                                let mut video= video_file::VideofileProcessor::new(&self.video_file_path.clone().unwrap().to_str().unwrap());
+                                let n_frames = video.get_n_frames();
+                                for _i in 0..=n_frames {
+                                    let (a,_b) = video.run(None).unwrap();
+                                   
+                                    let d = load_image_from_buffer_ref( &image::DynamicImage::ImageRgb8(a).into_rgba8());
+                                    self.video_frame_texture = Some(ctx.load_texture("current_img", d, TextureOptions::default()));
+                                }                                                                
+                            }
+                            // If any textuure has been defined, we render it
+                            match &self.video_frame_texture {
+                                Some(texture) => {
+                                    ui.add(
+                                        egui::Image::new(texture)
+                                            .max_height(800.0)
+                                            .corner_radius(10.0),
+                                    );
+                                }
+                                None => {}
+                            }
+                        }
+                    });
                 }
                 Mode::Feed => {
                     todo!()

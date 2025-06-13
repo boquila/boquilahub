@@ -76,7 +76,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ES => "Desplegar",
             Lang::FR => "Déployer",
             Lang::DE => "Bereitstellen",
-            Lang::ZH => "部署"
+            Lang::ZH => "部署",
         },
         Key::deployed_api => match lang {
             Lang::EN => "Deployed API",
@@ -305,7 +305,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ES => "¿Cada cuántos frames quiere analizar?",
             Lang::FR => "Analyser toutes les combien de trames?",
             Lang::DE => "Alle wie viele Frames analysieren?",
-            Lang::ZH => "每几帧取样分析？"
+            Lang::ZH => "每几帧取样分析？",
         },
     }
 }

@@ -102,13 +102,13 @@ impl VideofileProcessor {
         &mut self,
         prediction_fn: F,
         vec: Option<Vec<XYXYc>>,
-    ) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>>
+    ) -> Result<(image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
     where
         F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
     {
         match self.next() {
             Some((time, frame)) => {
-                let mut img = ndarray_to_image_buffer(&frame);
+                let mut img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> = ndarray_to_image_buffer(&frame);
                 let predictions;
                 if vec.is_some() {
                     predictions = vec.unwrap();
@@ -118,38 +118,25 @@ impl VideofileProcessor {
                 draw_bbox_from_imgbuf(&mut img, &predictions);
                 let final_frame = image_buffer_to_ndarray(&img);
                 self.encoder.encode(&final_frame, time).unwrap(); // You may want to handle this unwrap as well
-                let jpg_buffer = image_buffer_to_jpg_buffer(img);
-                Ok((jpg_buffer, predictions))
+                Ok((img, predictions))
             }
             None => Err("Failed to retrieve the next frame.".into()), // Handle None case by returning a descriptive error
         }
     }
 
-    fn run(&mut self, vec: Option<Vec<XYXYc>>) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
+    pub fn run(&mut self, vec: Option<Vec<XYXYc>>) -> Result<(image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
     }
 
-    fn run_remotely(
+    pub fn run_remotely(
         &mut self,
         url: &str,
         vec: Option<Vec<XYXYc>>,
-    ) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
+    ) -> Result<(image::ImageBuffer<image::Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(
             |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
             vec,
         )
-    }
-
-    pub fn run_exp(&mut self, vec: Option<Vec<XYXYc>>) -> (Vec<u8>, Vec<XYXYc>) {
-        self.run(vec).unwrap()
-    }
-
-    pub fn run_remotely_exp(
-        &mut self,
-        url: &str,
-        vec: Option<Vec<XYXYc>>,
-    ) -> (Vec<u8>, Vec<XYXYc>) {
-        self.run_remotely(url, vec).unwrap()
     }
 }
 

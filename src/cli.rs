@@ -10,7 +10,7 @@ use crate::api::{
 
 pub async fn run_cli() {
     let matches = Command::new("BoquilaHUB")
-        .version("1.0")
+        .version("0.3")
         .about("BoquilaHUB - GUI and CLI tool")
         .arg(
             Arg::new("deploy")

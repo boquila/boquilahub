@@ -1,10 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-use boquilahub::{cli::run_cli};
 
 // When compiling natively:
 #[tokio::main]
 async fn main() -> eframe::Result {
-    run_cli().await;
+    boquilahub::cli::run_cli().await;
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
