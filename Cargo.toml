@@ -33,7 +33,7 @@ derive-new = "0.7.0"
 sys-locale = "0.3.2"
 
 [profile.release]
-lto = "fat"
+lto = true
 strip = true
 codegen-units = 1
 opt-level = 3

@@ -16,7 +16,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub struct MainApp {
-    // Large types first 
+    // Large types first
     ais: Vec<AI>,
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
@@ -131,6 +131,345 @@ impl MainApp {
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
         self.screen_texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
     }
+
+    pub fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        if let Some(done_time) = self.done_time {
+            if done_time.elapsed().as_secs_f32() < 3.0 {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                    ui.label(self.t(Key::done));
+                });
+                ctx.request_repaint();
+            } else {
+                self.done_time = None;
+            }
+        }
+    }
+
+    pub fn api_widget(&mut self, ui: &mut egui::Ui) {
+        ui.label("API ");
+        if !self.isapi_deployed {
+            if ui.button(self.t(Key::deploy)).clicked() {
+                tokio::spawn(async {
+                    thread::sleep(Duration::from_secs(2));
+                });
+                self.isapi_deployed = true;
+            }
+        }
+
+        if self.isapi_deployed {
+            ui.label(self.t(Key::deployed_api));
+        }
+    }
+
+    pub fn ai_widget(&mut self, ui: &mut egui::Ui, previous_ai: Option<usize>) {
+        ui.label(self.t(Key::select_ai));
+        egui::ComboBox::from_id_salt("AI")
+            .selected_text(match self.ai_selected {
+                Some(i) => &self.ais[i].name,
+                None => "",
+            })
+            .show_ui(ui, |ui| {
+                for (i, ai) in self.ais.iter().enumerate() {
+                    ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
+                        .on_hover_text(&ai.classes.join(", "));
+                }
+            });
+
+        if (self.ai_selected != previous_ai) && self.ai_selected.is_some() {
+            set_model(
+                &self.ais[self.ai_selected.unwrap()].get_path(),
+                &LIST_EPS[self.ep_selected],
+            );
+        }
+    }
+
+    pub fn ep_widget(&mut self, ui: &mut egui::Ui, previous_ep: usize) {
+        ui.label(self.t(Key::select_ep));
+        egui::ComboBox::from_id_salt("EP")
+            .selected_text(LIST_EPS[self.ep_selected].name)
+            .show_ui(ui, |ui| {
+                for (i, ep) in LIST_EPS.iter().enumerate() {
+                    ui.selectable_value(&mut self.ep_selected, i, ep.name)
+                        .on_hover_text(format!(
+                            "Version: {:.1}, Local: {}, Dependencies: {}",
+                            ep.version, ep.local, ep.dependencies
+                        ));
+                }
+            });
+
+        if (self.ep_selected != previous_ep) && self.ai_selected.is_some() {
+            set_model(
+                &self.ais[self.ai_selected.unwrap()].get_path(),
+                &LIST_EPS[self.ep_selected],
+            );
+        }
+    }
+
+    pub fn data_selection_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        ui.vertical_centered(|ui| {
+            ui.heading(format!("📎 {}", self.t(Key::select_your_data)));
+        });
+        ui.separator();
+
+        ui.spacing_mut().button_padding = egui::vec2(12.0, 8.0);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
+
+        // Data Selection Widget
+        egui::Grid::new("file_selection_grid")
+            .num_columns(2)
+            .spacing([10.0, 10.0])
+            .show(ui, |ui| {
+                // FOLDER SELECTION SECTION
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::folder)))
+                    .clicked()
+                {
+                    match FileDialog::new().pick_folder() {
+                        Some(folder_path) => {
+                            // Read directory contents and filter for image files
+                            match fs::read_dir(&folder_path) {
+                                Ok(entries) => {
+                                    let mut image_files = Vec::new();
+
+                                    for entry in entries {
+                                        if let Ok(entry) = entry {
+                                            let path = entry.path();
+
+                                            // Only process files (not subdirectories)
+                                            if path.is_file() {
+                                                if let Some(extension) = path.extension() {
+                                                    if let Some(ext_str) = extension.to_str() {
+                                                        if IMAGE_FORMATS.iter().any(|&format| {
+                                                            ext_str.to_lowercase()
+                                                                == format.to_lowercase()
+                                                        }) {
+                                                            image_files.push(path);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if !image_files.is_empty() {
+                                        // Set the first image as the screen texture
+                                        self.selected_files = image_files
+                                            .into_iter()
+                                            .map(|path| PredImg::new_simple(path))
+                                            .collect();
+
+                                        self.paint(ctx, 0);
+                                        self.mode = Mode::Image;
+                                        self.image_progress_bar = self.selected_files.get_progress()
+                                    }
+                                }
+                                Err(_e) => {
+                                    self.error_ocurred = true;
+                                }
+                            }
+                        }
+                        None => (), // No folder selected
+                    }
+                }
+
+                // IMAGE FILE SELECTION SECTION
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::image)))
+                    .clicked()
+                {
+                    match FileDialog::new()
+                        .add_filter("Image", &IMAGE_FORMATS)
+                        .pick_files()
+                    {
+                        Some(paths) => {
+                            self.selected_files = paths
+                                .into_iter()
+                                .map(|path| PredImg::new_simple(path))
+                                .collect();
+                            self.paint(ctx, 0);
+                            self.mode = Mode::Image;
+                            self.image_progress_bar = self.selected_files.get_progress()
+                        }
+                        _ => (), // no selection, do nothing
+                    }
+                }
+                ui.end_row();
+
+                // VIDEO FILE SELECTION SECTION
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::video_file)))
+                    .clicked()
+                {
+                    match FileDialog::new()
+                        .add_filter("Video", &VIDEO_FORMATS)
+                        .pick_file()
+                    {
+                        Some(path) => {
+                            self.video_file_path = Some(path);
+                            self.video_file_processor = Some(VideofileProcessor::new(
+                                &self.video_file_path.clone().unwrap().to_str().unwrap(),
+                            ));
+                            self.mode = Mode::Video;
+                        }
+                        _ => (), // no selection, do nothing
+                    }
+                }
+
+                // Camera feed
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::camera_feed)))
+                    .clicked()
+                {
+                    self.feed_url = Some("test".to_owned());
+                    self.mode = Mode::Feed;
+                }
+            });
+    }
+
+    pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        if self.selected_files.len() >= 1 && self.ai_selected.is_some() {
+            ui.vertical_centered(|ui| {
+                ui.heading(format!("📋 {}", self.t(Key::analysis)));
+            });
+            ui.separator();
+
+            // Analyze button Widget
+            ui.vertical_centered(|ui| {
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
+                    .clicked()
+                    && self.image_processing_receiver.is_none()
+                {
+                    if !self.is_processing {
+                        self.should_continue = true;
+                        self.is_processing = true;
+
+                        //  Async processing: Images
+                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                        self.image_processing_receiver = Some(rx);
+
+                        let file_paths: Vec<String> = self
+                            .selected_files
+                            .iter()
+                            .map(|f| f.file_path.to_str().unwrap().to_string())
+                            .collect();
+                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+                        self.image_cancel_sender = Some(cancel_tx);
+
+                        tokio::spawn(async move {
+                            for (i, path) in file_paths.iter().enumerate() {
+                                // CHECK FOR CANCELLATION HERE
+                                if cancel_rx.try_recv().is_ok() {
+                                    break;
+                                }
+
+                                let img = open(path).unwrap().into_rgb8();
+                                let bbox = tokio::task::spawn_blocking(move || {
+                                    detect_bbox_from_imgbuf(&img)
+                                })
+                                .await
+                                .unwrap();
+                                if tx.send((i, bbox)).is_err() {
+                                    break;
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // Cancel button widget
+                if self.is_processing {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
+                        .clicked()
+                    {
+                        self.should_continue = false;
+                        if let Some(cancel_tx) = self.image_cancel_sender.take() {
+                            let _ = cancel_tx.send(());
+                        }
+                        self.is_processing = false;
+                        self.image_processing_receiver = None;
+                    }
+                }
+            });
+
+            // Progress Bar: Image
+            if self.selected_files.len() > 0 {
+                ui.add(
+                    egui::ProgressBar::new(self.image_progress_bar)
+                        .show_percentage()
+                        .animate(self.is_processing),
+                );
+            }
+
+            ui.add_space(8.0);
+
+            // Export button Widget
+            if self.mode == Mode::Image {
+                ui.vertical_centered(|ui| {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
+                        .clicked()
+                    {
+                        self.show_export_dialog = true;
+                    }
+                });
+            }
+
+            // Export dialog logic
+            if self.show_export_dialog {
+                egui::Window::new(self.t(Key::export))
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        // Export option 1
+                        if ui.button(self.t(Key::export_predictions)).clicked() {
+                            for file in self.selected_files.clone() {
+                                tokio::spawn(async move {
+                                    let _ = write_pred_img_to_file(&file).await;
+                                });
+                            }
+
+                            self.process_done();
+                            self.show_export_dialog = false;
+                        }
+
+                        // Export option 2
+                        if ui
+                            .button(self.t(Key::export_imgs_with_predictions))
+                            .clicked()
+                        {
+                            for file in &self.selected_files {
+                                file.save();
+                            }
+                            self.process_done();
+                            self.show_export_dialog = false;
+                        }
+
+                        // Export option 3
+                        if ui.button(self.t(Key::copy_with_classification)).clicked() {
+                            let timestamp =
+                                chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+                            tokio::spawn({
+                                let selected_files = self.selected_files.clone(); // Make sure it's Send + 'static
+                                let path = format!("export/export_{}", timestamp);
+                                async move {
+                                    let _ =
+                                        api::export::copy_to_folder(&selected_files, &path).await;
+                                }
+                            });
+                            self.process_done();
+                            self.show_export_dialog = false;
+                        }
+
+                        // Cancel any export
+                        if ui.button(self.t(Key::cancel)).clicked() {
+                            self.show_export_dialog = false;
+                        }
+                    });
+            }
+        }
+    }
 }
 
 impl eframe::App for MainApp {
@@ -171,347 +510,32 @@ impl eframe::App for MainApp {
         });
 
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
-            // vars
             let previous_ai = self.ai_selected;
             let previous_ep = self.ep_selected;
 
-            // Title
             ui.vertical_centered(|ui| {
                 ui.heading(format!("💻 {}", self.t(Key::setup)));
             });
             ui.separator();
 
-            ui.label(self.t(Key::select_ai));
-            // AI Selection Widget
-            egui::ComboBox::from_id_salt("AI")
-                .selected_text(match self.ai_selected {
-                    Some(i) => &self.ais[i].name,
-                    None => "",
-                })
-                .show_ui(ui, |ui| {
-                    for (i, ai) in self.ais.iter().enumerate() {
-                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
-                            .on_hover_text(&ai.classes.join(", "));
-                    }
-                });
-
-            if (self.ai_selected != previous_ai) && self.ai_selected.is_some() {
-                set_model(
-                    &self.ais[self.ai_selected.unwrap()].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
-            }
-            ui.add_space(8.0);
-
-            // EP Selection Widget
-            ui.label(self.t(Key::select_ep));
-
-            egui::ComboBox::from_id_salt("EP")
-                .selected_text(LIST_EPS[self.ep_selected].name)
-                .show_ui(ui, |ui| {
-                    for (i, ep) in LIST_EPS.iter().enumerate() {
-                        ui.selectable_value(&mut self.ep_selected, i, ep.name)
-                            .on_hover_text(format!(
-                                "Version: {:.1}, Local: {}, Dependencies: {}",
-                                ep.version, ep.local, ep.dependencies
-                            ));
-                    }
-                });
-
-            if (self.ep_selected != previous_ep) && self.ai_selected.is_some() {
-                set_model(
-                    &self.ais[self.ai_selected.unwrap()].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
-            }
+            self.ai_widget(ui, previous_ai);
 
             ui.add_space(8.0);
-            ui.label("API ");
 
-            if !self.isapi_deployed {
-                if ui.button(self.t(Key::deploy)).clicked() {
-                    tokio::spawn(async {
-                        thread::sleep(Duration::from_secs(2));
-                    });
-                    self.isapi_deployed = true;
-                }
-            }
+            self.ep_widget(ui, previous_ep);
 
-            if self.isapi_deployed {
-                ui.label(self.t(Key::deployed_api));
-            }
+            ui.add_space(8.0);
+
+            self.api_widget(ui);
 
             ui.separator();
 
-            ui.vertical_centered(|ui| {
-                ui.heading(format!("📎 {}", self.t(Key::select_your_data)));
-            });
+            self.data_selection_widget(ctx, ui);
+
             ui.separator();
 
-            ui.spacing_mut().button_padding = egui::vec2(12.0, 8.0);
-            ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
-
-            // Data Selection Widget
-            egui::Grid::new("file_selection_grid")
-                .num_columns(2)
-                .spacing([10.0, 10.0])
-                .show(ui, |ui| {
-                    // FOLDER SELECTION SECTION
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::folder)))
-                        .clicked()
-                    {
-                        match FileDialog::new().pick_folder() {
-                            Some(folder_path) => {
-                                // Read directory contents and filter for image files
-                                match fs::read_dir(&folder_path) {
-                                    Ok(entries) => {
-                                        let mut image_files = Vec::new();
-
-                                        for entry in entries {
-                                            if let Ok(entry) = entry {
-                                                let path = entry.path();
-
-                                                // Only process files (not subdirectories)
-                                                if path.is_file() {
-                                                    if let Some(extension) = path.extension() {
-                                                        if let Some(ext_str) = extension.to_str() {
-                                                            if IMAGE_FORMATS.iter().any(|&format| {
-                                                                ext_str.to_lowercase()
-                                                                    == format.to_lowercase()
-                                                            }) {
-                                                                image_files.push(path);
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        if !image_files.is_empty() {
-                                            // Set the first image as the screen texture
-                                            self.selected_files = image_files
-                                                .into_iter()
-                                                .map(|path| PredImg::new_simple(path))
-                                                .collect();
-
-                                            self.paint(ctx, 0);
-                                            self.mode = Mode::Image;
-                                            self.image_progress_bar = self.selected_files.get_progress()
-                                        }
-                                    }
-                                    Err(_e) => {
-                                        self.error_ocurred = true;
-                                    }
-                                }
-                            }
-                            None => (), // No folder selected
-                        }
-                    }
-
-                    // IMAGE FILE SELECTION SECTION
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::image)))
-                        .clicked()
-                    {
-                        match FileDialog::new()
-                            .add_filter("Image", &IMAGE_FORMATS)
-                            .pick_files()
-                        {
-                            Some(paths) => {
-                                self.selected_files = paths
-                                    .into_iter()
-                                    .map(|path| PredImg::new_simple(path))
-                                    .collect();
-                                self.paint(ctx, 0);
-                                self.mode = Mode::Image;
-                                self.image_progress_bar = self.selected_files.get_progress()
-                            }
-                            _ => (), // no selection, do nothing
-                        }
-                    }
-                    ui.end_row();
-
-                    // VIDEO FILE SELECTION SECTION
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::video_file)))
-                        .clicked()
-                    {
-                        match FileDialog::new()
-                            .add_filter("Video", &VIDEO_FORMATS)
-                            .pick_file()
-                        {
-                            Some(path) => {
-                                self.video_file_path = Some(path);
-                                self.video_file_processor = Some(VideofileProcessor::new(
-                                    &self.video_file_path.clone().unwrap().to_str().unwrap(),
-                                ));
-                                self.mode = Mode::Video;
-                            }
-                            _ => (), // no selection, do nothing
-                        }
-                    }
-
-                    // Camera feed
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::camera_feed)))
-                        .clicked()
-                    {
-                        self.feed_url = Some("test".to_owned());
-                        self.mode = Mode::Feed;
-                    }
-                });
-
-            if self.selected_files.len() >= 1 && self.ai_selected.is_some() {
-                ui.separator();
-                ui.vertical_centered(|ui| {
-                    ui.heading(format!("📋 {}", self.t(Key::analysis)));
-                });
-                ui.separator();
-
-                // Analyze button Widget
-                ui.vertical_centered(|ui| {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
-                        .clicked()
-                        && self.image_processing_receiver.is_none()
-                    {
-                        if !self.is_processing {
-                            self.should_continue = true;
-                            self.is_processing = true;
-
-                            //  Async processing: Images
-                            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                            self.image_processing_receiver = Some(rx);
-
-                            let file_paths: Vec<String> = self
-                                .selected_files
-                                .iter()
-                                .map(|f| f.file_path.to_str().unwrap().to_string())
-                                .collect();
-                            let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                            self.image_cancel_sender = Some(cancel_tx);
-
-                            tokio::spawn(async move {
-                                for (i, path) in file_paths.iter().enumerate() {
-                                    // CHECK FOR CANCELLATION HERE
-                                    if cancel_rx.try_recv().is_ok() {
-                                        break;
-                                    }
-
-                                    let img = open(path).unwrap().into_rgb8();
-                                    let bbox = tokio::task::spawn_blocking(move || {
-                                        detect_bbox_from_imgbuf(&img)
-                                    })
-                                    .await
-                                    .unwrap();
-                                    if tx.send((i, bbox)).is_err() {
-                                        break;
-                                    }
-                                }
-                            });
-                        }
-                    }
-
-                    // Cancel button widget
-                    if self.is_processing {
-                        if ui
-                            .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
-                            .clicked()
-                        {
-                            self.should_continue = false;
-                            if let Some(cancel_tx) = self.image_cancel_sender.take() {
-                                let _ = cancel_tx.send(());
-                            }
-                            self.is_processing = false;
-                            self.image_processing_receiver = None;
-                        }
-                    }
-                });
-
-                // Progress Bar: Image                
-                if self.selected_files.len() > 0 {
-                    ui.add(
-                        egui::ProgressBar::new(self.image_progress_bar)
-                            .show_percentage()
-                            .animate(self.is_processing),
-                    );
-                }
-
-                ui.add_space(8.0);
-
-                // Export button Widget
-                if self.mode == Mode::Image {
-                    ui.vertical_centered(|ui| {
-                        if ui
-                            .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
-                            .clicked()
-                        {
-                            self.show_export_dialog = true;
-                        }
-                    });
-                }
-
-                // Export dialog logic
-                if self.show_export_dialog {
-                    egui::Window::new("Export Options")
-                        .collapsible(false)
-                        .resizable(false)
-                        .show(ctx, |ui| {
-                            if ui.button(self.t(Key::export_predictions)).clicked() {
-                                for file in self.selected_files.clone() {
-                                    tokio::spawn(async move {
-                                        let _ = write_pred_img_to_file(&file).await;
-                                    });
-                                }
-
-                                self.process_done();
-                                self.show_export_dialog = false;
-                            }
-
-                            if ui
-                                .button(self.t(Key::export_imgs_with_predictions))
-                                .clicked()
-                            {
-                                for file in &self.selected_files {
-                                    file.save();
-                                }
-                                self.process_done();
-                                self.show_export_dialog = false;
-                            }
-
-                            if ui.button(self.t(Key::copy_with_classification)).clicked() {
-                                let timestamp =
-                                    chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                                tokio::spawn({
-                                    let selected_files = self.selected_files.clone(); // Make sure it's Send + 'static
-                                    let path = format!("export/export_{}", timestamp);
-                                    async move {
-                                        let _ = api::export::copy_to_folder(&selected_files, &path)
-                                            .await;
-                                    }
-                                });
-                                self.process_done();
-                                self.show_export_dialog = false;
-                            }
-
-                            if ui.button(self.t(Key::cancel)).clicked() {
-                                self.show_export_dialog = false;
-                            }
-                        });
-                }
-
-                if let Some(done_time) = self.done_time {
-                    if done_time.elapsed().as_secs_f32() < 3.0 {
-                        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                            ui.label(self.t(Key::done));
-                        });
-                        ctx.request_repaint();
-                    } else {
-                        self.done_time = None;
-                    }
-                }
-            }
+            self.img_analysis_widget(ctx, ui);
+            self.show_done_message(ui, ctx);
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -557,16 +581,12 @@ impl eframe::App for MainApp {
                             }
                         }
 
-                        // If any textuure has been defined, we render it
-                        match &self.screen_texture {
-                            Some(texture) => {
-                                ui.add(
-                                    egui::Image::new(texture)
-                                        .max_height(800.0)
-                                        .corner_radius(10.0),
-                                );
-                            }
-                            None => {}
+                        if let Some(texture) = &self.screen_texture {
+                            ui.add(
+                                egui::Image::new(texture)
+                                    .max_height(800.0)
+                                    .corner_radius(10.0),
+                            );
                         }
                     });
                 }
@@ -611,16 +631,13 @@ impl eframe::App for MainApp {
                                     let _ = processor_handle.await;
                                 });
                             }
-                            // If any textuure has been defined, we render it
-                            match &self.video_frame_texture {
-                                Some(texture) => {
-                                    ui.add(
-                                        egui::Image::new(texture)
-                                            .max_height(800.0)
-                                            .corner_radius(10.0),
-                                    );
-                                }
-                                None => {}
+
+                            if let Some(texture) = &self.screen_texture {
+                                ui.add(
+                                    egui::Image::new(texture)
+                                        .max_height(800.0)
+                                        .corner_radius(10.0),
+                                );
                             }
                         }
                     });
