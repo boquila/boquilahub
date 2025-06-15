@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub struct MainApp {
+pub struct Gui {
     // Large types first
     ais: Vec<AI>,
     selected_files: Vec<PredImg>,
@@ -86,7 +86,7 @@ impl GeneralState {
     }
 }
 
-impl MainApp {
+impl Gui {
     pub fn new() -> Self {
         let local_lang = {
             let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
@@ -537,7 +537,7 @@ impl MainApp {
     }
 }
 
-impl eframe::App for MainApp {
+impl eframe::App for Gui {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if !self.it_ran {
