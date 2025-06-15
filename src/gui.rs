@@ -57,13 +57,33 @@ pub struct MainApp {
     // bool fields grouped together (1 byte each, but will be padded)
     is_done: bool,
     isapi_deployed: bool,
-    is_processing: bool,
+    img_is_processing: bool,
+    video_is_processing: bool,
     should_continue: bool,
     save_img_from_strema: bool,
     error_ocurred: bool,
     is_analysis_complete: bool,
     show_export_dialog: bool,
     it_ran: bool,
+}
+
+pub struct GeneralState {
+    cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
+    is_processing: bool,
+    progress_bar: f32,
+
+    texture: Option<TextureHandle>,
+}
+
+impl GeneralState {
+    pub fn init() -> Self {
+        GeneralState {
+            cancel_sender: None,
+            is_processing: false,
+            progress_bar: 0.0,
+            texture: None,
+        }
+    }
 }
 
 impl MainApp {
@@ -108,7 +128,8 @@ impl MainApp {
             video_progress_bar: 0.0,
             lang: local_lang,
             isapi_deployed: false,
-            is_processing: false,
+            img_is_processing: false,
+            video_is_processing: false,
             should_continue: true,
             save_img_from_strema: false,
             error_ocurred: false,
@@ -340,9 +361,9 @@ impl MainApp {
                     .clicked()
                     && self.image_processing_receiver.is_none()
                 {
-                    if !self.is_processing {
+                    if !self.img_is_processing {
                         self.should_continue = true;
-                        self.is_processing = true;
+                        self.img_is_processing = true;
 
                         //  Async processing: Images
                         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -378,7 +399,7 @@ impl MainApp {
                 }
 
                 // Cancel button widget
-                if self.is_processing {
+                if self.img_is_processing {
                     if ui
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
@@ -387,7 +408,7 @@ impl MainApp {
                         if let Some(cancel_tx) = self.image_cancel_sender.take() {
                             let _ = cancel_tx.send(());
                         }
-                        self.is_processing = false;
+                        self.img_is_processing = false;
                         self.image_processing_receiver = None;
                     }
                 }
@@ -398,7 +419,7 @@ impl MainApp {
                 ui.add(
                     egui::ProgressBar::new(self.image_progress_bar)
                         .show_percentage()
-                        .animate(self.is_processing),
+                        .animate(self.img_is_processing),
                 );
             }
 
@@ -470,6 +491,50 @@ impl MainApp {
             }
         }
     }
+
+    pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
+        if self.video_file_path.is_some() {
+            if ui.button("▶️").clicked() {
+                if !self.video_is_processing {
+                    // Async processing: Video
+                    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                    self.video_processing_receiver = Some(rx);
+                    let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+                    self.video_cancel_sender = Some(cancel_tx);
+
+                    let mut processor = self.video_file_processor.take().unwrap();
+                    tokio::spawn(async move {
+                        let n = processor.get_n_frames();
+                        let (frame_tx, mut frame_rx) = tokio::sync::mpsc::unbounded_channel();
+
+                        // Spawn blocking task to generate frames
+                        let processor_handle = tokio::task::spawn_blocking(move || {
+                            for _i in 0..=n {
+                                let (img, _b) = processor.run(None).unwrap();
+                                if frame_tx.send(img).is_err() {
+                                    break; // Receiver dropped
+                                }
+                            }
+                        });
+
+                        // Stream frames as they're produced
+                        while let Some(img) = frame_rx.recv().await {
+                            if cancel_rx.try_recv().is_ok() {
+                                break;
+                            }
+
+                            if tx.send(img).is_err() {
+                                break;
+                            }
+                        }
+
+                        // Clean up the blocking task
+                        let _ = processor_handle.await;
+                    });
+                }
+            }
+        }
+    }
 }
 
 impl eframe::App for MainApp {
@@ -534,7 +599,18 @@ impl eframe::App for MainApp {
 
             ui.separator();
 
-            self.img_analysis_widget(ctx, ui);
+            match self.mode {
+                Mode::Image => {
+                    self.img_analysis_widget(ctx, ui);
+                }
+                Mode::Video => {
+                    self.video_analysis_widget(ui);
+                }
+                Mode::Feed => {
+                    todo!()
+                }
+            }
+
             self.show_done_message(ui, ctx);
         });
 
@@ -592,53 +668,12 @@ impl eframe::App for MainApp {
                 }
                 Mode::Video => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        if self.video_file_path.is_some() {
-                            if ui.button("▶️").clicked() {
-                                // Async processing: Video
-                                let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                                self.video_processing_receiver = Some(rx);
-                                let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                                self.video_cancel_sender = Some(cancel_tx);
-
-                                let mut processor = self.video_file_processor.take().unwrap();
-                                tokio::spawn(async move {
-                                    let n = processor.get_n_frames();
-                                    let (frame_tx, mut frame_rx) =
-                                        tokio::sync::mpsc::unbounded_channel();
-
-                                    // Spawn blocking task to generate frames
-                                    let processor_handle = tokio::task::spawn_blocking(move || {
-                                        for _i in 0..=n {
-                                            let (img, _b) = processor.run(None).unwrap();
-                                            if frame_tx.send(img).is_err() {
-                                                break; // Receiver dropped
-                                            }
-                                        }
-                                    });
-
-                                    // Stream frames as they're produced
-                                    while let Some(img) = frame_rx.recv().await {
-                                        if cancel_rx.try_recv().is_ok() {
-                                            break;
-                                        }
-
-                                        if tx.send(img).is_err() {
-                                            break;
-                                        }
-                                    }
-
-                                    // Clean up the blocking task
-                                    let _ = processor_handle.await;
-                                });
-                            }
-
-                            if let Some(texture) = &self.screen_texture {
-                                ui.add(
-                                    egui::Image::new(texture)
-                                        .max_height(800.0)
-                                        .corner_radius(10.0),
-                                );
-                            }
+                        if let Some(texture) = &self.screen_texture {
+                            ui.add(
+                                egui::Image::new(texture)
+                                    .max_height(800.0)
+                                    .corner_radius(10.0),
+                            );
                         }
                     });
                 }
@@ -664,7 +699,7 @@ impl eframe::App for MainApp {
             }
 
             if self.selected_files.iter().all(|f| f.wasprocessed) {
-                self.is_processing = false;
+                self.img_is_processing = false;
                 self.image_processing_receiver = None;
             }
 
