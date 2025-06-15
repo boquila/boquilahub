@@ -34,7 +34,7 @@ pub async fn run_cli() {
         .get_matches();
 
     match matches.subcommand() {
-        Some(("serve", sub_matches)) => {
+        Some(("serve", _sub_matches)) => {
             let model_name = matches.get_one::<String>("model").unwrap();
             let port = *matches.get_one::<u16>("port").unwrap();
 

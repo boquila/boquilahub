@@ -5,7 +5,7 @@ use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::video_file::VideofileProcessor;
-use crate::api::{self, video_file};
+use crate::api::{self};
 use api::import::*;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
@@ -16,17 +16,19 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub struct MainApp {
-    // Large types first (Vec, Option<PathBuf>, Option<String>)
+    // Large types first 
     ais: Vec<AI>,
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
-    processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
+    image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
+    image_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
+    feed_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
+    feed_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     video_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<ImageBuffer<Rgba<u8>, Vec<u8>>>>,
     video_file_processor: Option<VideofileProcessor>,
     video_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
-    cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
 
     // Medium-sized types (TextureHandle options)
     screen_texture: Option<TextureHandle>,
@@ -45,7 +47,8 @@ pub struct MainApp {
     image_texture_n: usize,
 
     // f32 (4 bytes)
-    progress_bar: f32,
+    image_progress_bar: f32,
+    video_progress_bar: f32,
 
     // Enums (size depends on variants, but typically 1-8 bytes)
     lang: Lang,
@@ -83,8 +86,10 @@ impl MainApp {
             selected_files: Vec::new(),
             video_file_path: None,
             feed_url: None,
-            processing_receiver: None,
-            cancel_sender: None,
+            image_processing_receiver: None,
+            image_cancel_sender: None,
+            feed_processing_receiver: None,
+            feed_cancel_sender: None,
             video_processing_receiver: None,
             video_cancel_sender: None,
             video_file_processor: None,
@@ -99,7 +104,8 @@ impl MainApp {
             current_frame: None,
             is_done: false,
             done_time: None,
-            progress_bar: 0.0,
+            image_progress_bar: 0.0,
+            video_progress_bar: 0.0,
             lang: local_lang,
             isapi_deployed: false,
             is_processing: false,
@@ -291,7 +297,7 @@ impl eframe::App for MainApp {
 
                                             self.paint(ctx, 0);
                                             self.mode = Mode::Image;
-                                            self.progress_bar = self.selected_files.get_progress()
+                                            self.image_progress_bar = self.selected_files.get_progress()
                                         }
                                     }
                                     Err(_e) => {
@@ -319,7 +325,7 @@ impl eframe::App for MainApp {
                                     .collect();
                                 self.paint(ctx, 0);
                                 self.mode = Mode::Image;
-                                self.progress_bar = self.selected_files.get_progress()
+                                self.image_progress_bar = self.selected_files.get_progress()
                             }
                             _ => (), // no selection, do nothing
                         }
@@ -368,7 +374,7 @@ impl eframe::App for MainApp {
                     if ui
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
                         .clicked()
-                        && self.processing_receiver.is_none()
+                        && self.image_processing_receiver.is_none()
                     {
                         if !self.is_processing {
                             self.should_continue = true;
@@ -376,7 +382,7 @@ impl eframe::App for MainApp {
 
                             //  Async processing: Images
                             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                            self.processing_receiver = Some(rx);
+                            self.image_processing_receiver = Some(rx);
 
                             let file_paths: Vec<String> = self
                                 .selected_files
@@ -384,7 +390,7 @@ impl eframe::App for MainApp {
                                 .map(|f| f.file_path.to_str().unwrap().to_string())
                                 .collect();
                             let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                            self.cancel_sender = Some(cancel_tx);
+                            self.image_cancel_sender = Some(cancel_tx);
 
                             tokio::spawn(async move {
                                 for (i, path) in file_paths.iter().enumerate() {
@@ -407,25 +413,26 @@ impl eframe::App for MainApp {
                         }
                     }
 
+                    // Cancel button widget
                     if self.is_processing {
                         if ui
                             .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                             .clicked()
                         {
                             self.should_continue = false;
-                            if let Some(cancel_tx) = self.cancel_sender.take() {
+                            if let Some(cancel_tx) = self.image_cancel_sender.take() {
                                 let _ = cancel_tx.send(());
                             }
                             self.is_processing = false;
-                            self.processing_receiver = None;
+                            self.image_processing_receiver = None;
                         }
                     }
                 });
 
-                // Cancel button widget
+                // Progress Bar: Image                
                 if self.selected_files.len() > 0 {
                     ui.add(
-                        egui::ProgressBar::new(self.progress_bar)
+                        egui::ProgressBar::new(self.image_progress_bar)
                             .show_percentage()
                             .animate(self.is_processing),
                     );
@@ -625,7 +632,7 @@ impl eframe::App for MainApp {
         });
 
         // Handle results: Images
-        if let Some(rx) = &mut self.processing_receiver {
+        if let Some(rx) = &mut self.image_processing_receiver {
             let mut updates = Vec::new();
             while let Ok((i, bbox)) = rx.try_recv() {
                 updates.push((i, bbox));
@@ -641,9 +648,10 @@ impl eframe::App for MainApp {
 
             if self.selected_files.iter().all(|f| f.wasprocessed) {
                 self.is_processing = false;
-                self.processing_receiver = None;
+                self.image_processing_receiver = None;
             }
-            self.progress_bar = self.selected_files.get_progress();
+
+            self.image_progress_bar = self.selected_files.get_progress();
             ctx.request_repaint();
         }
 

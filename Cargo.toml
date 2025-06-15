@@ -36,6 +36,7 @@ sys-locale = "0.3.2"
 lto = "fat"
 strip = true
 codegen-units = 1
+opt-level = 3
 
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
