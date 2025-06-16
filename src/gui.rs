@@ -22,18 +22,10 @@ pub struct Gui {
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
-    image_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     feed_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
-    feed_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     video_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<ImageBuffer<Rgba<u8>, Vec<u8>>>>,
     video_file_processor: Option<VideofileProcessor>,
-    video_cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
-
-    // Medium-sized types (TextureHandle options)
-    screen_texture: Option<TextureHandle>,
-    video_frame_texture: Option<TextureHandle>,
-    feed_frame: Option<TextureHandle>,
 
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
     done_time: Option<Instant>,
@@ -46,10 +38,6 @@ pub struct Gui {
     ep_selected: usize,
     image_texture_n: usize,
 
-    // f32 (4 bytes)
-    image_progress_bar: f32,
-    video_progress_bar: f32,
-
     // Enums (size depends on variants, but typically 1-8 bytes)
     lang: Lang,
     mode: Mode,
@@ -57,27 +45,27 @@ pub struct Gui {
     // bool fields grouped together (1 byte each, but will be padded)
     is_done: bool,
     isapi_deployed: bool,
-    img_is_processing: bool,
-    video_is_processing: bool,
     should_continue: bool,
     save_img_from_strema: bool,
     error_ocurred: bool,
     is_analysis_complete: bool,
     show_export_dialog: bool,
     it_ran: bool,
+    img_state: State,
+    video_state: State,
+    feed_state: State,
 }
 
-pub struct GeneralState {
+pub struct State {
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
+    texture: Option<TextureHandle>,
     is_processing: bool,
     progress_bar: f32,
-
-    texture: Option<TextureHandle>,
 }
 
-impl GeneralState {
+impl State {
     pub fn init() -> Self {
-        GeneralState {
+        State {
             cancel_sender: None,
             is_processing: false,
             progress_bar: 0.0,
@@ -107,15 +95,9 @@ impl Gui {
             video_file_path: None,
             feed_url: None,
             image_processing_receiver: None,
-            image_cancel_sender: None,
             feed_processing_receiver: None,
-            feed_cancel_sender: None,
             video_processing_receiver: None,
-            video_cancel_sender: None,
             video_file_processor: None,
-            screen_texture: None,
-            video_frame_texture: None,
-            feed_frame: None,
             ai_selected: None,
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
@@ -124,12 +106,8 @@ impl Gui {
             current_frame: None,
             is_done: false,
             done_time: None,
-            image_progress_bar: 0.0,
-            video_progress_bar: 0.0,
             lang: local_lang,
             isapi_deployed: false,
-            img_is_processing: false,
-            video_is_processing: false,
             should_continue: true,
             save_img_from_strema: false,
             error_ocurred: false,
@@ -137,6 +115,9 @@ impl Gui {
             show_export_dialog: false,
             mode: Mode::Image,
             it_ran: false,
+            img_state: State::init(),
+            video_state: State::init(),
+            feed_state: State::init(),
         }
     }
 
@@ -150,7 +131,7 @@ impl Gui {
     }
 
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
-        self.screen_texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
+        self.img_state.texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
     }
 
     pub fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -281,7 +262,7 @@ impl Gui {
 
                                         self.paint(ctx, 0);
                                         self.mode = Mode::Image;
-                                        self.image_progress_bar = self.selected_files.get_progress()
+                                        self.img_state.progress_bar = self.selected_files.get_progress()
                                     }
                                 }
                                 Err(_e) => {
@@ -309,7 +290,7 @@ impl Gui {
                                 .collect();
                             self.paint(ctx, 0);
                             self.mode = Mode::Image;
-                            self.image_progress_bar = self.selected_files.get_progress()
+                            self.img_state.progress_bar = self.selected_files.get_progress()
                         }
                         _ => (), // no selection, do nothing
                     }
@@ -361,9 +342,9 @@ impl Gui {
                     .clicked()
                     && self.image_processing_receiver.is_none()
                 {
-                    if !self.img_is_processing {
+                    if !self.img_state.is_processing {
                         self.should_continue = true;
-                        self.img_is_processing = true;
+                        self.img_state.is_processing = true;
 
                         //  Async processing: Images
                         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -375,7 +356,7 @@ impl Gui {
                             .map(|f| f.file_path.to_str().unwrap().to_string())
                             .collect();
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                        self.image_cancel_sender = Some(cancel_tx);
+                        self.img_state.cancel_sender = Some(cancel_tx);
 
                         tokio::spawn(async move {
                             for (i, path) in file_paths.iter().enumerate() {
@@ -399,16 +380,16 @@ impl Gui {
                 }
 
                 // Cancel button widget
-                if self.img_is_processing {
+                if self.img_state.is_processing {
                     if ui
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
                     {
                         self.should_continue = false;
-                        if let Some(cancel_tx) = self.image_cancel_sender.take() {
+                        if let Some(cancel_tx) = self.img_state.cancel_sender.take() {
                             let _ = cancel_tx.send(());
                         }
-                        self.img_is_processing = false;
+                        self.img_state.is_processing = false;
                         self.image_processing_receiver = None;
                     }
                 }
@@ -417,9 +398,9 @@ impl Gui {
             // Progress Bar: Image
             if self.selected_files.len() > 0 {
                 ui.add(
-                    egui::ProgressBar::new(self.image_progress_bar)
+                    egui::ProgressBar::new(self.img_state.progress_bar)
                         .show_percentage()
-                        .animate(self.img_is_processing),
+                        .animate(self.img_state.is_processing),
                 );
             }
 
@@ -495,12 +476,12 @@ impl Gui {
     pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.video_file_path.is_some() {
             if ui.button("▶️").clicked() {
-                if !self.video_is_processing {
+                if !self.video_state.is_processing {
                     // Async processing: Video
                     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
                     self.video_processing_receiver = Some(rx);
                     let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                    self.video_cancel_sender = Some(cancel_tx);
+                    self.video_state.cancel_sender = Some(cancel_tx);
 
                     let mut processor = self.video_file_processor.take().unwrap();
                     tokio::spawn(async move {
@@ -657,7 +638,7 @@ impl eframe::App for Gui {
                             }
                         }
 
-                        if let Some(texture) = &self.screen_texture {
+                        if let Some(texture) = &self.img_state.texture {
                             ui.add(
                                 egui::Image::new(texture)
                                     .max_height(800.0)
@@ -668,7 +649,7 @@ impl eframe::App for Gui {
                 }
                 Mode::Video => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        if let Some(texture) = &self.screen_texture {
+                        if let Some(texture) = &self.video_state.texture {
                             ui.add(
                                 egui::Image::new(texture)
                                     .max_height(800.0)
@@ -699,11 +680,11 @@ impl eframe::App for Gui {
             }
 
             if self.selected_files.iter().all(|f| f.wasprocessed) {
-                self.img_is_processing = false;
+                self.img_state.is_processing = false;
                 self.image_processing_receiver = None;
             }
 
-            self.image_progress_bar = self.selected_files.get_progress();
+            self.img_state.progress_bar = self.selected_files.get_progress();
             ctx.request_repaint();
         }
 
@@ -715,7 +696,7 @@ impl eframe::App for Gui {
             }
 
             for img in updates {
-                self.video_frame_texture = Some(ctx.load_texture(
+                self.video_state.texture = Some(ctx.load_texture(
                     "current_frame",
                     load_image_from_buffer_ref(&img),
                     TextureOptions::default(),
