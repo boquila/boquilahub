@@ -262,7 +262,8 @@ impl Gui {
 
                                         self.paint(ctx, 0);
                                         self.mode = Mode::Image;
-                                        self.img_state.progress_bar = self.selected_files.get_progress()
+                                        self.img_state.progress_bar =
+                                            self.selected_files.get_progress()
                                     }
                                 }
                                 Err(_e) => {
@@ -516,6 +517,49 @@ impl Gui {
             }
         }
     }
+
+    pub fn img_handle_results(&mut self, ctx: &egui::Context) {
+        if let Some(rx) = &mut self.image_processing_receiver {
+            let mut updates = Vec::new();
+            while let Ok((i, bbox)) = rx.try_recv() {
+                updates.push((i, bbox));
+            }
+
+            for (i, bbox) in updates {
+                self.selected_files[i].list_bbox = bbox;
+                self.selected_files[i].wasprocessed = true;
+                if i == self.image_texture_n - 1 {
+                    self.paint(ctx, i);
+                }
+            }
+
+            if self.selected_files.iter().all(|f| f.wasprocessed) {
+                self.img_state.is_processing = false;
+                self.image_processing_receiver = None;
+            }
+
+            self.img_state.progress_bar = self.selected_files.get_progress();
+            ctx.request_repaint();
+        }
+    }
+
+    pub fn video_handle_results(&mut self, ctx: &egui::Context) {
+        if let Some(rx) = &mut self.video_processing_receiver {
+            let mut updates = Vec::new();
+            while let Ok(img) = rx.try_recv() {
+                updates.push(img);
+            }
+
+            for img in updates {
+                self.video_state.texture = Some(ctx.load_texture(
+                    "current_frame",
+                    load_image_from_buffer_ref(&img),
+                    TextureOptions::default(),
+                ));
+            }
+            ctx.request_repaint();
+        }
+    }
 }
 
 impl eframe::App for Gui {
@@ -646,6 +690,7 @@ impl eframe::App for Gui {
                             );
                         }
                     });
+                    self.img_handle_results(ctx);
                 }
                 Mode::Video => {
                     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -657,53 +702,13 @@ impl eframe::App for Gui {
                             );
                         }
                     });
+                    self.video_handle_results(ctx);
                 }
                 Mode::Feed => {
                     todo!()
                 }
             }
         });
-
-        // Handle results: Images
-        if let Some(rx) = &mut self.image_processing_receiver {
-            let mut updates = Vec::new();
-            while let Ok((i, bbox)) = rx.try_recv() {
-                updates.push((i, bbox));
-            }
-
-            for (i, bbox) in updates {
-                self.selected_files[i].list_bbox = bbox;
-                self.selected_files[i].wasprocessed = true;
-                if i == self.image_texture_n - 1 {
-                    self.paint(ctx, i);
-                }
-            }
-
-            if self.selected_files.iter().all(|f| f.wasprocessed) {
-                self.img_state.is_processing = false;
-                self.image_processing_receiver = None;
-            }
-
-            self.img_state.progress_bar = self.selected_files.get_progress();
-            ctx.request_repaint();
-        }
-
-        // Handle results: Video
-        if let Some(rx) = &mut self.video_processing_receiver {
-            let mut updates = Vec::new();
-            while let Ok(img) = rx.try_recv() {
-                updates.push(img);
-            }
-
-            for img in updates {
-                self.video_state.texture = Some(ctx.load_texture(
-                    "current_frame",
-                    load_image_from_buffer_ref(&img),
-                    TextureOptions::default(),
-                ));
-            }
-            ctx.request_repaint();
-        }
     }
 }
 
