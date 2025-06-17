@@ -532,17 +532,13 @@ impl PredImg {
         }
     }
 
-    pub fn draw(&self) -> Vec<u8> {
+    #[inline(always)]
+    pub fn draw(&self) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
         let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
-        return super::utils::image_buffer_to_jpg_buffer(img);
-    }
-
-    pub fn draw2(&self) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-        let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
+        if self.wasprocessed && !self.list_bbox.is_empty() {
+            super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
+        }
         return DynamicImage::ImageRgb8(img).to_rgba8();
-        // return img
     }
 
     pub fn save(&self) {
@@ -593,7 +589,7 @@ impl PredImgSugar for Vec<PredImg> {
     fn count_processed_images(&self) -> usize {
         self.iter().filter(|img| img.wasprocessed).count()
     }
-    
+
     fn get_progress(&self) -> f32 {
         let scalar = self.count_processed_images();
         return scalar as f32 / self.len() as f32;

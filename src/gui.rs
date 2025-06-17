@@ -528,6 +528,7 @@ impl Gui {
             for (i, bbox) in updates {
                 self.selected_files[i].list_bbox = bbox;
                 self.selected_files[i].wasprocessed = true;
+                // if the img is the same that the user is seeing, we'll repaint it    
                 if i == self.image_texture_n - 1 {
                     self.paint(ctx, i);
                 }
@@ -720,14 +721,9 @@ fn load_image_from_buffer_ref(
     ColorImage::from_rgba_unmultiplied(size, pixels.as_slice())
 }
 
+#[inline(always)]
 fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
-    let image_data = if predimg.wasprocessed {
-        load_image_from_buffer_ref(&predimg.draw2())
-    } else {
-        load_image_from_buffer_ref(&open(predimg.file_path.clone()).unwrap().into_rgba8())
-    };
-
-    ctx.load_texture("current_img", image_data, TextureOptions::default())
+    ctx.load_texture("current_img", load_image_from_buffer_ref(&predimg.draw()), TextureOptions::default())
 }
 
 #[derive(PartialEq)]

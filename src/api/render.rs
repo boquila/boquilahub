@@ -1,4 +1,4 @@
-use super::abstractions::{XYXYc};
+use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
@@ -104,42 +104,40 @@ const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../assets//DejaVuSans.ttf");
 
 pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<XYXYc>) {
-    if !predictions.is_empty() {
-        let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();
+    let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();
 
-        for bbox in predictions {
-            let w = bbox.bbox.x2 - bbox.bbox.x1;
-            let h = bbox.bbox.y2 - bbox.bbox.y1;
-            let color = BBOX_COLORS[bbox.bbox.class_id as usize];
-            let text = str_label(&bbox.label,bbox.bbox.prob);
+    for bbox in predictions {
+        let w = bbox.bbox.x2 - bbox.bbox.x1;
+        let h = bbox.bbox.y2 - bbox.bbox.y1;
+        let color = BBOX_COLORS[bbox.bbox.class_id as usize];
+        let text = str_label(&bbox.label, bbox.bbox.prob);
 
-            draw_hollow_rect_mut(
-                img,
-                Rect::at(bbox.bbox.x1 as i32, bbox.bbox.y1 as i32).of_size(w as u32, h as u32),
-                color,
-            );
-            draw_filled_rect_mut(
-                img,
-                Rect::at(
-                    bbox.bbox.x1 as i32,
-                    (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
-                )
-                .of_size(
-                    (text.len() as f32 * CHAR_WIDTH) as u32,
-                    FONT_SCALE as u32 + 4,
-                ),
-                color,
-            );
-            draw_text_mut(
-                img,
-                WHITE,
+        draw_hollow_rect_mut(
+            img,
+            Rect::at(bbox.bbox.x1 as i32, bbox.bbox.y1 as i32).of_size(w as u32, h as u32),
+            color,
+        );
+        draw_filled_rect_mut(
+            img,
+            Rect::at(
                 bbox.bbox.x1 as i32,
                 (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
-                FONT_SCALE,
-                &font,
-                &text,
-            );
-        }
+            )
+            .of_size(
+                (text.len() as f32 * CHAR_WIDTH) as u32,
+                FONT_SCALE as u32 + 4,
+            ),
+            color,
+        );
+        draw_text_mut(
+            img,
+            WHITE,
+            bbox.bbox.x1 as i32,
+            (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+            FONT_SCALE,
+            &font,
+            &text,
+        );
     }
 }
 
