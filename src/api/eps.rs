@@ -10,6 +10,7 @@ pub struct EP {
     pub version: f32,
     pub local: bool,
     pub dependencies: &'static str,
+    pub ep_type: EPType,
 }
 
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -68,6 +69,7 @@ pub static LIST_EPS: &[EP] = &[
         version: 0.0,
         local: true,
         dependencies: "none",
+        ep_type: EPType::CPU,
     },
     EP {
         name: "CUDA",
@@ -75,12 +77,21 @@ pub static LIST_EPS: &[EP] = &[
         version: 12.4,
         local: true,
         dependencies: "cuDNN",
+        ep_type: EPType::CUDA,
     },
     EP {
-        name: "BoquilaHUB Remoto",
+        name: "BoquilaHUB Remote",
         img_path: "tiny_boquila.png",
         version: 0.0,
         local: false,
         dependencies: "none",
+        ep_type: EPType::BoquilaHUBRemote,
     },
 ];
+
+#[derive(Clone)]
+pub enum EPType {
+    CPU,
+    CUDA,
+    BoquilaHUBRemote,   
+}

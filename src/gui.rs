@@ -554,7 +554,7 @@ impl Gui {
             for img in updates {
                 self.video_state.texture = Some(ctx.load_texture(
                     "current_frame",
-                    load_image_from_buffer_ref(&img),
+                    imgbuf_to_colorimg(&img),
                     TextureOptions::default(),
                 ));
             }
@@ -713,17 +713,16 @@ impl eframe::App for Gui {
     }
 }
 
-fn load_image_from_buffer_ref(
+fn imgbuf_to_colorimg(
     image_buffer: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
 ) -> ColorImage {
     let size: [usize; 2] = [image_buffer.width() as _, image_buffer.height() as _];
-    let pixels: image::FlatSamples<&[u8]> = image_buffer.as_flat_samples();
-    ColorImage::from_rgba_unmultiplied(size, pixels.as_slice())
+    ColorImage::from_rgba_unmultiplied(size, image_buffer.as_flat_samples().as_slice())
 }
 
 #[inline(always)]
 fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
-    ctx.load_texture("current_img", load_image_from_buffer_ref(&predimg.draw()), TextureOptions::default())
+    ctx.load_texture("current_img", imgbuf_to_colorimg(&predimg.draw()), TextureOptions::default())
 }
 
 #[derive(PartialEq)]
