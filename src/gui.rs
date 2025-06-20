@@ -552,7 +552,7 @@ impl Gui {
                         self.feed_processing_receiver = Some(rx);
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.feed_state.cancel_sender = Some(cancel_tx);
-                        
+
                         let url = self.feed_url.clone();
                         let mut feed = Feed::new(&url.unwrap());
                         tokio::spawn(async move {
@@ -561,8 +561,9 @@ impl Gui {
                                 if cancel_rx.try_recv().is_ok() {
                                     break;
                                 }
-                                
-                                let (img,bbox) = feed.run(false).unwrap();
+                                let mut img = feed.next().unwrap();
+                                let bbox = detect_bbox_from_imgbuf(&img);
+                                api::render::draw_bbox_from_imgbuf(&mut img, &bbox);
                                 let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
                                 if tx.send((bbox, img)).is_err() {
                                     break;

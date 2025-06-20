@@ -2,17 +2,17 @@ use super::{
     abstractions::XYXYc, inference::detect_bbox_from_imgbuf, render::draw_bbox_from_imgbuf,
     rest::detect_bbox_from_buf_remotely,
 };
+use chrono::Local;
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::error::Error;
 use std::iter::Iterator;
 use std::time::{Duration, Instant};
-use chrono::Local;
 
 pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
-    index: usize,   
+    index: usize,
     decoded: ffmpeg::frame::Video,
     frames: i64,
 }
@@ -94,7 +94,7 @@ impl Feed {
     fn process_frame<F>(
         &mut self,
         prediction_fn: F,
-        log: bool
+        log: bool,
     ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
     where
         F: Fn(&ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
@@ -104,12 +104,12 @@ impl Feed {
                 let predictions = prediction_fn(&img);
                 draw_bbox_from_imgbuf(&mut img, &predictions);
                 if log == true {
-                    let img_clone = img.clone();
+                    let img_clone: ImageBuffer<Rgb<u8>, Vec<u8>> = img.clone();
                     std::thread::spawn(move || {
                         let now = Local::now();
                         let date_str = now.format("%Y-%m-%d_%H-%M-%S.%3f").to_string();
                         let filename = format!("output_feed/detection_{}.jpg", date_str);
-                        let _= img_clone.save(filename);
+                        let _ = img_clone.save(filename);
                     });
                 }
                 Ok((img, predictions))
@@ -118,12 +118,22 @@ impl Feed {
         }
     }
 
-    pub fn run(&mut self, log: bool) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
+    pub fn run(
+        &mut self,
+        log: bool,
+    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), log)
     }
 
-    fn run_remotely(&mut self, url: &str, log: bool) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
-        self.process_frame(|img: &ImageBuffer<Rgb<u8>, Vec<u8>>| detect_bbox_from_buf_remotely(url, img.to_vec()), log)
+    fn run_remotely(
+        &mut self,
+        url: &str,
+        log: bool,
+    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
+        self.process_frame(
+            |img: &ImageBuffer<Rgb<u8>, Vec<u8>>| detect_bbox_from_buf_remotely(url, img.to_vec()),
+            log,
+        )
     }
 
     pub fn ignore_frame(&mut self) {
@@ -169,7 +179,7 @@ impl Feed {
     pub fn measure_remote_inference(&mut self, iterations: u32, url: &str) -> u32 {
         self.measure_method(
             |s| {
-                let _ = s.run_remotely(url,false);
+                let _ = s.run_remotely(url, false);
             },
             iterations,
         )
@@ -245,4 +255,11 @@ fn extract_img(frame: &ffmpeg::frame::Video) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     }
 
     return img_buffer;
+}
+
+pub fn save_frame(frame: &ImageBuffer<Rgb<u8>, Vec<u8>>) {
+    let now = Local::now();
+    let date_str = now.format("%Y-%m-%d_%H-%M-%S.%3f").to_string();
+    let filename = format!("output_feed/detection_{}.jpg", date_str);
+    let _ = frame.save(filename);
 }
