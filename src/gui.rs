@@ -437,7 +437,9 @@ impl Gui {
                             .clicked()
                         {
                             for file in &self.selected_files {
-                                file.save();
+                                if file.wasprocessed && !file.list_bbox.is_empty(){
+                                    file.save();
+                                }
                             }
                             self.process_done();
                             self.show_export_dialog = false;

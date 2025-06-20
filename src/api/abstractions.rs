@@ -546,7 +546,7 @@ impl PredImg {
                 .unwrap_or("image")
         );
 
-        img_data.save(&filename).expect("Failed to save image");
+        img_data.save(&filename).unwrap();
     }
 }
 
