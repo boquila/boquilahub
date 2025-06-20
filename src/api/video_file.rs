@@ -92,7 +92,7 @@ impl VideofileProcessor {
         vec: Option<Vec<XYXYc>>,
     ) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(
-            |img| detect_bbox_from_buf_remotely(url.to_string(), img.to_vec()),
+            |img| detect_bbox_from_buf_remotely(url, img.to_vec()),
             vec,
         )
     }

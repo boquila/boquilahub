@@ -5,7 +5,7 @@ use crate::api::{
     bq::get_bqs,
     eps::LIST_EPS,
     inference::set_model,
-    rest::{get_ip, run_api},
+    rest::{get_ipv4_address, run_api},
 };
 
 pub async fn run_cli() {
@@ -59,7 +59,7 @@ pub async fn run_cli() {
             run_api(port).await;
             // CLI mode
 
-            let ip_text = format!("http://{}:8791", get_ip());
+            let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
             println!("{}", ASCII_ART);
             println!("Model deployed: {}", model_name);
             println!("IP Address: {}", ip_text);

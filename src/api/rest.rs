@@ -33,7 +33,7 @@ pub async fn run_api(port: u16) {
     axum::serve(listener, app).await.unwrap();
 }
 
-pub fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>) -> Vec<XYXYc> {
+pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> Vec<XYXYc> {
     let client = Client::new();
     let response = client
         .post(url)
@@ -53,14 +53,14 @@ pub fn detect_bbox_from_buf_remotely(url: String, buffer: Vec<u8>) -> Vec<XYXYc>
 }
 
 
-pub fn detect_bbox_remotely(url: String, file_path: &str) -> Vec<XYXYc> {
+pub fn detect_bbox_remotely(url: &str, file_path: &str) -> Vec<XYXYc> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_bbox_from_buf_remotely(url, buf);
 }
 
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-fn get_ipv4_address() -> Option<String> {
+pub fn get_ipv4_address() -> Option<String> {
     let output = Command::new("ipconfig")
         .creation_flags(CREATE_NO_WINDOW)
         .output()
@@ -76,10 +76,6 @@ fn get_ipv4_address() -> Option<String> {
     }
 
     None
-}
-
-pub fn get_ip() -> String {
-    get_ipv4_address().unwrap()
 }
 
 pub async fn check_boquila_hub_api(url: &str) -> bool {

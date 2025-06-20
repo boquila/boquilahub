@@ -591,8 +591,7 @@ impl PredImgSugar for Vec<PredImg> {
     }
 
     fn get_progress(&self) -> f32 {
-        let scalar = self.count_processed_images();
-        return scalar as f32 / self.len() as f32;
+        self.count_processed_images() as f32 / self.len() as f32
     }
 }
 

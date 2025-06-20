@@ -572,8 +572,6 @@ impl eframe::App for Gui {
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-
             egui::menu::bar(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
                     ui.hyperlink_to(self.t(Key::website), self.t(Key::website_url));
