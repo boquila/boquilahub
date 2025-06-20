@@ -1,20 +1,14 @@
-use super::{
-    abstractions::XYXYc, inference::detect_bbox_from_imgbuf, render::draw_bbox_from_imgbuf,
-    rest::detect_bbox_from_buf_remotely,
-};
 use chrono::Local;
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
-use std::error::Error;
 use std::iter::Iterator;
-use std::time::{Duration, Instant};
 
 pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
     index: usize,
     decoded: ffmpeg::frame::Video,
-    frames: i64,
+    pub frames: i64,
 }
 
 impl Iterator for Feed {
@@ -89,104 +83,6 @@ impl Feed {
             decoded,
             frames,
         }
-    }
-
-    fn process_frame<F>(
-        &mut self,
-        prediction_fn: F,
-        log: bool,
-    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
-    where
-        F: Fn(&ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
-    {
-        match self.next() {
-            Some(mut img) => {
-                let predictions = prediction_fn(&img);
-                draw_bbox_from_imgbuf(&mut img, &predictions);
-                if log == true {
-                    let img_clone: ImageBuffer<Rgb<u8>, Vec<u8>> = img.clone();
-                    std::thread::spawn(move || {
-                        let now = Local::now();
-                        let date_str = now.format("%Y-%m-%d_%H-%M-%S.%3f").to_string();
-                        let filename = format!("output_feed/detection_{}.jpg", date_str);
-                        let _ = img_clone.save(filename);
-                    });
-                }
-                Ok((img, predictions))
-            }
-            None => Err("Failed to retrieve the next frame.".into()), // Handle None case by returning a descriptive error
-        }
-    }
-
-    pub fn run(
-        &mut self,
-        log: bool,
-    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
-        self.process_frame(|img| detect_bbox_from_imgbuf(img), log)
-    }
-
-    fn run_remotely(
-        &mut self,
-        url: &str,
-        log: bool,
-    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
-        self.process_frame(
-            |img: &ImageBuffer<Rgb<u8>, Vec<u8>>| detect_bbox_from_buf_remotely(url, img.to_vec()),
-            log,
-        )
-    }
-
-    pub fn ignore_frame(&mut self) {
-        self.next();
-    }
-
-    fn measure_method<F>(&mut self, method: F, iterations: u32) -> u32
-    where
-        F: Fn(&mut Self),
-    {
-        let mut total_duration = Duration::new(0, 0);
-
-        for _ in 0..iterations {
-            let start = Instant::now();
-            method(self);
-            total_duration += start.elapsed();
-        }
-
-        let avg_duration_nanos = total_duration.as_nanos() as f64 / iterations as f64;
-        let avg_duration_secs = avg_duration_nanos / 1_000_000_000.0;
-        let fps = (1.0 / avg_duration_secs).round() as u32;
-        return fps;
-    }
-
-    pub fn measure_fps(&mut self, iterations: u32) -> u32 {
-        self.measure_method(
-            |s| {
-                s.next();
-            },
-            iterations,
-        )
-    }
-
-    pub fn measure_inference(&mut self, iterations: u32) -> u32 {
-        self.measure_method(
-            |s| {
-                let _ = s.run(false);
-            },
-            iterations,
-        )
-    }
-
-    pub fn measure_remote_inference(&mut self, iterations: u32, url: &str) -> u32 {
-        self.measure_method(
-            |s| {
-                let _ = s.run_remotely(url, false);
-            },
-            iterations,
-        )
-    }
-
-    pub fn get_n_frames(&self) -> i64 {
-        self.frames
     }
 }
 
