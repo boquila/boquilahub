@@ -11,6 +11,7 @@ use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
 use std::fs::{self};
+use std::os::windows::process;
 use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -22,9 +23,10 @@ pub struct Gui {
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
-    feed_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
+    feed_processing_receiver:
+        Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_processing_receiver:
-        Option<tokio::sync::mpsc::UnboundedReceiver<ImageBuffer<Rgba<u8>, Vec<u8>>>>,
+        Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_file_processor: Option<VideofileProcessor>,
 
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
@@ -33,8 +35,8 @@ pub struct Gui {
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
     step_frame: Option<usize>,
-    total_frames: Option<usize>,
-    current_frame: Option<usize>,
+    current_frame: u64,
+    total_frames: Option<u64>,
     ep_selected: usize,
     image_texture_n: usize,
 
@@ -76,19 +78,6 @@ impl State {
 
 impl Gui {
     pub fn new() -> Self {
-        let local_lang = {
-            let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
-            let lang_code = locale.get(0..2).unwrap_or("en").to_lowercase();
-            match lang_code.as_str() {
-                "en" => Lang::EN,
-                "es" => Lang::ES,
-                "fr" => Lang::FR,
-                "de" => Lang::DE,
-                "zh" => Lang::ZH,
-                _ => Lang::EN,
-            }
-        };
-
         Self {
             ais: get_bqs(),
             selected_files: Vec::new(),
@@ -102,11 +91,11 @@ impl Gui {
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
             step_frame: None,
+            current_frame: 0,
             total_frames: None,
-            current_frame: None,
             is_done: false,
             done_time: None,
-            lang: local_lang,
+            lang: get_locale(),
             isapi_deployed: false,
             should_continue: true,
             save_img_from_strema: false,
@@ -309,10 +298,14 @@ impl Gui {
                     {
                         Some(path) => {
                             self.video_file_path = Some(path);
-                            self.video_file_processor = Some(VideofileProcessor::new(
+                            let processor = Some(VideofileProcessor::new(
                                 &self.video_file_path.clone().unwrap().to_str().unwrap(),
-                            ));
+                            ))
+                            .unwrap();
+                            self.total_frames = Some(processor.get_n_frames());
+                            self.video_file_processor = Some(processor);
                             self.mode = Mode::Video;
+                            self.current_frame = 0;
                         }
                         _ => (), // no selection, do nothing
                     }
@@ -475,45 +468,53 @@ impl Gui {
     }
 
     pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() {
-            if ui.button("▶️").clicked() {
-                if !self.video_state.is_processing {
-                    // Async processing: Video
-                    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                    self.video_processing_receiver = Some(rx);
-                    let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                    self.video_state.cancel_sender = Some(cancel_tx);
+        if self.video_file_path.is_some() && self.ai_selected.is_some() {
+            ui.vertical_centered(|ui| {
+                ui.heading(format!("📋 {}", self.t(Key::analysis)));
+            });
+            ui.separator();
 
-                    let mut processor = self.video_file_processor.take().unwrap();
-                    tokio::spawn(async move {
-                        let n = processor.get_n_frames();
-                        let (frame_tx, mut frame_rx) = tokio::sync::mpsc::unbounded_channel();
+            ui.vertical_centered(|ui| {
+                if ui.button("▶").clicked() {
+                    if !self.video_state.is_processing {
+                        self.video_state.is_processing = true;
+                        // Async processing: Video
+                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                        self.video_processing_receiver = Some(rx);
+                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+                        self.video_state.cancel_sender = Some(cancel_tx);
 
-                        // Spawn blocking task to generate frames
-                        let processor_handle = tokio::task::spawn_blocking(move || {
-                            for _i in 0..=n {
-                                let (img, _b) = processor.run(None).unwrap();
-                                if frame_tx.send(img).is_err() {
-                                    break; // Receiver dropped
+                        let mut processor = self.video_file_processor.take().unwrap();
+                        let n = self.total_frames.unwrap();
+                        tokio::spawn(async move {
+                            // Spawn blocking task to generate frames
+                            let processor_handle = tokio::task::spawn_blocking(move || {
+                                for i in 0..=n {
+                                    if cancel_rx.try_recv().is_ok() {
+                                        break;
+                                    }
+                                    let (img, _b) = processor.run(None).unwrap();
+
+                                    if tx.send((i, img)).is_err() {
+                                        break;
+                                    }
                                 }
-                            }
+                            });
+
+                            // Clean up the blocking task
+                            let _ = processor_handle.await;
                         });
-
-                        // Stream frames as they're produced
-                        while let Some(img) = frame_rx.recv().await {
-                            if cancel_rx.try_recv().is_ok() {
-                                break;
-                            }
-
-                            if tx.send(img).is_err() {
-                                break;
-                            }
-                        }
-
-                        // Clean up the blocking task
-                        let _ = processor_handle.await;
-                    });
+                    }
                 }
+            });
+
+            // Progress Bar: Image
+            if self.video_file_path.is_some() {
+                ui.add(
+                    egui::ProgressBar::new(self.video_state.progress_bar)
+                        .show_percentage()
+                        .animate(self.video_state.is_processing),
+                );
             }
         }
     }
@@ -528,7 +529,7 @@ impl Gui {
             for (i, bbox) in updates {
                 self.selected_files[i].list_bbox = bbox;
                 self.selected_files[i].wasprocessed = true;
-                // if the img is the same that the user is seeing, we'll repaint it    
+                // if the img is the same that the user is seeing, we'll repaint it
                 if i == self.image_texture_n - 1 {
                     self.paint(ctx, i);
                 }
@@ -551,13 +552,15 @@ impl Gui {
                 updates.push(img);
             }
 
-            for img in updates {
+            for (i, img) in updates {
                 self.video_state.texture = Some(ctx.load_texture(
                     "current_frame",
                     imgbuf_to_colorimg(&img),
                     TextureOptions::default(),
                 ));
+                self.video_state.progress_bar = i as f32 / self.total_frames.unwrap() as f32;
             }
+
             ctx.request_repaint();
         }
     }
@@ -711,16 +714,18 @@ impl eframe::App for Gui {
     }
 }
 
-fn imgbuf_to_colorimg(
-    image_buffer: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
-) -> ColorImage {
+fn imgbuf_to_colorimg(image_buffer: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> ColorImage {
     let size: [usize; 2] = [image_buffer.width() as _, image_buffer.height() as _];
     ColorImage::from_rgba_unmultiplied(size, image_buffer.as_flat_samples().as_slice())
 }
 
 #[inline(always)]
 fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
-    ctx.load_texture("current_img", imgbuf_to_colorimg(&predimg.draw()), TextureOptions::default())
+    ctx.load_texture(
+        "current_img",
+        imgbuf_to_colorimg(&predimg.draw()),
+        TextureOptions::default(),
+    )
 }
 
 #[derive(PartialEq)]

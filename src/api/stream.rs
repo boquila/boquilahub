@@ -1,13 +1,12 @@
 use super::{
     abstractions::XYXYc, inference::detect_bbox_from_imgbuf, render::draw_bbox_from_imgbuf,
-    rest::detect_bbox_from_buf_remotely, utils::image_buffer_to_jpg_buffer,
+    rest::detect_bbox_from_buf_remotely,
 };
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::error::Error;
 use std::iter::Iterator;
 use std::time::{Duration, Instant};
-use std::{fs::File, io::Write};
 use chrono::Local;
 
 pub struct VideoStream {
@@ -98,35 +97,34 @@ impl VideoStream {
         &mut self,
         prediction_fn: F,
         log: bool
-    ) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>>
+    ) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
     where
-        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
+        F: Fn(&ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
     {
         match self.next() {
             Some(mut img) => {
                 let predictions = prediction_fn(&img);
                 draw_bbox_from_imgbuf(&mut img, &predictions);
-                let jpg_buffer = image_buffer_to_jpg_buffer(img);
                 if log == true {
-                    let jpg_buffer_clone = jpg_buffer.clone();
+                    let img_clone = img.clone();
                     std::thread::spawn(move || {
                         let now = Local::now();
                         let date_str = now.format("%Y-%m-%d_%H-%M-%S.%3f").to_string();
                         let filename = format!("output_feed/detection_{}.jpg", date_str);
-                        save_jpg(&jpg_buffer_clone, &filename);
+                        let _= img_clone.save(filename);
                     });
                 }
-                Ok((jpg_buffer, predictions))
+                Ok((img, predictions))
             }
             None => Err("Failed to retrieve the next frame.".into()), // Handle None case by returning a descriptive error
         }
     }
 
-    fn run(&mut self, log: bool) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
+    fn run(&mut self, log: bool) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), log)
     }
 
-    fn run_remotely(&mut self, url: &str, log: bool) -> Result<(Vec<u8>, Vec<XYXYc>), Box<dyn Error>> {
+    fn run_remotely(&mut self, url: &str, log: bool) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img: &ImageBuffer<Rgb<u8>, Vec<u8>>| detect_bbox_from_buf_remotely(url, img.to_vec()), log)
     }
 
@@ -249,10 +247,4 @@ fn extract_img(frame: &ffmpeg::frame::Video) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     }
 
     return img_buffer;
-}
-
-pub fn save_jpg(data: &[u8], filename: &str) {
-    let full_filename = format!("{filename}.jpg");
-    let mut file = File::create(full_filename).unwrap();
-    file.write_all(&data).unwrap();    
 }

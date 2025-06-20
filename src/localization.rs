@@ -309,3 +309,16 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         },
     }
 }
+
+pub fn get_locale() -> Lang {
+    let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
+    let lang_code = locale.get(0..2).unwrap_or("en").to_lowercase();
+    match lang_code.as_str() {
+        "en" => Lang::EN,
+        "es" => Lang::ES,
+        "fr" => Lang::FR,
+        "de" => Lang::DE,
+        "zh" => Lang::ZH,
+        _ => Lang::EN,
+    }
+}
