@@ -13,6 +13,7 @@ use rfd::FileDialog;
 use std::fs::{self};
 use std::os::windows::process;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -27,7 +28,7 @@ pub struct Gui {
         Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
-    video_file_processor: Option<VideofileProcessor>,
+    video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
 
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
     done_time: Option<Instant>,
@@ -86,7 +87,7 @@ impl Gui {
             image_processing_receiver: None,
             feed_processing_receiver: None,
             video_processing_receiver: None,
-            video_file_processor: None,
+            video_file_processor: Arc::new(Mutex::new(None)),
             ai_selected: None,
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
@@ -303,7 +304,7 @@ impl Gui {
                             ))
                             .unwrap();
                             self.total_frames = Some(processor.get_n_frames());
-                            self.video_file_processor = Some(processor);
+                            self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
                             self.mode = Mode::Video;
                             self.current_frame = 0;
                         }
@@ -325,7 +326,8 @@ impl Gui {
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && self.ai_selected.is_some() {
             ui.vertical_centered(|ui| {
-                ui.heading(format!("📋 {}", self.t(Key::analysis)));
+                ui.heading(self.t(Key::image));
+                ui.heading(self.t(Key::analysis));
             });
             ui.separator();
 
@@ -337,7 +339,6 @@ impl Gui {
                     && self.image_processing_receiver.is_none()
                 {
                     if !self.img_state.is_processing {
-                        self.should_continue = true;
                         self.img_state.is_processing = true;
 
                         //  Async processing: Images
@@ -379,7 +380,6 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
                     {
-                        self.should_continue = false;
                         if let Some(cancel_tx) = self.img_state.cancel_sender.take() {
                             let _ = cancel_tx.send(());
                         }
@@ -470,13 +470,14 @@ impl Gui {
     pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.video_file_path.is_some() && self.ai_selected.is_some() {
             ui.vertical_centered(|ui| {
-                ui.heading(format!("📋 {}", self.t(Key::analysis)));
+                ui.heading(self.t(Key::video_file));
+                ui.heading(self.t(Key::analysis));
             });
             ui.separator();
 
             ui.vertical_centered(|ui| {
-                if ui.button("▶").clicked() {
-                    if !self.video_state.is_processing {
+                if !self.video_state.is_processing {
+                    if ui.button("▶").clicked() {
                         self.video_state.is_processing = true;
                         // Async processing: Video
                         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -484,16 +485,20 @@ impl Gui {
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.video_state.cancel_sender = Some(cancel_tx);
 
-                        let mut processor = self.video_file_processor.take().unwrap();
+                        let processor = Arc::clone(&self.video_file_processor);
                         let n = self.total_frames.unwrap();
+                        let current = self.current_frame;
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || {
-                                for i in 0..=n {
+                                for i in current..=n {
                                     if cancel_rx.try_recv().is_ok() {
                                         break;
                                     }
-                                    let (img, _b) = processor.run(None).unwrap();
+                                    let (img, _b) = {
+                                        let mut proc_opt = processor.lock().unwrap();
+                                        proc_opt.as_mut().unwrap().run(None).unwrap()
+                                    };
 
                                     if tx.send((i, img)).is_err() {
                                         break;
@@ -504,6 +509,13 @@ impl Gui {
                             // Clean up the blocking task
                             let _ = processor_handle.await;
                         });
+                    }
+                } else {
+                    if ui.button("||").clicked() {
+                        if let Some(cancel_tx) = self.video_state.cancel_sender.take() {
+                            let _ = cancel_tx.send(());
+                        }
+                        self.video_state.is_processing = false;
                     }
                 }
             });
@@ -537,7 +549,6 @@ impl Gui {
 
             if self.selected_files.iter().all(|f| f.wasprocessed) {
                 self.img_state.is_processing = false;
-                self.image_processing_receiver = None;
             }
 
             self.img_state.progress_bar = self.selected_files.get_progress();
@@ -558,7 +569,11 @@ impl Gui {
                     imgbuf_to_colorimg(&img),
                     TextureOptions::default(),
                 ));
-                self.video_state.progress_bar = i as f32 / self.total_frames.unwrap() as f32;
+                self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
+                self.current_frame = i;
+                if i == self.total_frames.unwrap() {
+                    self.video_state.is_processing = false;
+                }
             }
 
             ctx.request_repaint();
