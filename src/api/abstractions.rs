@@ -494,22 +494,6 @@ pub struct AI {
 }
 
 impl AI {
-    // The `default` function returns a dummy instance
-    pub fn default() -> Self {
-        AI::new(
-            "boquilanet-gen".to_string(),
-            0.1,
-            1024,
-            1024,
-            "Generic animal detection".to_string(),
-            "green".to_string(),
-            "detect".to_string(),
-            vec!["NMS".to_string()],
-            vec!["animal".to_string()],
-        )
-    }
-
-    // Method to get the path of the AI model
     pub fn get_path(&self) -> String {
         format!("models/{}.bq", self.name)
     }

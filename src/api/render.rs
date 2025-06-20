@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
@@ -102,9 +103,12 @@ const LABEL_PADDING: f32 = FONT_SCALE / 6.13;
 const CHAR_WIDTH: f32 = FONT_SCALE / 1.84;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../assets//DejaVuSans.ttf");
+static FONT: LazyLock<FontRef<'static>> = LazyLock::new(|| {
+    FontRef::try_from_slice(FONT_BYTES).expect("Failed to load font")
+});
 
 pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<XYXYc>) {
-    let font: FontRef<'_> = FontRef::try_from_slice(FONT_BYTES).unwrap();
+    let font = &*FONT; // Dereference the LazyLock
 
     for bbox in predictions {
         let w = bbox.bbox.x2 - bbox.bbox.x1;
