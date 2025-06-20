@@ -366,6 +366,7 @@ impl Gui {
                                 })
                                 .await
                                 .unwrap();
+
                                 if tx.send((i, bbox)).is_err() {
                                     break;
                                 }
@@ -549,6 +550,7 @@ impl Gui {
 
             if self.selected_files.iter().all(|f| f.wasprocessed) {
                 self.img_state.is_processing = false;
+                self.image_processing_receiver = None;
             }
 
             self.img_state.progress_bar = self.selected_files.get_progress();
@@ -573,6 +575,7 @@ impl Gui {
                 self.current_frame = i;
                 if i == self.total_frames.unwrap() {
                     self.video_state.is_processing = false;
+                    self.video_processing_receiver = None;
                 }
             }
 

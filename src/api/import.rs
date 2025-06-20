@@ -1,7 +1,6 @@
 // First formats
 // then, some logic and checks
-pub const IMAGE_FORMATS: [&'static str; 24] = [
-    "avif", // AV1 Image File Format
+pub const IMAGE_FORMATS: [&'static str; 23] = [
     "bmp",  // Bitmap Image File
     "dib",  // Device Independent Bitmap (BMP alternative)
     "dds",  // DirectDraw Surface

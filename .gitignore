@@ -12,3 +12,4 @@ target_wasm
 # binaries and .bq models
 /deps
 /models
+/export

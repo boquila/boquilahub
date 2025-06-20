@@ -9,7 +9,7 @@ use std::iter::Iterator;
 use std::time::{Duration, Instant};
 use chrono::Local;
 
-pub struct VideoStream {
+pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
     index: usize,   
@@ -17,9 +17,7 @@ pub struct VideoStream {
     frames: i64,
 }
 
-unsafe impl Sync for VideoStream {}
-
-impl Iterator for VideoStream {
+impl Iterator for Feed {
     // The iterator yields image buffers
     type Item = ImageBuffer<Rgb<u8>, Vec<u8>>;
 
@@ -52,8 +50,8 @@ impl Iterator for VideoStream {
     }
 }
 
-impl VideoStream {
-    pub fn new(path_or_url: &str) -> Self {
+impl Feed {
+    pub fn new(url: &str) -> Self {
         // Initialize FFmpeg
         ffmpeg::init().unwrap();
 
@@ -64,7 +62,7 @@ impl VideoStream {
         opts.set("timeout", "5000000"); // General timeout value
 
         // Open input with options
-        let input_ctx = ffmpeg::format::input_with_dictionary(path_or_url, opts).unwrap();
+        let input_ctx = ffmpeg::format::input_with_dictionary(url, opts).unwrap();
 
         // Find the first video stream
         let video_stream: ffmpeg::Stream<'_> = input_ctx
