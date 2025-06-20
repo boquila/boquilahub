@@ -118,7 +118,7 @@ impl Feed {
         }
     }
 
-    fn run(&mut self, log: bool) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
+    pub fn run(&mut self, log: bool) -> Result<(ImageBuffer<Rgb<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
         self.process_frame(|img| detect_bbox_from_imgbuf(img), log)
     }
 

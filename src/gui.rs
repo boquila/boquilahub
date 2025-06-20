@@ -4,6 +4,7 @@ use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
+use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
 use api::import::*;
@@ -25,7 +26,7 @@ pub struct Gui {
     feed_url: Option<String>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
     feed_processing_receiver:
-        Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
+        Option<tokio::sync::mpsc::UnboundedReceiver<(Vec<XYXYc>, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
@@ -437,7 +438,7 @@ impl Gui {
                             .clicked()
                         {
                             for file in &self.selected_files {
-                                if file.wasprocessed && !file.list_bbox.is_empty(){
+                                if file.wasprocessed && !file.list_bbox.is_empty() {
                                     file.save();
                                 }
                             }
@@ -523,7 +524,7 @@ impl Gui {
                 }
             });
 
-            // Progress Bar: Image
+            // Progress Bar: Video
             if self.video_file_path.is_some() {
                 ui.add(
                     egui::ProgressBar::new(self.video_state.progress_bar)
@@ -531,6 +532,56 @@ impl Gui {
                         .animate(self.video_state.is_processing),
                 );
             }
+        }
+    }
+
+    pub fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
+        if self.feed_url.is_some() && self.ai_selected.is_some() {
+            ui.vertical_centered(|ui| {
+                ui.heading(self.t(Key::camera_feed));
+                ui.heading(self.t(Key::analysis));
+            });
+            ui.separator();
+
+            ui.vertical_centered(|ui| {
+                if !self.feed_state.is_processing {
+                    if ui.button("▶").clicked() {
+                        self.feed_state.is_processing = true;
+                        // Async processing: Video
+                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+                        self.feed_processing_receiver = Some(rx);
+                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+                        self.feed_state.cancel_sender = Some(cancel_tx);
+                        
+                        let url = self.feed_url.clone();
+                        let mut feed = Feed::new(&url.unwrap());
+                        tokio::spawn(async move {
+                            // Spawn blocking task to generate frames
+                            let processor_handle = tokio::task::spawn_blocking(move || loop {
+                                if cancel_rx.try_recv().is_ok() {
+                                    break;
+                                }
+                                
+                                let (img,bbox) = feed.run(false).unwrap();
+                                let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+                                if tx.send((bbox, img)).is_err() {
+                                    break;
+                                }
+                            });
+
+                            // Clean up the blocking task
+                            let _ = processor_handle.await;
+                        });
+                    }
+                } else {
+                    if ui.button("||").clicked() {
+                        if let Some(cancel_tx) = self.feed_state.cancel_sender.take() {
+                            let _ = cancel_tx.send(());
+                        }
+                        self.feed_state.is_processing = false;
+                    }
+                }
+            });
         }
     }
 
@@ -579,6 +630,25 @@ impl Gui {
                     self.video_state.is_processing = false;
                     self.video_processing_receiver = None;
                 }
+            }
+
+            ctx.request_repaint();
+        }
+    }
+
+    pub fn feed_handle_results(&mut self, ctx: &egui::Context) {
+        if let Some(rx) = &mut self.feed_processing_receiver {
+            let mut updates = Vec::new();
+            while let Ok(img) = rx.try_recv() {
+                updates.push(img);
+            }
+
+            for (bbox, img) in updates {
+                self.feed_state.texture = Some(ctx.load_texture(
+                    "current_frame",
+                    imgbuf_to_colorimg(&img),
+                    TextureOptions::default(),
+                ));
             }
 
             ctx.request_repaint();
@@ -654,7 +724,7 @@ impl eframe::App for Gui {
                     self.video_analysis_widget(ui);
                 }
                 Mode::Feed => {
-                    todo!()
+                    self.feed_analysis_widget(ui);
                 }
             }
 
@@ -727,7 +797,16 @@ impl eframe::App for Gui {
                     self.video_handle_results(ctx);
                 }
                 Mode::Feed => {
-                    todo!()
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        if let Some(texture) = &self.feed_state.texture {
+                            ui.add(
+                                egui::Image::new(texture)
+                                    .max_height(800.0)
+                                    .corner_radius(10.0),
+                            );
+                        }
+                    });
+                    self.feed_handle_results(ctx);
                 }
             }
         });
