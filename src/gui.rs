@@ -8,6 +8,7 @@ use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
 use api::import::*;
+use egui::debug_text::print;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
@@ -249,33 +250,26 @@ impl Gui {
                             // Read directory contents and filter for image files
                             match fs::read_dir(&folder_path) {
                                 Ok(entries) => {
-                                    let mut image_files = Vec::new();
-
-                                    for entry in entries {
-                                        if let Ok(entry) = entry {
-                                            let path = entry.path();
-
-                                            // Only process files (not subdirectories)
-                                            if path.is_file() {
-                                                if let Some(extension) = path.extension() {
-                                                    if let Some(ext_str) = extension.to_str() {
-                                                        if IMAGE_FORMATS.iter().any(|&format| {
-                                                            ext_str.to_lowercase()
-                                                                == format.to_lowercase()
-                                                        }) {
-                                                            image_files.push(path);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    let image_files: Vec<PathBuf> = entries
+                                        .filter_map(|entry| entry.ok())
+                                        .map(|entry| entry.path())
+                                        .filter(|path| path.is_file())
+                                        .filter(|path| {
+                                            path.extension()
+                                                .and_then(|ext| ext.to_str())
+                                                .map(|ext_str| {
+                                                    IMAGE_FORMATS.iter().any(|&format| {
+                                                        ext_str.eq_ignore_ascii_case(format)
+                                                    })
+                                                })
+                                                .unwrap_or(false)
+                                        })
+                                        .collect();
 
                                     if !image_files.is_empty() {
-                                        // Set the first image as the screen texture
                                         self.selected_files = image_files
                                             .into_iter()
-                                            .map(|path| PredImg::new_simple(path))
+                                            .map(|path: PathBuf| PredImg::new_simple(path))
                                             .collect();
 
                                         self.paint(ctx, 0);
@@ -360,9 +354,14 @@ impl Gui {
                                 match Feed::new(&url) {
                                     Ok(mut feed) => {
                                         let frame = feed.next().unwrap();
-                                        self.feed_state.texture = imgbuf_to_texture(&image::DynamicImage::ImageRgb8(frame).to_rgba8(), ctx);
+                                        self.feed_state.texture = imgbuf_to_texture(
+                                            &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
+                                            ctx,
+                                        );
                                         self.feed_url = Some(url);
                                         self.mode = Mode::Feed;
+                                        // if there's any processing happening, it will get cancelled
+                                        self.cancel_video_processing();
                                     }
                                     Err(_e) => {
                                         self.process_error();
@@ -571,10 +570,7 @@ impl Gui {
                     }
                 } else {
                     if ui.button("||").clicked() {
-                        if let Some(cancel_tx) = self.video_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.video_state.is_processing = false;
+                        self.cancel_video_processing();
                     }
                 }
             });
@@ -588,6 +584,13 @@ impl Gui {
                 );
             }
         }
+    }
+
+    pub fn cancel_video_processing(&mut self) {
+        if let Some(cancel_tx) = self.video_state.cancel_sender.take() {
+            let _ = cancel_tx.send(());
+        }
+        self.video_state.is_processing = false;
     }
 
     pub fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
@@ -616,12 +619,13 @@ impl Gui {
                                 if cancel_rx.try_recv().is_ok() {
                                     break;
                                 }
-                                let mut img = feed.next().unwrap();
-                                let bbox = detect_bbox_from_imgbuf(&img);
-                                api::render::draw_bbox_from_imgbuf(&mut img, &bbox);
-                                let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-                                if tx.send((bbox, img)).is_err() {
-                                    break;
+                                if let Some(mut img) = feed.next() {
+                                    let bbox = detect_bbox_from_imgbuf(&img);
+                                    api::render::draw_bbox_from_imgbuf(&mut img, &bbox);
+                                    let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+                                    if tx.send((bbox, img)).is_err() {
+                                        break;
+                                    }
                                 }
                             });
 
@@ -676,7 +680,7 @@ impl Gui {
 
             for (i, img) in updates {
                 self.video_state.texture = imgbuf_to_texture(&img, ctx);
-                
+
                 self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
                 self.current_frame = i;
                 if i == self.total_frames.unwrap() {
@@ -869,7 +873,10 @@ fn imgbuf_to_colorimg(image_buffer: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>
 }
 
 #[inline(always)]
-pub fn imgbuf_to_texture(img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, ctx: &egui::Context) -> Option<TextureHandle> {
+pub fn imgbuf_to_texture(
+    img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    ctx: &egui::Context,
+) -> Option<TextureHandle> {
     Some(ctx.load_texture(
         "current_frame",
         imgbuf_to_colorimg(&img),
