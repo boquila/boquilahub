@@ -5,6 +5,7 @@ use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::render::draw_bbox_from_imgbuf;
+use crate::api::rest::{get_ipv4_address, run_api};
 use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
@@ -24,6 +25,8 @@ pub struct Gui {
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
+    host_server_url: Option<String>,
+    api_server_url: Option<String>,
     temp_str: String,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
     feed_processing_receiver:
@@ -88,6 +91,8 @@ impl Gui {
             selected_files: Vec::new(),
             video_file_path: None,
             feed_url: None,
+            host_server_url: None,
+            api_server_url: None,
             temp_str: "".to_owned(),
             image_processing_receiver: None,
             feed_processing_receiver: None,
@@ -167,18 +172,17 @@ impl Gui {
     }
 
     pub fn api_widget(&mut self, ui: &mut egui::Ui) {
-        ui.label("API ");
+        ui.label(self.t(Key::api));
         if !self.isapi_deployed {
             if ui.button(self.t(Key::deploy)).clicked() {
-                tokio::spawn(async {
-                    thread::sleep(Duration::from_secs(2));
-                });
+                tokio::spawn(async { run_api(8791).await });
+                self.host_server_url = Some(format!("http://{}:8791",get_ipv4_address().unwrap()));
                 self.isapi_deployed = true;
             }
         }
 
-        if self.isapi_deployed {
-            ui.label(self.t(Key::deployed_api));
+        if let Some(url) = &self.host_server_url {
+            ui.label(url);
         }
     }
 

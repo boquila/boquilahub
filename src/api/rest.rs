@@ -66,10 +66,14 @@ pub fn get_ipv4_address() -> Option<String> {
         .output()
         .expect("Failed to execute ipconfig");
 
-    let output_str = str::from_utf8(&output.stdout).expect("Failed to convert output to string");
+    // Try UTF-8 first, fall back to lossy conversion if it fails
+    let output_str = match str::from_utf8(&output.stdout) {
+        Ok(s) => s.to_string(),
+        Err(_) => String::from_utf8_lossy(&output.stdout).to_string(),
+    };
 
     for line in output_str.lines() {
-        if line.contains("IPv4 Address") {
+        if line.contains("IPv4") {  
             // Extract the IP address (everything after the last ': ')
             return line.split(": ").last().map(|ip| ip.trim().to_string());
         }
