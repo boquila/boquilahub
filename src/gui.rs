@@ -24,6 +24,7 @@ pub struct Gui {
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
+    temp_str: String,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
     feed_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(Vec<XYXYc>, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
@@ -87,6 +88,7 @@ impl Gui {
             selected_files: Vec::new(),
             video_file_path: None,
             feed_url: None,
+            temp_str: "".to_owned(),
             image_processing_receiver: None,
             feed_processing_receiver: None,
             video_processing_receiver: None,
@@ -131,7 +133,7 @@ impl Gui {
     }
 
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
-        self.img_state.texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
+        self.img_state.texture = imgbuf_to_texture(&self.selected_files[i].draw(), ctx)
     }
 
     fn show_timed_message(
@@ -345,8 +347,6 @@ impl Gui {
                     .clicked()
                 {
                     self.show_feed_url_dialog = true
-                    // self.feed_url = Some("test".to_owned());
-                    // self.mode = Mode::Feed;
                 }
 
                 // Feed url dialog
@@ -355,13 +355,15 @@ impl Gui {
                         .collapsible(false)
                         .resizable(false)
                         .show(ctx, |ui| {
-                            let mut temp_str = "".to_owned();
-                            ui.text_edit_singleline(&mut temp_str);
+                            ui.text_edit_singleline(&mut self.temp_str);
                             if ui.button(self.t(Key::ok)).clicked() {
-                                let url = self.feed_url.clone().unwrap();
+                                let url = self.temp_str.clone();
                                 match Feed::new(&url) {
-                                    Ok(_feed) => {
-                                        self.feed_url = Some(temp_str);
+                                    Ok(mut feed) => {
+                                        let frame = feed.next().unwrap();
+                                        self.feed_state.texture = imgbuf_to_texture(&image::DynamicImage::ImageRgb8(frame).to_rgba8(), ctx);
+                                        self.feed_url = Some(url);
+                                        self.mode = Mode::Feed;
                                     }
                                     Err(_e) => {
                                         self.process_error();
@@ -875,12 +877,12 @@ fn imgbuf_to_colorimg(image_buffer: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>
 }
 
 #[inline(always)]
-fn imgpred_to_texture(predimg: &PredImg, ctx: &egui::Context) -> TextureHandle {
-    ctx.load_texture(
-        "current_img",
-        imgbuf_to_colorimg(&predimg.draw()),
+pub fn imgbuf_to_texture(img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, ctx: &egui::Context) -> Option<TextureHandle> {
+    Some(ctx.load_texture(
+        "current_frame",
+        imgbuf_to_colorimg(&img),
         TextureOptions::default(),
-    )
+    ))
 }
 
 #[derive(PartialEq)]
