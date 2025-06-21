@@ -9,7 +9,6 @@ use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
 use api::import::*;
-use egui::debug_text::print;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
@@ -567,7 +566,7 @@ impl Gui {
                                     let (time, mut img) =
                                         processor.lock().unwrap().as_mut().unwrap().next().unwrap();
                                     let bbox = detect_bbox_from_imgbuf(&img);
-                                    
+
                                     draw_bbox_from_imgbuf(&mut img, &bbox);
 
                                     processor

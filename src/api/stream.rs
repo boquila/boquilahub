@@ -11,39 +11,6 @@ pub struct Feed {
     pub frames: i64,
 }
 
-impl Iterator for Feed {
-    // The iterator yields image buffers
-    type Item = ImageBuffer<Rgb<u8>, Vec<u8>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Process packets until we get a frame
-        for (stream, packet) in &mut self.input_ctx.packets() {
-            // Only process video stream packets
-            if stream.index() != self.index {
-                continue;
-            }
-
-            // Try to decode the packet
-            if self.decoder.send_packet(&packet).is_err() {
-                continue;
-            }
-
-            // If we got a frame, return it
-            if self.decoder.receive_frame(&mut self.decoded).is_ok() {
-                return Some(extract_img(&self.decoded));
-            }
-        }
-
-        // Try to flush any remaining frames
-        self.decoder.send_eof().ok();
-        if self.decoder.receive_frame(&mut self.decoded).is_ok() {
-            return Some(extract_img(&self.decoded));
-        }
-
-        None
-    }
-}
-
 impl Feed {
     pub fn new(url: &str) -> Result<Self, ffmpeg::Error> {
         // Initialize FFmpeg
@@ -81,6 +48,39 @@ impl Feed {
             decoded,
             frames,
         })
+    }
+}
+
+impl Iterator for Feed {
+    // The iterator yields image buffers
+    type Item = ImageBuffer<Rgb<u8>, Vec<u8>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Process packets until we get a frame
+        for (stream, packet) in &mut self.input_ctx.packets() {
+            // Only process video stream packets
+            if stream.index() != self.index {
+                continue;
+            }
+
+            // Try to decode the packet
+            if self.decoder.send_packet(&packet).is_err() {
+                continue;
+            }
+
+            // If we got a frame, return it
+            if self.decoder.receive_frame(&mut self.decoded).is_ok() {
+                return Some(extract_img(&self.decoded));
+            }
+        }
+
+        // Try to flush any remaining frames
+        self.decoder.send_eof().ok();
+        if self.decoder.receive_frame(&mut self.decoded).is_ok() {
+            return Some(extract_img(&self.decoded));
+        }
+
+        None
     }
 }
 
