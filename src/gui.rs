@@ -5,7 +5,7 @@ use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::render::draw_bbox_from_imgbuf;
-use crate::api::rest::{get_ipv4_address, run_api};
+use crate::api::rest::{check_boquila_hub_api, get_ipv4_address, run_api};
 use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
@@ -28,6 +28,7 @@ pub struct Gui {
     host_server_url: Option<String>,
     api_server_url: Option<String>,
     temp_str: String,
+    temp_api_str: String,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
     feed_processing_receiver:
@@ -61,6 +62,7 @@ pub struct Gui {
     is_analysis_complete: bool,
     show_export_dialog: bool,
     show_feed_url_dialog: bool,
+    show_api_server_dialog: bool,
     it_ran: bool,
     img_state: State,
     video_state: State,
@@ -96,6 +98,7 @@ impl Gui {
             api_server_url: None,
             api_result_receiver: None,
             temp_str: "".to_owned(),
+            temp_api_str: "".to_owned(),
             image_processing_receiver: None,
             feed_processing_receiver: None,
             video_processing_receiver: None,
@@ -117,6 +120,7 @@ impl Gui {
             is_analysis_complete: false,
             show_export_dialog: false,
             show_feed_url_dialog: false,
+            show_api_server_dialog: false,
             mode: Mode::Image,
             it_ran: false,
             img_state: State::init(),
@@ -173,7 +177,7 @@ impl Gui {
         Gui::show_timed_message(time, ui, ctx, message);
     }
 
-    pub fn api_widget(&mut self, ui: &mut egui::Ui) {
+    pub fn api_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         ui.label(self.t(Key::api));
         if !self.isapi_deployed {
             if ui.button(self.t(Key::deploy)).clicked() {
@@ -203,6 +207,8 @@ impl Gui {
                 self.api_result_receiver = None;
             }
         }
+
+        self.input_api_url_dialog(ctx);
     }
 
     pub fn ai_widget(&mut self, ui: &mut egui::Ui, previous_ai: Option<usize>) {
@@ -229,11 +235,13 @@ impl Gui {
 
     pub fn ep_widget(&mut self, ui: &mut egui::Ui, previous_ep: usize) {
         ui.label(self.t(Key::select_ep));
+        let mut temp_ep_selected = self.ep_selected;
+
         egui::ComboBox::from_id_salt("EP")
             .selected_text(LIST_EPS[self.ep_selected].name)
             .show_ui(ui, |ui| {
                 for (i, ep) in LIST_EPS.iter().enumerate() {
-                    ui.selectable_value(&mut self.ep_selected, i, ep.name)
+                    ui.selectable_value(&mut temp_ep_selected, i, ep.name)
                         .on_hover_text(format!(
                             "Version: {:.1}, Local: {}, Dependencies: {}",
                             ep.version, ep.local, ep.dependencies
@@ -241,11 +249,21 @@ impl Gui {
                 }
             });
 
-        if (self.ep_selected != previous_ep) && self.ai_selected.is_some() {
-            set_model(
-                &self.ais[self.ai_selected.unwrap()].get_path(),
-                &LIST_EPS[self.ep_selected],
-            );
+        if temp_ep_selected != self.ep_selected {
+            let new_ep: &api::eps::EP = &LIST_EPS[temp_ep_selected];
+
+            match new_ep.ep_type {
+                api::eps::EPType::BoquilaHUBRemote => {
+                    self.show_api_server_dialog = true;
+                }
+                _ => {
+                    self.ep_selected = temp_ep_selected;
+
+                    if let Some(ai_index) = self.ai_selected {
+                        set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                    }
+                }
+            }
         }
     }
 
@@ -367,7 +385,7 @@ impl Gui {
 
                 // Feed url dialog
                 if self.show_feed_url_dialog {
-                    egui::Window::new(self.t(Key::input_feed_url))
+                    egui::Window::new(self.t(Key::input_url))
                         .collapsible(false)
                         .resizable(false)
                         .show(ctx, |ui| {
@@ -408,6 +426,33 @@ impl Gui {
                         });
                 }
             });
+    }
+
+    pub fn input_api_url_dialog(&mut self, ctx: &egui::Context) {
+        if self.show_api_server_dialog {
+            egui::Window::new(self.t(Key::input_url))
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.text_edit_singleline(&mut self.temp_api_str);
+                    ui.horizontal(|ui| {
+                        if ui.button(self.t(Key::ok)).clicked() {
+                            let url = self.temp_api_str.clone();
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            let is_valid_api = rt.block_on(check_boquila_hub_api(&url));
+                            if is_valid_api {
+                                self.show_api_server_dialog = false;
+                                self.ep_selected = 2;
+                            }
+                        }
+                        ui.add_space(8.0);
+                        if ui.button(self.t(Key::cancel)).clicked() {
+                            self.show_api_server_dialog = false;
+                            self.api_server_url = None
+                        }
+                    });
+                });
+        }
     }
 
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
@@ -802,7 +847,7 @@ impl eframe::App for Gui {
 
             ui.add_space(8.0);
 
-            self.api_widget(ui);
+            self.api_widget(ui, ctx);
 
             ui.separator();
 

@@ -43,7 +43,7 @@ pub enum Key {
     export_predictions,
     export_imgs_with_predictions,
     copy_with_classification,
-    input_feed_url,
+    input_url,
     example,
     every_how_many_frames,
     ok,
@@ -293,7 +293,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::DE => "Kopieren und nach Klassifizierung in Ordner trennen",
             Lang::ZH => "根据结果将数据复制到不同文件夹",
         },
-        Key::input_feed_url => match lang {
+        Key::input_url => match lang {
             Lang::EN => "Add the URL",
             Lang::ES => "Ingresa la dirección URL",
             Lang::FR => "Ajoutez l'URL",
