@@ -175,37 +175,40 @@ impl Gui {
     }
 
     pub fn api_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.label(self.t(Key::api));
-        if !self.isapi_deployed {
-            if ui.button(self.t(Key::deploy)).clicked() {
-                let (tx, rx) = std::sync::mpsc::channel();
-                tokio::spawn(async move {
-                    let result = run_api(8791).await;
-                    let _ = tx.send(result.is_ok());
-                });
+        if self.ai_selected.is_some() && !self.ep_selected == 2 {
+            ui.label(self.t(Key::api));
+            if !self.isapi_deployed {
+                if ui.button(self.t(Key::deploy)).clicked() {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    tokio::spawn(async move {
+                        let result = run_api(8791).await;
+                        let _ = tx.send(result.is_ok());
+                    });
 
-                self.api_result_receiver = Some(rx);
-                self.host_server_url = Some(format!("http://{}:8791", get_ipv4_address().unwrap()));
-                self.isapi_deployed = true;
-            }
-        }
-
-        if let Some(url) = &self.host_server_url {
-            ui.label(url);
-        }
-
-        if let Some(rx) = &self.api_result_receiver {
-            if let Ok(success) = rx.try_recv() {
-                if !success {
-                    self.isapi_deployed = false;
-                    self.host_server_url = None;
-                    self.process_error();
+                    self.api_result_receiver = Some(rx);
+                    self.host_server_url =
+                        Some(format!("http://{}:8791", get_ipv4_address().unwrap()));
+                    self.isapi_deployed = true;
                 }
-                self.api_result_receiver = None;
             }
-        }
 
-        self.input_api_url_dialog(ctx);
+            if let Some(url) = &self.host_server_url {
+                ui.label(url);
+            }
+
+            if let Some(rx) = &self.api_result_receiver {
+                if let Ok(success) = rx.try_recv() {
+                    if !success {
+                        self.isapi_deployed = false;
+                        self.host_server_url = None;
+                        self.process_error();
+                    }
+                    self.api_result_receiver = None;
+                }
+            }
+
+            self.input_api_url_dialog(ctx);
+        }
     }
 
     pub fn ai_widget(&mut self, ui: &mut egui::Ui) {
@@ -504,7 +507,7 @@ impl Gui {
                                 let bbox: Vec<XYXYc>;
                                 if is_remote {
                                     let buffer = fs::read(path).unwrap();
-                                    let api = format!("{}/upload",&api_server.clone().unwrap());
+                                    let api = format!("{}/upload", &api_server.clone().unwrap());
                                     bbox = tokio::task::spawn_blocking(move || {
                                         detect_bbox_from_buf_remotely(&api.clone(), buffer)
                                     })

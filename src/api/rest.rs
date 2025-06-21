@@ -54,6 +54,24 @@ pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> Vec<XYXYc> {
     return deserialized;
 }
 
+pub fn detect_bbox_from_imgbuf_remotely(url: &str, img: &ImageBuffer<Rgba<u8>, Vec<u8>>,) -> Vec<XYXYc> {
+    let jpeg_buffer = rgba_image_to_jpeg_buffer(img, 95);
+    detect_bbox_from_buf_remotely(url, jpeg_buffer)
+}
+
+pub fn rgba_image_to_jpeg_buffer(
+    img: &ImageBuffer<Rgba<u8>, Vec<u8>>,
+    quality: u8,
+) -> Vec<u8> {
+    let dynamic_image = DynamicImage::ImageRgba8(img.clone());
+    let mut buffer = Vec::new();
+    {
+        let mut encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
+        encoder.encode_image(&dynamic_image).expect("Failed to encode image");
+    }
+    buffer
+}
+
 pub fn detect_bbox_remotely(url: &str, file_path: &str) -> Vec<XYXYc> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_bbox_from_buf_remotely(url, buf);
