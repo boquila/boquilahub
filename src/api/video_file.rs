@@ -1,12 +1,6 @@
-use super::abstractions::XYXYc;
-use super::inference::detect_bbox_from_imgbuf;
-use super::render::draw_bbox_from_imgbuf;
-use super::rest::detect_bbox_from_buf_remotely;
 use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
 use image::{ImageBuffer, Rgb};
-use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::collections::HashMap;
-use std::error::Error;
 use std::{iter::Iterator, path::Path};
 use video_rs::encode::Settings;
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
