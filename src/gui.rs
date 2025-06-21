@@ -5,7 +5,9 @@ use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::render::draw_bbox_from_imgbuf;
-use crate::api::rest::{check_boquila_hub_api, get_ipv4_address, run_api};
+use crate::api::rest::{
+    check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address, run_api,
+};
 use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
@@ -16,7 +18,7 @@ use rfd::FileDialog;
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Instant};
+use std::time::Instant;
 
 pub struct Gui {
     // Large types first
@@ -222,7 +224,9 @@ impl Gui {
                     }
                 });
 
-            if (self.ai_selected != previous_ai) && (self.ai_selected.is_some() || self.ep_selected == 2) {
+            if (self.ai_selected != previous_ai)
+                && (self.ai_selected.is_some() || self.ep_selected == 2)
+            {
                 set_model(
                     &self.ais[self.ai_selected.unwrap()].get_path(),
                     &LIST_EPS[self.ep_selected],
@@ -231,7 +235,7 @@ impl Gui {
         }
     }
 
-    pub fn ep_widget(&mut self, ui: &mut egui::Ui,) {
+    pub fn ep_widget(&mut self, ui: &mut egui::Ui) {
         ui.label(self.t(Key::select_ep));
         let mut temp_ep_selected = self.ep_selected;
 
@@ -445,6 +449,7 @@ impl Gui {
 
                             if is_valid_api {
                                 self.show_api_server_dialog = false;
+                                self.api_server_url = Some(url);
                                 self.ep_selected = 2;
                             }
                         }
@@ -487,6 +492,8 @@ impl Gui {
                             .collect();
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.img_state.cancel_sender = Some(cancel_tx);
+                        let api_server = self.api_server_url.clone();
+                        let is_remote = self.ep_selected == 2;
 
                         tokio::spawn(async move {
                             for (i, path) in file_paths.iter().enumerate() {
@@ -494,14 +501,23 @@ impl Gui {
                                 if cancel_rx.try_recv().is_ok() {
                                     break;
                                 }
-
-                                let img = open(path).unwrap().into_rgb8();
-                                let bbox = tokio::task::spawn_blocking(move || {
-                                    detect_bbox_from_imgbuf(&img)
-                                })
-                                .await
-                                .unwrap();
-
+                                let bbox: Vec<XYXYc>;
+                                if is_remote {
+                                    let buffer = fs::read(path).unwrap();
+                                    let api = format!("{}/upload",&api_server.clone().unwrap());
+                                    bbox = tokio::task::spawn_blocking(move || {
+                                        detect_bbox_from_buf_remotely(&api.clone(), buffer)
+                                    })
+                                    .await
+                                    .unwrap();
+                                } else {
+                                    let img = open(path).unwrap().into_rgb8();
+                                    bbox = tokio::task::spawn_blocking(move || {
+                                        detect_bbox_from_imgbuf(&img)
+                                    })
+                                    .await
+                                    .unwrap();
+                                }
                                 if tx.send((i, bbox)).is_err() {
                                     break;
                                 }

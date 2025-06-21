@@ -1,6 +1,8 @@
 use super::abstractions::XYXYc;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
+use image::codecs::jpeg::JpegEncoder;
+use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
 use reqwest::blocking::Client;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
@@ -22,12 +24,11 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-
 pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
         .route("/", get(root))
         .route("/upload", post(upload));
-    
+
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
@@ -53,7 +54,6 @@ pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> Vec<XYXYc> {
     return deserialized;
 }
 
-
 pub fn detect_bbox_remotely(url: &str, file_path: &str) -> Vec<XYXYc> {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_bbox_from_buf_remotely(url, buf);
@@ -74,7 +74,7 @@ pub fn get_ipv4_address() -> Option<String> {
     };
 
     for line in output_str.lines() {
-        if line.contains("IPv4") {  
+        if line.contains("IPv4") {
             // Extract the IP address (everything after the last ': ')
             return line.split(": ").last().map(|ip| ip.trim().to_string());
         }
