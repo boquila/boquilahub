@@ -16,8 +16,7 @@ use rfd::FileDialog;
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 
 pub struct Gui {
     // Large types first
@@ -56,10 +55,8 @@ pub struct Gui {
     // bool fields grouped together (1 byte each, but will be padded)
     is_done: bool,
     isapi_deployed: bool,
-    should_continue: bool,
     save_img_from_strema: bool,
     error_ocurred: bool,
-    is_analysis_complete: bool,
     show_export_dialog: bool,
     show_feed_url_dialog: bool,
     show_api_server_dialog: bool,
@@ -114,10 +111,8 @@ impl Gui {
             error_time: None,
             lang: get_locale(),
             isapi_deployed: false,
-            should_continue: true,
             save_img_from_strema: false,
             error_ocurred: false,
-            is_analysis_complete: false,
             show_export_dialog: false,
             show_feed_url_dialog: false,
             show_api_server_dialog: false,
@@ -211,29 +206,32 @@ impl Gui {
         self.input_api_url_dialog(ctx);
     }
 
-    pub fn ai_widget(&mut self, ui: &mut egui::Ui, previous_ai: Option<usize>) {
-        ui.label(self.t(Key::select_ai));
-        egui::ComboBox::from_id_salt("AI")
-            .selected_text(match self.ai_selected {
-                Some(i) => &self.ais[i].name,
-                None => "",
-            })
-            .show_ui(ui, |ui| {
-                for (i, ai) in self.ais.iter().enumerate() {
-                    ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
-                        .on_hover_text(&ai.classes.join(", "));
-                }
-            });
+    pub fn ai_widget(&mut self, ui: &mut egui::Ui) {
+        if self.ep_selected != 2 {
+            let previous_ai = self.ai_selected;
+            ui.label(self.t(Key::select_ai));
+            egui::ComboBox::from_id_salt("AI")
+                .selected_text(match self.ai_selected {
+                    Some(i) => &self.ais[i].name,
+                    None => "",
+                })
+                .show_ui(ui, |ui| {
+                    for (i, ai) in self.ais.iter().enumerate() {
+                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
+                            .on_hover_text(&ai.classes.join(", "));
+                    }
+                });
 
-        if (self.ai_selected != previous_ai) && self.ai_selected.is_some() {
-            set_model(
-                &self.ais[self.ai_selected.unwrap()].get_path(),
-                &LIST_EPS[self.ep_selected],
-            );
+            if (self.ai_selected != previous_ai) && (self.ai_selected.is_some() || self.ep_selected == 2) {
+                set_model(
+                    &self.ais[self.ai_selected.unwrap()].get_path(),
+                    &LIST_EPS[self.ep_selected],
+                );
+            }
         }
     }
 
-    pub fn ep_widget(&mut self, ui: &mut egui::Ui, previous_ep: usize) {
+    pub fn ep_widget(&mut self, ui: &mut egui::Ui,) {
         ui.label(self.t(Key::select_ep));
         let mut temp_ep_selected = self.ep_selected;
 
@@ -438,8 +436,13 @@ impl Gui {
                     ui.horizontal(|ui| {
                         if ui.button(self.t(Key::ok)).clicked() {
                             let url = self.temp_api_str.clone();
-                            let rt = tokio::runtime::Runtime::new().unwrap();
-                            let is_valid_api = rt.block_on(check_boquila_hub_api(&url));
+
+                            // This tells tokio to move this blocking operation to another thread
+                            let is_valid_api = tokio::task::block_in_place(|| {
+                                tokio::runtime::Handle::current()
+                                    .block_on(check_boquila_hub_api(&url))
+                            });
+
                             if is_valid_api {
                                 self.show_api_server_dialog = false;
                                 self.ep_selected = 2;
@@ -448,7 +451,7 @@ impl Gui {
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::cancel)).clicked() {
                             self.show_api_server_dialog = false;
-                            self.api_server_url = None
+                            self.api_server_url = None;
                         }
                     });
                 });
@@ -456,7 +459,7 @@ impl Gui {
     }
 
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && self.ai_selected.is_some() {
+        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.ep_selected == 2) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
                 ui.heading(self.t(Key::analysis));
@@ -603,7 +606,7 @@ impl Gui {
     }
 
     pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() && self.ai_selected.is_some() {
+        if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.ep_selected == 2) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
                 ui.heading(self.t(Key::analysis));
@@ -680,7 +683,7 @@ impl Gui {
     }
 
     pub fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.feed_url.is_some() && self.ai_selected.is_some() {
+        if self.feed_url.is_some() && (self.ai_selected.is_some() || self.ep_selected == 2) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
                 ui.heading(self.t(Key::analysis));
@@ -831,19 +834,16 @@ impl eframe::App for Gui {
         });
 
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
-            let previous_ai = self.ai_selected;
-            let previous_ep = self.ep_selected;
-
             ui.vertical_centered(|ui| {
                 ui.heading(format!("💻 {}", self.t(Key::setup)));
             });
             ui.separator();
 
-            self.ai_widget(ui, previous_ai);
+            self.ai_widget(ui);
 
             ui.add_space(8.0);
 
-            self.ep_widget(ui, previous_ep);
+            self.ep_widget(ui);
 
             ui.add_space(8.0);
 
