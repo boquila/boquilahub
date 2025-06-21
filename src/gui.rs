@@ -33,6 +33,7 @@ pub struct Gui {
 
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
     done_time: Option<Instant>,
+    error_time: Option<Instant>,
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
@@ -54,6 +55,7 @@ pub struct Gui {
     error_ocurred: bool,
     is_analysis_complete: bool,
     show_export_dialog: bool,
+    show_feed_url_dialog: bool,
     it_ran: bool,
     img_state: State,
     video_state: State,
@@ -97,6 +99,7 @@ impl Gui {
             total_frames: None,
             is_done: false,
             done_time: None,
+            error_time: None,
             lang: get_locale(),
             isapi_deployed: false,
             should_continue: true,
@@ -104,6 +107,7 @@ impl Gui {
             error_ocurred: false,
             is_analysis_complete: false,
             show_export_dialog: false,
+            show_feed_url_dialog: false,
             mode: Mode::Image,
             it_ran: false,
             img_state: State::init(),
@@ -117,6 +121,11 @@ impl Gui {
         self.done_time = Some(Instant::now());
     }
 
+    pub fn process_error(&mut self) {
+        self.error_ocurred = true;
+        self.error_time = Some(Instant::now());
+    }
+
     pub fn t(&self, key: Key) -> &'static str {
         translate(key, &self.lang)
     }
@@ -125,17 +134,34 @@ impl Gui {
         self.img_state.texture = Some(imgpred_to_texture(&self.selected_files[i], ctx))
     }
 
-    pub fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        if let Some(done_time) = self.done_time {
-            if done_time.elapsed().as_secs_f32() < 3.0 {
+    fn show_timed_message(
+        time: &mut Option<std::time::Instant>,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        message: &str,
+    ) {
+        if let Some(start_time) = *time {
+            if start_time.elapsed().as_secs_f32() < 3.0 {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.label(self.t(Key::done));
+                    ui.label(message);
                 });
                 ctx.request_repaint();
             } else {
-                self.done_time = None;
+                *time = None;
             }
         }
+    }
+
+    pub fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let message = &self.t(Key::done);
+        let time = &mut self.done_time;
+        Gui::show_timed_message(time, ui, ctx, message);
+    }
+
+    pub fn show_error_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let message = &self.t(Key::error_ocurred);
+        let time = &mut self.error_time;
+        Gui::show_timed_message(time, ui, ctx, message);
     }
 
     pub fn api_widget(&mut self, ui: &mut egui::Ui) {
@@ -318,8 +344,36 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::camera_feed)))
                     .clicked()
                 {
-                    self.feed_url = Some("test".to_owned());
-                    self.mode = Mode::Feed;
+                    self.show_feed_url_dialog = true
+                    // self.feed_url = Some("test".to_owned());
+                    // self.mode = Mode::Feed;
+                }
+
+                // Feed url dialog
+                if self.show_feed_url_dialog {
+                    egui::Window::new(self.t(Key::input_feed_url))
+                        .collapsible(false)
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            let mut temp_str = "".to_owned();
+                            ui.text_edit_singleline(&mut temp_str);
+                            if ui.button(self.t(Key::ok)).clicked() {
+                                let url = self.feed_url.clone().unwrap();
+                                match Feed::new(&url) {
+                                    Ok(_feed) => {
+                                        self.feed_url = Some(temp_str);
+                                    }
+                                    Err(_e) => {
+                                        self.process_error();
+                                    }
+                                }
+                                self.show_feed_url_dialog = false;
+                            }
+                            if ui.button(self.t(Key::cancel)).clicked() {
+                                self.show_feed_url_dialog = false;
+                                self.feed_url = None
+                            }
+                        });
                 }
             });
     }
@@ -554,7 +608,7 @@ impl Gui {
                         self.feed_state.cancel_sender = Some(cancel_tx);
 
                         let url = self.feed_url.clone();
-                        let mut feed = Feed::new(&url.unwrap());
+                        let mut feed = Feed::new(&url.unwrap()).unwrap();
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || loop {
@@ -730,6 +784,7 @@ impl eframe::App for Gui {
             }
 
             self.show_done_message(ui, ctx);
+            self.show_error_message(ui, ctx);
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

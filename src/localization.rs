@@ -46,6 +46,7 @@ pub enum Key {
     input_feed_url,
     example,
     every_how_many_frames,
+    ok,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -182,6 +183,13 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::FR => "Annuler",
             Lang::DE => "Abbrechen",
             Lang::ZH => "取消",
+        },
+        Key::ok => match lang {
+            Lang::EN => "OK",
+            Lang::ES => "Aceptar",
+            Lang::FR => "OK",
+            Lang::DE => "OK",
+            Lang::ZH => "确定",
         },
         Key::process_completed => match lang {
             Lang::EN => "Process completed",

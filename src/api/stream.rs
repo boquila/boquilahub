@@ -45,9 +45,9 @@ impl Iterator for Feed {
 }
 
 impl Feed {
-    pub fn new(url: &str) -> Self {
+    pub fn new(url: &str) -> Result<Self, ffmpeg::Error> {
         // Initialize FFmpeg
-        ffmpeg::init().unwrap();
+        ffmpeg::init()?;
 
         // Open the RTSP stream with options for better RTSP handling
         let mut opts: ffmpeg::Dictionary<'_> = ffmpeg::Dictionary::new();
@@ -56,33 +56,31 @@ impl Feed {
         opts.set("timeout", "5000000"); // General timeout value
 
         // Open input with options
-        let input_ctx = ffmpeg::format::input_with_dictionary(url, opts).unwrap();
+        let input_ctx = ffmpeg::format::input_with_dictionary(url, opts)?;
 
         // Find the first video stream
         let video_stream: ffmpeg::Stream<'_> = input_ctx
             .streams()
             .best(ffmpeg::media::Type::Video)
-            .ok_or("No video stream found")
-            .unwrap();
+            .ok_or_else(|| ffmpeg::Error::StreamNotFound)?;
 
         let frames = video_stream.frames();
 
         let index = video_stream.index();
 
-        let decoder = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())
-            .unwrap()
+        let decoder = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())?
             .decoder()
-            .video()
-            .unwrap();
+            .video()?;
+
         let decoded = ffmpeg::frame::Video::empty();
 
-        Self {
+        Ok(Self {
             input_ctx,
             decoder,
             index,
             decoded,
             frames,
-        }
+        })
     }
 }
 
