@@ -349,32 +349,39 @@ impl Gui {
                         .resizable(false)
                         .show(ctx, |ui| {
                             ui.text_edit_singleline(&mut self.temp_str);
-                            if ui.button(self.t(Key::ok)).clicked() {
-                                let url = self.temp_str.clone();
-                                match Feed::new(&url) {
-                                    Ok(mut feed) => {
-                                        let frame = feed.next().unwrap();
-                                        self.feed_state.texture = imgbuf_to_texture(
-                                            &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
-                                            ctx,
-                                        );
-                                        self.feed_url = Some(url);
-                                        self.mode = Mode::Feed;
-                                        if self.video_state.is_processing {
-                                            self.cancel_video_processing();
+                            ui.horizontal(|ui| {
+                                if ui.button(self.t(Key::ok)).clicked() {
+                                    let url = self.temp_str.clone();
+                                    match Feed::new(&url) {
+                                        Ok(mut feed) => match feed.next() {
+                                            Some(frame) => {
+                                                self.feed_state.texture = imgbuf_to_texture(
+                                                    &image::DynamicImage::ImageRgb8(frame)
+                                                        .to_rgba8(),
+                                                    ctx,
+                                                );
+                                                self.feed_url = Some(url);
+                                                self.mode = Mode::Feed;
+                                                if self.video_state.is_processing {
+                                                    self.cancel_video_processing();
+                                                }
+                                            }
+                                            None => {
+                                                self.process_error();
+                                            }
+                                        },
+                                        Err(_e) => {
+                                            self.process_error();
                                         }
-                                        
                                     }
-                                    Err(_e) => {
-                                        self.process_error();
-                                    }
+                                    self.show_feed_url_dialog = false;
                                 }
-                                self.show_feed_url_dialog = false;
-                            }
-                            if ui.button(self.t(Key::cancel)).clicked() {
-                                self.show_feed_url_dialog = false;
-                                self.feed_url = None
-                            }
+                                ui.add_space(8.0);
+                                if ui.button(self.t(Key::cancel)).clicked() {
+                                    self.show_feed_url_dialog = false;
+                                    self.feed_url = None
+                                }
+                            });
                         });
                 }
             });
