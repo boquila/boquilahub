@@ -12,7 +12,6 @@ use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
 use std::fs::{self};
-use std::os::windows::process;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -676,11 +675,8 @@ impl Gui {
             }
 
             for (i, img) in updates {
-                self.video_state.texture = Some(ctx.load_texture(
-                    "current_frame",
-                    imgbuf_to_colorimg(&img),
-                    TextureOptions::default(),
-                ));
+                self.video_state.texture = imgbuf_to_texture(&img, ctx);
+                
                 self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
                 self.current_frame = i;
                 if i == self.total_frames.unwrap() {
@@ -701,11 +697,7 @@ impl Gui {
             }
 
             for (bbox, img) in updates {
-                self.feed_state.texture = Some(ctx.load_texture(
-                    "current_frame",
-                    imgbuf_to_colorimg(&img),
-                    TextureOptions::default(),
-                ));
+                self.feed_state.texture = imgbuf_to_texture(&img, ctx)
             }
 
             ctx.request_repaint();
