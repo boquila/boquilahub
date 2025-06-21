@@ -3,6 +3,7 @@ use super::inference::detect_bbox_from_imgbuf;
 use super::render::draw_bbox_from_imgbuf;
 use super::rest::detect_bbox_from_buf_remotely;
 use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
+use image::{ImageBuffer, Rgb};
 use ndarray::{ArrayBase, Dim, OwnedRepr};
 use std::collections::HashMap;
 use std::error::Error;
@@ -54,97 +55,19 @@ impl VideofileProcessor {
         self.decoder.frames().unwrap()
     }
 
-    // If the annotation is provided, it will just use that instead of computing it.
-    fn process_frame<F>(
-        &mut self,
-        prediction_fn: F,
-        vec: Option<Vec<XYXYc>>,
-    ) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>>
-    where
-        F: Fn(&image::ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<XYXYc>,
-    {
-        match self.next() {
-            Some((time, frame)) => {
-                let mut img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> = ndarray_to_image_buffer(&frame);
-                let predictions;
-                if vec.is_some() {
-                    predictions = vec.unwrap();
-                } else {
-                    predictions = prediction_fn(&img);
-                }
-                draw_bbox_from_imgbuf(&mut img, &predictions);
-                let final_frame = image_buffer_to_ndarray(&img);
-                self.encoder.encode(&final_frame, time).unwrap(); // You may want to handle this unwrap as well
-                let d = image::DynamicImage::ImageRgb8(img).into_rgba8();
-                Ok((d, predictions))
-            }
-            None => Err("Failed to retrieve the next frame.".into()), // Handle None case by returning a descriptive error
-        }
+    pub fn decode(&mut self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>, time: Time){
+        let final_frame = image_buffer_to_ndarray(&img);
+        self.encoder.encode(&final_frame, time).unwrap(); 
     }
 
-    pub fn run(&mut self, vec: Option<Vec<XYXYc>>) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
-        self.process_frame(|img| detect_bbox_from_imgbuf(img), vec)
-    }
-
-    pub fn run_remotely(
-        &mut self,
-        url: &str,
-        vec: Option<Vec<XYXYc>>,
-    ) -> Result<(image::ImageBuffer<image::Rgba<u8>, Vec<u8>>, Vec<XYXYc>), Box<dyn Error>> {
-        self.process_frame(
-            |img| detect_bbox_from_buf_remotely(url, img.to_vec()),
-            vec,
-        )
-    }
 }
 
 impl Iterator for VideofileProcessor {
-    type Item = (Time, ArrayBase<OwnedRepr<u8>, Dim<[usize; 3]>>);
+    type Item = (Time, ImageBuffer<Rgb<u8>, Vec<u8>>);
     fn next(&mut self) -> Option<Self::Item> {
         match self.decoder.decode_iter().next() {
-            Some(Ok((time, frame))) => Some((time, frame)),
+            Some(Ok((time, frame))) => Some((time, ndarray_to_image_buffer(&frame))),
             _ => None,
         }
-    }
-}
-
-// Given a video file_path
-// We run inference for each frame then create a new videofile displayingthe predictions
-pub fn predict_videofile(file_path: &str, n: usize) {
-    let mut frame_processor = VideofileProcessor::new(file_path);
-    let mut prev_bbox = None;
-    let mut frame_count = 0;
-
-    while let Ok((_jpeg, bbox)) = frame_processor.run(if frame_count % n == 0 {
-        None
-    } else {
-        prev_bbox.clone()
-    }) {
-        if frame_count % n == 0 {
-            prev_bbox = Some(bbox);
-        }
-        frame_count += 1;
-    }
-}
-
-// Given a video file_path
-// We run inference for each frame then create a new videofile displayingthe predictions
-pub fn predict_videofile_remotely(file_path: &str, url: &str, n: usize) {
-    let mut frame_processor = VideofileProcessor::new(file_path);
-    let mut prev_bbox = None;
-    let mut frame_count = 0;
-
-    while let Ok((_jpeg, bbox)) = frame_processor.run_remotely(
-        url,
-        if frame_count % n == 0 {
-            None
-        } else {
-            prev_bbox.clone()
-        },
-    ) {
-        if frame_count % n == 0 {
-            prev_bbox = Some(bbox);
-        }
-        frame_count += 1;
     }
 }

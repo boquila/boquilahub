@@ -4,6 +4,7 @@ use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
+use crate::api::render::draw_bbox_from_imgbuf;
 use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
@@ -562,11 +563,20 @@ impl Gui {
                                     if cancel_rx.try_recv().is_ok() {
                                         break;
                                     }
-                                    let (img, _b) = {
-                                        let mut proc_opt = processor.lock().unwrap();
-                                        proc_opt.as_mut().unwrap().run(None).unwrap()
-                                    };
 
+                                    let (time, mut img) =
+                                        processor.lock().unwrap().as_mut().unwrap().next().unwrap();
+                                    let bbox = detect_bbox_from_imgbuf(&img);
+                                    
+                                    draw_bbox_from_imgbuf(&mut img, &bbox);
+
+                                    processor
+                                        .lock()
+                                        .unwrap()
+                                        .as_mut()
+                                        .unwrap()
+                                        .decode(&img, time);
+                                    let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
                                     if tx.send((i, img)).is_err() {
                                         break;
                                     }
