@@ -28,6 +28,7 @@ pub struct Gui {
     host_server_url: Option<String>,
     api_server_url: Option<String>,
     temp_str: String,
+    api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
     feed_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(Vec<XYXYc>, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
@@ -93,6 +94,7 @@ impl Gui {
             feed_url: None,
             host_server_url: None,
             api_server_url: None,
+            api_result_receiver: None,
             temp_str: "".to_owned(),
             image_processing_receiver: None,
             feed_processing_receiver: None,
@@ -175,14 +177,31 @@ impl Gui {
         ui.label(self.t(Key::api));
         if !self.isapi_deployed {
             if ui.button(self.t(Key::deploy)).clicked() {
-                tokio::spawn(async { run_api(8791).await });
-                self.host_server_url = Some(format!("http://{}:8791",get_ipv4_address().unwrap()));
+                let (tx, rx) = std::sync::mpsc::channel();
+                tokio::spawn(async move {
+                    let result = run_api(8791).await;
+                    let _ = tx.send(result.is_ok());
+                });
+
+                self.api_result_receiver = Some(rx);
+                self.host_server_url = Some(format!("http://{}:8791", get_ipv4_address().unwrap()));
                 self.isapi_deployed = true;
             }
         }
 
         if let Some(url) = &self.host_server_url {
             ui.label(url);
+        }
+
+        if let Some(rx) = &self.api_result_receiver {
+            if let Ok(success) = rx.try_recv() {
+                if !success {
+                    self.isapi_deployed = false;
+                    self.host_server_url = None;
+                    self.process_error();
+                }
+                self.api_result_receiver = None;
+            }
         }
     }
 

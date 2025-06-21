@@ -56,7 +56,7 @@ pub async fn run_cli() {
             }
 
             set_model(&model_path, &LIST_EPS[1]);
-            run_api(port).await;
+            let _ = run_api(port).await;
             // CLI mode
 
             let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());

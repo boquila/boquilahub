@@ -23,14 +23,15 @@ async fn root() -> &'static str {
 }
 
 
-pub async fn run_api(port: u16) {
+pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
         .route("/", get(root))
         .route("/upload", post(upload));
     
     let addr = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> Vec<XYXYc> {
