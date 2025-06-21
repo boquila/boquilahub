@@ -360,8 +360,10 @@ impl Gui {
                                         );
                                         self.feed_url = Some(url);
                                         self.mode = Mode::Feed;
-                                        // if there's any processing happening, it will get cancelled
-                                        self.cancel_video_processing();
+                                        if self.video_state.is_processing {
+                                            self.cancel_video_processing();
+                                        }
+                                        
                                     }
                                     Err(_e) => {
                                         self.process_error();
