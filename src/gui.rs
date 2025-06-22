@@ -20,7 +20,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-pub fn run_gui() -> eframe::Result {
+pub fn run_gui() {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([400.0, 300.0])
@@ -32,11 +32,11 @@ pub fn run_gui() -> eframe::Result {
             ),
         ..Default::default()
     };
-    eframe::run_native(
+    let _ = eframe::run_native(
         "BoquilaHUB",
         native_options,
         Box::new(|_cc| Ok(Box::new(Gui::new()))),
-    )
+    );
 }
 
 pub struct Gui {
