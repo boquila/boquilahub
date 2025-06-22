@@ -793,6 +793,7 @@ dependencies = [
  "sys-locale",
  "tokio",
  "video-rs",
+ "winapi",
 ]
 
 [[package]]
