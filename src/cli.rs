@@ -1,5 +1,3 @@
-use clap::{Arg, Command};
-
 use crate::api::{
     abstractions::AI,
     bq::get_bqs,
@@ -7,6 +5,7 @@ use crate::api::{
     inference::set_model,
     rest::{get_ipv4_address, run_api},
 };
+use clap::{Arg, Command};
 
 pub async fn run_cli() {
     let matches = Command::new("BoquilaHUB")

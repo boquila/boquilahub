@@ -2,7 +2,7 @@ use super::abstractions::XYXYc;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
+use image::{DynamicImage, ImageBuffer, Rgba};
 use reqwest::blocking::Client;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
