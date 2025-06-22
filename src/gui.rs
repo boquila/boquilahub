@@ -20,7 +20,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-#[cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 pub fn run_gui() -> eframe::Result {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
