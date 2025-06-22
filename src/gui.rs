@@ -6,7 +6,8 @@ use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::render::draw_bbox_from_imgbuf;
 use crate::api::rest::{
-    check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address, rgba_image_to_jpeg_buffer, run_api
+    check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,
+    rgba_image_to_jpeg_buffer, run_api,
 };
 use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
@@ -143,6 +144,10 @@ impl Gui {
             video_state: State::init(),
             feed_state: State::init(),
         }
+    }
+
+    pub fn is_any_processing(&self) -> bool {
+        self.video_state.is_processing && self.img_state.is_processing & self.is_any_processing()
     }
 
     pub fn is_remote(&self) -> bool {
@@ -527,23 +532,23 @@ impl Gui {
                                 if cancel_rx.try_recv().is_ok() {
                                     break;
                                 }
-                                let bbox: Vec<XYXYc>;
-                                if is_remote {
+                                let bbox = if is_remote {
                                     let buffer = fs::read(path).unwrap();
                                     let api = format!("{}/upload", &api_server.clone().unwrap());
-                                    bbox = tokio::task::spawn_blocking(move || {
+                                    tokio::task::spawn_blocking(move || {
                                         detect_bbox_from_buf_remotely(&api.clone(), buffer)
                                     })
                                     .await
-                                    .unwrap();
+                                    .unwrap()
                                 } else {
                                     let img = open(path).unwrap().into_rgb8();
-                                    bbox = tokio::task::spawn_blocking(move || {
+                                    tokio::task::spawn_blocking(move || {
                                         detect_bbox_from_imgbuf(&img)
                                     })
                                     .await
-                                    .unwrap();
-                                }
+                                    .unwrap()
+                                };
+
                                 if tx.send((i, bbox)).is_err() {
                                     break;
                                 }
@@ -681,14 +686,18 @@ impl Gui {
 
                                     let (time, mut img) =
                                         processor.lock().unwrap().as_mut().unwrap().next().unwrap();
-                                    let bbox: Vec<XYXYc>;                                    
-                                    if is_remote {
-                                        let buffer = rgba_image_to_jpeg_buffer(&image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(), 95);
-                                        let api = format!("{}/upload", &api_server.clone().unwrap());
-                                        bbox = detect_bbox_from_buf_remotely(&api, buffer);
+                                    
+                                    let bbox = if is_remote {
+                                        let buffer = rgba_image_to_jpeg_buffer(
+                                            &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
+                                            95,
+                                        );
+                                        let api =
+                                            format!("{}/upload", &api_server.clone().unwrap());
+                                        detect_bbox_from_buf_remotely(&api, buffer)
                                     } else {
-                                        bbox = detect_bbox_from_imgbuf(&img);
-                                    }                                    
+                                        detect_bbox_from_imgbuf(&img)
+                                    };
 
                                     draw_bbox_from_imgbuf(&mut img, &bbox);
 
@@ -764,15 +773,18 @@ impl Gui {
                                     break;
                                 }
                                 if let Some(mut img) = feed.next() {
-                                    let bbox: Vec<XYXYc>;
-                                    if is_remote {
-                                        let buffer = rgba_image_to_jpeg_buffer(&image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(), 95);
-                                        let api = format!("{}/upload", &api_server.clone().unwrap());
-                                        bbox = detect_bbox_from_buf_remotely(&api, buffer);
+                                    let bbox = if is_remote {
+                                        let buffer = rgba_image_to_jpeg_buffer(
+                                            &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
+                                            95,
+                                        );
+                                        let api =
+                                            format!("{}/upload", &api_server.clone().unwrap());
+                                        detect_bbox_from_buf_remotely(&api, buffer)
                                     } else {
-                                        bbox = detect_bbox_from_imgbuf(&img);    
-                                    }
-                                    
+                                        detect_bbox_from_imgbuf(&img)
+                                    };
+
                                     api::render::draw_bbox_from_imgbuf(&mut img, &bbox);
                                     let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
                                     if tx.send((bbox, img)).is_err() {
