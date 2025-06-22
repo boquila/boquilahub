@@ -523,7 +523,13 @@ impl Gui {
                             .collect();
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.img_state.cancel_sender = Some(cancel_tx);
-                        let api_server = self.api_server_url.clone();
+                        let api_endpoint = if self.is_remote() {
+                            self.api_server_url
+                                .as_ref()
+                                .map(|url| format!("{}/upload", url))
+                        } else {
+                            None
+                        };
                         let is_remote = self.is_remote();
 
                         tokio::spawn(async move {
@@ -534,12 +540,10 @@ impl Gui {
                                 }
                                 let bbox = if is_remote {
                                     let buffer = fs::read(path).unwrap();
-                                    let api = format!("{}/upload", &api_server.clone().unwrap());
-                                    tokio::task::spawn_blocking(move || {
-                                        detect_bbox_from_buf_remotely(&api.clone(), buffer)
-                                    })
-                                    .await
-                                    .unwrap()
+                                    detect_bbox_from_buf_remotely(
+                                        api_endpoint.as_ref().unwrap(),
+                                        buffer,
+                                    )
                                 } else {
                                     let img = open(path).unwrap().into_rgb8();
                                     tokio::task::spawn_blocking(move || {
@@ -674,7 +678,13 @@ impl Gui {
                         let n = self.total_frames.unwrap();
                         let current = self.current_frame;
 
-                        let api_server = self.api_server_url.clone();
+                        let api_endpoint = if self.is_remote() {
+                            self.api_server_url
+                                .as_ref()
+                                .map(|url| format!("{}/upload", url))
+                        } else {
+                            None
+                        };
                         let is_remote = self.is_remote();
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
@@ -686,15 +696,16 @@ impl Gui {
 
                                     let (time, mut img) =
                                         processor.lock().unwrap().as_mut().unwrap().next().unwrap();
-                                    
+
                                     let bbox = if is_remote {
                                         let buffer = rgba_image_to_jpeg_buffer(
                                             &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
                                             95,
                                         );
-                                        let api =
-                                            format!("{}/upload", &api_server.clone().unwrap());
-                                        detect_bbox_from_buf_remotely(&api, buffer)
+                                        detect_bbox_from_buf_remotely(
+                                            api_endpoint.as_ref().unwrap(),
+                                            buffer,
+                                        )
                                     } else {
                                         detect_bbox_from_imgbuf(&img)
                                     };
@@ -764,7 +775,13 @@ impl Gui {
                         let url = self.feed_url.clone();
                         let mut feed = Feed::new(&url.unwrap()).unwrap();
 
-                        let api_server = self.api_server_url.clone();
+                        let api_endpoint = if self.is_remote() {
+                            self.api_server_url
+                                .as_ref()
+                                .map(|url| format!("{}/upload", url))
+                        } else {
+                            None
+                        };
                         let is_remote = self.is_remote();
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
@@ -778,9 +795,10 @@ impl Gui {
                                             &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
                                             95,
                                         );
-                                        let api =
-                                            format!("{}/upload", &api_server.clone().unwrap());
-                                        detect_bbox_from_buf_remotely(&api, buffer)
+                                        detect_bbox_from_buf_remotely(
+                                            api_endpoint.as_ref().unwrap(),
+                                            buffer,
+                                        )
                                     } else {
                                         detect_bbox_from_imgbuf(&img)
                                     };
