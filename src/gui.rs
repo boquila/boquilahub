@@ -6,7 +6,7 @@ use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::render::draw_bbox_from_imgbuf;
 use crate::api::rest::{
-    check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address, run_api,
+    check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address, rgba_image_to_jpeg_buffer, run_api
 };
 use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
@@ -145,6 +145,10 @@ impl Gui {
         }
     }
 
+    pub fn is_remote(&self) -> bool {
+        self.ep_selected == 2
+    }
+
     pub fn process_done(&mut self) {
         self.is_done = true;
         self.done_time = Some(Instant::now());
@@ -194,7 +198,7 @@ impl Gui {
     }
 
     pub fn api_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        if self.ai_selected.is_some() && !self.ep_selected == 2 {
+        if self.ai_selected.is_some() && !self.is_remote() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
                 if ui.button(self.t(Key::deploy)).clicked() {
@@ -246,13 +250,13 @@ impl Gui {
                     }
                 });
 
-            if (self.ai_selected != previous_ai)
-                && (self.ai_selected.is_some() || self.ep_selected == 2)
-            {
-                set_model(
-                    &self.ais[self.ai_selected.unwrap()].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
+            if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
+                if !self.is_remote() {
+                    set_model(
+                        &self.ais[self.ai_selected.unwrap()].get_path(),
+                        &LIST_EPS[self.ep_selected],
+                    );
+                }
             }
         }
     }
@@ -486,7 +490,7 @@ impl Gui {
     }
 
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.ep_selected == 2) {
+        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
                 ui.heading(self.t(Key::analysis));
@@ -515,7 +519,7 @@ impl Gui {
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.img_state.cancel_sender = Some(cancel_tx);
                         let api_server = self.api_server_url.clone();
-                        let is_remote = self.ep_selected == 2;
+                        let is_remote = self.is_remote();
 
                         tokio::spawn(async move {
                             for (i, path) in file_paths.iter().enumerate() {
@@ -644,7 +648,7 @@ impl Gui {
     }
 
     pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.ep_selected == 2) {
+        if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
                 ui.heading(self.t(Key::analysis));
@@ -664,6 +668,9 @@ impl Gui {
                         let processor = Arc::clone(&self.video_file_processor);
                         let n = self.total_frames.unwrap();
                         let current = self.current_frame;
+
+                        let api_server = self.api_server_url.clone();
+                        let is_remote = self.is_remote();
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || {
@@ -674,7 +681,14 @@ impl Gui {
 
                                     let (time, mut img) =
                                         processor.lock().unwrap().as_mut().unwrap().next().unwrap();
-                                    let bbox = detect_bbox_from_imgbuf(&img);
+                                    let bbox: Vec<XYXYc>;                                    
+                                    if is_remote {
+                                        let buffer = rgba_image_to_jpeg_buffer(&image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(), 95);
+                                        let api = format!("{}/upload", &api_server.clone().unwrap());
+                                        bbox = detect_bbox_from_buf_remotely(&api, buffer);
+                                    } else {
+                                        bbox = detect_bbox_from_imgbuf(&img);
+                                    }                                    
 
                                     draw_bbox_from_imgbuf(&mut img, &bbox);
 
@@ -721,7 +735,7 @@ impl Gui {
     }
 
     pub fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.feed_url.is_some() && (self.ai_selected.is_some() || self.ep_selected == 2) {
+        if self.feed_url.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
                 ui.heading(self.t(Key::analysis));
@@ -740,6 +754,9 @@ impl Gui {
 
                         let url = self.feed_url.clone();
                         let mut feed = Feed::new(&url.unwrap()).unwrap();
+
+                        let api_server = self.api_server_url.clone();
+                        let is_remote = self.is_remote();
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || loop {
@@ -747,7 +764,15 @@ impl Gui {
                                     break;
                                 }
                                 if let Some(mut img) = feed.next() {
-                                    let bbox = detect_bbox_from_imgbuf(&img);
+                                    let bbox: Vec<XYXYc>;
+                                    if is_remote {
+                                        let buffer = rgba_image_to_jpeg_buffer(&image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(), 95);
+                                        let api = format!("{}/upload", &api_server.clone().unwrap());
+                                        bbox = detect_bbox_from_buf_remotely(&api, buffer);
+                                    } else {
+                                        bbox = detect_bbox_from_imgbuf(&img);    
+                                    }
+                                    
                                     api::render::draw_bbox_from_imgbuf(&mut img, &bbox);
                                     let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
                                     if tx.send((bbox, img)).is_err() {
