@@ -155,9 +155,7 @@ fn get_main_label(output: &AIOutputs) -> String {
     match output {
         AIOutputs::ObjectDetection(bboxes) => get_most_frequent_label(bboxes, |bbox| &bbox.label),
         AIOutputs::Segmentation(segments) => get_most_frequent_label(segments, |seg| &seg.label),
-        AIOutputs::Classification(_prob_space) => {
-            todo!()
-        }
+        AIOutputs::Classification(prob_space) => prob_space.highest_confidence(),
     }
 }
 

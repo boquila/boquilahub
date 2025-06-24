@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use crate::api::abstractions::{ProbSpace, SEGc, XYXYc};
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone,)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),

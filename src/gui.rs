@@ -4,6 +4,7 @@ use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
+use crate::api::models::processing::inference::AIOutputs;
 use crate::api::render::draw_aioutput;
 use crate::api::rest::{
     check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,
@@ -51,9 +52,9 @@ pub struct Gui {
     temp_str: String,
     temp_api_str: String,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
-    image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, Vec<XYXYc>)>>,
+    image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
-        Option<tokio::sync::mpsc::UnboundedReceiver<(Vec<XYXYc>, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
+        Option<tokio::sync::mpsc::UnboundedReceiver<(AIOutputs, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
@@ -711,7 +712,7 @@ impl Gui {
                                         detect_bbox_from_imgbuf(&img)
                                     };
 
-                                    draw_bbox_from_imgbuf(&mut img, &bbox);
+                                    draw_aioutput(&mut img, &bbox);
 
                                     processor
                                         .lock()
@@ -804,7 +805,7 @@ impl Gui {
                                         detect_bbox_from_imgbuf(&img)
                                     };
 
-                                    api::render::draw_bbox_from_imgbuf(&mut img, &bbox);
+                                    api::render::draw_aioutput(&mut img, &bbox);
                                     let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
                                     if tx.send((bbox, img)).is_err() {
                                         break;
@@ -836,7 +837,7 @@ impl Gui {
             }
 
             for (i, bbox) in updates {
-                self.selected_files[i].list_bbox = bbox;
+                self.selected_files[i].aioutput = Some(bbox);
                 self.selected_files[i].wasprocessed = true;
                 // if the img is the same that the user is seeing, we'll repaint it
                 if i == self.image_texture_n - 1 {

@@ -1,3 +1,5 @@
+use crate::api::models::processing::inference::AIOutputs;
+
 use super::abstractions::XYXYc;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
@@ -35,7 +37,7 @@ pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> Vec<XYXYc> {
+pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> AIOutputs {
     let client = Client::new();
     let response = client
         .post(url)
@@ -50,11 +52,11 @@ pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> Vec<XYXYc> {
         .send()
         .expect("Failed to send request");
 
-    let deserialized: Vec<XYXYc> = serde_json::from_str(&response.text().unwrap()).unwrap();
+    let deserialized: AIOutputs = serde_json::from_str(&response.text().unwrap()).unwrap();
     return deserialized;
 }
 
-pub fn detect_bbox_from_imgbuf_remotely(url: &str, img: &ImageBuffer<Rgba<u8>, Vec<u8>>,) -> Vec<XYXYc> {
+pub fn detect_bbox_from_imgbuf_remotely(url: &str, img: &ImageBuffer<Rgba<u8>, Vec<u8>>,) -> AIOutputs {
     let jpeg_buffer = rgba_image_to_jpeg_buffer(img, 95);
     detect_bbox_from_buf_remotely(url, jpeg_buffer)
 }
@@ -72,7 +74,7 @@ pub fn rgba_image_to_jpeg_buffer(
     buffer
 }
 
-pub fn detect_bbox_remotely(url: &str, file_path: &str) -> Vec<XYXYc> {
+pub fn detect_bbox_remotely(url: &str, file_path: &str) -> AIOutputs {
     let buf = std::fs::read(file_path).unwrap_or(vec![]);
     return detect_bbox_from_buf_remotely(url, buf);
 }

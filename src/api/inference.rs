@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 use crate::api::models::processing::inference::AIOutputs;
-
-use super::abstractions::{XYXYc, AI};
+use super::abstractions::{AI};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{Task, Yolo};
@@ -60,11 +59,12 @@ pub fn set_model(value: &String, ep: &EP) {
 }
 
 #[inline(always)]
-pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Vec<XYXYc> {
-    match CURRENT_AI.get().unwrap().read().run(&img) {
-        AIOutputs::ObjectDetection(boxes) => return boxes,
-        _ => {
-            panic!("Expected ObjectDetection output");
-        }
-    }
+pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+    CURRENT_AI.get().unwrap().read().run(&img)
+    // match CURRENT_AI.get().unwrap().read().run(&img) {
+    //     AIOutputs::ObjectDetection(boxes) => return boxes,
+    //     _ => {
+    //         panic!("Expected ObjectDetection output");
+    //     }
+    // }
 }

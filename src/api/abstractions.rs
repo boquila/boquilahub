@@ -17,6 +17,17 @@ pub struct ProbSpace {
     pub probs: Vec<f32>,
 }
 
+impl ProbSpace {
+    pub fn highest_confidence(&self) -> String {
+        self.probs
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| self.classes[index].clone())
+            .unwrap_or_else(|| String::from("no prediction"))
+    }
+}
+
 /// Segmentation in the YOLO format, normalized
 /// # Fields
 /// - `vertices` represents a polygon
@@ -528,16 +539,15 @@ impl PredImg {
     #[inline(always)]
     pub fn draw(&self) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
         let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.aioutput.is_some() {
+        if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
             super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
         }
-        // self.draw2(image::open(&self.file_path).unwrap().into_rgb8())
         return DynamicImage::ImageRgb8(img).to_rgba8();
     }
 
     pub fn draw2(&self) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
         let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.aioutput.is_some() {
+        if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
             super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
         }
         return img
