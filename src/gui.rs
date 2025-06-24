@@ -4,7 +4,7 @@ use crate::api::bq::get_bqs;
 use crate::api::eps::LIST_EPS;
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
-use crate::api::render::draw_bbox_from_imgbuf;
+use crate::api::render::draw_aioutput;
 use crate::api::rest::{
     check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,
     rgba_image_to_jpeg_buffer, run_api,
@@ -523,6 +523,7 @@ impl Gui {
                             .collect();
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.img_state.cancel_sender = Some(cancel_tx);
+
                         let api_endpoint = if self.is_remote() {
                             self.api_server_url
                                 .as_ref()
@@ -623,7 +624,7 @@ impl Gui {
                             .clicked()
                         {
                             for file in &self.selected_files {
-                                if file.wasprocessed && !file.list_bbox.is_empty() {
+                                if file.wasprocessed && !file.aioutput.as_ref().unwrap().is_empty() {
                                     file.save();
                                 }
                             }

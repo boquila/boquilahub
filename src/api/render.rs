@@ -1,4 +1,6 @@
+use crate::api::models::processing::inference::AIOutputs;
 use std::sync::LazyLock;
+
 use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
@@ -103,14 +105,28 @@ const LABEL_PADDING: f32 = FONT_SCALE / 6.13;
 const CHAR_WIDTH: f32 = FONT_SCALE / 1.84;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const FONT_BYTES: &[u8] = include_bytes!("../../assets//DejaVuSans.ttf");
-static FONT: LazyLock<FontRef<'static>> = LazyLock::new(|| {
-    FontRef::try_from_slice(FONT_BYTES).expect("Failed to load font")
-});
+static FONT: LazyLock<FontRef<'static>> =
+    LazyLock::new(|| FontRef::try_from_slice(FONT_BYTES).expect("Failed to load font"));
 
-pub fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &Vec<XYXYc>) {
+// only this should be public
+pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOutputs) {
+    match predictions {
+        AIOutputs::ObjectDetection(detections) => {
+            draw_bbox_from_imgbuf(img, detections);
+        }
+        AIOutputs::Segmentation(segments) => {
+            todo!()
+        }
+        AIOutputs::Classification(prob_space) => {
+            todo!()
+        }
+    }
+}
+
+fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &Vec<XYXYc>) {
     let font = &*FONT; // Dereference the LazyLock
 
-    for bbox in predictions {
+    for bbox in detections {
         let w = bbox.bbox.x2 - bbox.bbox.x1;
         let h = bbox.bbox.y2 - bbox.bbox.y1;
         let color = BBOX_COLORS[bbox.bbox.class_id as usize];

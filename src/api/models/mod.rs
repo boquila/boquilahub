@@ -38,9 +38,3 @@ impl From<&str> for PostProcessing {
 pub enum Architecture {
     Yolo(Yolo),
 }
-
-pub enum AIOutputs {
-    ObjectDetection(Vec<XYXYc>),
-    Classification(ProbSpace),
-    Segmentation(Vec<SEGn>),
-}

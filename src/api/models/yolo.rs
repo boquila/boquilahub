@@ -1,7 +1,7 @@
 use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
-    models::processing::{post_processing::nms_indices, pre_processing::imgbuf_to_input_array},
+    models::processing::{inference::AIOutputs, post_processing::nms_indices, pre_processing::imgbuf_to_input_array},
 };
 use derive_new::new;
 use image::{ImageBuffer, Rgb};

@@ -1,8 +1,10 @@
 #![allow(dead_code)]
+use crate::api::models::processing::inference::AIOutputs;
+
 use super::abstractions::{XYXYc, AI};
 use super::bq::import_bq;
 use super::eps::EP;
-use super::models::{AIOutputs, Task, Yolo};
+use super::models::{Task, Yolo};
 use egui::mutex::RwLock;
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;

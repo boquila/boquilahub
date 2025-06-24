@@ -1,7 +1,10 @@
 #![allow(dead_code)]
+use crate::api::models::processing::inference::AIOutputs;
+
 use super::abstractions::PredImg;
 use super::abstractions::XYXYc;
 use super::abstractions::XYXY;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
@@ -75,24 +78,53 @@ pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
     let mut file = File::create(&output_path)?;
 
     // Create the full content string
-    let mut content = String::new();
-    for bbox in &pred_img.list_bbox {
-        content.push_str(&format!(
-            "{} {} {} {} {} {} {}\n",
-            bbox.label,
-            bbox.bbox.x1,
-            bbox.bbox.y1,
-            bbox.bbox.x2,
-            bbox.bbox.y2,
-            bbox.bbox.class_id,
-            bbox.bbox.prob
-        ));
-    }
-
-    // Write the content to file in one operation
+    let content = match &pred_img.aioutput.as_ref().unwrap() {
+        AIOutputs::ObjectDetection(bboxes) => bboxes
+            .iter()
+            .map(|bbox| {
+                format!(
+                    "{} {} {} {} {} {} {}\n",
+                    bbox.label,
+                    bbox.bbox.x1,
+                    bbox.bbox.y1,
+                    bbox.bbox.x2,
+                    bbox.bbox.y2,
+                    bbox.bbox.class_id,
+                    bbox.bbox.prob
+                )
+            })
+            .collect::<String>(),
+        AIOutputs::Classification(prob_space) => prob_space
+            .classes
+            .iter()
+            .zip(prob_space.probs.iter())
+            .map(|(class, prob)| format!("{} {}\n", class, prob))
+            .collect::<String>(),
+        AIOutputs::Segmentation(segments) => segments
+            .iter()
+            .map(|seg| {
+                let x_coords = seg
+                    .seg
+                    .x
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let y_coords = seg
+                    .seg
+                    .y
+                    .iter()
+                    .map(|y| y.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!(
+                    "{} [{}] [{}] {} {}\n",
+                    seg.label, x_coords, y_coords, seg.seg.class_id, seg.seg.prob
+                )
+            })
+            .collect::<String>(),
+    };
     file.write_all(content.as_bytes())?;
-
-    // println!("Successfully wrote predictions to: {:?}", output_path);
     Ok(())
 }
 
@@ -101,35 +133,31 @@ pub fn count_processed_images(images: &Vec<PredImg>) -> usize {
     images.iter().filter(|img| img.wasprocessed).count()
 }
 
-// Check if all images have empty bounding boxes
-pub fn are_boxes_empty(images: &Vec<PredImg>) -> bool {
-    for image in images {
-        if !image.list_bbox.is_empty() {
-            return false;
-        }
+// Get the most frequent label from a list of bounding boxes
+fn get_most_frequent_label<T>(items: &[T], get_label: impl Fn(&T) -> &String) -> String {
+    if items.is_empty() {
+        return String::from("no predictions");
     }
-    true
+
+    let mut label_counts: HashMap<&String, usize> = HashMap::new();
+    for item in items {
+        *label_counts.entry(get_label(item)).or_insert(0) += 1;
+    }
+
+    label_counts
+        .iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(label, _)| (*label).clone())
+        .unwrap()
 }
 
-// Get the most frequent label from a list of bounding boxes
-fn get_main_label(listbbox: &Vec<XYXYc>) -> String {
-    if listbbox.is_empty() {
-        return String::from("no predictions");
-    } else {
-        let mut label_counts: std::collections::HashMap<&String, usize> =
-            std::collections::HashMap::new();
-
-        for bbox in listbbox {
-            *label_counts.entry(&bbox.label).or_insert(0) += 1;
+fn get_main_label(output: &AIOutputs) -> String {
+    match output {
+        AIOutputs::ObjectDetection(bboxes) => get_most_frequent_label(bboxes, |bbox| &bbox.label),
+        AIOutputs::Segmentation(segments) => get_most_frequent_label(segments, |seg| &seg.label),
+        AIOutputs::Classification(_prob_space) => {
+            todo!()
         }
-
-        let main_label = label_counts
-            .iter()
-            .max_by_key(|&(_, count)| count)
-            .map(|(label, _)| *label)
-            .unwrap();
-
-        return main_label.clone();
     }
 }
 
@@ -137,7 +165,7 @@ pub async fn copy_to_folder(pred_imgs: &Vec<PredImg>, output_path: &str) {
     for pred_img in pred_imgs {
         let image_file_path = &pred_img.file_path;
         if std::path::Path::new(image_file_path).exists() {
-            let main_label = get_main_label(&pred_img.list_bbox);
+            let main_label = get_main_label(&pred_img.aioutput.as_ref().unwrap());
 
             let folder_path = format!("{}/{}", output_path, main_label);
 

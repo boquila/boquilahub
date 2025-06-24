@@ -44,7 +44,7 @@ pub enum EPType {
     BoquilaHUBRemote,
 }
 
-pub fn get_ep_version(provider: &EP) -> f64 {
+pub fn get_ep_version(provider: &EP) -> f32 {
     match provider.ep_type {
         EPType::CUDA => get_cuda_version(),
         _ => 0.0,
@@ -53,7 +53,7 @@ pub fn get_ep_version(provider: &EP) -> f64 {
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-fn get_cuda_version() -> f64 {
+fn get_cuda_version() -> f32 {
     let output = std::process::Command::new("nvcc")
         .args(["--version"])
         .creation_flags(CREATE_NO_WINDOW)
@@ -70,7 +70,7 @@ fn get_cuda_version() -> f64 {
     if let Some(captures) = version_regex.captures(output_text) {
         if let Some(version_str) = captures.get(1) {
             // Convert the version string to a float
-            return version_str.as_str().parse::<f64>().unwrap_or(0.0);
+            return version_str.as_str().parse::<f32>().unwrap_or(0.0);
         }
     }
     0.0 // Return 0.0 if no match is found

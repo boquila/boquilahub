@@ -6,9 +6,12 @@ use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::api::models::processing::inference::AIOutputs;
+
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
+#[derive(Serialize, Deserialize, Clone, new)]
 pub struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
@@ -29,11 +32,17 @@ pub struct SEGn {
 /// # Fields
 /// - `vertices` represents a polygon
 #[derive(Serialize, Deserialize, Clone, new)]
-struct SEG {
+pub struct SEG {
     pub x: Vec<i32>,
     pub y: Vec<i32>,
     pub prob: f32,
     pub class_id: u16,
+}
+
+#[derive(Serialize, Deserialize, Clone, new)]
+pub struct SEGc {
+    pub seg: SEG,
+    pub label: String,
 }
 
 // Trait for all bounding boxes (that don't have a string)
@@ -502,7 +511,7 @@ impl AI {
 #[derive(new, Clone)]
 pub struct PredImg {
     pub file_path: PathBuf,
-    pub list_bbox: Vec<XYXYc>,
+    pub aioutput: Option<AIOutputs>,
     pub wasprocessed: bool,
 }
 
@@ -511,7 +520,7 @@ impl PredImg {
     pub fn new_simple(file_path: PathBuf) -> Self {
         PredImg {
             file_path,
-            list_bbox: Vec::new(),
+            aioutput: None,
             wasprocessed: false,
         }
     }
@@ -519,16 +528,17 @@ impl PredImg {
     #[inline(always)]
     pub fn draw(&self) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
         let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.list_bbox.is_empty() {
-            super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
+        if self.wasprocessed && !self.aioutput.is_some() {
+            super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
         }
+        // self.draw2(image::open(&self.file_path).unwrap().into_rgb8())
         return DynamicImage::ImageRgb8(img).to_rgba8();
     }
 
     pub fn draw2(&self) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
         let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.list_bbox.is_empty() {
-            super::render::draw_bbox_from_imgbuf(&mut img, &self.list_bbox);
+        if self.wasprocessed && !self.aioutput.is_some() {
+            super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
         }
         return img
     }
