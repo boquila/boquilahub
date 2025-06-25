@@ -1,7 +1,7 @@
 use super::localization::*;
 use crate::api::abstractions::*;
 use crate::api::bq::get_bqs;
-use crate::api::eps::LIST_EPS;
+use crate::api::eps::{get_ep_version, LIST_EPS};
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::models::processing::inference::AIOutputs;
@@ -289,6 +289,18 @@ impl Gui {
             match new_ep.ep_type {
                 api::eps::EPType::BoquilaHUBRemote => {
                     self.show_api_server_dialog = true;
+                }
+                api::eps::EPType::CUDA => {
+                    let cuda_version = get_ep_version(new_ep);
+                    if cuda_version >= 12.4 {
+                        self.ep_selected = temp_ep_selected;
+
+                        if let Some(ai_index) = self.ai_selected {
+                            set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                        }
+                    } else {
+                        self.process_error();
+                    }
                 }
                 _ => {
                     self.ep_selected = temp_ep_selected;
@@ -625,7 +637,8 @@ impl Gui {
                             .clicked()
                         {
                             for file in &self.selected_files {
-                                if file.wasprocessed && !file.aioutput.as_ref().unwrap().is_empty() {
+                                if file.wasprocessed && !file.aioutput.as_ref().unwrap().is_empty()
+                                {
                                     file.save();
                                 }
                             }

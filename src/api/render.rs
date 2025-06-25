@@ -5,7 +5,9 @@ use std::sync::LazyLock;
 use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
-use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_polygon, draw_hollow_rect_mut, draw_text_mut};
+use imageproc::drawing::{
+    draw_filled_rect_mut, draw_hollow_polygon, draw_hollow_rect_mut, draw_text_mut,
+};
 use imageproc::point::Point;
 use imageproc::rect::Rect;
 
@@ -170,43 +172,39 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         let color = BBOX_COLORS[seg.seg.class_id as usize];
         let text = str_label(&seg.label, seg.seg.prob);
 
-            
-        let poly: Vec<Point<f32>> = seg.seg.x.iter()
-                .zip(seg.seg.y.iter())
-                .map(|(&x, &y)| Point { x: x as f32, y: y as f32 })
-                .collect();
-        
+        let poly: Vec<Point<f32>> = seg
+            .seg
+            .x
+            .iter()
+            .zip(seg.seg.y.iter())
+            .map(|(&x, &y)| Point {
+                x: x as f32,
+                y: y as f32,
+            })
+            .collect();
+
         draw_hollow_polygon(img, &poly, color);
 
-                   // Find bounding box for label placement
-            let min_x = *seg.seg.x.iter().min().unwrap_or(&0);
-            let min_y = *seg.seg.y.iter().min().unwrap_or(&0);
-            let max_x = *seg.seg.x.iter().max().unwrap_or(&0);
-            
-            // Draw label background
-            let label_width = (text.len() as f32 * CHAR_WIDTH) as u32;
-            let label_height = FONT_SCALE as u32 + 4;
-            
-            // Ensure label stays within image bounds
-            let label_x = std::cmp::max(0, min_x) as i32;
-            let label_y = std::cmp::max(0, (min_y - FONT_SCALE as i32 + LABEL_PADDING as i32)) as i32;
-            
-            draw_filled_rect_mut(
-                img,
-                Rect::at(label_x, label_y).of_size(label_width, label_height),
-                color,
-            );
-            
-            // Draw label text
-            draw_text_mut(
-                img,
-                WHITE,
-                label_x,
-                label_y,
-                FONT_SCALE,
-                &font,
-                &text,
-            );
+        // Find bounding box for label placement
+        let min_x = *seg.seg.x.iter().min().unwrap_or(&0);
+        let min_y = *seg.seg.y.iter().min().unwrap_or(&0);
+
+        // Draw label background
+        let label_width = (text.len() as f32 * CHAR_WIDTH) as u32;
+        let label_height = FONT_SCALE as u32 + 4;
+
+        // Ensure label stays within image bounds
+        let label_x = std::cmp::max(0, min_x) as i32;
+        let label_y = std::cmp::max(0, (min_y - FONT_SCALE as i32 + LABEL_PADDING as i32)) as i32;
+
+        draw_filled_rect_mut(
+            img,
+            Rect::at(label_x, label_y).of_size(label_width, label_height),
+            color,
+        );
+
+        // Draw label text
+        draw_text_mut(img, WHITE, label_x, label_y, FONT_SCALE, &font, &text);
     }
 }
 
