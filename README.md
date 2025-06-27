@@ -72,3 +72,9 @@ cargo build --release
 ```
 
 Probably instead of cloning from main, you should prefer to get the source code from a tagged version
+
+## Dependencies
+
+- ONNXRuntime
+
+- ffmpeg
