@@ -1,4 +1,4 @@
-use crate::api::abstractions::SEGc;
+use crate::api::abstractions::{ProbSpace, SEGc};
 use crate::api::models::processing::inference::AIOutputs;
 use std::sync::LazyLock;
 
@@ -122,7 +122,7 @@ pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOu
             draw_seg_from_imgbuf(img, segs);
         }
         AIOutputs::Classification(prob_space) => {
-            todo!()
+            draw_cls_from_imgbuf(img, prob_space);
         }
     }
 }
@@ -201,6 +201,66 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
 
         // Draw label text
         draw_text_mut(img, WHITE, label_x, label_y, FONT_SCALE, &font, &text);
+    }
+}
+
+fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prob_space: &ProbSpace) {
+    let font = &*FONT; // Dereference the LazyLock
+    
+    // Create pairs of (class, prob) and sort by probability descending
+    let mut class_probs: Vec<(&String, f32)> = prob_space.classes
+        .iter()
+        .zip(prob_space.probs.iter())
+        .map(|(class, &prob)| (class, prob))
+        .collect();
+    
+    class_probs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    
+    // Take top 3
+    let top3 = class_probs.into_iter().take(3).collect::<Vec<_>>();
+    
+    // Starting position in top left corner
+    let start_x = 10i32;
+    let start_y = 10i32;
+    let line_height = (FONT_SCALE + 8.0) as i32;
+    
+    // Calculate background dimensions
+    let max_text_width = top3.iter()
+        .map(|(class, prob)| format!("{}: {:.1}%", class, prob * 100.0).len())
+        .max()
+        .unwrap_or(0);
+    
+    let bg_width = (max_text_width as f32 * CHAR_WIDTH + 20.0) as u32;
+    let bg_height = (top3.len() as i32 * line_height + 10) as u32;
+    
+    // Draw semi-transparent background
+    draw_filled_rect_mut(
+        img,
+        Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
+        Rgb([0, 0, 0]), // Black background
+    );
+    
+    // Draw border
+    draw_hollow_rect_mut(
+        img,
+        Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
+        WHITE,
+    );
+    
+    // Draw each classification
+    for (i, (class, prob)) in top3.iter().enumerate() {
+        let text = format!("{}: {:.1}%", class, prob * 100.0);
+        let y_pos = start_y + (i as i32 * line_height);
+        
+        draw_text_mut(
+            img,
+            WHITE,
+            start_x,
+            y_pos,
+            FONT_SCALE,
+            &font,
+            &text,
+        );
     }
 }
 
