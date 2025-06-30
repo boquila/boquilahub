@@ -53,6 +53,7 @@ pub struct SEG {
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEGc {
     pub seg: SEG,
+    pub bbox: XYXY,
     pub label: String,
 }
 

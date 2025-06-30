@@ -185,17 +185,13 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
 
         draw_hollow_polygon(img, &poly, color);
 
-        // Find bounding box for label placement
-        let min_x = *seg.seg.x.iter().min().unwrap_or(&0);
-        let min_y = *seg.seg.y.iter().min().unwrap_or(&0);
-
         // Draw label background
         let label_width = (text.len() as f32 * CHAR_WIDTH) as u32;
         let label_height = FONT_SCALE as u32 + 4;
 
         // Ensure label stays within image bounds
-        let label_x = std::cmp::max(0, min_x) as i32;
-        let label_y = std::cmp::max(0, (min_y - FONT_SCALE as i32 + LABEL_PADDING as i32)) as i32;
+        let label_x = std::cmp::max(0, seg.bbox.x1 as i32) as i32;
+        let label_y = std::cmp::max(0, seg.bbox.y1 as i32 - FONT_SCALE as i32 + LABEL_PADDING as i32) as i32;
 
         draw_filled_rect_mut(
             img,

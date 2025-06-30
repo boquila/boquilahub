@@ -4,16 +4,10 @@ use super::abstractions::{AI};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{Task, Yolo};
-use egui::mutex::RwLock;
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
-use std::sync::OnceLock;
-
-pub fn init_app() {
-    std::fs::create_dir_all("output_feed").unwrap();
-    std::fs::create_dir_all("export").unwrap();
-}
+use std::sync::{OnceLock, RwLock};
 
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: OnceLock<RwLock<Yolo>> = OnceLock::new();
@@ -52,7 +46,7 @@ pub fn set_model(value: &String, ep: &EP) {
         import_model(&data, ep),
     );
     if CURRENT_AI.get().is_some() {
-        *CURRENT_AI.get().unwrap().write() = aimodel;
+        *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
     } else {
         let _ = CURRENT_AI.set(RwLock::new(aimodel));
     }
@@ -60,11 +54,5 @@ pub fn set_model(value: &String, ep: &EP) {
 
 #[inline(always)]
 pub fn detect_bbox_from_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-    CURRENT_AI.get().unwrap().read().run(&img)
-    // match CURRENT_AI.get().unwrap().read().run(&img) {
-    //     AIOutputs::ObjectDetection(boxes) => return boxes,
-    //     _ => {
-    //         panic!("Expected ObjectDetection output");
-    //     }
-    // }
+    CURRENT_AI.get().unwrap().read().unwrap().run(&img)
 }
