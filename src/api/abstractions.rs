@@ -513,13 +513,13 @@ impl BoundingBoxTrait for XYWH {
 #[derive(Deserialize, Clone, new)]
 pub struct AI {
     pub name: String,
-    pub version: f32, // complement tothe name
-    pub input_width: u32,
-    pub input_height: u32,
-    pub description: String,          // complement to the name
-    pub color_code: String, // "terra", "fire", "green", depending on this, the app will show different colors hehe
+    pub version: f32, // to delete
+    pub input_width: u32, // to delete
+    pub input_height: u32, // to delete
+    pub description: String,  // to think about it 
+    pub color_code: String, // to delete
     pub task: String,       // "detect", "classify", "segment"
-    pub post_processing: Vec<String>, // "detect", "classify", "segment"
+    pub post_processing: Vec<String>, // "NMS"
     pub classes: Vec<String>,
 }
 
