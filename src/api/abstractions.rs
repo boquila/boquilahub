@@ -13,8 +13,9 @@ use crate::api::models::processing::inference::AIOutputs;
 /// `probs` is a Vec with the probabilities/confidence for each classification
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct ProbSpace {
-    pub classes: Vec<String>,
     pub probs: Vec<f32>,
+    pub classes_ids: Vec<usize>,
+    pub classes: Vec<String>,    
 }
 
 impl ProbSpace {

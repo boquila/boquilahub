@@ -1,7 +1,9 @@
 use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
-    models::processing::{inference::AIOutputs, post_processing::nms_indices, pre_processing::imgbuf_to_input_array},
+    models::processing::{
+        inference::AIOutputs, post_processing::nms_indices, pre_processing::imgbuf_to_input_array,
+    },
 };
 use derive_new::new;
 use image::{ImageBuffer, Rgb};
@@ -76,6 +78,30 @@ impl Yolo {
         return self.t(&result);
     }
 
+    fn process_class_output(&self, output: &Array<f32, IxDyn>) -> ProbSpace {
+        let mut indexed_scores: Vec<(usize, f32)> = output
+            .iter()
+            .enumerate()
+            .map(|(i, &score)| (i, score))
+            .collect();
+
+        indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+        let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
+        let classes_ids: Vec<usize> = indexed_scores.iter().map(|(idx, _)| *idx).collect();
+        let classes: Vec<String> = classes_ids
+            .iter()
+            .map(|&idx| {
+                self.classes
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| format!("class{}", idx + 1))
+            })
+            .collect();
+
+        return ProbSpace::new(probs, classes_ids, classes)
+    }
+
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
         boxes
             .into_iter()
@@ -96,7 +122,9 @@ impl Yolo {
                 return AIOutputs::ObjectDetection(boxes);
             }
             Task::Classify => {
-                todo!();
+                let output = self.inference(&input);
+                let probs = self.process_class_output(&output);
+                return AIOutputs::Classification(probs)
             }
             Task::Segment => {
                 todo!();
