@@ -15,7 +15,7 @@ use crate::api::models::processing::inference::AIOutputs;
 pub struct ProbSpace {
     pub probs: Vec<f32>,
     pub classes_ids: Vec<usize>,
-    pub classes: Vec<String>,    
+    pub classes: Vec<String>,
 }
 
 impl ProbSpace {
@@ -26,6 +26,14 @@ impl ProbSpace {
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(index, _)| self.classes[index].clone())
             .unwrap_or_else(|| String::from("no prediction"))
+    }
+
+    pub fn highest_confidence_detailed(&self) -> Option<(usize, String, f32)> {
+        self.probs
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, &prob)| (self.classes_ids[index], self.classes[index].clone(), prob))
     }
 }
 
@@ -552,7 +560,7 @@ impl PredImg {
         if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
             super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
         }
-        return img
+        return img;
     }
 
     pub fn save(&self) {
