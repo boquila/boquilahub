@@ -82,6 +82,7 @@ impl Yolo {
         let mut indexed_scores: Vec<(usize, f32)> = output
             .iter()
             .enumerate()
+            .filter(|(_, &score)| score >= self.confidence_threshold)
             .map(|(i, &score)| (i, score))
             .collect();
 
@@ -91,15 +92,10 @@ impl Yolo {
         let classes_ids: Vec<usize> = indexed_scores.iter().map(|(idx, _)| *idx).collect();
         let classes: Vec<String> = classes_ids
             .iter()
-            .map(|&idx| {
-                self.classes
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_else(|| format!("class{}", idx + 1))
-            })
+            .map(|&idx| self.classes[idx].clone())
             .collect();
 
-        return ProbSpace::new(probs, classes_ids, classes)
+        return ProbSpace::new(probs, classes_ids, classes);
     }
 
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
@@ -124,7 +120,7 @@ impl Yolo {
             Task::Classify => {
                 let output = self.inference(&input);
                 let probs = self.process_class_output(&output);
-                return AIOutputs::Classification(probs)
+                return AIOutputs::Classification(probs);
             }
             Task::Segment => {
                 todo!();
