@@ -108,20 +108,6 @@ impl Yolo {
             .collect()
     }
 
-    fn t_seg(&self, segs: &Vec<SEG>, bboxes: &Vec<XYXY>) -> Vec<SEGc> {
-        segs.iter()
-            .zip(bboxes.iter())
-            .map(|(seg, bbox)| {
-                let label = &self.classes[bbox.class_id as usize];
-                SEGc {
-                    seg: seg.clone(),
-                    bbox: bbox.clone(),
-                    label: label.to_string(),
-                }
-            })
-            .collect()
-    }
-
     fn process_seg_output(
         &self,
         outputs: (Array<f32, IxDyn>, Array<f32, IxDyn>),
@@ -181,10 +167,15 @@ impl Yolo {
 
         let indices: Vec<usize> = nms_indices(&bboxes, self.nms_threshold);
 
-        let filtered_segs = indices.iter().map(|&i| segs[i].clone()).collect();
+        let filtered_segs: Vec<SEG> = indices.iter().map(|&i| segs[i].clone()).collect();
         let filtered_bboxes: Vec<XYXY> = indices.iter().map(|&i| bboxes[i].clone()).collect();
-
-        let segs: Vec<SEGc> = self.t_seg(&filtered_segs, &filtered_bboxes);
+        let bboxes = self.t(&filtered_bboxes);
+        // let segs: Vec<SEGc> = self.t_seg(&filtered_segs, &filtered_bboxes);
+        let segs: Vec<SEGc> = filtered_segs
+            .into_iter()
+            .zip(bboxes.into_iter())
+            .map(|(seg, bbox)| SEGc { seg, bbox })
+            .collect();
         return segs;
     }
 

@@ -1,16 +1,10 @@
 use crate::api::abstractions::{ProbSpace, SEGc};
 use crate::api::models::processing::inference::AIOutputs;
 use std::sync::LazyLock;
-
 use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
-use image::Rgba;
 use image::{ImageBuffer, Rgb};
-use imageproc::drawing::{
-    draw_filled_circle_mut, draw_filled_rect_mut, draw_hollow_polygon, draw_hollow_polygon_mut,
-    draw_hollow_rect_mut, draw_text_mut,
-};
-use imageproc::point::Point;
+use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
 
 fn blend_pixel(base: Rgb<u8>, overlay: Rgb<u8>, alpha: f32) -> Rgb<u8> {
@@ -143,7 +137,7 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &V
     for bbox in detections {
         let w = bbox.bbox.x2 - bbox.bbox.x1;
         let h = bbox.bbox.y2 - bbox.bbox.y1;
-        let color = BBOX_COLORS[bbox.bbox.class_id as usize];
+        let color = BBOX_COLORS[bbox.bbox.class_id as usize % BBOX_COLORS.len()];
         let text = str_label(&bbox.label, bbox.bbox.prob);
 
         draw_hollow_rect_mut(
@@ -179,16 +173,16 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
     let font = &*FONT; // Dereference the LazyLock
 
     for seg in segmentations {
-        let text = str_label(&seg.label, seg.bbox.prob);
-        let w = seg.bbox.x2 - seg.bbox.x1;
-        let h = seg.bbox.y2 - seg.bbox.y1;
+        let text = str_label(&seg.bbox.label, seg.bbox.bbox.prob);
+        let w = seg.bbox.bbox.x2 - seg.bbox.bbox.x1;
+        let h = seg.bbox.bbox.y2 - seg.bbox.bbox.y1;
 
-        let color = BBOX_COLORS[seg.bbox.class_id as usize];
+        let color = BBOX_COLORS[seg.bbox.bbox.class_id as usize % BBOX_COLORS.len()];
         let mask: &Vec<Vec<bool>> = &seg.seg.mask;
 
         // Convert bbox float coordinates to integers safely
-        let x_offset = seg.bbox.x1.floor() as i32;
-        let y_offset = seg.bbox.y1.floor() as i32;
+        let x_offset = seg.bbox.bbox.x1.floor() as i32;
+        let y_offset = seg.bbox.bbox.y1.floor() as i32;
 
         for (y, row) in mask.iter().enumerate() {
             for (x, value) in row.iter().enumerate() {
@@ -202,11 +196,9 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
                         && (img_x as u32) < img.width()
                         && (img_y as u32) < img.height()
                     {
-                        let overlay_color = Rgb([color[0], color[1], color[2]]); // from BBOX_COLORS
                         let alpha = 0.4; // 40% intensity
-
                         let img_pixel = img.get_pixel(img_x as u32, img_y as u32);
-                        let blended = blend_pixel(*img_pixel, overlay_color, alpha);
+                        let blended = blend_pixel(*img_pixel, color, alpha);
                         img.put_pixel(img_x as u32, img_y as u32, blended);
                     }
                 }
@@ -215,14 +207,14 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
 
         draw_hollow_rect_mut(
             img,
-            Rect::at(seg.bbox.x1 as i32, seg.bbox.y1 as i32).of_size(w as u32, h as u32),
+            Rect::at(seg.bbox.bbox.x1 as i32, seg.bbox.bbox.y1 as i32).of_size(w as u32, h as u32),
             color,
         );
         draw_filled_rect_mut(
             img,
             Rect::at(
-                seg.bbox.x1 as i32,
-                (seg.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+                seg.bbox.bbox.x1 as i32,
+                (seg.bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             )
             .of_size(
                 (text.len() as f32 * CHAR_WIDTH) as u32,
@@ -233,8 +225,8 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         draw_text_mut(
             img,
             WHITE,
-            seg.bbox.x1 as i32,
-            (seg.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+            seg.bbox.bbox.x1 as i32,
+            (seg.bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             FONT_SCALE,
             &font,
             &text,

@@ -59,8 +59,7 @@ pub struct SEG {
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEGc {
     pub seg: SEG,
-    pub bbox: XYXY,
-    pub label: String,
+    pub bbox: XYXYc,
 }
 
 // Trait for all bounding boxes (that don't have a string)

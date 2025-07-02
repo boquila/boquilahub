@@ -132,7 +132,7 @@ fn get_most_frequent_label<T>(items: &[T], get_label: impl Fn(&T) -> &String) ->
 fn get_main_label(output: &AIOutputs) -> String {
     match output {
         AIOutputs::ObjectDetection(bboxes) => get_most_frequent_label(bboxes, |bbox| &bbox.label),
-        AIOutputs::Segmentation(segments) => get_most_frequent_label(segments, |seg| &seg.label),
+        AIOutputs::Segmentation(segments) => get_most_frequent_label(segments, |seg| &seg.bbox.label),
         AIOutputs::Classification(prob_space) => prob_space.highest_confidence(),
     }
 }
