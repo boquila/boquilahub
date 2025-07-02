@@ -6,7 +6,8 @@ use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{
-    draw_filled_rect_mut, draw_hollow_polygon, draw_hollow_rect_mut, draw_text_mut,
+    draw_filled_circle_mut, draw_filled_rect_mut, draw_hollow_polygon, draw_hollow_polygon_mut,
+    draw_hollow_rect_mut, draw_text_mut,
 };
 use imageproc::point::Point;
 use imageproc::rect::Rect;
@@ -171,96 +172,89 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
     for seg in segmentations {
         let color = BBOX_COLORS[seg.seg.class_id as usize];
         let text = str_label(&seg.label, seg.seg.prob);
+        let w = seg.bbox.x2 - seg.bbox.x1;
+        let h = seg.bbox.y2 - seg.bbox.y1;
 
-        let poly: Vec<Point<f32>> = seg
-            .seg
-            .x
-            .iter()
-            .zip(seg.seg.y.iter())
-            .map(|(&x, &y)| Point {
-                x: x as f32,
-                y: y as f32,
-            })
-            .collect();
-
-        draw_hollow_polygon(img, &poly, color);
-
-        // Draw label background
-        let label_width = (text.len() as f32 * CHAR_WIDTH) as u32;
-        let label_height = FONT_SCALE as u32 + 4;
-
-        // Ensure label stays within image bounds
-        let label_x = std::cmp::max(0, seg.bbox.x1 as i32) as i32;
-        let label_y = std::cmp::max(0, seg.bbox.y1 as i32 - FONT_SCALE as i32 + LABEL_PADDING as i32) as i32;
-
-        draw_filled_rect_mut(
+        draw_hollow_rect_mut(
             img,
-            Rect::at(label_x, label_y).of_size(label_width, label_height),
+            Rect::at(seg.bbox.x1 as i32, seg.bbox.y1 as i32).of_size(w as u32, h as u32),
             color,
         );
-
-        // Draw label text
-        draw_text_mut(img, WHITE, label_x, label_y, FONT_SCALE, &font, &text);
+        draw_filled_rect_mut(
+            img,
+            Rect::at(
+                seg.bbox.x1 as i32,
+                (seg.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+            )
+            .of_size(
+                (text.len() as f32 * CHAR_WIDTH) as u32,
+                FONT_SCALE as u32 + 4,
+            ),
+            color,
+        );
+        draw_text_mut(
+            img,
+            WHITE,
+            seg.bbox.x1 as i32,
+            (seg.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+            FONT_SCALE,
+            &font,
+            &text,
+        );
     }
 }
 
 fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prob_space: &ProbSpace) {
     let font = &*FONT; // Dereference the LazyLock
-    
+
     // Create pairs of (class, prob) and sort by probability descending
-    let mut class_probs: Vec<(&String, f32)> = prob_space.classes
+    let mut class_probs: Vec<(&String, f32)> = prob_space
+        .classes
         .iter()
         .zip(prob_space.probs.iter())
         .map(|(class, &prob)| (class, prob))
         .collect();
-    
+
     class_probs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-    
+
     // Take top 3
     let top3 = class_probs.into_iter().take(3).collect::<Vec<_>>();
-    
+
     // Starting position in top left corner
     let start_x = 10i32;
     let start_y = 10i32;
     let line_height = (FONT_SCALE + 8.0) as i32;
-    
+
     // Calculate background dimensions
-    let max_text_width = top3.iter()
+    let max_text_width = top3
+        .iter()
         .map(|(class, prob)| format!("{}: {:.1}%", class, prob * 100.0).len())
         .max()
         .unwrap_or(0);
-    
+
     let bg_width = (max_text_width as f32 * CHAR_WIDTH + 20.0) as u32;
     let bg_height = (top3.len() as i32 * line_height + 10) as u32;
-    
+
     // Draw semi-transparent background
     draw_filled_rect_mut(
         img,
         Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
         Rgb([0, 0, 0]), // Black background
     );
-    
+
     // Draw border
     draw_hollow_rect_mut(
         img,
         Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
         WHITE,
     );
-    
+
     // Draw each classification
     for (i, (class, prob)) in top3.iter().enumerate() {
         let text = format!("{}: {:.1}%", class, prob * 100.0);
         let y_pos = start_y + (i as i32 * line_height);
-        
-        draw_text_mut(
-            img,
-            WHITE,
-            start_x,
-            y_pos,
-            FONT_SCALE,
-            &font,
-            &text,
-        );
+
+        draw_text_mut(img, WHITE, start_x, y_pos, FONT_SCALE, &font, &text);
     }
 }
 

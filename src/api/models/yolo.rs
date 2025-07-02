@@ -133,14 +133,14 @@ impl Yolo {
         let masks_output: Array2<f32> = output1
             .slice(s![.., .., .., 0])
             .to_owned()
-            .into_shape_with_order((160 * 160, 32))
+            .into_shape((160 * 160, 32))
             .unwrap()
             .permuted_axes([1, 0])
             .to_owned();
         let masks_output2: Array2<f32> = output0.slice(s![.., 84..116, 0]).to_owned();
         let masks = masks_output2
             .dot(&masks_output)
-            .into_shape_with_order((8400, 160, 160))
+            .into_shape((8400, 160, 160))
             .unwrap()
             .to_owned();
 
@@ -203,23 +203,23 @@ impl Yolo {
             }
             Task::Segment => {
                 let outputs = self
-            .session
-            .run(inputs!["images" => input.view()].unwrap())
-            .unwrap();
-    let output0 = outputs["output0"]
-            .try_extract_tensor::<f32>()
-            .unwrap()
-            .t()
-            .into_owned();
-        let output1 = outputs["output1"]
-            .try_extract_tensor::<f32>()
-            .unwrap()
-            .t()
-            .into_owned();
-    let o = self.process_seg_output((output0,output1), img_width, img_height);
-             return AIOutputs::Segmentation(o);   
+                    .session
+                    .run(inputs!["images" => input.view()].unwrap())
+                    .unwrap();
+                let output0 = outputs["output0"]
+                    .try_extract_tensor::<f32>()
+                    .unwrap()
+                    .t()
+                    .into_owned();
+                let output1 = outputs["output1"]
+                    .try_extract_tensor::<f32>()
+                    .unwrap()
+                    .t()
+                    .into_owned();
+                let segc_vec = self.process_seg_output((output0, output1), img_width, img_height);
+                let boxes: Vec<XYXYc> = segc_vec.into_iter().map(|segc| XYXYc { bbox: segc.bbox, label: segc.label }).collect();
+                return AIOutputs::ObjectDetection(boxes);
             }
         }
     }
 }
-
