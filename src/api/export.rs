@@ -100,29 +100,7 @@ pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
             .zip(prob_space.probs.iter())
             .map(|(class, prob)| format!("{} {}\n", class, prob))
             .collect::<String>(),
-        AIOutputs::Segmentation(segments) => segments
-            .iter()
-            .map(|seg| {
-                let x_coords = seg
-                    .seg
-                    .x
-                    .iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<_>>()
-                    .join(",");
-                let y_coords = seg
-                    .seg
-                    .y
-                    .iter()
-                    .map(|y| y.to_string())
-                    .collect::<Vec<_>>()
-                    .join(",");
-                format!(
-                    "{} [{}] [{}] {} {}\n",
-                    seg.label, x_coords, y_coords, seg.seg.class_id, seg.seg.prob
-                )
-            })
-            .collect::<String>(),
+        AIOutputs::Segmentation(segments) => "to do".to_owned()
     };
     file.write_all(content.as_bytes())?;
     Ok(())

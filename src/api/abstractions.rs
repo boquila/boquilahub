@@ -60,8 +60,13 @@ pub struct SEG {
 }
 
 #[derive(Serialize, Deserialize, Clone, new)]
+pub struct SEG2 {
+    pub mask: Vec<Vec<u8>>
+}
+
+#[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEGc {
-    pub seg: SEG,
+    pub seg: SEG2,
     pub bbox: XYXY,
     pub label: String,
 }

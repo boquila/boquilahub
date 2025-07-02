@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 
 use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
+use image::Rgba;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{
     draw_filled_circle_mut, draw_filled_rect_mut, draw_hollow_polygon, draw_hollow_polygon_mut,
@@ -11,6 +12,14 @@ use imageproc::drawing::{
 };
 use imageproc::point::Point;
 use imageproc::rect::Rect;
+
+fn blend_pixel(base: Rgb<u8>, overlay: Rgb<u8>, alpha: f32) -> Rgb<u8> {
+    let r = (1.0 - alpha) * base[0] as f32 + alpha * overlay[0] as f32;
+    let g = (1.0 - alpha) * base[1] as f32 + alpha * overlay[1] as f32;
+    let b = (1.0 - alpha) * base[2] as f32 + alpha * overlay[2] as f32;
+
+    Rgb([r as u8, g as u8, b as u8])
+}
 
 const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([255, 0, 0]),     // Red
@@ -170,10 +179,39 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
     let font = &*FONT; // Dereference the LazyLock
 
     for seg in segmentations {
-        let color = BBOX_COLORS[seg.seg.class_id as usize];
-        let text = str_label(&seg.label, seg.seg.prob);
+        let text = str_label(&seg.label, seg.bbox.prob);
         let w = seg.bbox.x2 - seg.bbox.x1;
         let h = seg.bbox.y2 - seg.bbox.y1;
+
+        let color = BBOX_COLORS[seg.bbox.class_id as usize];
+        let mask: &Vec<Vec<u8>> = &seg.seg.mask;
+
+        // Convert bbox float coordinates to integers safely
+        let x_offset = seg.bbox.x1.floor() as i32;
+        let y_offset = seg.bbox.y1.floor() as i32;
+
+        for (y, row) in mask.iter().enumerate() {
+            for (x, value) in row.iter().enumerate() {
+                if *value != 0 {
+                    let img_x = x_offset + x as i32;
+                    let img_y = y_offset + y as i32;
+
+                    // Ensure coordinates are within image bounds
+                    if img_x >= 0
+                        && img_y >= 0
+                        && (img_x as u32) < img.width()
+                        && (img_y as u32) < img.height()
+                    {
+                        let overlay_color = Rgb([color[0], color[1], color[2]]); // from BBOX_COLORS
+                        let alpha = 0.4; // 40% intensity
+
+                        let img_pixel = img.get_pixel(img_x as u32, img_y as u32);
+                        let blended = blend_pixel(*img_pixel, overlay_color, alpha);
+                        img.put_pixel(img_x as u32, img_y as u32, blended);
+                    }
+                }
+            }
+        }
 
         draw_hollow_rect_mut(
             img,

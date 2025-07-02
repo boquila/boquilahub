@@ -1,3 +1,4 @@
+use image::{imageops::FilterType, GenericImage, Rgba};
 use ndarray::Array2;
 
 use crate::api::abstractions::BoundingBoxTrait;
@@ -33,106 +34,31 @@ pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<
     keep
 }
 
-
-// Extract polygon contour from segmentation mask
-pub fn extract_polygon_from_mask(
-    mask: Array2<f32>,
-    rect: (f32, f32, f32, f32),
-    _img_width: u32,
-    _img_height: u32,
-) -> (Vec<i32>, Vec<i32>) {
-    let (x1, y1, x2, y2) = rect;
-    
-    // Apply sigmoid and threshold to create binary mask
-    let threshold = 0.5;
-    let mut binary_mask = vec![vec![false; 160]; 160];
-    
-    for row in 0..160 {
-        for col in 0..160 {
-            let sigmoid_val = 1.0 / (1.0 + (-mask[[row, col]]).exp());
-            binary_mask[row][col] = sigmoid_val > threshold;
-        }
-    }
-    
-    // Find contour using simple boundary following
-    let contour = find_boundary_pixels(&binary_mask);
-    
-    if contour.is_empty() {
-        return (Vec::new(), Vec::new());
-    }
-    
-    // Transform coordinates from 160x160 mask space to image space
-    let mut x_coords = Vec::new();
-    let mut y_coords = Vec::new();
-    
-    for (mask_x, mask_y) in contour {
-        // Convert from mask coordinates (0-159) to bounding box coordinates
-        let rel_x = mask_x as f32 / 159.0;
-        let rel_y = mask_y as f32 / 159.0;
-        
-        // Convert to image coordinates
-        let img_x = x1 + rel_x * (x2 - x1);
-        let img_y = y1 + rel_y * (y2 - y1);
-        
-        x_coords.push(img_x.round() as i32);
-        y_coords.push(img_y.round() as i32);
-    }
-    
-    (x_coords, y_coords)
-}
-
-fn find_boundary_pixels(binary_mask: &[Vec<bool>]) -> Vec<(usize, usize)> {
-    let mut boundary_pixels = Vec::new();
-    
-    for row in 0..160 {
-        for col in 0..160 {
-            if binary_mask[row][col] {
-                // Check if this pixel is on the boundary (has at least one non-foreground neighbor)
-                let mut is_boundary = false;
-                
-                // Check 4-connected neighbors
-                for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                    let nr = row as i32 + dr;
-                    let nc = col as i32 + dc;
-                    
-                    if nr < 0 || nr >= 160 || nc < 0 || nc >= 160 {
-                        is_boundary = true; // Edge pixels are boundary
-                        break;
-                    }
-                    
-                    if !binary_mask[nr as usize][nc as usize] {
-                        is_boundary = true; // Adjacent to background
-                        break;
-                    }
-                }
-                
-                if is_boundary {
-                    boundary_pixels.push((col, row)); // (x, y) format
-                }
-            }
-        }
-    }
-    
-    if boundary_pixels.is_empty() {
-        return boundary_pixels;
-    }
-    
-    // Sort boundary pixels to create a more coherent polygon
-    // Simple approach: sort by angle from centroid
-    let centroid_x = boundary_pixels.iter().map(|(x, _)| *x as f32).sum::<f32>() / boundary_pixels.len() as f32;
-    let centroid_y = boundary_pixels.iter().map(|(_, y)| *y as f32).sum::<f32>() / boundary_pixels.len() as f32;
-    
-    boundary_pixels.sort_by(|a, b| {
-        let angle_a = (a.1 as f32 - centroid_y).atan2(a.0 as f32 - centroid_x);
-        let angle_b = (b.1 as f32 - centroid_y).atan2(b.0 as f32 - centroid_x);
-        angle_a.partial_cmp(&angle_b).unwrap()
+pub fn process_mask(mask:Array2<f32>,rect:(f32,f32,f32,f32),img_width:u32, img_height:u32) -> Vec<Vec<u8>> {
+    let (x1,y1,x2,y2) = rect;
+    let mut mask_img = image::DynamicImage::new_rgb8(161,161);
+    let mut index = 0.0;
+    mask.for_each(|item| {
+        let color = if *item > 0.0 { Rgba::<u8>([255,255,255,1])  } else { Rgba::<u8>([0,0,0,1]) };
+        let y = f32::floor(index / 160.0);
+        let x = index - y * 160.0;
+        mask_img.put_pixel(x as u32, y as u32, color);
+        index += 1.0;
     });
-    
-    // Simplify by taking every nth point if too many
-    if boundary_pixels.len() > 100 {
-        let step = boundary_pixels.len() / 50;
-        boundary_pixels = boundary_pixels.into_iter().step_by(step).collect();
+    mask_img = mask_img.crop((x1 / img_width as f32 * 160.0).round() as u32,
+                             (y1 / img_height as f32 * 160.0).round() as u32,
+                             ((x2-x1) / img_width as f32 * 160.0).round() as u32,
+                             ((y2-y1) / img_height as f32 * 160.0).round() as u32
+    );
+    mask_img = mask_img.resize_exact((x2-x1) as u32,(y2-y1) as u32, FilterType::Nearest);
+    let mut result = vec![];
+    for y in 0..(y2-y1) as usize {
+        let mut row = vec![];
+        for x in 0..(x2-x1) as usize {
+            let color= image::GenericImageView::get_pixel(&mask_img, x as u32, y as u32);
+            row.push(*color.0.iter().nth(0).unwrap());
+        }
+        result.push(row);
     }
-    
-    boundary_pixels
+    return result;
 }
