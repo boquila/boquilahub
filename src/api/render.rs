@@ -184,7 +184,7 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         let h = seg.bbox.y2 - seg.bbox.y1;
 
         let color = BBOX_COLORS[seg.bbox.class_id as usize];
-        let mask: &Vec<Vec<u8>> = &seg.seg.mask;
+        let mask: &Vec<Vec<bool>> = &seg.seg.mask;
 
         // Convert bbox float coordinates to integers safely
         let x_offset = seg.bbox.x1.floor() as i32;
@@ -192,7 +192,7 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
 
         for (y, row) in mask.iter().enumerate() {
             for (x, value) in row.iter().enumerate() {
-                if *value != 0 {
+                if *value != false {
                     let img_x = x_offset + x as i32;
                     let img_y = y_offset + y as i32;
 

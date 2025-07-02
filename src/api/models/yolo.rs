@@ -108,7 +108,7 @@ impl Yolo {
             .collect()
     }
 
-    fn t_seg(&self, segs: &Vec<SEG2>, bboxes: &Vec<XYXY>) -> Vec<SEGc> {
+    fn t_seg(&self, segs: &Vec<SEG>, bboxes: &Vec<XYXY>) -> Vec<SEGc> {
         segs.iter()
             .zip(bboxes.iter())
             .map(|(seg, bbox)| {
@@ -163,7 +163,7 @@ impl Yolo {
             }
 
             let mask: Array2<f32> = masks.slice(s![index, .., ..]).to_owned();
-            
+
             let xc = row[0] / self.input_width as f32 * (img_width as f32);
             let yc = row[1] / self.input_height as f32 * (img_height as f32);
             let w = row[2] / self.input_width as f32 * (img_width as f32);
@@ -173,9 +173,10 @@ impl Yolo {
             let y1 = yc - h / 2.0;
             let y2 = yc + h / 2.0;
 
-            let a = SEG2::new(process_mask(mask,(x1,y1,x2,y2),img_width,img_height));
-            segs.push(a);
-            bboxes.push(XYXY::new(x1, y1, x2, y2, prob, class_id as u16));
+            let bbox = XYXY::new(x1, y1, x2, y2, prob, class_id as u16);
+            let seg = SEG::new(process_mask(mask, &bbox, img_width, img_height));
+            segs.push(seg);
+            bboxes.push(bbox);
         }
 
         let indices: Vec<usize> = nms_indices(&bboxes, self.nms_threshold);
@@ -218,8 +219,6 @@ impl Yolo {
                     .into_owned();
                 let segc_vec = self.process_seg_output((output0, output1), img_width, img_height);
                 return AIOutputs::Segmentation(segc_vec);
-                // let boxes: Vec<XYXYc> = segc_vec.into_iter().map(|segc| XYXYc { bbox: segc.bbox, label: segc.label }).collect();
-                // return AIOutputs::ObjectDetection(boxes);
             }
         }
     }

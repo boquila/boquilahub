@@ -1,7 +1,7 @@
 use image::{imageops::FilterType, GenericImage, Rgba};
 use ndarray::Array2;
 
-use crate::api::abstractions::BoundingBoxTrait;
+use crate::api::abstractions::{BoundingBoxTrait, XYXY};
 
 pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
     // Create indices and sort them by probability (descending)
@@ -34,31 +34,52 @@ pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<
     keep
 }
 
-pub fn process_mask(mask:Array2<f32>,rect:(f32,f32,f32,f32),img_width:u32, img_height:u32) -> Vec<Vec<u8>> {
-    let (x1,y1,x2,y2) = rect;
-    let mut mask_img = image::DynamicImage::new_rgb8(161,161);
+pub fn process_mask(
+    mask: Array2<f32>,
+    bbox: &XYXY,
+    img_width: u32,
+    img_height: u32,
+) -> Vec<Vec<bool>> {
+    let mut mask_img = image::DynamicImage::new_rgb8(161, 161);
     let mut index = 0.0;
     mask.for_each(|item| {
-        let color = if *item > 0.0 { Rgba::<u8>([255,255,255,1])  } else { Rgba::<u8>([0,0,0,1]) };
+        let color = if *item > 0.0 {
+            Rgba::<u8>([255, 255, 255, 1])
+        } else {
+            Rgba::<u8>([0, 0, 0, 1])
+        };
         let y = f32::floor(index / 160.0);
         let x = index - y * 160.0;
         mask_img.put_pixel(x as u32, y as u32, color);
         index += 1.0;
     });
-    mask_img = mask_img.crop((x1 / img_width as f32 * 160.0).round() as u32,
-                             (y1 / img_height as f32 * 160.0).round() as u32,
-                             ((x2-x1) / img_width as f32 * 160.0).round() as u32,
-                             ((y2-y1) / img_height as f32 * 160.0).round() as u32
+    mask_img = mask_img.crop(
+        (bbox.x1 / img_width as f32 * 160.0).round() as u32,
+        (bbox.y1 / img_height as f32 * 160.0).round() as u32,
+        ((bbox.x2 - bbox.x1) / img_width as f32 * 160.0).round() as u32,
+        ((bbox.y2 - bbox.y1) / img_height as f32 * 160.0).round() as u32,
     );
-    mask_img = mask_img.resize_exact((x2-x1) as u32,(y2-y1) as u32, FilterType::Nearest);
+    mask_img = mask_img.resize_exact(
+        (bbox.x2 - bbox.x1) as u32,
+        (bbox.y2 - bbox.y1) as u32,
+        FilterType::Nearest,
+    );
     let mut result = vec![];
-    for y in 0..(y2-y1) as usize {
+    for y in 0..(bbox.y2 - bbox.y1) as usize {
         let mut row = vec![];
-        for x in 0..(x2-x1) as usize {
-            let color= image::GenericImageView::get_pixel(&mask_img, x as u32, y as u32);
+        for x in 0..(bbox.x2 - bbox.x1) as usize {
+            let color = image::GenericImageView::get_pixel(&mask_img, x as u32, y as u32);
             row.push(*color.0.iter().nth(0).unwrap());
         }
         result.push(row);
     }
-    return result;
+    let bools: Vec<Vec<bool>> = result
+        .into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(|val| val != 0) // 0 → false, 255 → true
+                .collect()
+        })
+        .collect();
+    return bools;
 }

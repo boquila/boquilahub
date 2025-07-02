@@ -1,11 +1,12 @@
 #![allow(dead_code)]
-use crate::api::models::processing::inference::AIOutputs;
-use super::abstractions::{AI};
+use super::abstractions::AI;
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{Task, Yolo};
+use crate::api::models::processing::inference::AIOutputs;
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
+use ort::value::ValueType;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::sync::{OnceLock, RwLock};
 
@@ -29,6 +30,40 @@ fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 
 pub fn set_model(value: &String, ep: &EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
+    let session = import_model(&data, ep);
+    let a = &session.inputs;
+    let d: &ort::value::ValueType = &a[0].input_type;
+    let input_shape = match &session.inputs[0].input_type {
+        ValueType::Tensor { dimensions, .. } => dimensions,
+        _ => {
+            panic!("Not supported");
+        }
+    };
+    let batch_size = input_shape[0];
+    let input_depth = input_shape[1];
+    let input_width = input_shape[2];
+    let input_height = input_shape[3];
+
+    let a = &session.outputs;
+    let c = &a[0].name;
+    println!("{}", c);
+    let shape = match &session.outputs[0].output_type {
+        ValueType::Tensor { dimensions, .. } => dimensions,
+        _ => {
+            panic!("Not supported");
+        }
+    };
+    println!("{:?}", shape);
+
+    let c = &a[1].name;
+    println!("{}", c);
+    let shape = match &session.outputs[1].output_type {
+        ValueType::Tensor { dimensions, .. } => dimensions,
+        _ => {
+            panic!("Not supported");
+        }
+    };
+    println!("{:?}", shape);
 
     let len = model_metadata.classes.len() as u32;
     let aimodel = Yolo::new(
@@ -36,14 +71,14 @@ pub fn set_model(value: &String, ep: &EP) {
         model_metadata.description,
         model_metadata.version,
         model_metadata.classes,
-        model_metadata.input_width,
-        model_metadata.input_height,
+        input_width as u32,
+        input_height as u32,
         0.45,
         0.5,
         len,
         0,
         Task::from(model_metadata.task.as_str()),
-        import_model(&data, ep),
+        session,
     );
     if CURRENT_AI.get().is_some() {
         *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;

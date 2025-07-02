@@ -50,23 +50,15 @@ pub struct SEGn {
 
 /// Segmentation in the YOLO format, not normalized
 /// # Fields
-/// - `vertices` represents a polygon
+/// - `mask` represents a polygon
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEG {
-    pub x: Vec<i32>,
-    pub y: Vec<i32>,
-    pub prob: f32,
-    pub class_id: u16,
-}
-
-#[derive(Serialize, Deserialize, Clone, new)]
-pub struct SEG2 {
-    pub mask: Vec<Vec<u8>>
+    pub mask: Vec<Vec<bool>>
 }
 
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEGc {
-    pub seg: SEG2,
+    pub seg: SEG,
     pub bbox: XYXY,
     pub label: String,
 }
