@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+use serde::Serialize;
+
 use crate::api::models::processing::inference::AIOutputs;
 
 use super::abstractions::PredImg;
@@ -64,45 +66,19 @@ pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXY
     Ok(bboxes)
 }
 
+// For file 'img.jpg', creates a file 'img.json' that contains the predictions
 pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
-    // Create output filename based on input filepath
     let input_path = Path::new(&pred_img.file_path);
     let file_stem = input_path
         .file_stem()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
 
     let parent = input_path.parent().unwrap_or(Path::new(""));
-    let output_path = parent.join(format!("{}_predictions.txt", file_stem.to_string_lossy()));
+    let output_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
 
-    // Open file for writing - using tokio's async File
     let mut file = File::create(&output_path)?;
-
-    // Create the full content string
-    let content = match &pred_img.aioutput.as_ref().unwrap() {
-        AIOutputs::ObjectDetection(bboxes) => bboxes
-            .iter()
-            .map(|bbox| {
-                format!(
-                    "{} {} {} {} {} {} {}\n",
-                    bbox.label,
-                    bbox.bbox.x1,
-                    bbox.bbox.y1,
-                    bbox.bbox.x2,
-                    bbox.bbox.y2,
-                    bbox.bbox.class_id,
-                    bbox.bbox.prob
-                )
-            })
-            .collect::<String>(),
-        AIOutputs::Classification(prob_space) => prob_space
-            .classes
-            .iter()
-            .zip(prob_space.probs.iter())
-            .map(|(class, prob)| format!("{} {}\n", class, prob))
-            .collect::<String>(),
-        AIOutputs::Segmentation(segments) => "to do".to_owned()
-    };
-    file.write_all(content.as_bytes())?;
+    let json_string = serde_json::to_string(&pred_img.aioutput)?;
+    file.write_all(json_string.as_bytes())?;
     Ok(())
 }
 
