@@ -135,21 +135,21 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &V
     let font = &*FONT; // Dereference the LazyLock
 
     for bbox in detections {
-        let w = bbox.bbox.x2 - bbox.bbox.x1;
-        let h = bbox.bbox.y2 - bbox.bbox.y1;
-        let color = BBOX_COLORS[bbox.bbox.class_id as usize % BBOX_COLORS.len()];
-        let text = str_label(&bbox.label, bbox.bbox.prob);
+        let w = bbox.xyxy.x2 - bbox.xyxy.x1;
+        let h = bbox.xyxy.y2 - bbox.xyxy.y1;
+        let color = BBOX_COLORS[bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
+        let text = str_label(&bbox.label, bbox.xyxy.prob);
 
         draw_hollow_rect_mut(
             img,
-            Rect::at(bbox.bbox.x1 as i32, bbox.bbox.y1 as i32).of_size(w as u32, h as u32),
+            Rect::at(bbox.xyxy.x1 as i32, bbox.xyxy.y1 as i32).of_size(w as u32, h as u32),
             color,
         );
         draw_filled_rect_mut(
             img,
             Rect::at(
-                bbox.bbox.x1 as i32,
-                (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+                bbox.xyxy.x1 as i32,
+                (bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             )
             .of_size(
                 (text.len() as f32 * CHAR_WIDTH) as u32,
@@ -160,8 +160,8 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &V
         draw_text_mut(
             img,
             WHITE,
-            bbox.bbox.x1 as i32,
-            (bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+            bbox.xyxy.x1 as i32,
+            (bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             FONT_SCALE,
             &font,
             &text,
@@ -173,16 +173,16 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
     let font = &*FONT; // Dereference the LazyLock
 
     for seg in segmentations {
-        let text = str_label(&seg.bbox.label, seg.bbox.bbox.prob);
-        let w = seg.bbox.bbox.x2 - seg.bbox.bbox.x1;
-        let h = seg.bbox.bbox.y2 - seg.bbox.bbox.y1;
+        let text = str_label(&seg.bbox.label, seg.bbox.xyxy.prob);
+        let w = seg.bbox.xyxy.x2 - seg.bbox.xyxy.x1;
+        let h = seg.bbox.xyxy.y2 - seg.bbox.xyxy.y1;
 
-        let color = BBOX_COLORS[seg.bbox.bbox.class_id as usize % BBOX_COLORS.len()];
+        let color = BBOX_COLORS[seg.bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
         let mask: &Vec<Vec<bool>> = &seg.seg.mask;
 
         // Convert bbox float coordinates to integers safely
-        let x_offset = seg.bbox.bbox.x1.floor() as i32;
-        let y_offset = seg.bbox.bbox.y1.floor() as i32;
+        let x_offset = seg.bbox.xyxy.x1.floor() as i32;
+        let y_offset = seg.bbox.xyxy.y1.floor() as i32;
 
         for (y, row) in mask.iter().enumerate() {
             for (x, value) in row.iter().enumerate() {
@@ -207,14 +207,14 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
 
         draw_hollow_rect_mut(
             img,
-            Rect::at(seg.bbox.bbox.x1 as i32, seg.bbox.bbox.y1 as i32).of_size(w as u32, h as u32),
+            Rect::at(seg.bbox.xyxy.x1 as i32, seg.bbox.xyxy.y1 as i32).of_size(w as u32, h as u32),
             color,
         );
         draw_filled_rect_mut(
             img,
             Rect::at(
-                seg.bbox.bbox.x1 as i32,
-                (seg.bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+                seg.bbox.xyxy.x1 as i32,
+                (seg.bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             )
             .of_size(
                 (text.len() as f32 * CHAR_WIDTH) as u32,
@@ -225,8 +225,8 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         draw_text_mut(
             img,
             WHITE,
-            seg.bbox.bbox.x1 as i32,
-            (seg.bbox.bbox.y1 - FONT_SCALE + LABEL_PADDING) as i32,
+            seg.bbox.xyxy.x1 as i32,
+            (seg.bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             FONT_SCALE,
             &font,
             &text,

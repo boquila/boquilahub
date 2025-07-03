@@ -11,60 +11,60 @@ use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXYc>> {
-    // Create expected filename based on input filepath
-    let input_path = Path::new(input_path);
-    let file_stem = input_path
-        .file_stem()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
+// pub async fn read_predictions_from_file(input_path: &str) -> io::Result<Vec<XYXYc>> {
+//     // Create expected filename based on input filepath
+//     let input_path = Path::new(input_path);
+//     let file_stem = input_path
+//         .file_stem()
+//         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
 
-    let parent = input_path.parent().unwrap_or(Path::new(""));
-    let prediction_path = parent.join(format!("{}_predictions.txt", file_stem.to_string_lossy()));
+//     let parent = input_path.parent().unwrap_or(Path::new(""));
+//     let prediction_path = parent.join(format!("{}_predictions.txt", file_stem.to_string_lossy()));
 
-    // Check if file exists
-    if !prediction_path.exists() {
-        // println!("No prediction file found at: {:?}", prediction_path);
-        return Ok(Vec::new());
-    }
+//     // Check if file exists
+//     if !prediction_path.exists() {
+//         // println!("No prediction file found at: {:?}", prediction_path);
+//         return Ok(Vec::new());
+//     }
 
-    // Read and parse file
-    let mut bboxes = Vec::new();
-    let file = File::open(&prediction_path)?;
-    let reader = io::BufReader::new(file);
+//     // Read and parse file
+//     let mut bboxes = Vec::new();
+//     let file = File::open(&prediction_path)?;
+//     let reader = io::BufReader::new(file);
 
-    for line_result in reader.lines() {
-        let line = line_result?;
-        let parts: Vec<&str> = line.split_whitespace().collect();
+//     for line_result in reader.lines() {
+//         let line = line_result?;
+//         let parts: Vec<&str> = line.split_whitespace().collect();
 
-        if parts.len() != 7 {
-            // println!("Warning: Skipping invalid line format: {}", line);
-            continue;
-        }
+//         if parts.len() != 7 {
+//             // println!("Warning: Skipping invalid line format: {}", line);
+//             continue;
+//         }
 
-        match (
-            parts[1].parse::<f32>(), // x1
-            parts[2].parse::<f32>(), // y1
-            parts[3].parse::<f32>(), // x2
-            parts[4].parse::<f32>(), // y2
-            parts[5].parse::<u16>(), // class_id
-            parts[6].parse::<f32>(), // confidence
-        ) {
-            (Ok(x1), Ok(y1), Ok(x2), Ok(y2), Ok(class_id), Ok(confidence)) => {
-                bboxes.push(XYXYc {
-                    bbox: XYXY::new(x1, y1, x2, y2, confidence, class_id),
-                    label: parts[0].to_string(),
-                });
-            }
-            _ => {
-                // println!("Warning: Error parsing line: {}", line);
-                continue;
-            }
-        }
-    }
+//         match (
+//             parts[1].parse::<f32>(), // x1
+//             parts[2].parse::<f32>(), // y1
+//             parts[3].parse::<f32>(), // x2
+//             parts[4].parse::<f32>(), // y2
+//             parts[5].parse::<u16>(), // class_id
+//             parts[6].parse::<f32>(), // confidence
+//         ) {
+//             (Ok(x1), Ok(y1), Ok(x2), Ok(y2), Ok(class_id), Ok(confidence)) => {
+//                 bboxes.push(XYXYc {
+//                     bbox: XYXY::new(x1, y1, x2, y2, confidence, class_id),
+//                     label: parts[0].to_string(),
+//                 });
+//             }
+//             _ => {
+//                 // println!("Warning: Error parsing line: {}", line);
+//                 continue;
+//             }
+//         }
+//     }
 
-    // println!("Successfully read {} predictions from: {:?}", bboxes.len(), prediction_path);
-    Ok(bboxes)
-}
+//     // println!("Successfully read {} predictions from: {:?}", bboxes.len(), prediction_path);
+//     Ok(bboxes)
+// }
 
 // For file 'img.jpg', creates a file 'img.json' that contains the predictions
 pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {

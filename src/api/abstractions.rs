@@ -593,25 +593,25 @@ impl PredImgSugar for Vec<PredImg> {
 
 #[derive(Serialize, Deserialize, Clone, Debug, new)]
 pub struct XYXYc {
-    pub bbox: XYXY,
+    pub xyxy: XYXY,
     pub label: String,
 }
 
 #[derive(Serialize, Deserialize, new)]
 pub struct XYXYnc {
-    pub bbox: XYXYn,
+    pub xyxyn: XYXYn,
     pub label: String,
 }
 
 #[derive(Serialize, Deserialize, new)]
 pub struct XYWHc {
-    pub bbox: XYWH,
+    pub xywh: XYWH,
     pub label: String,
 }
 
 #[derive(Serialize, Deserialize, new)]
 pub struct XYWHnc {
-    pub bbox: XYWHn,
+    pub xywhn: XYWHn,
     pub label: String,
 }
 
