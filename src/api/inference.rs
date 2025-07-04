@@ -29,6 +29,7 @@ fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 }
 
 pub fn set_model(value: &String, ep: &EP) {
+    println!("value");
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
     let a = &session.inputs;
@@ -55,21 +56,19 @@ pub fn set_model(value: &String, ep: &EP) {
     };
     println!("{:?}", shape);
 
-    let c = &a[1].name;
-    println!("{}", c);
-    let shape = match &session.outputs[1].output_type {
-        ValueType::Tensor { dimensions, .. } => dimensions,
-        _ => {
-            panic!("Not supported");
-        }
-    };
-    println!("{:?}", shape);
+    
+    // let c = &a[1].name;
+    // println!("{}", c);
+    // let shape = match &session.outputs[1].output_type {
+    //     ValueType::Tensor { dimensions, .. } => dimensions,
+    //     _ => {
+    //         panic!("Not supported");
+    //     }
+    // };
+    // println!("{:?}", shape);
 
     let len = model_metadata.classes.len() as u32;
     let aimodel = Yolo::new(
-        model_metadata.name,
-        model_metadata.description,
-        model_metadata.version,
         model_metadata.classes,
         input_width as u32,
         input_height as u32,

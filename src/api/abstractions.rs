@@ -53,7 +53,7 @@ pub struct SEGn {
 /// - `mask` represents a polygon
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEG {
-    pub mask: Vec<Vec<bool>>
+    pub mask: Vec<Vec<bool>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, new)]
@@ -506,22 +506,21 @@ impl BoundingBoxTrait for XYWH {
 }
 
 // AI model for Image Processing
-#[derive(Deserialize, Clone, new)]
+#[derive(Deserialize, Clone, Debug, new)]
 pub struct AI {
-    pub name: String,
-    pub version: f32, // to delete
-    pub input_width: u32, // to delete
-    pub input_height: u32, // to delete
-    pub description: String,  // to think about it 
-    pub color_code: String, // to delete
-    pub task: String,       // "detect", "classify", "segment"
-    pub post_processing: Vec<String>, // "NMS"
+    pub task: String,
+    pub architecture: String, // yolo, efficientnet, whatever else
+    pub post_processing: Vec<String>,
     pub classes: Vec<String>,
+    #[serde(skip)]
+    pub name: String,
 }
 
 impl AI {
     pub fn get_path(&self) -> String {
-        format!("models/{}.bq", self.name)
+        let a = format!("models/{}.bq", self.name);
+        print!("{}", &a);
+        return a;
     }
 }
 

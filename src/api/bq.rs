@@ -30,9 +30,20 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
     let json_str = String::from_utf8(json_data.to_vec())
         .unwrap_or_else(|_| panic!("Failed to parse JSON content"));
 
-    // Deserialize JSON into AI
-    let ai_model: AI = serde_json::from_str(&json_str)
-        .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AI"));
+    // Deserialize JSON into AImodel
+    let mut ai_model: AI = serde_json::from_str(&json_str)
+        .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
+
+    // Extract the name from the file path
+    let path = std::path::Path::new(file_path);
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap()
+        .to_string();
+    
+    // Set the name field
+    ai_model.name = name;
 
     // Read ONNX section length (4 bytes, little-endian)
     let onnx_length_start = json_end;
@@ -46,7 +57,7 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
     let onnx_start = onnx_length_start + 4;
     let onnx_end = onnx_start + onnx_length;
     let onnx_data = file_content[onnx_start..onnx_end].to_vec();
-
+    println!("{:?}",ai_model);
     Ok((ai_model, onnx_data))
 }
 
@@ -83,8 +94,22 @@ pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
     let json_str = String::from_utf8(json_data)
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse JSON"))?;
     
-    serde_json::from_str(&json_str)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to deserialize JSON"))
+    // Deserialize JSON into AImodel
+    let mut ai_model: AI = serde_json::from_str(&json_str)
+        .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
+
+    // Extract the name from the file path
+    let path = std::path::Path::new(file_path);
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap()
+        .to_string();
+    
+    // Set the name field
+    ai_model.name = name;
+    
+    return Ok(ai_model)
 }
 
 fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {

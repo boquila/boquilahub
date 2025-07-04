@@ -12,9 +12,7 @@ use ort::{inputs, session::Session};
 
 #[derive(new)]
 pub struct Yolo {
-    pub name: String,
-    pub description: String,
-    pub version: f32,
+    
     pub classes: Vec<String>,
     pub input_width: u32,
     pub input_height: u32,
