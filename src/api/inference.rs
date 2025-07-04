@@ -42,28 +42,47 @@ pub fn set_model(value: &String, ep: &EP) {
     let input_depth = input_shape[1];
     let input_width = input_shape[2];
     let input_height = input_shape[3];
-    
+
+    let output_shape = match &session.outputs[0].output_type {
+        ValueType::Tensor { dimensions, .. } => dimensions,
+        _ => {
+            panic!("Not supported");
+        }
+    };
+
+    let output_width = output_shape[1];
+    let output_height = output_shape[2];
+
     // at some point we might need this for accurate segmentation:
-    
-    // let c = &a[1].name;
-    // println!("{}", c);
-    // let shape = match &session.outputs[1].output_type {
-    //     ValueType::Tensor { dimensions, .. } => dimensions,
-    //     _ => {
-    //         panic!("Not supported");
-    //     }
-    // };
-    // println!("{:?}", shape);
+    let (num_masks, masks_width, masks_height) = if let Some(output) = session.outputs.get(1) {
+        match &output.output_type {
+            ValueType::Tensor { dimensions, .. } => {
+                let num_masks = dimensions[1];
+                let masks_width = dimensions[2];
+                let masks_height = dimensions[3];
+                (num_masks, masks_width, masks_height)
+            }
+            _ => {
+                panic!("Not supported output type at index 1");
+            }
+        }
+    } else {
+        (0, 0, 0)
+    };    
 
     let len = model_metadata.classes.len() as u32;
     let aimodel = Yolo::new(
         model_metadata.classes,
         input_width as u32,
         input_height as u32,
+        output_width as u32,
+        output_height as u32,
         0.45,
         0.5,
         len,
-        0,
+        num_masks as u32,
+        masks_height as u32,
+        masks_width as u32,
         Task::from(model_metadata.task.as_str()),
         session,
     );
