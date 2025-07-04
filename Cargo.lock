@@ -785,6 +785,7 @@ dependencies = [
  "imageproc",
  "ndarray",
  "ort",
+ "rayon",
  "regex",
  "reqwest",
  "rfd",

@@ -32,6 +32,7 @@ clap = "4.5.39"
 derive-new = "0.7.0"
 sys-locale = "0.3.2"
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
+rayon = "1.10.0"
 
 [profile.release]
 lto = true

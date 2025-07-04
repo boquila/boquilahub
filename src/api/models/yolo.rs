@@ -9,6 +9,7 @@ use derive_new::new;
 use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Array2, Axis, Ix4, IxDyn};
 use ort::{inputs, session::Session};
+use rayon::prelude::*;
 
 #[derive(new)]
 pub struct Yolo {
@@ -118,76 +119,94 @@ impl Yolo {
         img_width: u32,
         img_height: u32,
     ) -> Vec<SEGc> {
-        let (output0, output1) = outputs;
-        let boxes_output = output0.slice(s![.., 0..84, 0]).to_owned();
-        let masks_output: Array2<f32> = output1
-            .slice(s![.., .., .., 0])
-            .to_owned()
-            .into_shape((160 * 160, 32))
-            .unwrap()
-            .permuted_axes([1, 0])
+        let (raw_detections, proto_tensor) = outputs;
+        let coeff_limit = (self.num_classes + 4) as usize;
+        // Extract bounding boxes and class scores
+        let bbox_and_scores = raw_detections.slice(s![.., 0..coeff_limit, 0]).to_owned();
+        // Extract mask coefficients for each detection
+        let coefs: Array2<f32> = raw_detections
+            .slice(s![.., coeff_limit..(self.output_width as usize), 0])
             .to_owned();
-        let masks_output2: Array2<f32> = output0.slice(s![.., 84..116, 0]).to_owned();
-        let masks: ndarray::ArrayBase<ndarray::OwnedRepr<f32>, ndarray::Dim<[usize; 3]>> =
-            masks_output2
-                .dot(&masks_output)
-                .into_shape((8400, 160, 160))
-                .unwrap()
-                .to_owned();
+        // Reshape prototype tensor to (channels, height * width)
+        let proto_raw = proto_tensor.slice(s![.., .., .., 0]); // shape: (batch, h, w)
+        let proto_mask_features = proto_raw
+            .to_owned()
+            .into_shape((
+                self.mask_height as usize * self.mask_width as usize,
+                self.num_masks as usize,
+            )) // (h * w, channels)
+            .unwrap()
+            .permuted_axes([1, 0]) // -> (channels, h * w)
+            .to_owned();
+        // Construct per-instance masks via dot product
+        // let instance_masks: Vec<Array2<f32>> = coefs
+        //     .outer_iter()
+        //     .enumerate()
+        //     .map(|(i, coeff_row)| {
+        //         let coeffs = coeff_row.insert_axis(ndarray::Axis(0)); // (1, 32)
+        //         let mask = coeffs
+        //             .dot(&proto_mask_features) // (1, h * w)
+        //             .into_shape((self.mask_height as usize, self.mask_width as usize)) // reshape into image layout
+        //             .expect("Failed to reshape mask");
+        //         mask.to_owned()
+        //     })
+        //     .collect();
 
-        let mut segs = Vec::new();
-        let mut bboxes = Vec::new();
+        // Process all detections with iterator chain
+        let (segmentations, bounding_boxes): (Vec<SEGc>, Vec<XYXY>) = bbox_and_scores
+            .axis_iter(Axis(0))
+            .enumerate()
+            .filter_map(|(index, row)| {
+                let values: Vec<f32> = row.iter().copied().collect();
+                // Determine most probable class
+                let (class_id, score) = values
+                    .iter()
+                    .skip(4)
+                    .enumerate()
+                    .map(|(i, &v)| (i, v))
+                    .reduce(|acc, val| if val.1 > acc.1 { val } else { acc })
+                    .unwrap();
+                if score < self.confidence_threshold {
+                    return None;
+                }
 
-        for (index, row) in boxes_output.axis_iter(Axis(0)).enumerate() {
-            let row: Vec<_> = row.iter().map(|x| *x).collect();
-            let (class_id, prob) = row
-                .iter()
-                .skip(4)
-                .enumerate()
-                .map(|(index, value)| (index, *value))
-                .reduce(|accum, row| if row.1 > accum.1 { row } else { accum })
-                .unwrap();
+                let coeffs = coefs.row(index).insert_axis(ndarray::Axis(0)); // shape: (1, 32)
 
-            if prob < 0.2 {
-                continue;
-            }
+                let mask: Array2<f32> = coeffs
+                    .dot(&proto_mask_features) // shape: (1, h * w)
+                    .into_shape((self.mask_height as usize, self.mask_width as usize)) // reshape
+                    .expect("Failed to reshape mask")
+                    .to_owned(); // make it an Array2<f32>
 
-            let mask: Array2<f32> = masks.slice(s![index, .., ..]).to_owned();
-
-            let xc = row[0] / self.input_width as f32 * (img_width as f32);
-            let yc = row[1] / self.input_height as f32 * (img_height as f32);
-            let w = row[2] / self.input_width as f32 * (img_width as f32);
-            let h = row[3] / self.input_height as f32 * (img_height as f32);
-            let x1 = xc - w / 2.0;
-            let x2 = xc + w / 2.0;
-            let y1 = yc - h / 2.0;
-            let y2 = yc + h / 2.0;
-
-            let bbox = XYXY::new(x1, y1, x2, y2, prob, class_id as u16);
-            let seg = SEG::new(process_mask(
-                mask,
-                &bbox,
-                img_width,
-                img_height,
-                self.mask_height,
-                self.mask_width,
-            ));
-            segs.push(seg);
-            bboxes.push(bbox);
-        }
-
-        let indices: Vec<usize> = nms_indices(&bboxes, self.nms_threshold);
-
-        let filtered_segs: Vec<SEG> = indices.iter().map(|&i| segs[i].clone()).collect();
-        let filtered_bboxes: Vec<XYXY> = indices.iter().map(|&i| bboxes[i].clone()).collect();
-        let bboxes = self.t(&filtered_bboxes);
-        // let segs: Vec<SEGc> = self.t_seg(&filtered_segs, &filtered_bboxes);
-        let segs: Vec<SEGc> = filtered_segs
-            .into_iter()
-            .zip(bboxes.into_iter())
-            .map(|(seg, bbox)| SEGc { seg, bbox })
+                let xc = values[0] / self.input_width as f32 * img_width as f32;
+                let yc = values[1] / self.input_height as f32 * img_height as f32;
+                let w = values[2] / self.input_width as f32 * img_width as f32;
+                let h = values[3] / self.input_height as f32 * img_height as f32;
+                let x1 = xc - w / 2.0;
+                let x2 = xc + w / 2.0;
+                let y1 = yc - h / 2.0;
+                let y2 = yc + h / 2.0;
+                let str = &self.classes[class_id];
+                let bbox = XYXY::new(x1, y1, x2, y2, score, class_id as u16);
+                let seg = SEG::new(process_mask(
+                    mask,
+                    &bbox,
+                    img_width,
+                    img_height,
+                    self.mask_height,
+                    self.mask_width,
+                ));
+                let segc = SEGc::new(seg, XYXYc::new(bbox, str.to_string()));
+                Some((segc, bbox))
+            })
+            .unzip();
+        // Apply NMS
+        let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
+        let filtered_segmentations: Vec<_> = keep_indices
+            .iter()
+            .map(|&i| segmentations[i].clone()) // use `.clone()` if needed, depending on the type
             .collect();
-        return segs;
+        return filtered_segmentations;
     }
 
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
