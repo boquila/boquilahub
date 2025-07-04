@@ -32,8 +32,6 @@ pub fn set_model(value: &String, ep: &EP) {
     println!("value");
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
-    let a = &session.inputs;
-    let d: &ort::value::ValueType = &a[0].input_type;
     let input_shape = match &session.inputs[0].input_type {
         ValueType::Tensor { dimensions, .. } => dimensions,
         _ => {
@@ -44,18 +42,8 @@ pub fn set_model(value: &String, ep: &EP) {
     let input_depth = input_shape[1];
     let input_width = input_shape[2];
     let input_height = input_shape[3];
-
-    let a = &session.outputs;
-    let c = &a[0].name;
-    println!("{}", c);
-    let shape = match &session.outputs[0].output_type {
-        ValueType::Tensor { dimensions, .. } => dimensions,
-        _ => {
-            panic!("Not supported");
-        }
-    };
-    println!("{:?}", shape);
-
+    
+    // at some point we might need this for accurate segmentation:
     
     // let c = &a[1].name;
     // println!("{}", c);
