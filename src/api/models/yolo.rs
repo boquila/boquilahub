@@ -12,14 +12,17 @@ use ort::{inputs, session::Session};
 
 #[derive(new)]
 pub struct Yolo {
-    
     pub classes: Vec<String>,
     pub input_width: u32,
     pub input_height: u32,
+    pub output_width: u32,
+    pub output_height: u32,
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
     pub num_classes: u32,
     pub num_masks: u32,
+    pub mask_height: u32,
+    pub mask_width: u32,
     pub task: Task,
     pub session: Session,
 }
@@ -158,7 +161,14 @@ impl Yolo {
             let y2 = yc + h / 2.0;
 
             let bbox = XYXY::new(x1, y1, x2, y2, prob, class_id as u16);
-            let seg = SEG::new(process_mask(mask, &bbox, img_width, img_height));
+            let seg = SEG::new(process_mask(
+                mask,
+                &bbox,
+                img_width,
+                img_height,
+                self.mask_height,
+                self.mask_width,
+            ));
             segs.push(seg);
             bboxes.push(bbox);
         }

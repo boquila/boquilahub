@@ -39,8 +39,10 @@ pub fn process_mask(
     bbox: &XYXY,
     img_width: u32,
     img_height: u32,
+    mask_height: u32,
+    mask_width: u32
 ) -> Vec<Vec<bool>> {
-    let mut mask_img = image::DynamicImage::new_rgb8(161, 161);
+    let mut mask_img = image::DynamicImage::new_rgb8(mask_height + 1, mask_width + 1);
     let mut index = 0.0;
     mask.for_each(|item| {
         let color = if *item > 0.0 {
@@ -48,16 +50,16 @@ pub fn process_mask(
         } else {
             Rgba::<u8>([0, 0, 0, 1])
         };
-        let y = f32::floor(index / 160.0);
-        let x = index - y * 160.0;
+        let y = f32::floor(index / mask_height as f32);
+        let x = index - y * mask_width as f32;
         mask_img.put_pixel(x as u32, y as u32, color);
         index += 1.0;
     });
     mask_img = mask_img.crop(
-        (bbox.x1 / img_width as f32 * 160.0).round() as u32,
-        (bbox.y1 / img_height as f32 * 160.0).round() as u32,
-        ((bbox.x2 - bbox.x1) / img_width as f32 * 160.0).round() as u32,
-        ((bbox.y2 - bbox.y1) / img_height as f32 * 160.0).round() as u32,
+        (bbox.x1 / img_width as f32 * mask_width as f32).round() as u32,
+        (bbox.y1 / img_height as f32 * mask_height as f32).round() as u32,
+        ((bbox.x2 - bbox.x1) / img_width as f32 * mask_width as f32).round() as u32,
+        ((bbox.y2 - bbox.y1) / img_height as f32 * mask_height as f32).round() as u32,
     );
     mask_img = mask_img.resize_exact(
         (bbox.x2 - bbox.x1) as u32,
