@@ -174,8 +174,8 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
 
     for seg in segmentations {
         let text = str_label(&seg.bbox.label, seg.bbox.xyxy.prob);
-        let w = seg.bbox.xyxy.x2 - seg.bbox.xyxy.x1;
-        let h = seg.bbox.xyxy.y2 - seg.bbox.xyxy.y1;
+        let w = (seg.bbox.xyxy.x2 - seg.bbox.xyxy.x1) as usize;
+        let h = (seg.bbox.xyxy.y2 - seg.bbox.xyxy.y1) as usize;
 
         let color = BBOX_COLORS[seg.bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
         let mask: &Vec<Vec<bool>> = &seg.seg.mask;
@@ -184,9 +184,15 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         let x_offset = seg.bbox.xyxy.x1.floor() as i32;
         let y_offset = seg.bbox.xyxy.y1.floor() as i32;
 
-        for (y, row) in mask.iter().enumerate() {
-            for (x, value) in row.iter().enumerate() {
-                if *value != false {
+        // Resize mask to match actual bbox dimensions
+        for y in 0..h {
+            for x in 0..w {
+                // Map current pixel to mask coordinates using nearest neighbor
+                let mask_x = (x as f32 / w as f32 * mask[0].len() as f32).floor() as usize;
+                let mask_y = (y as f32 / h as f32 * mask.len() as f32).floor() as usize;
+                
+                // Ensure mask coordinates are within bounds
+                if mask_y < mask.len() && mask_x < mask[0].len() && mask[mask_y][mask_x] {
                     let img_x = x_offset + x as i32;
                     let img_y = y_offset + y as i32;
 
@@ -204,7 +210,6 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
                 }
             }
         }
-
         draw_hollow_rect_mut(
             img,
             Rect::at(seg.bbox.xyxy.x1 as i32, seg.bbox.xyxy.y1 as i32).of_size(w as u32, h as u32),

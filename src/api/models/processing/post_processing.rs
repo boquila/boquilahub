@@ -40,48 +40,24 @@ pub fn process_mask(
     img_width: u32,
     img_height: u32,
     mask_height: u32,
-    mask_width: u32
+    mask_width: u32,
 ) -> Vec<Vec<bool>> {
-    let mut mask_img = image::DynamicImage::new_rgb8(mask_height + 1, mask_width + 1);
-    let mut index = 0.0;
-    mask.for_each(|item| {
-        let color = if *item > 0.0 {
-            Rgba::<u8>([255, 255, 255, 1])
-        } else {
-            Rgba::<u8>([0, 0, 0, 1])
-        };
-        let y = f32::floor(index / mask_height as f32);
-        let x = index - y * mask_width as f32;
-        mask_img.put_pixel(x as u32, y as u32, color);
-        index += 1.0;
-    });
-    mask_img = mask_img.crop(
-        (bbox.x1 / img_width as f32 * mask_width as f32).round() as u32,
-        (bbox.y1 / img_height as f32 * mask_height as f32).round() as u32,
-        ((bbox.x2 - bbox.x1) / img_width as f32 * mask_width as f32).round() as u32,
-        ((bbox.y2 - bbox.y1) / img_height as f32 * mask_height as f32).round() as u32,
-    );
-    mask_img = mask_img.resize_exact(
-        (bbox.x2 - bbox.x1) as u32,
-        (bbox.y2 - bbox.y1) as u32,
-        FilterType::Nearest,
-    );
-    let mut result = vec![];
-    for y in 0..(bbox.y2 - bbox.y1) as usize {
-        let mut row = vec![];
-        for x in 0..(bbox.x2 - bbox.x1) as usize {
-            let color = image::GenericImageView::get_pixel(&mask_img, x as u32, y as u32);
-            row.push(*color.0.iter().nth(0).unwrap());
+    // Calculate bbox coordinates in mask space
+    let x1 = (bbox.x1 / img_width as f32 * mask_width as f32).round() as usize;
+    let y1 = (bbox.y1 / img_height as f32 * mask_height as f32).round() as usize;
+    let x2 = (bbox.x2 / img_width as f32 * mask_width as f32).round() as usize;
+    let y2 = (bbox.y2 / img_height as f32 * mask_height as f32).round() as usize;
+    
+    // Extract the region of interest directly from the mask
+    let mut result = Vec::new();
+    for y in y1..y2 {
+        let mut row = Vec::new();
+        for x in x1..x2 {
+            let mask_value = mask[[y, x]];
+            row.push(mask_value > 0.0);
         }
         result.push(row);
     }
-    let bools: Vec<Vec<bool>> = result
-        .into_iter()
-        .map(|row| {
-            row.into_iter()
-                .map(|val| val != 0) // 0 → false, 255 → true
-                .collect()
-        })
-        .collect();
-    return bools;
+    
+    result
 }
