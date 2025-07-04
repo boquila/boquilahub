@@ -48,35 +48,38 @@ impl Yolo {
         img_width: u32,
         img_height: u32,
     ) -> Vec<XYXYc> {
-        let mut boxes = Vec::new();
         let output = output.slice(s![.., .., 0]);
-        for row in output.axis_iter(Axis(0)) {
-            let row: Vec<f32> = row.iter().map(|x| *x).collect();
-            let (class_id, prob) = row
-                .iter()
-                .skip(4)
-                .enumerate()
-                .map(|(index, value)| (index, *value))
-                .reduce(|accum, row| if row.1 > accum.1 { row } else { accum })
-                .unwrap();
-            if prob < self.confidence_threshold {
-                continue;
-            }
-            // XYWHn::new(row[0],row[1],row[0],row[3],prob,label);
-            let xc = row[0] / self.input_width as f32 * (img_width as f32);
-            let yc = row[1] / self.input_height as f32 * (img_height as f32);
-            let w = row[2] / self.input_width as f32 * (img_width as f32);
-            let h = row[3] / self.input_height as f32 * (img_height as f32);
-            let x1 = xc - w / 2.0;
-            let x2 = xc + w / 2.0;
-            let y1 = yc - h / 2.0;
-            let y2 = yc + h / 2.0;
-            boxes.push(XYXY::new(x1, y1, x2, y2, prob, class_id as u16));
-        }
+        let boxes: Vec<XYXY> = output
+            .axis_iter(Axis(0))
+            .filter_map(|row| {
+                let row: Vec<f32> = row.iter().copied().collect();
+                let (class_id, prob) = row
+                    .iter()
+                    .skip(4)
+                    .enumerate()
+                    .map(|(index, &value)| (index, value))
+                    .reduce(|a, b| if b.1 > a.1 { b } else { a })?;
+
+                if prob < self.confidence_threshold {
+                    return None;
+                }
+
+                let xc = row[0] / self.input_width as f32 * img_width as f32;
+                let yc = row[1] / self.input_height as f32 * img_height as f32;
+                let w = row[2] / self.input_width as f32 * img_width as f32;
+                let h = row[3] / self.input_height as f32 * img_height as f32;
+                let x1 = xc - w / 2.0;
+                let x2 = xc + w / 2.0;
+                let y1 = yc - h / 2.0;
+                let y2 = yc + h / 2.0;
+
+                Some(XYXY::new(x1, y1, x2, y2, prob, class_id as u16))
+            })
+            .collect();
 
         let indices = nms_indices(&boxes, self.nms_threshold);
-        let result: Vec<XYXY> = indices.iter().map(|&idx| boxes[idx].clone()).collect();
-        return self.t(&result);
+        let result: Vec<XYXY> = indices.iter().map(|&idx| boxes[idx]).collect();
+        self.t(&result)
     }
 
     fn process_class_output(&self, output: &Array<f32, IxDyn>) -> ProbSpace {
