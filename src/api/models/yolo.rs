@@ -9,7 +9,6 @@ use derive_new::new;
 use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Array2, Axis, Ix4, IxDyn};
 use ort::{inputs, session::Session};
-use rayon::prelude::*;
 
 #[derive(new)]
 pub struct Yolo {
@@ -138,19 +137,6 @@ impl Yolo {
             .unwrap()
             .permuted_axes([1, 0]) // -> (channels, h * w)
             .to_owned();
-        // Construct per-instance masks via dot product
-        // let instance_masks: Vec<Array2<f32>> = coefs
-        //     .outer_iter()
-        //     .enumerate()
-        //     .map(|(i, coeff_row)| {
-        //         let coeffs = coeff_row.insert_axis(ndarray::Axis(0)); // (1, 32)
-        //         let mask = coeffs
-        //             .dot(&proto_mask_features) // (1, h * w)
-        //             .into_shape((self.mask_height as usize, self.mask_width as usize)) // reshape into image layout
-        //             .expect("Failed to reshape mask");
-        //         mask.to_owned()
-        //     })
-        //     .collect();
 
         // Process all detections with iterator chain
         let (segmentations, bounding_boxes): (Vec<SEGc>, Vec<XYXY>) = bbox_and_scores

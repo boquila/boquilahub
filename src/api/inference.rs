@@ -29,7 +29,6 @@ fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 }
 
 pub fn set_model(value: &String, ep: &EP) {
-    println!("value");
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
     let input_shape = match &session.inputs[0].input_type {

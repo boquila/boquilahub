@@ -518,9 +518,7 @@ pub struct AI {
 
 impl AI {
     pub fn get_path(&self) -> String {
-        let a = format!("models/{}.bq", self.name);
-        print!("{}", &a);
-        return a;
+        return format!("models/{}.bq", self.name);
     }
 }
 
