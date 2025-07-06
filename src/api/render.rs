@@ -179,7 +179,7 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         let h = (seg.bbox.xyxy.y2 - seg.bbox.xyxy.y1) as usize;
 
         let color = BBOX_COLORS[seg.bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
-        let mask: &BitMatrix = &seg.seg.mask;
+        let mask: &BitMatrix = &seg.mask;
 
 // Convert bbox float coordinates to integers safely
 let x_offset = seg.bbox.xyxy.x1.floor() as i32;

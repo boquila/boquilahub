@@ -48,15 +48,7 @@ pub struct SEGn {
     pub class_id: u16,
 }
 
-/// Segmentation in the YOLO format, not normalized
-/// # Fields
-/// - `mask` represents a polygon
-#[derive(Serialize, Deserialize, Clone, new)]
-pub struct SEG {
-    pub mask: BitMatrix,
-}
-
-#[derive(Serialize, Deserialize, Clone, new)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BitMatrix {
     pub data: BitVec,
     pub width: usize,
@@ -65,7 +57,7 @@ pub struct BitMatrix {
 
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEGc {
-    pub seg: SEG,
+    pub mask: BitMatrix,
     pub bbox: XYXYc,
 }
 

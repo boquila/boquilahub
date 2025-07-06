@@ -174,14 +174,14 @@ impl Yolo {
                 let y2 = yc + h / 2.0;
                 let str = &self.classes[class_id];
                 let bbox = XYXY::new(x1, y1, x2, y2, score, class_id as u16);
-                let seg = SEG::new(process_mask(
+                let seg = process_mask(
                     mask,
                     &bbox,
                     img_width,
                     img_height,
                     self.mask_height,
                     self.mask_width,
-                ));
+                );
                 let segc = SEGc::new(seg, XYXYc::new(bbox, str.to_string()));
                 Some((segc, bbox))
             })
