@@ -35,6 +35,7 @@ sys-locale = "0.3.2"
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
 rayon = "1.10.0"
 embed-resource = "3.0.4"
+bitvec = { version = "1.0.1", features = ["serde"] }
 
 [profile.release]
 lto = true

@@ -1,7 +1,8 @@
+use bitvec::vec::BitVec;
 use image::{imageops::FilterType, GenericImage, Rgba};
 use ndarray::Array2;
 
-use crate::api::abstractions::{BoundingBoxTrait, XYXY};
+use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, XYXY};
 
 pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
     // Create indices and sort them by probability (descending)
@@ -41,23 +42,30 @@ pub fn process_mask(
     img_height: u32,
     mask_height: u32,
     mask_width: u32,
-) -> Vec<Vec<bool>> {
+) -> BitMatrix {
     // Calculate bbox coordinates in mask space
     let x1 = (bbox.x1 / img_width as f32 * mask_width as f32).round() as usize;
     let y1 = (bbox.y1 / img_height as f32 * mask_height as f32).round() as usize;
     let x2 = (bbox.x2 / img_width as f32 * mask_width as f32).round() as usize;
     let y2 = (bbox.y2 / img_height as f32 * mask_height as f32).round() as usize;
     
-    // Extract the region of interest directly from the mask
-    let mut result = Vec::new();
+    let width = x2 - x1;
+    let height = y2 - y1;
+    
+    // Create a single BitVec to hold all the data
+    let mut data = BitVec::new();
+    
+    // Fill the BitVec row by row
     for y in y1..y2 {
-        let mut row = Vec::new();
         for x in x1..x2 {
             let mask_value = mask[[y, x]];
-            row.push(mask_value > 0.0);
+            data.push(mask_value > 0.0);
         }
-        result.push(row);
     }
     
-    result
+    BitMatrix {
+        data,
+        width,
+        height,
+    }
 }

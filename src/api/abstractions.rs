@@ -5,7 +5,7 @@ use derive_new::new;
 use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
+use bitvec::prelude::*;
 use crate::api::models::processing::inference::AIOutputs;
 
 /// Probabilities in the YOLO format
@@ -53,7 +53,14 @@ pub struct SEGn {
 /// - `mask` represents a polygon
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct SEG {
-    pub mask: Vec<Vec<bool>>,
+    pub mask: BitMatrix,
+}
+
+#[derive(Serialize, Deserialize, Clone, new)]
+pub struct BitMatrix {
+    pub data: BitVec,
+    pub width: usize,
+    pub height: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, new)]

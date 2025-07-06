@@ -9,6 +9,8 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::value::ValueType;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::sync::{OnceLock, RwLock};
+use bitvec::prelude::*;
+
 
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: OnceLock<RwLock<Yolo>> = OnceLock::new();
@@ -85,11 +87,13 @@ pub fn set_model(value: &String, ep: &EP) {
         Task::from(model_metadata.task.as_str()),
         session,
     );
+    let mut bv: BitVec<u8, Msb0> = bitvec![u8, Msb0;];
     if CURRENT_AI.get().is_some() {
         *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
     } else {
         let _ = CURRENT_AI.set(RwLock::new(aimodel));
     }
+    
 }
 
 #[inline(always)]

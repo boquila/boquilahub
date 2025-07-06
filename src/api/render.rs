@@ -1,8 +1,9 @@
-use crate::api::abstractions::{ProbSpace, SEGc};
+use crate::api::abstractions::{BitMatrix, ProbSpace, SEGc};
 use crate::api::models::processing::inference::AIOutputs;
 use std::sync::LazyLock;
 use super::abstractions::XYXYc;
 use ab_glyph::FontRef;
+use bitvec::vec::BitVec;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
@@ -178,38 +179,43 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         let h = (seg.bbox.xyxy.y2 - seg.bbox.xyxy.y1) as usize;
 
         let color = BBOX_COLORS[seg.bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
-        let mask: &Vec<Vec<bool>> = &seg.seg.mask;
+        let mask: &BitMatrix = &seg.seg.mask;
 
-        // Convert bbox float coordinates to integers safely
-        let x_offset = seg.bbox.xyxy.x1.floor() as i32;
-        let y_offset = seg.bbox.xyxy.y1.floor() as i32;
+// Convert bbox float coordinates to integers safely
+let x_offset = seg.bbox.xyxy.x1.floor() as i32;
+let y_offset = seg.bbox.xyxy.y1.floor() as i32;
 
-        // Resize mask to match actual bbox dimensions
-        for y in 0..h {
-            for x in 0..w {
-                // Map current pixel to mask coordinates using nearest neighbor
-                let mask_x = (x as f32 / w as f32 * mask[0].len() as f32).floor() as usize;
-                let mask_y = (y as f32 / h as f32 * mask.len() as f32).floor() as usize;
-                
-                // Ensure mask coordinates are within bounds
-                if mask_y < mask.len() && mask_x < mask[0].len() && mask[mask_y][mask_x] {
-                    let img_x = x_offset + x as i32;
-                    let img_y = y_offset + y as i32;
+// Resize mask to match actual bbox dimensions
+for y in 0..h {
+    for x in 0..w {
+        // Map current pixel to mask coordinates using nearest neighbor
+        let mask_x = (x as f32 / w as f32 * mask.width as f32).floor() as usize;
+        let mask_y = (y as f32 / h as f32 * mask.height as f32).floor() as usize;
+        
+        // Ensure mask coordinates are within bounds
+        if mask_y < mask.height && mask_x < mask.width {
+            // Access bit at (mask_y, mask_x) using row-major indexing
+            let mask_index = mask_y * mask.width + mask_x;
+            if mask.data[mask_index] {
+                let img_x = x_offset + x as i32;
+                let img_y = y_offset + y as i32;
 
-                    // Ensure coordinates are within image bounds
-                    if img_x >= 0
-                        && img_y >= 0
-                        && (img_x as u32) < img.width()
-                        && (img_y as u32) < img.height()
-                    {
-                        let alpha = 0.4; // 40% intensity
-                        let img_pixel = img.get_pixel(img_x as u32, img_y as u32);
-                        let blended = blend_pixel(*img_pixel, color, alpha);
-                        img.put_pixel(img_x as u32, img_y as u32, blended);
-                    }
+                // Ensure coordinates are within image bounds
+                if img_x >= 0
+                    && img_y >= 0
+                    && (img_x as u32) < img.width()
+                    && (img_y as u32) < img.height()
+                {
+                    let alpha = 0.4; // 40% intensity
+                    let img_pixel = img.get_pixel(img_x as u32, img_y as u32);
+                    let blended = blend_pixel(*img_pixel, color, alpha);
+                    img.put_pixel(img_x as u32, img_y as u32, blended);
                 }
             }
         }
+    }
+}
+
         draw_hollow_rect_mut(
             img,
             Rect::at(seg.bbox.xyxy.x1 as i32, seg.bbox.xyxy.y1 as i32).of_size(w as u32, h as u32),
