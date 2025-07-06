@@ -1,11 +1,11 @@
 #[tokio::main]
 async fn main() {
     boquilahub::cli::run_cli().await;
+    #[cfg(all(debug_assertions, target_os = "windows"))]
     hide_window();
     boquilahub::gui::run_gui();
 }
 
-#[cfg(target_os = "windows")]
 fn hide_window() {
     use winapi::um::wincon::FreeConsole;
     unsafe {

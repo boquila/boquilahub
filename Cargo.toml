@@ -2,6 +2,7 @@
 name = "boquilahub"
 version = "0.3.0"
 edition = "2021"
+build = "src/build.rs"
 
 [dependencies]
 egui = "0.31.1"
@@ -33,6 +34,7 @@ derive-new = "0.7.0"
 sys-locale = "0.3.2"
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
 rayon = "1.10.0"
+embed-resource = "3.0.4"
 
 [profile.release]
 lto = true
@@ -43,3 +45,6 @@ opt-level = 3
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
 opt-level = 2
+
+[build-dependencies]
+embed-resource = "3.0"
