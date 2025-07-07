@@ -6,7 +6,6 @@ use super::models::{Task, Yolo};
 use crate::api::models::processing::inference::AIOutputs;
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
-use ort::value::ValueType;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::sync::{OnceLock, RwLock};
 

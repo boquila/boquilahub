@@ -5,23 +5,22 @@ use crate::api::{
         inference::AIOutputs, post_processing::*, pre_processing::imgbuf_to_input_array,
     },
 };
-use derive_new::new;
 use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Array2, Axis, Ix4, IxDyn};
 use ort::{inputs, session::Session, value::ValueType};
 
 pub struct Yolo {
     pub classes: Vec<String>,
-    pub input_width: u32,
-    pub input_height: u32,
-    pub output_width: u32,
-    pub output_height: u32,
+    input_width: u32,
+    input_height: u32,
+    output_width: u32,
+    output_height: u32,
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
     pub num_classes: u32,
-    pub num_masks: u32,
-    pub mask_height: u32,
-    pub mask_width: u32,
+    num_masks: u32,
+    mask_height: u32,
+    mask_width: u32,
     pub task: Task,
     pub session: Session,
 }
@@ -87,18 +86,11 @@ impl Yolo {
         }
     }
 
-    fn inference(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
-        let outputs = self
+    fn inference(&self, input: &Array<f32, Ix4>) -> ort::session::SessionOutputs<'_, '_> {
+        return self
             .session
             .run(inputs!["images" => input.view()].unwrap())
             .unwrap();
-
-        let predictions = outputs["output0"]
-            .try_extract_tensor::<f32>()
-            .unwrap()
-            .t()
-            .into_owned();
-        return predictions;
     }
 
     fn process_detect_output(
@@ -257,32 +249,21 @@ impl Yolo {
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) =
             imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
+        let outputs = self.inference(&input);
         match self.task {
             Task::Detect => {
-                let output = self.inference(&input);
+                let output = extract_output(&outputs, "output0");
                 let boxes = self.process_detect_output(&output, img_width, img_height);
                 return AIOutputs::ObjectDetection(boxes);
             }
             Task::Classify => {
-                let output = self.inference(&input);
+                let output = extract_output(&outputs, "output0");
                 let probs = self.process_class_output(&output);
                 return AIOutputs::Classification(probs);
             }
             Task::Segment => {
-                let outputs = self
-                    .session
-                    .run(inputs!["images" => input.view()].unwrap())
-                    .unwrap();
-                let output0 = outputs["output0"]
-                    .try_extract_tensor::<f32>()
-                    .unwrap()
-                    .t()
-                    .into_owned();
-                let output1 = outputs["output1"]
-                    .try_extract_tensor::<f32>()
-                    .unwrap()
-                    .t()
-                    .into_owned();
+                let output0 = extract_output(&outputs, "output0");
+                let output1 = extract_output(&outputs, "output1");
                 let segc_vec = self.process_seg_output((output0, output1), img_width, img_height);
                 return AIOutputs::Segmentation(segc_vec);
             }

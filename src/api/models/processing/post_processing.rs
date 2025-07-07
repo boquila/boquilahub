@@ -1,5 +1,6 @@
 use bitvec::vec::BitVec;
-use ndarray::Array2;
+use ndarray::{Array2, ArrayBase, Dim, IxDynImpl, OwnedRepr};
+use ort::session::SessionOutputs;
 
 use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, XYXY};
 
@@ -47,13 +48,13 @@ pub fn process_mask(
     let y1 = (bbox.y1 / img_height as f32 * mask_height as f32).round() as usize;
     let x2 = (bbox.x2 / img_width as f32 * mask_width as f32).round() as usize;
     let y2 = (bbox.y2 / img_height as f32 * mask_height as f32).round() as usize;
-    
+
     let width = x2 - x1;
     let height = y2 - y1;
-    
+
     // Create a single BitVec to hold all the data
     let mut data = BitVec::new();
-    
+
     // Fill the BitVec row by row
     for y in y1..y2 {
         for x in x1..x2 {
@@ -61,10 +62,21 @@ pub fn process_mask(
             data.push(mask_value > 0.0);
         }
     }
-    
+
     BitMatrix {
         data,
         width,
         height,
     }
+}
+
+pub fn extract_output(
+    outputs: &SessionOutputs<'_, '_>,
+    b: &'static str,
+) -> ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>> {
+    return outputs[b]
+        .try_extract_tensor::<f32>()
+        .unwrap()
+        .t()
+        .into_owned();
 }
