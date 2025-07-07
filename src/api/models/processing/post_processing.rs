@@ -1,5 +1,4 @@
 use bitvec::vec::BitVec;
-use image::{imageops::FilterType, GenericImage, Rgba};
 use ndarray::Array2;
 
 use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, XYXY};

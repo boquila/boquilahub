@@ -9,8 +9,6 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::value::ValueType;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::sync::{OnceLock, RwLock};
-use bitvec::prelude::*;
-
 
 // Lazily initialized global variables for the MODEL
 static CURRENT_AI: OnceLock<RwLock<Yolo>> = OnceLock::new();
@@ -39,8 +37,8 @@ pub fn set_model(value: &String, ep: &EP) {
             panic!("Not supported");
         }
     };
-    let batch_size = input_shape[0];
-    let input_depth = input_shape[1];
+    let _batch_size = input_shape[0];
+    let _input_depth = input_shape[1];
     let input_width = input_shape[2];
     let input_height = input_shape[3];
 
@@ -87,7 +85,6 @@ pub fn set_model(value: &String, ep: &EP) {
         Task::from(model_metadata.task.as_str()),
         session,
     );
-    let mut bv: BitVec<u8, Msb0> = bitvec![u8, Msb0;];
     if CURRENT_AI.get().is_some() {
         *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
     } else {
