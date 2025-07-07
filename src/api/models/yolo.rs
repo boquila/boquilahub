@@ -36,24 +36,19 @@ impl Yolo {
     ) -> Self {
         let (_batch_size, _input_depth, input_width, input_height) =
             match &session.inputs[0].input_type {
-                ValueType::Tensor { dimensions, .. } => {
-                    let batch_size = dimensions[0];
-                    let input_depth = dimensions[1];
-                    let input_width = dimensions[2] as u32;
-                    let input_height = dimensions[3] as u32;
-                    (batch_size, input_depth, input_width, input_height)
-                }
+                ValueType::Tensor { dimensions, .. } => (
+                    dimensions[0] as u32,
+                    dimensions[1] as u32,
+                    dimensions[2] as u32,
+                    dimensions[3] as u32,
+                ),
                 _ => {
                     panic!("Not supported");
                 }
             };
 
         let (output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => {
-                let output_width = dimensions[1] as u32;
-                let output_height = dimensions[2] as u32;
-                (output_width, output_height)
-            }
+            ValueType::Tensor { dimensions, .. } => (dimensions[1] as u32, dimensions[2] as u32),
             _ => {
                 panic!("Not supported");
             }
@@ -61,14 +56,13 @@ impl Yolo {
 
         let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
             match &output.output_type {
-                ValueType::Tensor { dimensions, .. } => {
-                    let num_masks = dimensions[1] as u32;
-                    let masks_width = dimensions[2] as u32;
-                    let masks_height = dimensions[3] as u32;
-                    (num_masks, masks_width, masks_height)
-                }
+                ValueType::Tensor { dimensions, .. } => (
+                    dimensions[1] as u32,
+                    dimensions[2] as u32,
+                    dimensions[3] as u32,
+                ),
                 _ => {
-                    panic!("Not supported output type at index 1");
+                    panic!("This shouldn't happen");
                 }
             }
         } else {
