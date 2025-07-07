@@ -8,9 +8,8 @@ use crate::api::{
 use derive_new::new;
 use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Array2, Axis, Ix4, IxDyn};
-use ort::{inputs, session::Session};
+use ort::{inputs, session::Session, value::ValueType};
 
-#[derive(new)]
 pub struct Yolo {
     pub classes: Vec<String>,
     pub input_width: u32,
@@ -28,6 +27,72 @@ pub struct Yolo {
 }
 
 impl Yolo {
+    pub fn new(
+        classes: Vec<String>,
+        confidence_threshold: f32,
+        nms_threshold: f32,
+        task: Task,
+        session: Session,
+    ) -> Self {
+        let (_batch_size, _input_depth, input_width, input_height) =
+            match &session.inputs[0].input_type {
+                ValueType::Tensor { dimensions, .. } => {
+                    let batch_size = dimensions[0];
+                    let input_depth = dimensions[1];
+                    let input_width = dimensions[2] as u32;
+                    let input_height = dimensions[3] as u32;
+                    (batch_size, input_depth, input_width, input_height)
+                }
+                _ => {
+                    panic!("Not supported");
+                }
+            };
+
+        let (output_width, output_height) = match &session.outputs[0].output_type {
+            ValueType::Tensor { dimensions, .. } => {
+                let output_width = dimensions[1] as u32;
+                let output_height = dimensions[2] as u32;
+                (output_width, output_height)
+            }
+            _ => {
+                panic!("Not supported");
+            }
+        };
+
+        let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
+            match &output.output_type {
+                ValueType::Tensor { dimensions, .. } => {
+                    let num_masks = dimensions[1] as u32;
+                    let masks_width = dimensions[2] as u32;
+                    let masks_height = dimensions[3] as u32;
+                    (num_masks, masks_width, masks_height)
+                }
+                _ => {
+                    panic!("Not supported output type at index 1");
+                }
+            }
+        } else {
+            (0, 0, 0)
+        };
+
+        let num_classes = classes.len() as u32;
+        Yolo {
+            classes,
+            input_width,
+            input_height,
+            output_width,
+            output_height,
+            confidence_threshold,
+            nms_threshold,
+            num_classes,
+            num_masks,
+            mask_height,
+            mask_width,
+            task,
+            session,
+        }
+    }
+
     fn inference(&self, input: &Array<f32, Ix4>) -> Array<f32, IxDyn> {
         let outputs = self
             .session
