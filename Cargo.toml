@@ -3,6 +3,8 @@ name = "boquilahub"
 version = "0.3.0"
 edition = "2021"
 build = "src/build.rs"
+authors = ["José Díaz <jose@boquila.org>"]
+description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
 [dependencies]
 egui = "0.31.1"
