@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 pub mod yolo;
+pub mod efficientnet;
 pub mod processing;
 pub use yolo::Yolo;
 use super::{abstractions::*};

@@ -2,7 +2,7 @@ use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
     models::processing::{
-        inference::AIOutputs, post_processing::*, pre_processing::imgbuf_to_input_array,
+        inference::{inference, AIOutputs}, post_processing::*, pre_processing::imgbuf_to_input_array,
     },
 };
 use image::{ImageBuffer, Rgb};
@@ -84,13 +84,6 @@ impl Yolo {
             task,
             session,
         }
-    }
-
-    fn inference(&self, input: &Array<f32, Ix4>) -> ort::session::SessionOutputs<'_, '_> {
-        return self
-            .session
-            .run(inputs!["images" => input.view()].unwrap())
-            .unwrap();
     }
 
     fn process_detect_output(
@@ -249,7 +242,7 @@ impl Yolo {
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) =
             imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
-        let outputs = self.inference(&input);
+        let outputs = inference(&self.session, &input, "images");
         match self.task {
             Task::Detect => {
                 let output = extract_output(&outputs, "output0");

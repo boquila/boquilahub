@@ -1,7 +1,8 @@
-use serde::{Deserialize, Serialize};
 use crate::api::abstractions::{ProbSpace, SEGc, XYXYc};
+use ndarray::{Array, Ix4};
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone,)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),
@@ -16,4 +17,14 @@ impl AIOutputs {
             AIOutputs::Segmentation(segments) => segments.is_empty(),
         }
     }
+}
+
+pub fn inference<'a>(
+    session: &'a ort::session::Session,
+    input: &'a Array<f32, Ix4>,
+    b: &'static str,
+) -> ort::session::SessionOutputs<'a, 'a> {
+    return session
+        .run(ort::inputs![b => input.view()].unwrap())
+        .unwrap();
 }
