@@ -1,21 +1,28 @@
 // The idea is to have the core funcionality that will alow us to do everything we need in the app
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
+use crate::api::models::processing::inference::AIOutputs;
+use bitvec::prelude::*;
 use derive_new::new;
 use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use bitvec::prelude::*;
-use crate::api::models::processing::inference::AIOutputs;
 
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
 #[derive(Serialize, Deserialize, Clone, new)]
 pub struct ProbSpace {
-    pub probs: Vec<f32>,
-    pub classes_ids: Vec<usize>,
     pub classes: Vec<String>,
+    pub probs: Vec<f32>,
+    pub classes_ids: Vec<u16>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, new)]
+pub struct Classification {
+    pub class: String,
+    pub prob: f32,
+    pub class_id: u16,
 }
 
 impl ProbSpace {
@@ -28,12 +35,16 @@ impl ProbSpace {
             .unwrap_or_else(|| String::from("no prediction"))
     }
 
-    pub fn highest_confidence_detailed(&self) -> Option<(usize, String, f32)> {
+    pub fn highest_confidence_detailed(&self) -> Option<Classification> {
         self.probs
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, &prob)| (self.classes_ids[index], self.classes[index].clone(), prob))
+            .map(|(index, &prob)| Classification {
+                class: self.classes[index].clone(),
+                prob,
+                class_id: self.classes_ids[index],
+            })
     }
 }
 
@@ -587,10 +598,21 @@ impl PredImgSugar for Vec<PredImg> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, new)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct XYXYc {
     pub xyxy: XYXY,
     pub label: String,
+    pub extra_cls: Option<Classification>,
+}
+
+impl XYXYc {
+    pub fn new(xyxy: XYXY, label: String) -> Self {
+        XYXYc {
+            xyxy,
+            label,
+            extra_cls: None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, new)]

@@ -144,13 +144,13 @@ impl Yolo {
         indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
         let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
-        let classes_ids: Vec<usize> = indexed_scores.iter().map(|(idx, _)| *idx).collect();
+        let classes_ids: Vec<u16> = indexed_scores.iter().map(|(idx, _)| *idx as u16).collect();
         let classes: Vec<String> = classes_ids
             .iter()
-            .map(|&idx| self.classes[idx].clone())
+            .map(|&idx| self.classes[idx as usize].clone())
             .collect();
 
-        return ProbSpace::new(probs, classes_ids, classes);
+        return ProbSpace::new( classes, probs, classes_ids,);
     }
 
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
