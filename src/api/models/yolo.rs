@@ -3,7 +3,7 @@ use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
     models::processing::{
         inference::{inference, AIOutputs},
-        post_processing::{self, *},
+        post_processing::*,
         pre_processing::imgbuf_to_input_array,
     },
 };
@@ -237,6 +237,7 @@ impl Yolo {
                 Some((segc, bbox))
             })
             .unzip();
+        
         for technique in &self.post_processing {
             if matches!(technique, PostProcessingTechnique::NMS) {
                 let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
@@ -249,8 +250,10 @@ impl Yolo {
 
         return segmentations;
     }
+}
 
-    pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+impl ModelTrait for Yolo {
+    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) =
             imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
         let outputs = inference(&self.session, &input, "images");

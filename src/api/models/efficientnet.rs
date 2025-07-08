@@ -1,4 +1,5 @@
-use crate::api::models::{processing::post_processing::PostProcessingTechnique, Task};
+use crate::api::models::{processing::{inference::{inference, AIOutputs}, post_processing::{extract_output, PostProcessingTechnique}, pre_processing::imgbuf_to_input_array_nhwc}, ModelTrait, Task};
+use image::{ImageBuffer, Rgb};
 use ort::{session::Session, value::ValueType};
 
 pub struct EfficientNetV2 {
@@ -11,7 +12,7 @@ pub struct EfficientNetV2 {
     output_height: u32,
     pub confidence_threshold: f32,
     pub task: Task,
-    pub post_processing: PostProcessingTechnique,
+    pub post_processing: Vec<PostProcessingTechnique>,
     pub session: Session,
 }
 impl EfficientNetV2 {
@@ -19,6 +20,7 @@ impl EfficientNetV2 {
         classes: Vec<String>,
         confidence_threshold: f32,
         task: Task,
+        post_processing: Vec<PostProcessingTechnique>,
         session: Session,
     ) -> Self {
         let (batch_size, input_depth, input_width, input_height) =
@@ -41,7 +43,6 @@ impl EfficientNetV2 {
             }
         };
 
-        let post_processing = PostProcessingTechnique::EnsembleClassification;
         EfficientNetV2 {
             classes,
             batch_size,
@@ -55,5 +56,15 @@ impl EfficientNetV2 {
             post_processing,
             session,
         }
+    }
+}
+
+impl ModelTrait for EfficientNetV2 {
+    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+        let input =
+            imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
+        let outputs = inference(&self.session, &input, "input_2:0");
+        let output = extract_output(&outputs, "Identity:0");
+        todo!()
     }
 }

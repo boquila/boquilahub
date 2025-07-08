@@ -5,6 +5,7 @@ use super::eps::EP;
 use super::models::{Task, Yolo};
 use crate::api::models::processing::inference::AIOutputs;
 use crate::api::models::processing::post_processing::PostProcessingTechnique;
+use crate::api::models::ModelTrait;
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
@@ -31,11 +32,12 @@ fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 pub fn set_model(value: &String, ep: &EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
-    let post: Vec<PostProcessingTechnique> = model_metadata.post_processing
-    .iter()
-    .map(|s| PostProcessingTechnique::from(s.as_str()))
-    .filter(|t| !matches!(t, PostProcessingTechnique::None))
-    .collect();
+    let post: Vec<PostProcessingTechnique> = model_metadata
+        .post_processing
+        .iter()
+        .map(|s| PostProcessingTechnique::from(s.as_str()))
+        .filter(|t| !matches!(t, PostProcessingTechnique::None))
+        .collect();
     let aimodel = Yolo::new(
         model_metadata.classes,
         0.45,
