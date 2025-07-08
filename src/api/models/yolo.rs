@@ -2,12 +2,14 @@ use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
     models::processing::{
-        inference::{inference, AIOutputs}, post_processing::*, pre_processing::imgbuf_to_input_array,
+        inference::{inference, AIOutputs},
+        post_processing::{self, *},
+        pre_processing::imgbuf_to_input_array,
     },
 };
 use image::{ImageBuffer, Rgb};
-use ndarray::{s, Array, Array2, Axis, Ix4, IxDyn};
-use ort::{inputs, session::Session, value::ValueType};
+use ndarray::{s, Array, Array2, Axis, IxDyn};
+use ort::{session::Session, value::ValueType};
 
 pub struct Yolo {
     pub classes: Vec<String>,
@@ -17,11 +19,11 @@ pub struct Yolo {
     output_height: u32,
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
-    pub num_classes: u32,
     num_masks: u32,
     mask_height: u32,
     mask_width: u32,
     pub task: Task,
+    pub post_processing: Vec<PostProcessingTechnique>,
     pub session: Session,
 }
 
@@ -31,6 +33,7 @@ impl Yolo {
         confidence_threshold: f32,
         nms_threshold: f32,
         task: Task,
+        post_processing: Vec<PostProcessingTechnique>,
         session: Session,
     ) -> Self {
         let (_batch_size, _input_depth, input_width, input_height) =
@@ -68,7 +71,6 @@ impl Yolo {
             (0, 0, 0)
         };
 
-        let num_classes = classes.len() as u32;
         Yolo {
             classes,
             input_width,
@@ -77,11 +79,11 @@ impl Yolo {
             output_height,
             confidence_threshold,
             nms_threshold,
-            num_classes,
             num_masks,
             mask_height,
             mask_width,
             task,
+            post_processing,
             session,
         }
     }
@@ -93,7 +95,7 @@ impl Yolo {
         img_height: u32,
     ) -> Vec<XYXYc> {
         let output = output.slice(s![.., .., 0]);
-        let boxes: Vec<XYXY> = output
+        let mut boxes: Vec<XYXY> = output
             .axis_iter(Axis(0))
             .filter_map(|row| {
                 let row: Vec<f32> = row.iter().copied().collect();
@@ -121,9 +123,14 @@ impl Yolo {
             })
             .collect();
 
-        let indices = nms_indices(&boxes, self.nms_threshold);
-        let result: Vec<XYXY> = indices.iter().map(|&idx| boxes[idx]).collect();
-        self.t(&result)
+        for technique in &self.post_processing {
+            if matches!(technique, PostProcessingTechnique::NMS) {
+                let indices = nms_indices(&boxes, self.nms_threshold);
+                boxes = indices.iter().map(|&idx| boxes[idx]).collect();
+            }
+        }
+
+        self.t(&boxes)
     }
 
     fn process_class_output(&self, output: &Array<f32, IxDyn>) -> ProbSpace {
@@ -163,7 +170,7 @@ impl Yolo {
         img_height: u32,
     ) -> Vec<SEGc> {
         let (raw_detections, proto_tensor) = outputs;
-        let coeff_limit = (self.num_classes + 4) as usize;
+        let coeff_limit = (self.classes.len() + 4) as usize;
         // Extract bounding boxes and class scores
         let bbox_and_scores = raw_detections.slice(s![.., 0..coeff_limit, 0]).to_owned();
         // Extract mask coefficients for each detection
@@ -183,7 +190,7 @@ impl Yolo {
             .to_owned();
 
         // Process all detections with iterator chain
-        let (segmentations, bounding_boxes): (Vec<SEGc>, Vec<XYXY>) = bbox_and_scores
+        let (mut segmentations, bounding_boxes): (Vec<SEGc>, Vec<XYXY>) = bbox_and_scores
             .axis_iter(Axis(0))
             .enumerate()
             .filter_map(|(index, row)| {
@@ -230,13 +237,17 @@ impl Yolo {
                 Some((segc, bbox))
             })
             .unzip();
-        // Apply NMS
-        let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
-        let filtered_segmentations: Vec<_> = keep_indices
-            .iter()
-            .map(|&i| segmentations[i].clone()) // use `.clone()` if needed, depending on the type
-            .collect();
-        return filtered_segmentations;
+        for technique in &self.post_processing {
+            if matches!(technique, PostProcessingTechnique::NMS) {
+                let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
+                segmentations = keep_indices
+                    .iter()
+                    .map(|&i| segmentations[i].clone()) // use `.clone()` if needed, depending on the type
+                    .collect();
+            }
+        }
+
+        return segmentations;
     }
 
     pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {

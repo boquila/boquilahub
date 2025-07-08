@@ -4,6 +4,23 @@ use ort::session::SessionOutputs;
 
 use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, XYXY};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PostProcessingTechnique {
+    NMS,
+    EnsembleClassification,
+    None,
+}
+
+impl From<&str> for PostProcessingTechnique {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "NMS" | "nms" => PostProcessingTechnique::NMS,
+            "ensemble_classification" | "ensemble" => PostProcessingTechnique::EnsembleClassification,
+            _ => PostProcessingTechnique::None,
+        }
+    }
+}
+
 pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
     // Create indices and sort them by probability (descending)
     let mut indices: Vec<usize> = (0..boxes.len()).collect();
