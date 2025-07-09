@@ -23,7 +23,7 @@ pub struct Yolo {
     mask_height: u32,
     mask_width: u32,
     pub task: Task,
-    pub post_processing: Vec<PostProcessingTechnique>,
+    pub post_processing: Vec<PostProcessing>,
     pub session: Session,
 }
 
@@ -33,7 +33,7 @@ impl Yolo {
         confidence_threshold: f32,
         nms_threshold: f32,
         task: Task,
-        post_processing: Vec<PostProcessingTechnique>,
+        post_processing: Vec<PostProcessing>,
         session: Session,
     ) -> Self {
         let (_batch_size, _input_depth, input_width, input_height) =
@@ -119,12 +119,12 @@ impl Yolo {
                 let y1 = yc - h / 2.0;
                 let y2 = yc + h / 2.0;
 
-                Some(XYXY::new(x1, y1, x2, y2, prob, class_id as u16))
+                Some(XYXY::new(x1, y1, x2, y2, prob, class_id as u32))
             })
             .collect();
 
         for technique in &self.post_processing {
-            if matches!(technique, PostProcessingTechnique::NMS) {
+            if matches!(technique, PostProcessing::NMS) {
                 let indices = nms_indices(&boxes, self.nms_threshold);
                 boxes = indices.iter().map(|&idx| boxes[idx]).collect();
             }
@@ -144,13 +144,13 @@ impl Yolo {
         indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
         let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
-        let classes_ids: Vec<u16> = indexed_scores.iter().map(|(idx, _)| *idx as u16).collect();
+        let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
         let classes: Vec<String> = classes_ids
             .iter()
             .map(|&idx| self.classes[idx as usize].clone())
             .collect();
 
-        return ProbSpace::new( classes, probs, classes_ids,);
+        return ProbSpace::new( classes, probs, classes_ids);
     }
 
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
@@ -224,7 +224,7 @@ impl Yolo {
                 let y1 = yc - h / 2.0;
                 let y2 = yc + h / 2.0;
                 let str = &self.classes[class_id];
-                let bbox = XYXY::new(x1, y1, x2, y2, score, class_id as u16);
+                let bbox = XYXY::new(x1, y1, x2, y2, score, class_id as u32);
                 let seg = process_mask(
                     mask,
                     &bbox,
@@ -239,7 +239,7 @@ impl Yolo {
             .unzip();
         
         for technique in &self.post_processing {
-            if matches!(technique, PostProcessingTechnique::NMS) {
+            if matches!(technique, PostProcessing::NMS) {
                 let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
                 segmentations = keep_indices
                     .iter()

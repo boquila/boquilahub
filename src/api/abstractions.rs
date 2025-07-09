@@ -15,14 +15,14 @@ use std::path::PathBuf;
 pub struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
-    pub classes_ids: Vec<u16>,
+    pub classes_ids: Vec<u32>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, new)]
 pub struct Classification {
     pub class: String,
     pub prob: f32,
-    pub class_id: u16,
+    pub class_id: u32,
 }
 
 impl ProbSpace {
@@ -56,7 +56,7 @@ pub struct SEGn {
     pub x: Vec<i32>,
     pub y: Vec<i32>,
     pub prob: f32,
-    pub class_id: u16,
+    pub class_id: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -79,7 +79,7 @@ pub trait BoundingBoxTrait: Copy {
     fn iou(&self, other: &Self) -> f32;
     fn get_coords(&self) -> (f32, f32, f32, f32);
     fn get_prob(&self) -> f32;
-    fn get_class_id(&self) -> u16;
+    fn get_class_id(&self) -> u32;
     fn check(&self) -> bool;
     fn to_xyxy(&self, w: Option<f32>, h: Option<f32>) -> XYXY;
     fn to_xyxyn(&self, w: Option<f32>, h: Option<f32>) -> XYXYn;
@@ -102,7 +102,7 @@ pub struct XYXYn {
     pub x2: f32,
     pub y2: f32,
     pub prob: f32,
-    pub class_id: u16,
+    pub class_id: u32,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, new)]
@@ -112,7 +112,7 @@ pub struct XYXY {
     pub x2: f32,
     pub y2: f32,
     pub prob: f32,
-    pub class_id: u16,
+    pub class_id: u32,
 }
 
 /// Bounding box in normalized XYWH format
@@ -126,7 +126,7 @@ pub struct XYWHn {
     pub w: f32,
     pub h: f32,
     pub prob: f32,
-    pub class_id: u16,
+    pub class_id: u32,
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, new)]
@@ -136,7 +136,7 @@ pub struct XYWH {
     pub w: f32,
     pub h: f32,
     pub prob: f32,
-    pub class_id: u16,
+    pub class_id: u32,
 }
 
 fn intersect_xyxys(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32) -> f32 {
@@ -182,7 +182,7 @@ impl BoundingBoxTrait for XYXYn {
         self.prob
     }
 
-    fn get_class_id(&self) -> u16 {
+    fn get_class_id(&self) -> u32 {
         self.class_id
     }
 
@@ -275,7 +275,7 @@ impl BoundingBoxTrait for XYXY {
         self.prob
     }
 
-    fn get_class_id(&self) -> u16 {
+    fn get_class_id(&self) -> u32 {
         self.class_id
     }
 
@@ -357,7 +357,7 @@ impl BoundingBoxTrait for XYWHn {
         self.prob
     }
 
-    fn get_class_id(&self) -> u16 {
+    fn get_class_id(&self) -> u32 {
         self.class_id
     }
 
@@ -451,7 +451,7 @@ impl BoundingBoxTrait for XYWH {
         self.prob
     }
 
-    fn get_class_id(&self) -> u16 {
+    fn get_class_id(&self) -> u32 {
         self.class_id
     }
 

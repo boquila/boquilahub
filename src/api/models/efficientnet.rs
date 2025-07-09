@@ -1,4 +1,4 @@
-use crate::api::models::{processing::{inference::{inference, AIOutputs}, post_processing::{extract_output, PostProcessingTechnique}, pre_processing::imgbuf_to_input_array_nhwc}, ModelTrait, Task};
+use crate::api::models::{processing::{inference::{inference, AIOutputs}, post_processing::{extract_output, PostProcessing}, pre_processing::imgbuf_to_input_array_nhwc}, ModelTrait, Task};
 use image::{ImageBuffer, Rgb};
 use ort::{session::Session, value::ValueType};
 
@@ -12,7 +12,7 @@ pub struct EfficientNetV2 {
     output_height: u32,
     pub confidence_threshold: f32,
     pub task: Task,
-    pub post_processing: Vec<PostProcessingTechnique>,
+    pub post_processing: Vec<PostProcessing>,
     pub session: Session,
 }
 impl EfficientNetV2 {
@@ -20,7 +20,7 @@ impl EfficientNetV2 {
         classes: Vec<String>,
         confidence_threshold: f32,
         task: Task,
-        post_processing: Vec<PostProcessingTechnique>,
+        post_processing: Vec<PostProcessing>,
         session: Session,
     ) -> Self {
         let (batch_size, input_depth, input_width, input_height) =

@@ -4,14 +4,13 @@ use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{Task, Yolo};
 use crate::api::models::processing::inference::AIOutputs;
-use crate::api::models::processing::post_processing::PostProcessingTechnique;
+use crate::api::models::processing::post_processing::PostProcessing;
 use crate::api::models::ModelTrait;
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::sync::{OnceLock, RwLock};
 
-// Lazily initialized global variables for the MODEL
 static CURRENT_AI: OnceLock<RwLock<Yolo>> = OnceLock::new();
 
 fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
@@ -32,11 +31,11 @@ fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 pub fn set_model(value: &String, ep: &EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
-    let post: Vec<PostProcessingTechnique> = model_metadata
+    let post: Vec<PostProcessing> = model_metadata
         .post_processing
         .iter()
-        .map(|s| PostProcessingTechnique::from(s.as_str()))
-        .filter(|t| !matches!(t, PostProcessingTechnique::None))
+        .map(|s| PostProcessing::from(s.as_str()))
+        .filter(|t| !matches!(t, PostProcessing::None))
         .collect();
     let aimodel = Yolo::new(
         model_metadata.classes,

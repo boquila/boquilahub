@@ -5,18 +5,18 @@ use ort::session::SessionOutputs;
 use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, XYXY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PostProcessingTechnique {
+pub enum PostProcessing {
     NMS,
-    EnsembleClassification,
+    Ensemble,
     None,
 }
 
-impl From<&str> for PostProcessingTechnique {
+impl From<&str> for PostProcessing {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "NMS" | "nms" => PostProcessingTechnique::NMS,
-            "ensemble_classification" | "ensemble" => PostProcessingTechnique::EnsembleClassification,
-            _ => PostProcessingTechnique::None,
+            "NMS" | "nms" => PostProcessing::NMS,
+            "ensemble_classification" | "ensemble" => PostProcessing::Ensemble,
+            _ => PostProcessing::None,
         }
     }
 }
