@@ -133,26 +133,6 @@ impl Yolo {
         self.t(&boxes)
     }
 
-    fn process_class_output(&self, output: &Array<f32, IxDyn>) -> ProbSpace {
-        let mut indexed_scores: Vec<(usize, f32)> = output
-            .iter()
-            .enumerate()
-            .filter(|(_, &score)| score >= self.confidence_threshold)
-            .map(|(i, &score)| (i, score))
-            .collect();
-
-        indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-        let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
-        let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
-        let classes: Vec<String> = classes_ids
-            .iter()
-            .map(|&idx| self.classes[idx as usize].clone())
-            .collect();
-
-        return ProbSpace::new( classes, probs, classes_ids);
-    }
-
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
         boxes
             .into_iter()
@@ -223,7 +203,6 @@ impl Yolo {
                 let x2 = xc + w / 2.0;
                 let y1 = yc - h / 2.0;
                 let y2 = yc + h / 2.0;
-                let str = &self.classes[class_id];
                 let bbox = XYXY::new(x1, y1, x2, y2, score, class_id as u32);
                 let seg = process_mask(
                     mask,
@@ -233,11 +212,11 @@ impl Yolo {
                     self.mask_height,
                     self.mask_width,
                 );
-                let segc = SEGc::new(seg, XYXYc::new(bbox, str.to_string()));
+                let segc = SEGc::new(seg, XYXYc::new(bbox, self.classes[class_id].to_string()));
                 Some((segc, bbox))
             })
             .unzip();
-        
+
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
                 let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
@@ -265,7 +244,7 @@ impl ModelTrait for Yolo {
             }
             Task::Classify => {
                 let output = extract_output(&outputs, "output0");
-                let probs = self.process_class_output(&output);
+                let probs = process_class_output(self.confidence_threshold, &self.classes, &output);
                 return AIOutputs::Classification(probs);
             }
             Task::Segment => {

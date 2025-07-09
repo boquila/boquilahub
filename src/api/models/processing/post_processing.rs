@@ -1,8 +1,8 @@
 use bitvec::vec::BitVec;
-use ndarray::{Array2, ArrayBase, Dim, IxDynImpl, OwnedRepr};
+use ndarray::{Array, Array2, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 use ort::session::SessionOutputs;
 
-use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, XYXY};
+use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, ProbSpace, XYXY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostProcessing {
@@ -96,4 +96,24 @@ pub fn extract_output(
         .unwrap()
         .t()
         .into_owned();
+}
+
+pub fn process_class_output(conf: f32, classes: &Vec<String>, output: &Array<f32, IxDyn>) -> ProbSpace {
+    let mut indexed_scores: Vec<(usize, f32)> = output
+        .iter()
+        .enumerate()
+        .filter(|(_, &score)| score >= conf)
+        .map(|(i, &score)| (i, score))
+        .collect();
+
+    indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+    let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
+    let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
+    let classes: Vec<String> = classes_ids
+        .iter()
+        .map(|&idx| classes[idx as usize].clone())
+        .collect();
+
+    return ProbSpace::new(classes, probs, classes_ids);
 }

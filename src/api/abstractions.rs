@@ -11,11 +11,26 @@ use std::path::PathBuf;
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
-#[derive(Serialize, Deserialize, Clone, new)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
     pub classes_ids: Vec<u32>,
+    pub top: Option<Classification>,
+}
+
+impl ProbSpace {
+    pub fn new(classes: Vec<String>, probs: Vec<f32>, classes_ids: Vec<u32>) -> Self {
+        let mut prob_space = Self {
+            classes,
+            probs,
+            classes_ids,
+            top: None,
+        };
+
+        prob_space.top = prob_space.highest_confidence_detailed();
+        prob_space
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, new)]
