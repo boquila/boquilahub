@@ -3,30 +3,14 @@ use super::abstractions::AI;
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::{Task, Yolo};
+use crate::api::import::import_model;
 use crate::api::models::processing::inference::AIOutputs;
 use crate::api::models::processing::post_processing::PostProcessing;
 use crate::api::models::ModelTrait;
 use image::{ImageBuffer, Rgb};
-use ort::session::builder::GraphOptimizationLevel;
-use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::sync::{OnceLock, RwLock};
 
 static CURRENT_AI: OnceLock<RwLock<Yolo>> = OnceLock::new();
-
-fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
-    let mut builder = Session::builder()
-        .unwrap()
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .unwrap();
-
-    if ep.name == "CUDA" {
-        builder = builder
-            .with_execution_providers([CUDAExecutionProvider::default().build()])
-            .unwrap();
-    }
-
-    builder.commit_from_memory(model_data).unwrap()
-}
 
 pub fn set_model(value: &String, ep: &EP) {
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();

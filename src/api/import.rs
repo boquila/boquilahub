@@ -1,3 +1,12 @@
+use std::{fs, io};
+use std::path::Path;
+
+use ort::session::builder::GraphOptimizationLevel;
+use ort::{execution_providers::CUDAExecutionProvider, session::Session};
+
+use crate::api::eps::EP;
+use crate::api::models::processing::inference::AIOutputs;
+
 // First formats
 // then, some logic and checks
 pub const IMAGE_FORMATS: [&'static str; 23] = [
@@ -76,4 +85,38 @@ pub fn is_supported_videofile(file_path: &str) -> bool {
         return VIDEO_FORMATS.contains(&extension.to_lowercase().as_str());
     }
     false
+}
+
+pub fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
+    let mut builder = Session::builder()
+        .unwrap()
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .unwrap();
+
+    if ep.name == "CUDA" {
+        builder = builder
+            .with_execution_providers([CUDAExecutionProvider::default().build()])
+            .unwrap();
+    }
+
+    builder.commit_from_memory(model_data).unwrap()
+}
+
+pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {
+    // Create expected filename based on input filepath
+    let file_stem = input_path
+        .file_stem()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
+    let parent = input_path.parent().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Could not determine parent directory")
+    })?;
+    let prediction_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
+    // Check if file exists
+    if !prediction_path.exists() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "Prediction file not found"));
+    }
+    // Read and deserialize the file
+    let data = fs::read_to_string(prediction_path)?;
+    let deserialized: AIOutputs = serde_json::from_str(&data)?;
+    Ok(deserialized)
 }

@@ -7,30 +7,6 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-pub fn read_predictions_from_file(input_path: &str) -> io::Result<AIOutputs> {
-    // Create expected filename based on input filepath
-    let input_path = Path::new(input_path);
-    let file_stem = input_path
-        .file_stem()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
-
-    let parent = input_path.parent().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "Could not determine parent directory")
-    })?;
-    let prediction_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
-
-    // Check if file exists
-    if !prediction_path.exists() {
-        return Err(io::Error::new(io::ErrorKind::NotFound, "Prediction file not found"));
-    }
-
-    // Read and deserialize the file
-    let data = fs::read_to_string(prediction_path)?;
-    let deserialized: AIOutputs = serde_json::from_str(&data)?;
-
-    Ok(deserialized)
-}
-
 // For file 'img.jpg', creates a file 'img.json' that contains the predictions
 pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
     let input_path = Path::new(&pred_img.file_path);
