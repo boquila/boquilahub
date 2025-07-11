@@ -1,22 +1,14 @@
 #![allow(dead_code)]
 use crate::api::models::processing::inference::AIOutputs;
+use crate::api::utils::create_predictions_file_path;
 use super::abstractions::PredImg;
 use std::collections::HashMap;
-use std::fs;
 use std::fs::File;
 use std::io::{self, Write};
-use std::path::Path;
 
-// For file 'img.jpg', creates a file 'img.json' that contains the predictions
+// For file 'img.jpg', creates a file 'img_predictions.json' that contains the predictions
 pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
-    let input_path = Path::new(&pred_img.file_path);
-    let file_stem = input_path
-        .file_stem()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
-
-    let parent = input_path.parent().unwrap_or(Path::new(""));
-    let output_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
-
+    let output_path = create_predictions_file_path(&pred_img.file_path)?;
     let mut file = File::create(&output_path)?;
     let json_string = serde_json::to_string(&pred_img.aioutput)?;
     file.write_all(json_string.as_bytes())?;

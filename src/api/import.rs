@@ -6,6 +6,7 @@ use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 
 use crate::api::eps::EP;
 use crate::api::models::processing::inference::AIOutputs;
+use crate::api::utils::create_predictions_file_path;
 
 // First formats
 // then, some logic and checks
@@ -104,17 +105,13 @@ pub fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {
     // Create expected filename based on input filepath
-    let file_stem = input_path
-        .file_stem()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
-    let parent = input_path.parent().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "Could not determine parent directory")
-    })?;
-    let prediction_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
+    let prediction_path = create_predictions_file_path(input_path)?;
+    
     // Check if file exists
     if !prediction_path.exists() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "Prediction file not found"));
     }
+    
     // Read and deserialize the file
     let data = fs::read_to_string(prediction_path)?;
     let deserialized: AIOutputs = serde_json::from_str(&data)?;

@@ -1,5 +1,19 @@
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array3, ArrayBase, Dim, OwnedRepr};
+use std::path::{Path, PathBuf};
+use std::fs::{self, File};
+use std::io::{self, Write};
+
+/// Creates the predictions file path based on the input file path
+/// For file 'img.jpg', creates path 'img_predictions.json'
+pub fn create_predictions_file_path(input_path: &Path) -> io::Result<PathBuf> {
+    let file_stem = input_path
+        .file_stem()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
+    let parent = input_path.parent().unwrap_or(Path::new(""));
+    let output_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
+    Ok(output_path)
+}
 
 pub fn image_buffer_to_ndarray(
     img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
