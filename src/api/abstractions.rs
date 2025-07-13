@@ -11,7 +11,7 @@ use std::path::PathBuf;
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
@@ -624,7 +624,7 @@ impl PredImgSugar for Vec<PredImg> {
 pub struct XYXYc {
     pub xyxy: XYXY,
     pub label: String,
-    pub extra_cls: Option<Classification>,
+    pub extra_cls: Option<ProbSpace>,
 }
 
 impl XYXYc {

@@ -1,5 +1,5 @@
-use std::{fs, io};
 use std::path::Path;
+use std::{fs, io};
 
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
@@ -106,12 +106,15 @@ pub fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {
     // Create expected filename based on input filepath
     let prediction_path = create_predictions_file_path(input_path)?;
-    
+
     // Check if file exists
     if !prediction_path.exists() {
-        return Err(io::Error::new(io::ErrorKind::NotFound, "Prediction file not found"));
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Prediction file not found",
+        ));
     }
-    
+
     // Read and deserialize the file
     let data = fs::read_to_string(prediction_path)?;
     let deserialized: AIOutputs = serde_json::from_str(&data)?;

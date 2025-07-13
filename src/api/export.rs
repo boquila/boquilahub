@@ -15,11 +15,6 @@ pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
     Ok(())
 }
 
-// Count processed images from a list of PredImg structs
-pub fn count_processed_images(images: &Vec<PredImg>) -> usize {
-    images.iter().filter(|img| img.wasprocessed).count()
-}
-
 // Get the most frequent label from a list of bounding boxes
 fn get_most_frequent_label<T>(items: &[T], get_label: impl Fn(&T) -> &String) -> String {
     if items.is_empty() {
