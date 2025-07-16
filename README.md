@@ -2,7 +2,7 @@
 
 Cross-platform app to run AI models to monitor and protect nature. Locally, no cloud.
 
-![readme](assets/readme.jpg)
+![readme](readme.jpg)
 
 ## Features
 
