@@ -39,10 +39,10 @@ pub fn run_gui() {
         "BoquilaHUB",
         native_options,
         Box::new(|cc| {
-                        let mut fonts = egui::FontDefinitions::default();
+            let mut fonts = egui::FontDefinitions::default();
             fonts.font_data.insert(
                 "Noto".to_owned(),
-                egui::FontData::from_static(api::render::FONT_BYTES).into(),
+                egui::FontData::from_static(&api::render::FONT_BYTES.as_ref()).into(),
             );
 
             fonts.families.insert(
@@ -56,14 +56,9 @@ pub fn run_gui() {
                 .unwrap() //it works
                 .insert(0, "Noto".to_owned());
 
-            fonts
-                .families
-                .get_mut(&egui::FontFamily::Monospace)
-                .unwrap()
-                .insert(0, "Noto".to_owned()); //.push("Noto".to_owned());
-
             cc.egui_ctx.set_fonts(fonts);
-            Ok(Box::new(Gui::new()))} ),
+            Ok(Box::new(Gui::new()))
+        }),
     );
 }
 

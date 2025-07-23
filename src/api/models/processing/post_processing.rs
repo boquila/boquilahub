@@ -66,6 +66,16 @@ pub fn process_mask(
     let x2 = (bbox.x2 / img_width as f32 * mask_width as f32).round() as usize;
     let y2 = (bbox.y2 / img_height as f32 * mask_height as f32).round() as usize;
 
+    // Clamp coordinates to mask bounds to prevent out-of-bounds access
+    let x1 = x1.min(mask_width as usize);
+    let y1 = y1.min(mask_height as usize);
+    let x2 = x2.min(mask_width as usize);
+    let y2 = y2.min(mask_height as usize);
+
+    // Ensure we have valid ranges (x2 > x1, y2 > y1)
+    let x2 = x2.max(x1);
+    let y2 = y2.max(y1);
+
     let width = x2 - x1;
     let height = y2 - y1;
 
@@ -98,7 +108,11 @@ pub fn extract_output(
         .into_owned();
 }
 
-pub fn process_class_output(conf: f32, classes: &Vec<String>, output: &Array<f32, IxDyn>) -> ProbSpace {
+pub fn process_class_output(
+    conf: f32,
+    classes: &Vec<String>,
+    output: &Array<f32, IxDyn>,
+) -> ProbSpace {
     let mut indexed_scores: Vec<(usize, f32)> = output
         .iter()
         .enumerate()
