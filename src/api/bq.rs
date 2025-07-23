@@ -57,7 +57,6 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
     let onnx_start = onnx_length_start + 4;
     let onnx_end = onnx_start + onnx_length;
     let onnx_data = file_content[onnx_start..onnx_end].to_vec();
-    println!("{:?}",ai_model);
     Ok((ai_model, onnx_data))
 }
 

@@ -580,16 +580,8 @@ impl PredImg {
         return DynamicImage::ImageRgb8(img).to_rgba8();
     }
 
-    pub fn draw2(&self) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
-        let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
-            super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
-        }
-        return img;
-    }
-
     pub fn save(&self) {
-        let img_data = self.draw2();
+        let img_data = self.draw();
 
         std::fs::create_dir_all("export").expect("Failed to create export directory");
 

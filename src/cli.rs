@@ -83,4 +83,4 @@ const ASCII_ART: &'static str = r#"
                           | $$                                                          
                           |__/                                      AI for Biodiversity
 
-    "#;
+"#;

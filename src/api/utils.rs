@@ -1,8 +1,7 @@
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array3, ArrayBase, Dim, OwnedRepr};
 use std::path::{Path, PathBuf};
-use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self};
 
 /// Creates the predictions file path based on the input file path
 /// For file 'img.jpg', creates path 'img_predictions.json'
