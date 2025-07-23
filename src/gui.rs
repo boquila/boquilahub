@@ -14,6 +14,7 @@ use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
 use api::import::*;
+use egui::epaint::text::FontInsert;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
@@ -37,7 +38,32 @@ pub fn run_gui() {
     let _ = eframe::run_native(
         "BoquilaHUB",
         native_options,
-        Box::new(|_cc| Ok(Box::new(Gui::new()))),
+        Box::new(|cc| {
+                        let mut fonts = egui::FontDefinitions::default();
+            fonts.font_data.insert(
+                "Noto".to_owned(),
+                egui::FontData::from_static(api::render::FONT_BYTES).into(),
+            );
+
+            fonts.families.insert(
+                egui::FontFamily::Name("Noto".into()),
+                vec!["Noto".to_owned()],
+            );
+
+            fonts
+                .families
+                .get_mut(&egui::FontFamily::Proportional)
+                .unwrap() //it works
+                .insert(0, "Noto".to_owned());
+
+            fonts
+                .families
+                .get_mut(&egui::FontFamily::Monospace)
+                .unwrap()
+                .insert(0, "Noto".to_owned()); //.push("Noto".to_owned());
+
+            cc.egui_ctx.set_fonts(fonts);
+            Ok(Box::new(Gui::new()))} ),
     );
 }
 

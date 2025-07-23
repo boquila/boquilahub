@@ -112,7 +112,7 @@ const FONT_SCALE: f32 = 36.4;
 const LABEL_PADDING: f32 = FONT_SCALE / 6.13;
 const CHAR_WIDTH: f32 = FONT_SCALE / 1.84;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
-const FONT_BYTES: &[u8] = include_bytes!("../../assets//DejaVuSans.ttf");
+pub const FONT_BYTES: &[u8] = include_bytes!("../../assets/NotoSansSC-Regular.ttf");
 static FONT: LazyLock<FontRef<'static>> =
     LazyLock::new(|| FontRef::try_from_slice(FONT_BYTES).expect("Failed to load font"));
 
