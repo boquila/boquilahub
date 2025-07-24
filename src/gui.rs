@@ -952,6 +952,7 @@ impl eframe::App for Gui {
                     ui.radio_value(&mut self.lang, Lang::ES, "Español");
                     ui.radio_value(&mut self.lang, Lang::FR, "Français");
                     ui.radio_value(&mut self.lang, Lang::DE, "Deutsch");
+                    ui.radio_value(&mut self.lang, Lang::PT, "Português");
                     ui.radio_value(&mut self.lang, Lang::ZH, "简体中文");
                     ui.radio_value(&mut self.lang, Lang::JA, "日本語"); 
                 });
