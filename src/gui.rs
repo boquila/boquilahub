@@ -14,7 +14,6 @@ use crate::api::stream::Feed;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
 use api::import::*;
-use egui::epaint::text::FontInsert;
 use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
@@ -39,24 +38,7 @@ pub fn run_gui() {
         "BoquilaHUB",
         native_options,
         Box::new(|cc| {
-            let mut fonts = egui::FontDefinitions::default();
-            fonts.font_data.insert(
-                "Noto".to_owned(),
-                egui::FontData::from_static(&api::render::FONT_BYTES.as_ref()).into(),
-            );
-
-            fonts.families.insert(
-                egui::FontFamily::Name("Noto".into()),
-                vec!["Noto".to_owned()],
-            );
-
-            fonts
-                .families
-                .get_mut(&egui::FontFamily::Proportional)
-                .unwrap() //it works
-                .insert(0, "Noto".to_owned());
-
-            cc.egui_ctx.set_fonts(fonts);
+            Gui::setup(&cc.egui_ctx);
             Ok(Box::new(Gui::new()))
         }),
     );
@@ -104,7 +86,6 @@ pub struct Gui {
     show_export_dialog: bool,
     show_feed_url_dialog: bool,
     show_api_server_dialog: bool,
-    it_ran: bool,
     img_state: State,
     video_state: State,
     feed_state: State,
@@ -129,6 +110,28 @@ impl State {
 }
 
 impl Gui {
+    pub fn setup(ctx: &egui::Context) {
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "Noto".to_owned(),
+            egui::FontData::from_static(&api::render::FONT_BYTES.as_ref()).into(),
+        );
+
+        fonts.families.insert(
+            egui::FontFamily::Name("Noto".into()),
+            vec!["Noto".to_owned()],
+        );
+
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap() //it works
+            .insert(0, "Noto".to_owned());
+
+        ctx.set_fonts(fonts);
+        egui_extras::install_image_loaders(ctx);
+    }
+
     pub fn new() -> Self {
         Self {
             ais: get_bqs(),
@@ -161,7 +164,6 @@ impl Gui {
             show_feed_url_dialog: false,
             show_api_server_dialog: false,
             mode: Mode::Image,
-            it_ran: false,
             img_state: State::init(),
             video_state: State::init(),
             feed_state: State::init(),
@@ -930,13 +932,8 @@ impl Gui {
 impl eframe::App for Gui {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if !self.it_ran {
-            egui_extras::install_image_loaders(ctx);
-            self.it_ran = true;
-        }
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
                     ui.hyperlink_to(self.t(Key::website), self.t(Key::website_url));
                     ui.hyperlink_to(self.t(Key::donate), self.t(Key::donate_url));

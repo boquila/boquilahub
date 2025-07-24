@@ -561,9 +561,9 @@ impl PredImg {
             Ok(predictions) => Some(predictions),
             Err(_) => None, // If file doesn't exist or can't be read, just use None
         };
-        
+
         let wasprocessed = aioutput.is_some();
-        
+
         PredImg {
             file_path,
             aioutput,
@@ -581,7 +581,7 @@ impl PredImg {
     }
 
     pub fn save(&self) {
-        let img_data = self.draw();
+        let img_data = image::DynamicImage::ImageRgba8(self.draw()).to_rgb8();
 
         std::fs::create_dir_all("export").expect("Failed to create export directory");
 
