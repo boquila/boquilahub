@@ -68,7 +68,8 @@ pub struct Gui {
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
-    step_frame: Option<usize>,
+    video_step_frame: usize,
+    feed_step_frame: usize,
     current_frame: u64,
     total_frames: Option<u64>,
     ep_selected: usize,
@@ -150,7 +151,8 @@ impl Gui {
             ai_selected: None,
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
-            step_frame: None,
+            video_step_frame: 1,
+            feed_step_frame: 1,
             current_frame: 0,
             total_frames: None,
             is_done: false,
@@ -954,7 +956,7 @@ impl eframe::App for Gui {
                     ui.radio_value(&mut self.lang, Lang::DE, "Deutsch");
                     ui.radio_value(&mut self.lang, Lang::PT, "Português");
                     ui.radio_value(&mut self.lang, Lang::ZH, "简体中文");
-                    ui.radio_value(&mut self.lang, Lang::JA, "日本語"); 
+                    ui.radio_value(&mut self.lang, Lang::JA, "日本語");
                 });
 
                 egui::widgets::global_theme_preference_switch(ui);
@@ -1030,6 +1032,7 @@ impl eframe::App for Gui {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.style_mut().spacing.slider_width = 300.0;
                         if self.selected_files.len() > 1 {
+                            // Show slider
                             let response = ui.add(
                                 egui::Slider::new(
                                     &mut self.image_texture_n,
@@ -1037,6 +1040,8 @@ impl eframe::App for Gui {
                                 )
                                 .text(""),
                             );
+
+                            // React to slider change   
                             if response.changed() {
                                 self.paint(ctx, self.image_texture_n - 1);
                             }
