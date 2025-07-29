@@ -2,7 +2,7 @@ use crate::api::{
     abstractions::AI,
     bq::get_bqs,
     eps::LIST_EPS,
-    inference::set_model,
+    inference::{set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Arg, Command};
@@ -22,6 +22,13 @@ pub async fn run_cli() {
                         .required(true),
                 )
                 .arg(
+                    Arg::new("model_cls")
+                        .long("model_cls")
+                        .help("Model name to deploy, complementary classification model")
+                        .value_name("MODEL_CLS_NAME")
+                        .required(false),
+                )
+                .arg(
                     Arg::new("port")
                         .long("port")
                         .help("Port number for the server")
@@ -35,6 +42,15 @@ pub async fn run_cli() {
     match matches.subcommand() {
         Some(("serve", sub_matches)) => {
             let model_name = sub_matches.get_one::<String>("model").unwrap();
+
+            if let Some(model_cls_name) = sub_matches.get_one::<String>("model_cls") {
+                let model_path = format!(
+                    "models/{}.bq",
+                    model_cls_name.strip_suffix(".bq").unwrap_or(model_cls_name)
+                );
+                set_model2(&model_path, &LIST_EPS[1]);
+            }
+
             let port = *sub_matches.get_one::<u16>("port").unwrap();
 
             let model_path = format!(
