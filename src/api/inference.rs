@@ -72,12 +72,8 @@ pub fn set_model2(value: &String, ep: &EP) {
 }
 
 #[inline(always)]
-pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, two_steps: bool) -> AIOutputs {
+pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
     let mut outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&img);
-
-    if !two_steps {
-        return outputs;
-    }
 
     if let Some(ai2) = CURRENT_AI2.get() {
         let ai2_guard = ai2.read().unwrap();

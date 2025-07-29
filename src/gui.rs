@@ -175,7 +175,7 @@ impl Gui {
     }
 
     pub fn is_any_processing(&self) -> bool {
-        self.video_state.is_processing && self.img_state.is_processing & self.is_any_processing()
+        self.video_state.is_processing || self.img_state.is_processing || self.feed_state.is_processing
     }
 
     pub fn is_remote(&self) -> bool {
@@ -589,7 +589,7 @@ impl Gui {
                                 } else {
                                     let img = open(path).unwrap().into_rgb8();
                                     tokio::task::spawn_blocking(move || {
-                                        process_imgbuf(&img, two_steps)
+                                        process_imgbuf(&img)
                                     })
                                     .await
                                     .unwrap()
@@ -751,7 +751,7 @@ impl Gui {
                                             buffer,
                                         )
                                     } else {
-                                        process_imgbuf(&img, two_steps)
+                                        process_imgbuf(&img)
                                     };
 
                                     draw_aioutput(&mut img, &bbox);
@@ -845,7 +845,7 @@ impl Gui {
                                             buffer,
                                         )
                                     } else {
-                                        process_imgbuf(&img, two_steps)
+                                        process_imgbuf(&img)
                                     };
 
                                     api::render::draw_aioutput(&mut img, &bbox);
