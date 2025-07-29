@@ -321,8 +321,13 @@ impl Gui {
                     });
 
                 // Add a '+' button next to the ComboBox
-                if self.ai_selected.is_some() && !self.show_ai_cls{
-                    if ui.button("+").on_hover_text("Add new AI").clicked() {
+                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
+                {
+                    if ui
+                        .button("+")
+                        .on_hover_text(self.t(Key::add_classification_model_to_complement))
+                        .clicked()
+                    {
                         self.show_ai_cls = true;
                     }
                 }
@@ -358,7 +363,7 @@ impl Gui {
 
                 // Add a '+' button next to the ComboBox
                 if self.ai_selected.is_some() {
-                    if ui.button("-").on_hover_text("Delete AI").clicked() {
+                    if ui.button("-").clicked() {
                         self.show_ai_cls = false;
                         self.ai_cls_selected = None;
                         clear_current_ai2_simple();
@@ -1050,11 +1055,14 @@ impl eframe::App for Gui {
             });
             ui.separator();
 
-            self.ai_widget(ui);
-
-            self.ai_cls_widget(ui);
-
-            self.ep_widget(ui);
+            ui.scope(|ui| {
+                if self.is_any_processing() {
+                    ui.disable();
+                }
+                self.ai_widget(ui);
+                self.ai_cls_widget(ui);
+                self.ep_widget(ui);
+            });
 
             self.api_widget(ui, ctx);
 

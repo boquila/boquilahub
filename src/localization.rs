@@ -50,6 +50,7 @@ pub enum Key {
     every_how_many_frames,
     ok,
     no_predictions,
+    add_classification_model_to_complement,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -62,6 +63,15 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选择AI模型",
             Lang::JA => "AIを選択",
             Lang::PT => "Selecionar uma IA",
+        },
+        Key::add_classification_model_to_complement => match lang {
+            Lang::EN => "Add a classification AI to complement the current model",
+            Lang::ES => "Agregar una IA de clasificación para complementar el modelo actual",
+            Lang::FR => "Ajouter une IA de classification pour compléter le modèle actuel",
+            Lang::DE => "Eine Klassifikations-KI hinzufügen, um das aktuelle Modell zu ergänzen",
+            Lang::ZH => "添加分类AI以补充当前模型",
+            Lang::JA => "現在のモデルを補完する分類AIを追加",
+            Lang::PT => "Adicionar uma IA de classificação para complementar o modelo atual",
         },
         Key::select_ep => match lang {
             Lang::EN => "Select a processor",
