@@ -80,6 +80,7 @@ pub struct Gui {
     mode: Mode,
 
     // bool fields grouped together (1 byte each, but will be padded)
+    two_steps_cls: bool,
     is_done: bool,
     isapi_deployed: bool,
     save_img_from_strema: bool,
@@ -155,6 +156,7 @@ impl Gui {
             feed_step_frame: 1,
             current_frame: 0,
             total_frames: None,
+            two_steps_cls: false,
             is_done: false,
             done_time: None,
             error_time: None,
@@ -570,6 +572,7 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
+                        let two_steps = self.two_steps_cls;
 
                         tokio::spawn(async move {
                             for (i, path) in file_paths.iter().enumerate() {
@@ -586,7 +589,7 @@ impl Gui {
                                 } else {
                                     let img = open(path).unwrap().into_rgb8();
                                     tokio::task::spawn_blocking(move || {
-                                        process_imgbuf(&img)
+                                        process_imgbuf(&img, two_steps)
                                     })
                                     .await
                                     .unwrap()
@@ -726,6 +729,7 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
+                        let two_steps = self.two_steps_cls;
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || {
@@ -747,7 +751,7 @@ impl Gui {
                                             buffer,
                                         )
                                     } else {
-                                        process_imgbuf(&img)
+                                        process_imgbuf(&img, two_steps)
                                     };
 
                                     draw_aioutput(&mut img, &bbox);
@@ -823,6 +827,7 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
+                        let two_steps = self.two_steps_cls;
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || loop {
@@ -840,7 +845,7 @@ impl Gui {
                                             buffer,
                                         )
                                     } else {
-                                        process_imgbuf(&img)
+                                        process_imgbuf(&img, two_steps)
                                     };
 
                                     api::render::draw_aioutput(&mut img, &bbox);
@@ -1041,7 +1046,7 @@ impl eframe::App for Gui {
                                 .text(""),
                             );
 
-                            // React to slider change   
+                            // React to slider change
                             if response.changed() {
                                 self.paint(ctx, self.image_texture_n - 1);
                             }

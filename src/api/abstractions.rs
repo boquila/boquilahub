@@ -35,17 +35,24 @@ impl ProbSpace {
             .map(|(index, _)| self.classes[index].clone())
             .unwrap_or_else(|| String::from("no prediction"))
     }
-}
 
-/// Segmentation in the YOLO format, normalized
-/// # Fields
-/// - `vertices` represents a polygon
-#[derive(Serialize, Deserialize, Clone, new)]
-pub struct SEGn {
-    pub x: Vec<i32>,
-    pub y: Vec<i32>,
-    pub prob: f32,
-    pub class_id: u32,
+    pub fn highest_confidence_full(&self) -> (String, f32, u32) {
+        self.probs
+            .iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, &prob)| {
+                (
+                    self.classes
+                        .get(index)
+                        .cloned()
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    prob,
+                    *self.classes_ids.get(index).unwrap_or(&0),
+                )
+            })
+            .unwrap_or_else(|| ("no prediction".to_string(), 0.0, 0))
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

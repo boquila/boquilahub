@@ -138,7 +138,7 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &[
         let w = bbox.xyxy.x2 - bbox.xyxy.x1;
         let h = bbox.xyxy.y2 - bbox.xyxy.y1;
         let color = BBOX_COLORS[bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
-        let text = str_label(&bbox.label, bbox.xyxy.prob);
+        let text = str_label(&bbox);
 
         draw_hollow_rect_mut(
             img,
@@ -173,7 +173,7 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
     let font = &*FONT; // Dereference the LazyLock
 
     for seg in segmentations {
-        let text = str_label(&seg.bbox.label, seg.bbox.xyxy.prob);
+        let text = str_label(&seg.bbox);
         let w = (seg.bbox.xyxy.x2 - seg.bbox.xyxy.x1) as usize;
         let h = (seg.bbox.xyxy.y2 - seg.bbox.xyxy.y1) as usize;
 
@@ -298,6 +298,13 @@ fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prob_space: &Pr
     }
 }
 
-fn str_label(label: &str, prob: f32) -> String {
-    format!("{} {:.2}", label, prob)
+fn str_label(xyxyc: &XYXYc) -> String {
+    let base = format!("{} {:.2}", xyxyc.label, xyxyc.xyxy.prob);
+    match &xyxyc.extra_cls {
+        Some(extra) => {
+            let (str, cls_prob, _id) = extra.highest_confidence_full();
+            format!("{}\n{} {:.2}", base, str, cls_prob)
+        }
+        None => base,
+    }
 }

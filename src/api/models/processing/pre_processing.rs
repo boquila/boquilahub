@@ -1,9 +1,9 @@
+use crate::api::abstractions::XYXY;
 use image::{
     imageops::{resize, FilterType},
     ImageBuffer, Rgb,
 };
 use ndarray::{Array, Ix4};
-use crate::api::abstractions::XYXY;
 
 pub fn imgbuf_to_input_array(
     batch_size: usize,
@@ -65,10 +65,12 @@ pub fn slice_image(
     img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
     bbox: &XYXY,
 ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let x1 = bbox.x1.max(0.0) as u32;
-    let y1 = bbox.y1.max(0.0) as u32;
-    let x2 = bbox.x2.max(0.0) as u32;
-    let y2 = bbox.y2.max(0.0) as u32;
+    let (img_width, img_height) = img.dimensions();
+
+    let x1 = (bbox.x1.max(0.0) as u32).min(img_width);
+    let y1 = (bbox.y1.max(0.0) as u32).min(img_height);
+    let x2 = (bbox.x2.max(0.0) as u32).min(img_width);
+    let y2 = (bbox.y2.max(0.0) as u32).min(img_height);
 
     let width = x2 - x1;
     let height = y2 - y1;
