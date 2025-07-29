@@ -74,38 +74,39 @@ pub fn set_model2(value: &String, ep: &EP) {
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
     let mut outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&img);
+    process_with_ai2(&mut outputs, img);
+    return outputs;
+}
 
-    if let Some(ai2) = CURRENT_AI2.get() {
-        let ai2_guard = ai2.read().unwrap();
-        let ai2_ref = ai2_guard.as_ref().unwrap();
-
-        match &mut outputs {
-            AIOutputs::ObjectDetection(detections) => {
-                for xyxyc in detections.iter_mut() {
-                    let sliced_img = slice_image(img, &xyxyc.xyxy);
-                    let cls_output = ai2_ref.run(&sliced_img);
-
-                    if let AIOutputs::Classification(prob_space) = cls_output {
-                        xyxyc.extra_cls = Some(prob_space);
-                    }
+fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Option<()> {
+    let ai2 = CURRENT_AI2.get()?;
+    let ai2_guard = ai2.read().ok()?;
+    let ai2_ref = ai2_guard.as_ref()?;
+    
+    match outputs {
+        AIOutputs::ObjectDetection(detections) => {
+            for xyxyc in detections.iter_mut() {
+                let sliced_img = slice_image(img, &xyxyc.xyxy);
+                let cls_output = ai2_ref.run(&sliced_img);
+                if let AIOutputs::Classification(prob_space) = cls_output {
+                    xyxyc.extra_cls = Some(prob_space);
                 }
-            }
-            AIOutputs::Segmentation(segmentations) => {
-                for segc in segmentations {
-                    let xyxyc = &mut segc.bbox;
-                    let sliced_img = slice_image(img, &xyxyc.xyxy);
-                    let cls_output = ai2_ref.run(&sliced_img);
-
-                    if let AIOutputs::Classification(prob_space) = cls_output {
-                        xyxyc.extra_cls = Some(prob_space);
-                    }
-                }
-            }
-            _ => {
-                println!("Unsupported AIOutputs variant.");
             }
         }
+        AIOutputs::Segmentation(segmentations) => {
+            for segc in segmentations {
+                let xyxyc = &mut segc.bbox;
+                let sliced_img = slice_image(img, &xyxyc.xyxy);
+                let cls_output = ai2_ref.run(&sliced_img);
+                if let AIOutputs::Classification(prob_space) = cls_output {
+                    xyxyc.extra_cls = Some(prob_space);
+                }
+            }
+        }
+        _ => {
+            println!("Unsupported AIOutputs variant.");
+        }
     }
-
-    return outputs;
+    
+    Some(())
 }

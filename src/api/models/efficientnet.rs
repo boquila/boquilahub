@@ -5,7 +5,7 @@ use crate::api::{
             ensemble::ensemble::get_common_name,
             inference::{inference, AIOutputs},
             post_processing::{extract_output, process_class_output, PostProcessing},
-            pre_processing::imgbuf_to_input_array_nhwc,
+            pre_processing::{imgbuf_to_input_array, imgbuf_to_input_array_nhwc},
         },
         ModelTrait, Task,
     },
@@ -37,7 +37,7 @@ impl ModelTrait for EfficientNetV2 {
         post_processing: Vec<PostProcessing>,
         session: Session,
     ) -> Self {
-        let (batch_size, input_depth, input_width, input_height) =
+        let (batch_size, input_width, input_height, input_depth) =
             match &session.inputs[0].input_type {
                 ValueType::Tensor { dimensions, .. } => (
                     dimensions[0] as i32,
@@ -51,7 +51,7 @@ impl ModelTrait for EfficientNetV2 {
             };
 
         let (output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => (dimensions[1] as u32, dimensions[2] as u32),
+            ValueType::Tensor { dimensions, .. } => (dimensions[0] as u32, dimensions[1] as u32),
             _ => {
                 panic!("Not supported");
             }
@@ -73,12 +73,15 @@ impl ModelTrait for EfficientNetV2 {
         }
     }
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let input = imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
+        println!("Image: {:?}",img.dimensions());
+        let input =
+            imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
+        println!("Input array: {:?}",input.dim());
         let outputs = inference(&self.session, &input, "input_2:0");
         let output = extract_output(&outputs, "Identity:0");
         let mut probs: ProbSpace =
             process_class_output(self.confidence_threshold, &self.classes, &output);
-
+        probs.logits_to_probabilities();
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::Rollup) {
                 probs.classes = probs

@@ -113,6 +113,7 @@ impl State {
 
 impl Gui {
     pub fn setup(ctx: &egui::Context) {
+        set_model2(&"models/speciesnet.bq".to_owned(), &LIST_EPS[0]);
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "Noto".to_owned(),

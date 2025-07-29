@@ -53,6 +53,27 @@ impl ProbSpace {
             })
             .unwrap_or_else(|| ("no prediction".to_string(), 0.0, 0))
     }
+
+    pub fn logits_to_probabilities(&mut self) {
+        // Find the maximum logit for numerical stability
+        let max_logit = self.probs.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+
+        // Compute exp(logit - max_logit) for each logit
+        let exp_logits: Vec<f32> = self
+            .probs
+            .iter()
+            .map(|&logit| (logit - max_logit).exp())
+            .collect();
+
+        // Compute the sum of all exponentials
+        let sum_exp: f32 = exp_logits.iter().sum();
+
+        // Convert to probabilities by dividing each exp by the sum
+        self.probs = exp_logits
+            .iter()
+            .map(|&exp_logit| exp_logit / sum_exp)
+            .collect();
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
