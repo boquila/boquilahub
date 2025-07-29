@@ -2,9 +2,7 @@
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
 use crate::api::models::processing::inference::AIOutputs;
-use bitvec::prelude::*;
 use derive_new::new;
-use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -78,7 +76,7 @@ impl ProbSpace {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BitMatrix {
-    pub data: BitVec,
+    pub data: bitvec::vec::BitVec,
     pub width: usize,
     pub height: usize,
 }
@@ -571,31 +569,6 @@ impl PredImg {
             aioutput,
             wasprocessed,
         }
-    }
-
-    #[inline(always)]
-    pub fn draw(&self) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-        let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
-            super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
-        }
-        return DynamicImage::ImageRgb8(img).to_rgba8();
-    }
-
-    pub fn save(&self) {
-        let img_data = image::DynamicImage::ImageRgba8(self.draw()).to_rgb8();
-
-        std::fs::create_dir_all("export").expect("Failed to create export directory");
-
-        let filename = format!(
-            "export/exported_{}.jpg",
-            std::path::Path::new(&self.file_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("image")
-        );
-
-        img_data.save(&filename).unwrap();
     }
 }
 

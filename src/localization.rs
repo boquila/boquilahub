@@ -49,6 +49,7 @@ pub enum Key {
     example,
     every_how_many_frames,
     ok,
+    no_predictions,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -79,6 +80,15 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "配置",
             Lang::JA => "セットアップ",
             Lang::PT => "Configuração",
+        },
+        Key::no_predictions => match lang {
+            Lang::EN => "No predictions",
+            Lang::ES => "Sin predicciones",
+            Lang::FR => "Aucune prédiction",
+            Lang::DE => "Keine Vorhersagen",
+            Lang::ZH => "没有预测",
+            Lang::JA => "予測なし",
+            Lang::PT => "Sem previsões",
         },
         Key::deploy => match lang {
             Lang::EN => "Deploy",

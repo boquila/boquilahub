@@ -5,7 +5,7 @@ use crate::api::eps::{get_ep_version, LIST_EPS};
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::models::processing::inference::AIOutputs;
-use crate::api::render::draw_aioutput;
+use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
     check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,
     rgba_image_to_jpeg_buffer, run_api,
@@ -176,7 +176,9 @@ impl Gui {
     }
 
     pub fn is_any_processing(&self) -> bool {
-        self.video_state.is_processing || self.img_state.is_processing || self.feed_state.is_processing
+        self.video_state.is_processing
+            || self.img_state.is_processing
+            || self.feed_state.is_processing
     }
 
     pub fn is_remote(&self) -> bool {
@@ -198,7 +200,28 @@ impl Gui {
     }
 
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
-        self.img_state.texture = imgbuf_to_texture(&self.selected_files[i].draw(), ctx)
+        let img = &self.draw_gui(&self.selected_files[i]);
+        self.img_state.texture = imgbuf_to_texture(img, ctx)
+    }
+
+    fn draw_gui(&self, predimg: &PredImg) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+        let mut img = image::open(&predimg.file_path).unwrap().into_rgb8();
+
+        if predimg.wasprocessed {
+            if predimg.aioutput.as_ref().unwrap().is_empty() {
+                draw_no_predictions(&mut img, Some(&self.lang));
+            } else {
+                draw_aioutput(&mut img, &predimg.aioutput.as_ref().unwrap());
+            }
+        }
+
+        return image::DynamicImage::ImageRgb8(img).to_rgba8();
+    }
+
+    fn save_gui(&self, predimg: &PredImg) {
+        let img_data = image::DynamicImage::ImageRgba8(self.draw_gui(predimg)).to_rgb8();
+        let filename = api::export::prepare_export_img(&predimg.file_path);
+        img_data.save(&filename).unwrap();
     }
 
     fn show_timed_message(
@@ -573,8 +596,6 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
-                        let two_steps = self.two_steps_cls;
-
                         tokio::spawn(async move {
                             for (i, path) in file_paths.iter().enumerate() {
                                 // CHECK FOR CANCELLATION HERE
@@ -589,11 +610,9 @@ impl Gui {
                                     )
                                 } else {
                                     let img = open(path).unwrap().into_rgb8();
-                                    tokio::task::spawn_blocking(move || {
-                                        process_imgbuf(&img)
-                                    })
-                                    .await
-                                    .unwrap()
+                                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
+                                        .await
+                                        .unwrap()
                                 };
 
                                 if tx.send((i, bbox)).is_err() {
@@ -666,9 +685,8 @@ impl Gui {
                             .clicked()
                         {
                             for file in &self.selected_files {
-                                if file.wasprocessed && !file.aioutput.as_ref().unwrap().is_empty()
-                                {
-                                    file.save();
+                                if file.wasprocessed {
+                                    self.save_gui(file);
                                 }
                             }
                             self.process_done();
@@ -730,7 +748,6 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
-                        let two_steps = self.two_steps_cls;
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || {
@@ -742,7 +759,7 @@ impl Gui {
                                     let (time, mut img) =
                                         processor.lock().unwrap().as_mut().unwrap().next().unwrap();
 
-                                    let bbox = if is_remote {
+                                    let aioutput = if is_remote {
                                         let buffer = rgba_image_to_jpeg_buffer(
                                             &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
                                             95,
@@ -755,7 +772,7 @@ impl Gui {
                                         process_imgbuf(&img)
                                     };
 
-                                    draw_aioutput(&mut img, &bbox);
+                                    draw_aioutput(&mut img, &aioutput);
 
                                     processor
                                         .lock()
@@ -828,7 +845,6 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
-                        let two_steps = self.two_steps_cls;
                         tokio::spawn(async move {
                             // Spawn blocking task to generate frames
                             let processor_handle = tokio::task::spawn_blocking(move || loop {
@@ -849,7 +865,7 @@ impl Gui {
                                         process_imgbuf(&img)
                                     };
 
-                                    api::render::draw_aioutput(&mut img, &bbox);
+                                    draw_aioutput(&mut img, &bbox);
                                     let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
                                     if tx.send((bbox, img)).is_err() {
                                         break;

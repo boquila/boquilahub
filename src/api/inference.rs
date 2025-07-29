@@ -56,7 +56,7 @@ pub fn set_model2(value: &String, ep: &EP) {
 
     let aimodel: Model = Model::new(
         model_metadata.classes,
-        0.8,
+        0.4,
         0.0,
         Task::from(model_metadata.task.as_str()),
         post,
@@ -103,9 +103,7 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
                 }
             }
         }
-        _ => {
-            println!("Unsupported AIOutputs variant.");
-        }
+        _ => {}
     }
     
     Some(())

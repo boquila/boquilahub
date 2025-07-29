@@ -1,10 +1,11 @@
 #![allow(dead_code)]
+use super::abstractions::PredImg;
 use crate::api::models::processing::inference::AIOutputs;
 use crate::api::utils::create_predictions_file_path;
-use super::abstractions::PredImg;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 // For file 'img.jpg', creates a file 'img_predictions.json' that contains the predictions
 pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
@@ -36,7 +37,9 @@ fn get_most_frequent_label<T>(items: &[T], get_label: impl Fn(&T) -> &String) ->
 fn get_main_label(output: &AIOutputs) -> String {
     match output {
         AIOutputs::ObjectDetection(bboxes) => get_most_frequent_label(bboxes, |bbox| &bbox.label),
-        AIOutputs::Segmentation(segments) => get_most_frequent_label(segments, |seg| &seg.bbox.label),
+        AIOutputs::Segmentation(segments) => {
+            get_most_frequent_label(segments, |seg| &seg.bbox.label)
+        }
         AIOutputs::Classification(prob_space) => prob_space.highest_confidence(),
     }
 }
@@ -68,4 +71,23 @@ pub async fn copy_to_folder(pred_imgs: &Vec<PredImg>, output_path: &str) {
             tokio::fs::write(&new_image_path, image_data).await.unwrap();
         }
     }
+}
+
+impl PredImg {
+    pub fn save(&self) {
+        let img_data = image::DynamicImage::ImageRgba8(self.draw()).to_rgb8();
+        let filename = prepare_export_img(&self.file_path);
+        img_data.save(&filename).unwrap();
+    }
+}
+
+pub fn prepare_export_img(path: &PathBuf) -> String {
+    std::fs::create_dir_all("export").expect("Failed to create export directory");
+    return format!(
+        "export/exported_{}.jpg",
+        std::path::Path::new(path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("image")
+    );
 }

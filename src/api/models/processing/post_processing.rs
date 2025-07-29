@@ -135,3 +135,48 @@ pub fn process_class_output(
 
     return ProbSpace::new(classes, probs, classes_ids);
 }
+
+pub fn process_class_output_logits(
+    conf: f32,
+    classes: &Vec<String>,
+    output: &Array<f32, IxDyn>,
+) -> ProbSpace {
+    // First, convert logits to probabilities using softmax
+    let logits: Vec<f32> = output.iter().cloned().collect();
+
+    // Find max logit for numerical stability
+    let max_logit = logits.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+
+    // Compute softmax probabilities
+    let exp_logits: Vec<f32> = logits
+        .iter()
+        .map(|&logit| (logit - max_logit).exp())
+        .collect();
+
+    let sum_exp: f32 = exp_logits.iter().sum();
+
+    let probabilities: Vec<f32> = exp_logits
+        .iter()
+        .map(|&exp_logit| exp_logit / sum_exp)
+        .collect();
+
+    // Now filter by confidence threshold on actual probabilities
+    let mut indexed_scores: Vec<(usize, f32)> = probabilities
+        .iter()
+        .enumerate()
+        .filter(|(_, &prob)| prob >= conf)
+        .map(|(i, &prob)| (i, prob))
+        .collect();
+
+    // Sort by probability (highest first)
+    indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+    let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
+    let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
+    let filtered_classes: Vec<String> = classes_ids
+        .iter()
+        .map(|&idx| classes[idx as usize].clone())
+        .collect();
+
+    ProbSpace::new(filtered_classes, probs, classes_ids)
+}

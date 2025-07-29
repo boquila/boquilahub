@@ -4,8 +4,8 @@ use crate::api::{
         processing::{
             ensemble::ensemble::get_common_name,
             inference::{inference, AIOutputs},
-            post_processing::{extract_output, process_class_output, PostProcessing},
-            pre_processing::{imgbuf_to_input_array, imgbuf_to_input_array_nhwc},
+            post_processing::{extract_output, process_class_output_logits, PostProcessing},
+            pre_processing::{imgbuf_to_input_array_nhwc},
         },
         ModelTrait, Task,
     },
@@ -73,15 +73,12 @@ impl ModelTrait for EfficientNetV2 {
         }
     }
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        println!("Image: {:?}",img.dimensions());
         let input =
             imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
-        println!("Input array: {:?}",input.dim());
         let outputs = inference(&self.session, &input, "input_2:0");
         let output = extract_output(&outputs, "Identity:0");
         let mut probs: ProbSpace =
-            process_class_output(self.confidence_threshold, &self.classes, &output);
-        probs.logits_to_probabilities();
+            process_class_output_logits(self.confidence_threshold, &self.classes, &output);
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::Rollup) {
                 probs.classes = probs
