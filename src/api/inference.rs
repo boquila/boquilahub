@@ -13,7 +13,7 @@ use std::sync::{OnceLock, RwLock};
 static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
 static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
 
-fn clear_current_ai2_simple() {
+pub fn clear_current_ai2_simple() {
     let rw_lock = CURRENT_AI2.get_or_init(|| RwLock::new(None));
     let mut guard = rw_lock.write().unwrap();
     *guard = None;

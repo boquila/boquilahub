@@ -47,6 +47,7 @@ pub fn run_gui() {
 pub struct Gui {
     // Large types first
     ais: Vec<AI>,
+    ais_cls_only: Vec<AI>,
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
     feed_url: Option<String>,
@@ -68,11 +69,13 @@ pub struct Gui {
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
+    ai_cls_selected: Option<usize>,
+    ep_selected: usize,
     video_step_frame: usize,
     feed_step_frame: usize,
     current_frame: u64,
     total_frames: Option<u64>,
-    ep_selected: usize,
+
     image_texture_n: usize,
 
     // Enums (size depends on variants, but typically 1-8 bytes)
@@ -80,7 +83,7 @@ pub struct Gui {
     mode: Mode,
 
     // bool fields grouped together (1 byte each, but will be padded)
-    two_steps_cls: bool,
+    show_ai_cls: bool,
     is_done: bool,
     isapi_deployed: bool,
     save_img_from_strema: bool,
@@ -113,7 +116,6 @@ impl State {
 
 impl Gui {
     pub fn setup(ctx: &egui::Context) {
-        set_model2(&"models/speciesnet.bq".to_owned(), &LIST_EPS[0]);
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "Noto".to_owned(),
@@ -136,8 +138,16 @@ impl Gui {
     }
 
     pub fn new() -> Self {
+        let ais: Vec<AI> = get_bqs();
+        let classify_ais: Vec<AI> = ais
+            .iter()
+            .filter(|ai| ai.task == "classify")
+            .cloned()
+            .collect();
+
         Self {
-            ais: get_bqs(),
+            ais: ais,
+            ais_cls_only: classify_ais,
             selected_files: Vec::new(),
             video_file_path: None,
             feed_url: None,
@@ -151,13 +161,14 @@ impl Gui {
             video_processing_receiver: None,
             video_file_processor: Arc::new(Mutex::new(None)),
             ai_selected: None,
+            ai_cls_selected: None,
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
             video_step_frame: 1,
             feed_step_frame: 1,
             current_frame: 0,
             total_frames: None,
-            two_steps_cls: false,
+            show_ai_cls: false,
             is_done: false,
             done_time: None,
             error_time: None,
@@ -292,29 +303,76 @@ impl Gui {
     }
 
     pub fn ai_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ep_selected != 2 {
+        if !self.is_remote() {
             let previous_ai = self.ai_selected;
             ui.label(self.t(Key::select_ai));
-            egui::ComboBox::from_id_salt("AI")
-                .selected_text(match self.ai_selected {
-                    Some(i) => &self.ais[i].name,
-                    None => "",
-                })
-                .show_ui(ui, |ui| {
-                    for (i, ai) in self.ais.iter().enumerate() {
-                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
-                            .on_hover_text(&ai.classes.join(", "));
+
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("AI")
+                    .selected_text(match self.ai_selected {
+                        Some(i) => &self.ais[i].name,
+                        None => "",
+                    })
+                    .show_ui(ui, |ui| {
+                        for (i, ai) in self.ais.iter().enumerate() {
+                            ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
+                                .on_hover_text(&ai.classes.join(", "));
+                        }
+                    });
+
+                // Add a '+' button next to the ComboBox
+                if self.ai_selected.is_some() && !self.show_ai_cls{
+                    if ui.button("+").on_hover_text("Add new AI").clicked() {
+                        self.show_ai_cls = true;
                     }
-                });
+                }
+            });
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-                if !self.is_remote() {
-                    set_model(
-                        &self.ais[self.ai_selected.unwrap()].get_path(),
-                        &LIST_EPS[self.ep_selected],
-                    );
-                }
+                set_model(
+                    &self.ais[self.ai_selected.unwrap()].get_path(),
+                    &LIST_EPS[self.ep_selected],
+                );
             }
+
+            ui.add_space(8.0);
+        }
+    }
+
+    pub fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
+        if !self.is_remote() && self.show_ai_cls {
+            let previous_ai = self.ai_cls_selected;
+            ui.label(self.t(Key::select_ai));
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("AI_CLS")
+                    .selected_text(match self.ai_cls_selected {
+                        Some(i) => &self.ais_cls_only[i].name,
+                        None => "",
+                    })
+                    .show_ui(ui, |ui| {
+                        for (i, ai) in self.ais_cls_only.iter().enumerate() {
+                            ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
+                                .on_hover_text(&ai.classes.join(", "));
+                        }
+                    });
+
+                // Add a '+' button next to the ComboBox
+                if self.ai_selected.is_some() {
+                    if ui.button("-").on_hover_text("Delete AI").clicked() {
+                        self.show_ai_cls = false;
+                        self.ai_cls_selected = None;
+                        clear_current_ai2_simple();
+                    }
+                }
+            });
+
+            if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
+                set_model2(
+                    &self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path(),
+                    &LIST_EPS[self.ep_selected],
+                );
+            }
+            ui.add_space(8.0);
         }
     }
 
@@ -362,6 +420,7 @@ impl Gui {
                 }
             }
         }
+        ui.add_space(8.0);
     }
 
     pub fn data_selection_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
@@ -993,11 +1052,9 @@ impl eframe::App for Gui {
 
             self.ai_widget(ui);
 
-            ui.add_space(8.0);
+            self.ai_cls_widget(ui);
 
             self.ep_widget(ui);
-
-            ui.add_space(8.0);
 
             self.api_widget(ui, ctx);
 
