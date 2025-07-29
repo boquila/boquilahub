@@ -1,4 +1,15 @@
-use crate::api::models::{processing::{inference::{inference, AIOutputs}, post_processing::{extract_output, process_class_output, PostProcessing}, pre_processing::imgbuf_to_input_array_nhwc}, ModelTrait, Task};
+use crate::api::{
+    abstractions::ProbSpace,
+    models::{
+        processing::{
+            ensemble::ensemble::{get_common_name, SpeciesRecord},
+            inference::{inference, AIOutputs},
+            post_processing::{extract_output, process_class_output, PostProcessing},
+            pre_processing::imgbuf_to_input_array_nhwc,
+        },
+        ModelTrait, Task,
+    },
+};
 use image::{ImageBuffer, Rgb};
 use ort::{session::Session, value::ValueType};
 
@@ -61,16 +72,22 @@ impl EfficientNetV2 {
 
 impl ModelTrait for EfficientNetV2 {
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let input =
-            imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
+        let input = imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
         let outputs = inference(&self.session, &input, "input_2:0");
         let output = extract_output(&outputs, "Identity:0");
-        let probs = process_class_output(self.confidence_threshold, &self.classes, &output);
+        let mut probs: ProbSpace =
+            process_class_output(self.confidence_threshold, &self.classes, &output);
+
         for technique in &self.post_processing {
-            if matches!(technique, PostProcessing::Ensemble) {
-                // rewrite probs depending on a bunch of logic    
+            if matches!(technique, PostProcessing::Rollup) {
+                probs.classes = probs
+                    .classes
+                    .iter()
+                    .map(|line| get_common_name(line))
+                    .collect();
             }
         }
+
         return AIOutputs::Classification(probs);
     }
 }

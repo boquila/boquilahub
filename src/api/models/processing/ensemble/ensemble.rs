@@ -1,6 +1,5 @@
 #[derive(Debug)]
-struct SpeciesRecord {
-    pub original_line: String, 
+pub struct SpeciesRecord {
     pub uuid: String,
     pub class: String,
     pub order: String,
@@ -11,13 +10,12 @@ struct SpeciesRecord {
 }
 
 impl SpeciesRecord {
-    fn new(line: &str) -> Result<SpeciesRecord, ()> {
+    pub fn new(line: &str) -> Result<SpeciesRecord, ()> {
         let parts: Vec<&str> = line.trim().split(';').collect();
         if parts.len() < 7 {
             return Err(());
         }
         Ok(SpeciesRecord {
-            original_line: line.to_string(),
             uuid: parts[0].to_string(),
             class: parts[1].to_string(),
             order: parts[2].to_string(),
@@ -27,4 +25,32 @@ impl SpeciesRecord {
             common_name: parts[6].to_string(),
         })
     }
+}
+
+pub fn get_uuid(line: &str) -> String {
+    line.split(';').nth(0).unwrap().to_string()
+}
+
+pub fn get_class(line: &str) -> String {
+    line.split(';').nth(1).unwrap().to_string()
+}
+
+pub fn get_order(line: &str) -> String {
+    line.split(';').nth(2).unwrap().to_string()
+}
+
+pub fn get_family(line: &str) -> String {
+    line.split(';').nth(3).unwrap().to_string()
+}
+
+pub fn get_genus(line: &str) -> String {
+    line.split(';').nth(4).unwrap().to_string()
+}
+
+pub fn get_species(line: &str) -> String {
+    line.split(';').nth(5).unwrap().to_string()
+}
+
+pub fn get_common_name(line: &str) -> String {
+    line.split(';').nth(6).unwrap().to_string()
 }

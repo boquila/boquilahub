@@ -16,31 +16,17 @@ pub struct ProbSpace {
     pub classes: Vec<String>,
     pub probs: Vec<f32>,
     pub classes_ids: Vec<u32>,
-    pub top: Option<Classification>,
 }
 
 impl ProbSpace {
     pub fn new(classes: Vec<String>, probs: Vec<f32>, classes_ids: Vec<u32>) -> Self {
-        let mut prob_space = Self {
+        Self {
             classes,
             probs,
             classes_ids,
-            top: None,
-        };
-
-        prob_space.top = prob_space.highest_confidence_detailed();
-        prob_space
+        }
     }
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug, new)]
-pub struct Classification {
-    pub class: String,
-    pub prob: f32,
-    pub class_id: u32,
-}
-
-impl ProbSpace {
     pub fn highest_confidence(&self) -> String {
         self.probs
             .iter()
@@ -48,18 +34,6 @@ impl ProbSpace {
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(index, _)| self.classes[index].clone())
             .unwrap_or_else(|| String::from("no prediction"))
-    }
-
-    pub fn highest_confidence_detailed(&self) -> Option<Classification> {
-        self.probs
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, &prob)| Classification {
-                class: self.classes[index].clone(),
-                prob,
-                class_id: self.classes_ids[index],
-            })
     }
 }
 

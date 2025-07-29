@@ -7,6 +7,8 @@ use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, ProbSpace, XYXY};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostProcessing {
     NMS,
+    GeoFence,
+    Rollup,
     Ensemble,
     None,
 }
@@ -14,9 +16,11 @@ pub enum PostProcessing {
 impl From<&str> for PostProcessing {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "NMS" | "nms" => PostProcessing::NMS,
-            "ensemble_classification" | "ensemble" => PostProcessing::Ensemble,
-            _ => PostProcessing::None,
+            "nms" => PostProcessing::NMS,
+            "rollup" => PostProcessing::Rollup,
+            "geofence" | "geo_fence" | "geo-fence" => PostProcessing::GeoFence,
+            "ensemble" | "ensemble_classification" => PostProcessing::Ensemble,
+            _ => PostProcessing::None, // default fallback
         }
     }
 }
