@@ -586,7 +586,7 @@ impl Gui {
                                 } else {
                                     let img = open(path).unwrap().into_rgb8();
                                     tokio::task::spawn_blocking(move || {
-                                        detect_bbox_from_imgbuf(&img)
+                                        process_imgbuf(&img)
                                     })
                                     .await
                                     .unwrap()
@@ -747,7 +747,7 @@ impl Gui {
                                             buffer,
                                         )
                                     } else {
-                                        detect_bbox_from_imgbuf(&img)
+                                        process_imgbuf(&img)
                                     };
 
                                     draw_aioutput(&mut img, &bbox);
@@ -840,7 +840,7 @@ impl Gui {
                                             buffer,
                                         )
                                     } else {
-                                        detect_bbox_from_imgbuf(&img)
+                                        process_imgbuf(&img)
                                     };
 
                                     api::render::draw_aioutput(&mut img, &bbox);

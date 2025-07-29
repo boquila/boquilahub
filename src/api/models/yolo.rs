@@ -28,66 +28,6 @@ pub struct Yolo {
 }
 
 impl Yolo {
-    pub fn new(
-        classes: Vec<String>,
-        confidence_threshold: f32,
-        nms_threshold: f32,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
-        session: Session,
-    ) -> Self {
-        let (_batch_size, _input_depth, input_width, input_height) =
-            match &session.inputs[0].input_type {
-                ValueType::Tensor { dimensions, .. } => (
-                    dimensions[0] as u32,
-                    dimensions[1] as u32,
-                    dimensions[2] as u32,
-                    dimensions[3] as u32,
-                ),
-                _ => {
-                    panic!("Not supported");
-                }
-            };
-
-        let (output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => (dimensions[1] as u32, dimensions[2] as u32),
-            _ => {
-                panic!("Not supported");
-            }
-        };
-
-        let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
-            match &output.output_type {
-                ValueType::Tensor { dimensions, .. } => (
-                    dimensions[1] as u32,
-                    dimensions[2] as u32,
-                    dimensions[3] as u32,
-                ),
-                _ => {
-                    panic!("This shouldn't happen");
-                }
-            }
-        } else {
-            (0, 0, 0)
-        };
-
-        Yolo {
-            classes,
-            input_width,
-            input_height,
-            output_width,
-            output_height,
-            confidence_threshold,
-            nms_threshold,
-            num_masks,
-            mask_height,
-            mask_width,
-            task,
-            post_processing,
-            session,
-        }
-    }
-
     fn process_detect_output(
         &self,
         output: &Array<f32, IxDyn>,
@@ -232,6 +172,66 @@ impl Yolo {
 }
 
 impl ModelTrait for Yolo {
+    fn new(
+        classes: Vec<String>,
+        confidence_threshold: f32,
+        nms_threshold: f32,
+        task: Task,
+        post_processing: Vec<PostProcessing>,
+        session: Session,
+    ) -> Self {
+        let (_batch_size, _input_depth, input_width, input_height) =
+            match &session.inputs[0].input_type {
+                ValueType::Tensor { dimensions, .. } => (
+                    dimensions[0] as u32,
+                    dimensions[1] as u32,
+                    dimensions[2] as u32,
+                    dimensions[3] as u32,
+                ),
+                _ => {
+                    panic!("Not supported");
+                }
+            };
+
+        let (output_width, output_height) = match &session.outputs[0].output_type {
+            ValueType::Tensor { dimensions, .. } => (dimensions[1] as u32, dimensions[2] as u32),
+            _ => {
+                panic!("Not supported");
+            }
+        };
+
+        let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
+            match &output.output_type {
+                ValueType::Tensor { dimensions, .. } => (
+                    dimensions[1] as u32,
+                    dimensions[2] as u32,
+                    dimensions[3] as u32,
+                ),
+                _ => {
+                    panic!("This shouldn't happen");
+                }
+            }
+        } else {
+            (0, 0, 0)
+        };
+
+        Yolo {
+            classes,
+            input_width,
+            input_height,
+            output_width,
+            output_height,
+            confidence_threshold,
+            nms_threshold,
+            num_masks,
+            mask_height,
+            mask_width,
+            task,
+            post_processing,
+            session,
+        }
+    }
+
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) =
             imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);

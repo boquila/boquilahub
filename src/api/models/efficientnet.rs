@@ -2,7 +2,7 @@ use crate::api::{
     abstractions::ProbSpace,
     models::{
         processing::{
-            ensemble::ensemble::{get_common_name, SpeciesRecord},
+            ensemble::ensemble::get_common_name,
             inference::{inference, AIOutputs},
             post_processing::{extract_output, process_class_output, PostProcessing},
             pre_processing::imgbuf_to_input_array_nhwc,
@@ -16,20 +16,23 @@ use ort::{session::Session, value::ValueType};
 pub struct EfficientNetV2 {
     pub classes: Vec<String>,
     batch_size: i32,
-    input_depth: u32, // 3, RGB
+    input_depth: u32, // 3, RGB or similar
     input_width: u32,
     input_height: u32,
     output_width: u32,
     output_height: u32,
     pub confidence_threshold: f32,
+    pub nms_threshold: f32,
     pub task: Task,
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
 }
-impl EfficientNetV2 {
-    pub fn new(
+
+impl ModelTrait for EfficientNetV2 {
+    fn new(
         classes: Vec<String>,
         confidence_threshold: f32,
+        nms_threshold: f32,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
@@ -63,14 +66,12 @@ impl EfficientNetV2 {
             output_width,
             output_height,
             confidence_threshold,
+            nms_threshold,
             task,
             post_processing,
             session,
         }
     }
-}
-
-impl ModelTrait for EfficientNetV2 {
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let input = imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
         let outputs = inference(&self.session, &input, "input_2:0");
