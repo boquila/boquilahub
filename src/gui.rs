@@ -4,7 +4,6 @@ use crate::api::bq::get_bqs;
 use crate::api::eps::{get_ep_version, LIST_EPS};
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
-use crate::api::models::processing::inference::AIOutputs;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
     check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,

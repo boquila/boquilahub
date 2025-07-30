@@ -5,7 +5,7 @@ pub mod yolo;
 use super::abstractions::*;
 use crate::api::models::{
     efficientnet::EfficientNetV2,
-    processing::{inference::AIOutputs, post_processing::PostProcessing},
+    processing::{post_processing::PostProcessing},
 };
 use image::{ImageBuffer, Rgb};
 use ort::session::Session;

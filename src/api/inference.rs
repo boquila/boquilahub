@@ -3,7 +3,7 @@ use super::abstractions::AI;
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::Task;
-use crate::api::models::processing::inference::AIOutputs;
+use crate::api::abstractions::AIOutputs;
 use crate::api::models::processing::post_processing::PostProcessing;
 use crate::api::models::Model;
 use crate::api::{import::import_model, models::processing::pre_processing::slice_image};

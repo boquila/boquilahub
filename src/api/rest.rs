@@ -1,4 +1,4 @@
-use crate::api::models::processing::inference::AIOutputs;
+use crate::api::abstractions::AIOutputs;
 use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use super::abstractions::PredImg;
-use crate::api::models::processing::inference::AIOutputs;
+use crate::api::abstractions::AIOutputs;
 use crate::api::utils::create_predictions_file_path;
 use std::collections::HashMap;
 use std::fs::File;

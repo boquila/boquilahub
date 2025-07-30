@@ -1,11 +1,11 @@
 use crate::api::{
-    abstractions::ProbSpace,
+    abstractions::{AIOutputs, ProbSpace},
     models::{
         processing::{
             ensemble::ensemble::get_common_name,
-            inference::{inference, AIOutputs},
+            inference::inference,
             post_processing::{extract_output, process_class_output_logits, PostProcessing},
-            pre_processing::{imgbuf_to_input_array_nhwc},
+            pre_processing::imgbuf_to_input_array_nhwc,
         },
         ModelTrait, Task,
     },

@@ -1,6 +1,5 @@
 use super::abstractions::XYXYc;
-use crate::api::abstractions::{BitMatrix, PredImg, ProbSpace, SEGc};
-use crate::api::models::processing::inference::AIOutputs;
+use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, ProbSpace, SEGc};
 use crate::localization::translate;
 use ab_glyph::FontRef;
 use image::{DynamicImage, ImageBuffer, Rgb};

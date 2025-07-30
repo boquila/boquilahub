@@ -2,7 +2,7 @@ use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
     models::processing::{
-        inference::{inference, AIOutputs},
+        inference::{inference},
         post_processing::*,
         pre_processing::imgbuf_to_input_array,
     },

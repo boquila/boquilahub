@@ -1,10 +1,8 @@
 // The idea is to have the core funcionality that will alow us to do everything we need in the app
 // but also, enough abstractions so we can experiment and build more complex tools in the future
 #![allow(dead_code)]
-use crate::api::models::processing::inference::AIOutputs;
 use derive_new::new;
 use serde::{Deserialize, Serialize};
-use std::{fmt, path::PathBuf};
 
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
@@ -549,14 +547,14 @@ impl AI {
 
 #[derive(new, Clone)]
 pub struct PredImg {
-    pub file_path: PathBuf,
+    pub file_path: std::path::PathBuf,
     pub aioutput: Option<AIOutputs>,
     pub wasprocessed: bool,
 }
 
 impl PredImg {
     // Simple constructor: only file_path is provided
-    pub fn new_simple(file_path: PathBuf) -> Self {
+    pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         let aioutput = match super::import::read_predictions_from_file(&file_path) {
             Ok(predictions) => Some(predictions),
             Err(_) => None, // If file doesn't exist or can't be read, just use None
@@ -625,4 +623,22 @@ pub struct XYWHnc {
 pub struct Dependency {
     version: f32,
     name: String,
+}
+
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum AIOutputs {
+    ObjectDetection(Vec<XYXYc>),
+    Classification(ProbSpace),
+    Segmentation(Vec<SEGc>),
+}
+
+impl AIOutputs {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
+            AIOutputs::Classification(prob_space) => prob_space.classes.is_empty(),
+            AIOutputs::Segmentation(segments) => segments.is_empty(),
+        }
+    }
 }
