@@ -37,6 +37,7 @@ pub async fn run_cli() {
                         .value_parser(clap::value_parser!(u16)),
                 ),
         )
+        .subcommand(Command::new("list").about("Print list of models"))
         .get_matches();
 
     match matches.subcommand() {
@@ -81,6 +82,11 @@ pub async fn run_cli() {
                 eprintln!("Error running API: {}", e);
             }
         }
+        Some(("list", _sub_matches)) => {
+            let ais: Vec<AI> = get_bqs();
+            print_ais_table(&ais);            
+            std::process::exit(0);
+        }
         _ => {}
     }
 }
@@ -100,3 +106,59 @@ const ASCII_ART: &'static str = r#"
                           |__/                                      AI for Biodiversity
 
 "#;
+
+
+pub fn print_ais_table(ais: &Vec<AI>) {
+    use std::cmp;
+    
+    if ais.is_empty() {
+        println!("No AI models found.");
+        return;
+    }
+    
+    // Calculate column widths
+    let name_width = cmp::max(4, ais.iter().map(|ai| ai.name.len()).max().unwrap_or(0));
+    let task_width = cmp::max(4, ais.iter().map(|ai| ai.task.len()).max().unwrap_or(0));
+    let arch_width = cmp::max(12, ais.iter().map(|ai| ai.architecture.len()).max().unwrap_or(0));
+    let classes_width = 8;
+    
+    // Header
+    println!("┌─{:─<width1$}─┬─{:─<width2$}─┬─{:─<width3$}─┬─{:─<width4$}─┐", 
+             "", "", "", "", 
+             width1 = name_width, 
+             width2 = task_width, 
+             width3 = arch_width, 
+             width4 = classes_width);
+    
+    println!("│ {:^width1$} │ {:^width2$} │ {:^width3$} │ {:^width4$} │", 
+             "Name", "Task", "Architecture", "Classes",
+             width1 = name_width, 
+             width2 = task_width, 
+             width3 = arch_width, 
+             width4 = classes_width);
+    
+    println!("├─{:─<width1$}─┼─{:─<width2$}─┼─{:─<width3$}─┼─{:─<width4$}─┤", 
+             "", "", "", "", 
+             width1 = name_width, 
+             width2 = task_width, 
+             width3 = arch_width, 
+             width4 = classes_width);
+    
+    // Rows
+    for ai in ais {
+        let classes_count = ai.classes.len().to_string();
+        println!("│ {:width1$} │ {:width2$} │ {:width3$} │ {:>width4$} │", 
+                 ai.name, ai.task, ai.architecture, classes_count,
+                 width1 = name_width, 
+                 width2 = task_width, 
+                 width3 = arch_width, 
+                 width4 = classes_width);
+    }
+    
+    println!("└─{:─<width1$}─┴─{:─<width2$}─┴─{:─<width3$}─┴─{:─<width4$}─┘", 
+             "", "", "", "", 
+             width1 = name_width, 
+             width2 = task_width, 
+             width3 = arch_width, 
+             width4 = classes_width);
+}

@@ -4,7 +4,7 @@
 use crate::api::models::processing::inference::AIOutputs;
 use derive_new::new;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 /// Probabilities in the YOLO format
 /// `classes` is a Vec with the names for each classification
