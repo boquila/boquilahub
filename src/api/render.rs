@@ -110,7 +110,7 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
 
 const FONT_SCALE: f32 = 36.4;
 const LABEL_PADDING: f32 = FONT_SCALE / 6.13;
-const CHAR_WIDTH: f32 = FONT_SCALE / 1.84;
+const CHAR_WIDTH: f32 = FONT_SCALE / 2.55;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 pub const FONT_BYTES: &[u8] = include_bytes!("../../assets/NotoSansSC-Regular.ttf");
 static FONT: LazyLock<FontRef<'static>> =
@@ -127,7 +127,7 @@ pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOu
         }
         AIOutputs::Classification(prob_space) => {
             draw_cls_from_imgbuf(img, prob_space);
-        }
+        }   
     }
 }
 
@@ -139,6 +139,7 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &[
         let h = bbox.xyxy.y2 - bbox.xyxy.y1;
         let color = BBOX_COLORS[bbox.xyxy.class_id as usize % BBOX_COLORS.len()];
         let text = str_label(&bbox);
+        let len = text.split('\n').next().unwrap().len();
 
         draw_hollow_rect_mut(
             img,
@@ -152,7 +153,7 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &[
                 (bbox.xyxy.y1 - FONT_SCALE + LABEL_PADDING) as i32,
             )
             .of_size(
-                (text.len() as f32 * CHAR_WIDTH) as u32,
+                (len as f32 * CHAR_WIDTH) as u32,
                 FONT_SCALE as u32 + 4,
             ),
             color,
