@@ -5,7 +5,7 @@ use crate::api::{
             ensemble::ensemble::get_common_name,
             inference::inference,
             post_processing::{extract_output, process_class_output_logits, PostProcessing},
-            pre_processing::imgbuf_to_input_array_nhwc,
+            pre_processing::{imgbuf_to_input_array, TensorFormat},
         },
         ModelTrait, Task,
     },
@@ -73,8 +73,14 @@ impl ModelTrait for EfficientNetV2 {
         }
     }
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let input =
-            imgbuf_to_input_array_nhwc(1, 3, self.input_height, self.input_width, img);
+        let (input, _img_width, _img_height) = imgbuf_to_input_array(
+            1,
+            3,
+            self.input_height,
+            self.input_width,
+            img,
+            TensorFormat::NHWC,
+        );
         let outputs = inference(&self.session, &input, "input_2:0");
         let output = extract_output(&outputs, "Identity:0");
         let mut probs: ProbSpace =

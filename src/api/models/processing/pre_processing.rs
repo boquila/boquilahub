@@ -7,63 +7,47 @@ use ndarray::{Array, Ix4};
 
 const SCALE: f32 = 1.0 / 255.0;
 
+pub enum TensorFormat {
+    NCHW, // Batch, Channel, Height, Width
+    NHWC, // Batch, Height, Width, Channel
+}
+
 pub fn imgbuf_to_input_array(
     batch_size: usize,
     input_depth: usize,
     input_height: u32,
     input_width: u32,
     img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    format: TensorFormat,
 ) -> (Array<f32, Ix4>, u32, u32) {
-    let (img_width, img_height) = (img.width(), img.height());
-
+    let (img_width, img_height) = img.dimensions();
     let resized = resize(img, input_width, input_height, FilterType::Nearest);
 
-    let mut input = Array::zeros((
-        batch_size,
-        input_depth,
-        input_height as usize,
-        input_width as usize,
-    ));
+    let (h, w) = (input_height as usize, input_width as usize);
+    let mut input = match format {
+        TensorFormat::NCHW => Array::zeros((batch_size, input_depth, h, w)),
+        TensorFormat::NHWC => Array::zeros((batch_size, h, w, input_depth)),
+    };
 
     for (x, y, pixel) in resized.enumerate_pixels() {
-        let (x_u, y_u) = (x as usize, y as usize);
+        let (x, y) = (x as usize, y as usize);
         let [r, g, b, ..] = pixel.0;
+        let rgb: [f32; 3] = [r as f32 * SCALE, g as f32 * SCALE, b as f32 * SCALE];
 
-        let rgb_f32 = [(r as f32) * SCALE, (g as f32) * SCALE, (b as f32) * SCALE];
-
-        input[[0, 0, y_u, x_u]] = rgb_f32[0];
-        input[[0, 1, y_u, x_u]] = rgb_f32[1];
-        input[[0, 2, y_u, x_u]] = rgb_f32[2];
+        match format {
+            TensorFormat::NCHW => {
+                input[[0, 0, y, x]] = rgb[0];
+                input[[0, 1, y, x]] = rgb[1];
+                input[[0, 2, y, x]] = rgb[2];
+            }
+            TensorFormat::NHWC => {
+                input[[0, y, x, 0]] = rgb[0];
+                input[[0, y, x, 1]] = rgb[1];
+                input[[0, y, x, 2]] = rgb[2];
+            }
+        }
     }
-
     (input, img_width, img_height)
-}
-
-pub fn imgbuf_to_input_array_nhwc(
-    batch_size: usize,
-    input_depth: usize,
-    input_height: u32,
-    input_width: u32,
-    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
-) -> Array<f32, Ix4> {
-    let resized = resize(img, input_width, input_height, FilterType::Nearest);
-
-    let mut input = Array::zeros((
-        batch_size,
-        input_height as usize,
-        input_width as usize,
-        input_depth,
-    ));
-
-    for (x, y, pixel) in resized.enumerate_pixels() {
-        let x_u = x as usize;
-        let y_u = y as usize;
-        input[[0, y_u, x_u, 2]] = (pixel[2] as f32) / 255.0; // Blue
-        input[[0, y_u, x_u, 1]] = (pixel[1] as f32) / 255.0; // Green
-        input[[0, y_u, x_u, 0]] = (pixel[0] as f32) / 255.0; // Red
-    }
-
-    return input;
 }
 
 pub fn slice_image(

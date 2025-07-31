@@ -2,9 +2,9 @@ use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
     models::processing::{
-        inference::{inference},
+        inference::inference,
         post_processing::*,
-        pre_processing::imgbuf_to_input_array,
+        pre_processing::{imgbuf_to_input_array, TensorFormat},
     },
 };
 use image::{ImageBuffer, Rgb};
@@ -234,7 +234,7 @@ impl ModelTrait for Yolo {
 
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) =
-            imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img);
+            imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img, TensorFormat::NCHW);
         let outputs = inference(&self.session, &input, "images");
         match self.task {
             Task::Detect => {
