@@ -502,6 +502,7 @@ impl Gui {
                                 .into_iter()
                                 .map(|path| PredImg::new_simple(path))
                                 .collect();
+                            self.image_texture_n = 1;
                             self.paint(ctx, 0);
                             self.mode = Mode::Image;
                             self.img_state.progress_bar = self.selected_files.get_progress()

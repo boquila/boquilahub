@@ -5,6 +5,8 @@ use image::{
 };
 use ndarray::{Array, Ix4};
 
+const SCALE: f32 = 1.0 / 255.0;
+
 pub fn imgbuf_to_input_array(
     batch_size: usize,
     input_depth: usize,
@@ -24,11 +26,14 @@ pub fn imgbuf_to_input_array(
     ));
 
     for (x, y, pixel) in resized.enumerate_pixels() {
-        let x_u = x as usize;
-        let y_u = y as usize;
-        input[[0, 2, y_u, x_u]] = (pixel[2] as f32) / 255.0;
-        input[[0, 1, y_u, x_u]] = (pixel[1] as f32) / 255.0;
-        input[[0, 0, y_u, x_u]] = (pixel[0] as f32) / 255.0;
+        let (x_u, y_u) = (x as usize, y as usize);
+        let [r, g, b, ..] = pixel.0;
+
+        let rgb_f32 = [(r as f32) * SCALE, (g as f32) * SCALE, (b as f32) * SCALE];
+
+        input[[0, 0, y_u, x_u]] = rgb_f32[0];
+        input[[0, 1, y_u, x_u]] = rgb_f32[1];
+        input[[0, 2, y_u, x_u]] = rgb_f32[2];
     }
 
     (input, img_width, img_height)

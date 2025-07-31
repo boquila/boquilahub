@@ -228,7 +228,7 @@ pub fn draw_no_predictions(
     if let Some(lang) = lang {
         text = translate(crate::localization::Key::no_predictions, lang);
     }
-    // let text = "no predictions";
+
     let start_x = 10i32;
     let start_y = 10i32;
 
