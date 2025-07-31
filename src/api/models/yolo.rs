@@ -35,6 +35,9 @@ impl Yolo {
         img_height: u32,
     ) -> Vec<XYXYc> {
         let output = output.slice(s![.., .., 0]);
+        let x_scale = img_width as f32 / self.input_width as f32;
+        let y_scale = img_height as f32 / self.input_height as f32;
+
         let mut boxes: Vec<XYXY> = output
             .axis_iter(Axis(0))
             .filter_map(|row| {
@@ -50,14 +53,15 @@ impl Yolo {
                     return None;
                 }
 
-                let xc = row[0] / self.input_width as f32 * img_width as f32;
-                let yc = row[1] / self.input_height as f32 * img_height as f32;
-                let w = row[2] / self.input_width as f32 * img_width as f32;
-                let h = row[3] / self.input_height as f32 * img_height as f32;
-                let x1 = xc - w / 2.0;
-                let x2 = xc + w / 2.0;
-                let y1 = yc - h / 2.0;
-                let y2 = yc + h / 2.0;
+                let xc = row[0] * x_scale;
+                let yc = row[1] * y_scale;
+                let w = row[2] * x_scale;
+                let h = row[3] * y_scale;
+
+                let x1 = xc - w * 0.5;
+                let x2 = xc + w * 0.5;
+                let y1 = yc - h * 0.5;
+                let y2 = yc + h * 0.5;
 
                 Some(XYXY::new(x1, y1, x2, y2, prob, class_id as u32))
             })
@@ -108,7 +112,9 @@ impl Yolo {
             .unwrap()
             .permuted_axes([1, 0]) // -> (channels, h * w)
             .to_owned();
-
+        let x_scale = img_width as f32 / self.input_width as f32;
+        let y_scale = img_height as f32 / self.input_height as f32;
+        
         // Process all detections with iterator chain
         let (mut segmentations, bounding_boxes): (Vec<SEGc>, Vec<XYXY>) = bbox_and_scores
             .axis_iter(Axis(0))
@@ -135,14 +141,15 @@ impl Yolo {
                     .expect("Failed to reshape mask")
                     .to_owned(); // make it an Array2<f32>
 
-                let xc = values[0] / self.input_width as f32 * img_width as f32;
-                let yc = values[1] / self.input_height as f32 * img_height as f32;
-                let w = values[2] / self.input_width as f32 * img_width as f32;
-                let h = values[3] / self.input_height as f32 * img_height as f32;
-                let x1 = xc - w / 2.0;
-                let x2 = xc + w / 2.0;
-                let y1 = yc - h / 2.0;
-                let y2 = yc + h / 2.0;
+                let xc = values[0] * x_scale;
+                let yc = values[1] * y_scale;
+                let w = values[2] * x_scale;
+                let h = values[3] * y_scale;
+
+                let x1 = xc - w * 0.5;
+                let x2 = xc + w * 0.5;
+                let y1 = yc - h * 0.5;
+                let y2 = yc + h * 0.5;
                 let bbox = XYXY::new(x1, y1, x2, y2, score, class_id as u32);
                 let seg = process_mask(
                     mask,
@@ -233,8 +240,14 @@ impl ModelTrait for Yolo {
     }
 
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let (input, img_width, img_height) =
-            imgbuf_to_input_array(1, 3, self.input_height, self.input_width, img, TensorFormat::NCHW);
+        let (input, img_width, img_height) = imgbuf_to_input_array(
+            1,
+            3,
+            self.input_height,
+            self.input_width,
+            img,
+            TensorFormat::NCHW,
+        );
         let outputs = inference(&self.session, &input, "images");
         match self.task {
             Task::Detect => {
