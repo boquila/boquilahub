@@ -8,36 +8,36 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install build dependencies
+
+    - name: Install build tools
       run: |
-        # Install NASM and pkg-config for FFmpeg compilation
-        choco install nasm pkgconfiglite
-        # Install FFmpeg development libraries
-        choco install ffmpeg --params "'/InstallDir:C:\ffmpeg'"
-        # Add to PATH
-        echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        choco install nasm pkgconfiglite 7zip
+
+    - name: Download and extract FFmpeg dev build
+      run: |
+        curl -LO https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z
+        7z x ffmpeg-git-full.7z -offmpeg
+        $ffmpegDir = Get-ChildItem .\ffmpeg | Where-Object { $_.PSIsContainer } | Select-Object -First 1
+        Move-Item ".\ffmpeg\$($ffmpegDir.Name)" "C:\ffmpeg"
         echo "C:\ffmpeg\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    
+        echo "PKG_CONFIG_PATH=C:\ffmpeg\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
-    
+
     - name: Build with static FFmpeg
       run: cargo build
       env:
-        # Use system FFmpeg with pkg-config
         PKG_CONFIG_ALLOW_SYSTEM_LIBS: 1
         PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
-        PKG_CONFIG_PATH: "C:\\ffmpeg\\lib\\pkgconfig"
-    
+
     - name: Test Run (with timeout)
       run: |
-        # Run the binary with a 30 second timeout
         timeout 30 cargo run
       continue-on-error: true
