@@ -3,6 +3,7 @@ name: Build and Test Run on Linux
 on:
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
