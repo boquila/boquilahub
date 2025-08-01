@@ -1008,7 +1008,7 @@ impl Gui {
                 updates.push(img);
             }
 
-            for (bbox, img) in updates {
+            for (_, img) in updates {
                 self.feed_state.texture = imgbuf_to_texture(&img, ctx)
             }
 
