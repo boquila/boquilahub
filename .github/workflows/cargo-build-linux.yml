@@ -18,13 +18,22 @@ jobs:
         toolchain: stable
         override: true
     
-    - name: Install GUI dependencies
+    - name: Install build dependencies for static FFmpeg
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb
+        sudo apt-get install -y \
+          xvfb \
+          build-essential \
+          yasm \
+          nasm \
+          cmake \
+          pkg-config
     
-    - name: Build
+    - name: Build with static FFmpeg
       run: cargo build
+      env:
+        # Force static linking - builds FFmpeg from source
+        FFMPEG_SYS_STATIC: 1
     
     - name: Test Run (with virtual display)
       run: |

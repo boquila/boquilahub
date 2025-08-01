@@ -12,14 +12,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install build dependencies
+      run: |
+        # Install NASM for FFmpeg compilation
+        choco install nasm
+    
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
     
-    - name: Build
+    - name: Build with static FFmpeg
       run: cargo build
+      env:
+        # Force static linking - builds FFmpeg from source
+        FFMPEG_SYS_STATIC: 1
     
     - name: Test Run (with timeout)
       run: |
