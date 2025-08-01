@@ -103,9 +103,11 @@ impl Yolo {
             .to_owned();
         // Reshape prototype tensor to (channels, height * width)
         let proto_raw = proto_tensor.slice(s![.., .., .., 0]); // shape: (batch, h, w)
+
+        #[allow(deprecated)]
         let proto_mask_features = proto_raw
             .to_owned()
-            .to_shape((
+            .into_shape((
                 self.mask_height as usize * self.mask_width as usize,
                 self.num_masks as usize,
             )) // (h * w, channels)
@@ -135,9 +137,10 @@ impl Yolo {
 
                 let coeffs = coefs.row(index).insert_axis(ndarray::Axis(0)); // shape: (1, 32)
 
+                #[allow(deprecated)]
                 let mask: Array2<f32> = coeffs
                     .dot(&proto_mask_features) // shape: (1, h * w)
-                    .to_shape((self.mask_height as usize, self.mask_width as usize)) // reshape
+                    .into_shape((self.mask_height as usize, self.mask_width as usize)) // reshape
                     .expect("Failed to reshape mask")
                     .to_owned(); // make it an Array2<f32>
 
