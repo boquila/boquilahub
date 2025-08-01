@@ -6,37 +6,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-run:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-    
-    - name: Install build dependencies for static FFmpeg
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          xvfb \
-          build-essential \
-          yasm \
-          nasm \
-          cmake \
-          pkg-config
-    
-    - name: Build with static FFmpeg
-      run: cargo build
-      env:
-        # Force static linking - builds FFmpeg from source
-        FFMPEG_SYS_STATIC: 1
-    
-    - name: Test Run (with virtual display)
-      run: |
-        # Run with virtual display and 30 second timeout
-        xvfb-run -a timeout 30 cargo run
-      continue-on-error: true
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download FFmpeg
+        run: |
+          curl -L -o ffmpeg-release.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+          mkdir ffmpeg
+          tar -xf ffmpeg-release.tar.xz -C ffmpeg --strip-components=1
+
+      - name: Set FFMPEG_DIR and PATH
+        run: |
+          echo "FFMPEG_DIR=${{ github.workspace }}/ffmpeg" >> $GITHUB_ENV
+          echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build
+        run: cargo build
+
+      - name: Run for at least 30 seconds
+        run: |
+          cargo run &
+          sleep 30
