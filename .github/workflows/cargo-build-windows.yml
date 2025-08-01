@@ -14,8 +14,13 @@ jobs:
     
     - name: Install build dependencies
       run: |
-        # Install NASM for FFmpeg compilation
-        choco install nasm
+        # Install NASM and pkg-config for FFmpeg compilation
+        choco install nasm pkgconfiglite
+        # Install FFmpeg development libraries
+        choco install ffmpeg --params "'/InstallDir:C:\ffmpeg'"
+        # Add to PATH
+        echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "C:\ffmpeg\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
@@ -26,8 +31,10 @@ jobs:
     - name: Build with static FFmpeg
       run: cargo build
       env:
-        # Force static linking - builds FFmpeg from source
-        FFMPEG_SYS_STATIC: 1
+        # Use system FFmpeg with pkg-config
+        PKG_CONFIG_ALLOW_SYSTEM_LIBS: 1
+        PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: 1
+        PKG_CONFIG_PATH: "C:\\ffmpeg\\lib\\pkgconfig"
     
     - name: Test Run (with timeout)
       run: |
