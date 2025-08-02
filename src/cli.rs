@@ -9,22 +9,22 @@ use clap::{Args, Parser, Subcommand};
 use std::process::exit;
 
 #[derive(Args)]
-struct ServeArgs {
+pub struct ServeArgs {
     /// Model name to deploy
     #[arg(long, value_name = "MODEL_NAME", required = true)]
-    model: String,
+    pub model: String,
 
     /// Model name to deploy, complementary classification model
     #[arg(long, value_name = "MODEL_CLS_NAME", required = false)]
-    model_cls: Option<String>,
+    pub model_cls: Option<String>,
 
     /// Port number for the server
     #[arg(long, value_name = "PORT", default_value = "8791")]
-    port: u16,
+    pub port: u16,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+pub enum Commands {
     /// Deploy and serve a model
     Serve(ServeArgs),
 
@@ -38,15 +38,13 @@ enum Commands {
     version = "0.3",
     about = "BoquilaHUB - GUI and CLI tool"
 )]
-struct Cli {
+pub struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    pub command: Option<Commands>,
 }
 
-pub async fn run_cli() {
-    let cli = Cli::parse();
-
-    match &cli.command {
+pub async fn run_cli(command: Commands) {
+    match command {
         Commands::Serve(args) => {
             let model_name = &args.model;
             let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
