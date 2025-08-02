@@ -4,6 +4,10 @@ use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ImageBuffer, Rgba};
 use reqwest::blocking::Client;
+
+#[cfg(windows)]
+use std::os::windows::process;
+
 use std::str;
 
 async fn upload(mut multipart: Multipart) -> String {
@@ -103,7 +107,8 @@ pub fn get_ipv4_address() -> Option<String> {
 
         None
     }
-    None
+
+    return None;
 }
 
 pub async fn check_boquila_hub_api(url: &str) -> bool {
