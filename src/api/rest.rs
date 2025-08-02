@@ -6,7 +6,8 @@ use image::{DynamicImage, ImageBuffer, Rgba};
 use reqwest::blocking::Client;
 
 #[cfg(windows)]
-use std::os::windows::process;
+use std::os::windows::process::CommandExt;
+use std::process::Command;
 
 use std::str;
 
@@ -106,6 +107,27 @@ pub fn get_ipv4_address() -> Option<String> {
         }
 
         None
+    }
+
+    #[cfg(not(windows))]
+    {
+        let output = Command::new("ip")
+            .args(["addr", "show"])
+            .output()
+            .ok()?
+            .stdout;
+
+        let output_str = String::from_utf8_lossy(&output);
+
+        for line in output_str.lines() {
+            if line.trim().starts_with("inet ") {
+                let ip = line.split('/').next()?.split_ascii_whitespace().last()?;
+
+                if !ip.starts_with("127.") {
+                    return Some(ip.to_string());
+                }
+            }
+        }
     }
 
     return None;
