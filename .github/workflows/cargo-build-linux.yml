@@ -1,9 +1,6 @@
 name: Build and Test Run on Linux
 
 on:
-  push:
-   branches: ["main"]
-
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
