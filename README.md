@@ -75,6 +75,30 @@ Probably instead of cloning from main, you should prefer to get the source code 
 
 ## Dependencies
 
-- ONNXRuntime
+### FFmpeg
 
-- ffmpeg
+This project requires FFmpeg to be installed and available in your system PATH.
+
+**Windows:**
+
+```bash
+curl -L -o ffmpeg.7z https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build-shared.7z
+7z x ffmpeg.7z -offmpeg -y
+
+set FFMPEG_DIR=%cd%\ffmpeg\ffmpeg-7.1.1-full_build-shared
+set PATH=%FFMPEG_DIR%\bin;%PATH%
+```
+
+**Linux:**
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  ffmpeg \
+  libavutil-dev \
+  libavcodec-dev \
+  libavformat-dev \
+  libswscale-dev \
+  libavdevice-dev \
+  libavfilter-dev \
+  libswresample-dev
+```
