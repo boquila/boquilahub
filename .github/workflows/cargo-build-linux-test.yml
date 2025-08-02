@@ -37,10 +37,10 @@ jobs:
     #       mkdir ffmpeg
     #       tar -xf ffmpeg-release.tar.xz -C ffmpeg --strip-components=1
 
-      - name: Set FFMPEG_DIR and PATH
-        run: |
-          echo "FFMPEG_DIR=${{ github.workspace }}/ffmpeg" >> $GITHUB_ENV
-          echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
+    #   - name: Set FFMPEG_DIR and PATH
+    #     run: |
+    #       echo "FFMPEG_DIR=${{ github.workspace }}/ffmpeg" >> $GITHUB_ENV
+    #       echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
