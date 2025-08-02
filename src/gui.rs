@@ -70,8 +70,8 @@ pub struct Gui {
     ai_selected: Option<usize>,
     ai_cls_selected: Option<usize>,
     ep_selected: usize,
-    video_step_frame: usize,
-    feed_step_frame: usize,
+    // video_step_frame: usize,
+    // feed_step_frame: usize,
     current_frame: u64,
     total_frames: Option<u64>,
 
@@ -85,7 +85,7 @@ pub struct Gui {
     show_ai_cls: bool,
     is_done: bool,
     isapi_deployed: bool,
-    save_img_from_strema: bool,
+    // save_img_from_strema: bool,
     error_ocurred: bool,
     show_export_dialog: bool,
     show_feed_url_dialog: bool,
@@ -163,8 +163,8 @@ impl Gui {
             ai_cls_selected: None,
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
-            video_step_frame: 1,
-            feed_step_frame: 1,
+            // video_step_frame: 1,
+            // feed_step_frame: 1,
             current_frame: 0,
             total_frames: None,
             show_ai_cls: false,
@@ -173,7 +173,7 @@ impl Gui {
             error_time: None,
             lang: get_locale(),
             isapi_deployed: false,
-            save_img_from_strema: false,
+            // save_img_from_strema: false,
             error_ocurred: false,
             show_export_dialog: false,
             show_feed_url_dialog: false,
@@ -1008,7 +1008,7 @@ impl Gui {
                 updates.push(img);
             }
 
-            for (bbox, img) in updates {
+            for (_, img) in updates {
                 self.feed_state.texture = imgbuf_to_texture(&img, ctx)
             }
 

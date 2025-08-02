@@ -5,50 +5,54 @@ use crate::api::{
     inference::{set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
-use clap::{Arg, Command};
+use clap::{Args, Parser, Subcommand};
+use std::process::exit;
 
-pub async fn run_cli() {
-    let matches = Command::new("BoquilaHUB")
-        .version("0.3")
-        .about("BoquilaHUB - GUI and CLI tool")
-        .subcommand(
-            Command::new("serve")
-                .about("Deploy and serve a model")
-                .arg(
-                    Arg::new("model")
-                        .long("model")
-                        .help("Model name to deploy")
-                        .value_name("MODEL_NAME")
-                        .required(true),
-                )
-                .arg(
-                    Arg::new("model_cls")
-                        .long("model_cls")
-                        .help("Model name to deploy, complementary classification model")
-                        .value_name("MODEL_CLS_NAME")
-                        .required(false),
-                )
-                .arg(
-                    Arg::new("port")
-                        .long("port")
-                        .help("Port number for the server")
-                        .value_name("PORT")
-                        .default_value("8791")
-                        .value_parser(clap::value_parser!(u16)),
-                ),
-        )
-        .subcommand(Command::new("list").about("Print list of models"))
-        .get_matches();
+#[derive(Args)]
+pub struct ServeArgs {
+    /// Model name to deploy
+    #[arg(long, value_name = "MODEL_NAME", required = true)]
+    pub model: String,
 
-    match matches.subcommand() {
-        Some(("serve", sub_matches)) => {
-            let model_name = sub_matches.get_one::<String>("model").unwrap();
+    /// Model name to deploy, complementary classification model
+    #[arg(long, value_name = "MODEL_CLS_NAME", required = false)]
+    pub model_cls: Option<String>,
+
+    /// Port number for the server
+    #[arg(long, value_name = "PORT", default_value = "8791")]
+    pub port: u16,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    /// Deploy and serve a model
+    Serve(ServeArgs),
+
+    /// Print list of models
+    List,
+}
+
+#[derive(Parser)]
+#[command(
+    name = "BoquilaHUB",
+    version = "0.3",
+    about = "BoquilaHUB - GUI and CLI tool"
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+pub async fn run_cli(command: Commands) {
+    match command {
+        Commands::Serve(args) => {
+            let model_name = &args.model;
             let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
             let model_path = format!("models/{}.bq", model_name_clean);
 
             let ais: Vec<AI> = get_bqs();
 
-            if let Some(model_cls_name) = sub_matches.get_one::<String>("model_cls") {
+            if let Some(model_cls_name) = &args.model_cls {
                 let model_cls_name_clean =
                     model_cls_name.strip_suffix(".bq").unwrap_or(model_cls_name);
                 let model_cls_path = format!("models/{}.bq", model_cls_name_clean);
@@ -65,7 +69,7 @@ pub async fn run_cli() {
                 set_model2(&model_cls_path, &LIST_EPS[1]);
             }
 
-            let port = *sub_matches.get_one::<u16>("port").unwrap();
+            let port = args.port;
 
             let found = ais.iter().any(|ai| ai.get_path().contains(&model_path));
             if !found {
@@ -77,13 +81,16 @@ pub async fn run_cli() {
             }
 
             set_model(&model_path, &LIST_EPS[1]);
+
             let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
             println!("{}", ASCII_ART);
-            if let Some(model_cls_name) = sub_matches.get_one::<String>("model_cls") {
+
+            if let Some(model_cls_name) = &args.model_cls {
                 println!("Model deployed: {} with {}", model_name, model_cls_name);
             } else {
                 println!("Model deployed: {}", model_name);
             }
+
             println!("IP Address: {}", ip_text);
 
             let result = run_api(port).await;
@@ -91,12 +98,11 @@ pub async fn run_cli() {
                 eprintln!("Error running API: {}", e);
             }
         }
-        Some(("list", _sub_matches)) => {
+        Commands::List => {
             let ais: Vec<AI> = get_bqs();
             print_ais_table(&ais);
-            std::process::exit(0);
+            exit(0);
         }
-        _ => {}
     }
 }
 

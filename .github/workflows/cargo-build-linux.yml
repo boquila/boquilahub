@@ -1,8 +1,11 @@
 name: Build and Test Run on Linux
 
 on:
+  push:
+   branches: ["main"]
+
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -11,19 +14,22 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Download FFmpeg
+      - name: Install FFmpeg
+        shell: bash
         run: |
-          curl -L -o ffmpeg-release.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-          mkdir ffmpeg
-          tar -xf ffmpeg-release.tar.xz -C ffmpeg --strip-components=1
-
-      - name: Set FFMPEG_DIR and PATH
-        run: |
-          echo "FFMPEG_DIR=${{ github.workspace }}/ffmpeg" >> $GITHUB_ENV
-          echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
-
+          sudo apt-get update
+          sudo apt-get install -y \
+            ffmpeg \
+            libavutil-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libswscale-dev \
+            libavdevice-dev \
+            libavfilter-dev \
+            libswresample-dev
+            
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:

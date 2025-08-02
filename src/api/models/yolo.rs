@@ -103,6 +103,8 @@ impl Yolo {
             .to_owned();
         // Reshape prototype tensor to (channels, height * width)
         let proto_raw = proto_tensor.slice(s![.., .., .., 0]); // shape: (batch, h, w)
+
+        #[allow(deprecated)]
         let proto_mask_features = proto_raw
             .to_owned()
             .into_shape((
@@ -114,7 +116,7 @@ impl Yolo {
             .to_owned();
         let x_scale = img_width as f32 / self.input_width as f32;
         let y_scale = img_height as f32 / self.input_height as f32;
-        
+
         // Process all detections with iterator chain
         let (mut segmentations, bounding_boxes): (Vec<SEGc>, Vec<XYXY>) = bbox_and_scores
             .axis_iter(Axis(0))
@@ -135,6 +137,7 @@ impl Yolo {
 
                 let coeffs = coefs.row(index).insert_axis(ndarray::Axis(0)); // shape: (1, 32)
 
+                #[allow(deprecated)]
                 let mask: Array2<f32> = coeffs
                     .dot(&proto_mask_features) // shape: (1, h * w)
                     .into_shape((self.mask_height as usize, self.mask_width as usize)) // reshape

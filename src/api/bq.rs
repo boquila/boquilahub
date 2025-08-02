@@ -41,7 +41,7 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
         .and_then(|s| s.to_str())
         .unwrap()
         .to_string();
-    
+
     // Set the name field
     ai_model.name = name;
 
@@ -62,11 +62,11 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
 
 pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
     let mut file = File::open(file_path)?;
-    
+
     // Read header (magic + version + length)
     let mut header = [0u8; 12];
     file.read_exact(&mut header)?;
-    
+
     // Validate magic string
     if &header[..7] != b"BQMODEL" {
         return Err(io::Error::new(
@@ -74,7 +74,7 @@ pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
             "Invalid file format",
         ));
     }
-    
+
     // Check version
     if header[7] != 1 {
         return Err(io::Error::new(
@@ -82,17 +82,17 @@ pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
             "Unsupported version",
         ));
     }
-    
+
     // Get JSON length
     let json_length = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
-    
+
     // Read only the JSON section
     let mut json_data = vec![0u8; json_length];
     file.read_exact(&mut json_data)?;
-    
+
     let json_str = String::from_utf8(json_data)
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse JSON"))?;
-    
+
     // Deserialize JSON into AImodel
     let mut ai_model: AI = serde_json::from_str(&json_str)
         .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
@@ -104,21 +104,23 @@ pub fn get_ai_model(file_path: &str) -> io::Result<AI> {
         .and_then(|s| s.to_str())
         .unwrap()
         .to_string();
-    
+
     // Set the name field
     ai_model.name = name;
-    
-    return Ok(ai_model)
+
+    return Ok(ai_model);
 }
 
 fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
     // Validate the folder path
     let path = Path::new(folder_path);
-    if !path.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Specified path is not a directory",
-        ));
+    if !path.is_dir() || !path.exists() {
+        if let Err(error) = fs::create_dir(folder_path) {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Could not create {folder_path} with error: {error}"),
+            ));
+        }
     }
 
     // Collect BQ files and process them

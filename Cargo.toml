@@ -17,13 +17,13 @@ eframe = { version = "0.32.0", default-features = false, features = [
 ] }
 egui_extras = { version = "0.32.0", features = ["all_loaders"] }
 ffmpeg-next = "7.1.0"
-image = { version = "0.25.6", features = ["jpeg", "png"] } 
+image = { version = "0.25.6", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-ort = { version = "2.0.0-rc.9", features = ["cuda"]}
+ort = { version = "2.0.0-rc.9", features = ["cuda"] }
 regex = "1.11.1"
-axum = { version = "0.8.3", features = ["multipart"]}
+axum = { version = "0.8.3", features = ["multipart"] }
 tokio = { version = "1.44.2", features = ["full"] }
 reqwest = { version = "0.12.15", features = ["blocking", "multipart"] }
 video-rs = { version = "0.10.3", features = ["ndarray"] }
@@ -31,7 +31,7 @@ imageproc = "0.25.0"
 ab_glyph = "0.2.29"
 chrono = "0.4.41"
 rfd = "0.15.3"
-clap = "4.5.39"
+clap = { version = "4.5.39", features = ["derive"] }
 derive-new = "0.7.0"
 sys-locale = "0.3.2"
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
