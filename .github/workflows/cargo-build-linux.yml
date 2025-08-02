@@ -16,7 +16,8 @@ jobs:
       - name: Install FFmpeg
         shell: bash
         run:
-          sudo apt install -y \
+          sudo apt-get update
+          sudo apt-get install -y \
             ffmpeg \
             libavutil-dev \
             libavcodec-dev \
