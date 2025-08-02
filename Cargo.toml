@@ -45,9 +45,5 @@ strip = true
 codegen-units = 1
 opt-level = 3
 
-# Optimize all dependencies even in debug builds:
-[profile.dev.package."*"]
-opt-level = 2
-
 [build-dependencies]
 embed-resource = "3.0"
