@@ -30,18 +30,7 @@ jobs:
             libavdevice-dev \
             libavfilter-dev \
             libswresample-dev
-
-    #   - name: Download FFmpeg
-    #     run: |
-    #       curl -L -o ffmpeg-release.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-    #       mkdir ffmpeg
-    #       tar -xf ffmpeg-release.tar.xz -C ffmpeg --strip-components=1
-
-    #   - name: Set FFMPEG_DIR and PATH
-    #     run: |
-    #       echo "FFMPEG_DIR=${{ github.workspace }}/ffmpeg" >> $GITHUB_ENV
-    #       echo "${{ github.workspace }}/ffmpeg" >> $GITHUB_PATH
-
+            
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
