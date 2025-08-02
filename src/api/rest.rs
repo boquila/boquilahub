@@ -105,8 +105,6 @@ pub fn get_ipv4_address() -> Option<String> {
                 return line.split(": ").last().map(|ip| ip.trim().to_string());
             }
         }
-
-        None
     }
 
     #[cfg(not(windows))]
