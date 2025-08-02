@@ -10,7 +10,6 @@ on:
 
 jobs:
   build-and-run:
-    if: github.repository == 'reim-developer/boquilahub'
     runs-on: ubuntu-latest
 
     steps:
