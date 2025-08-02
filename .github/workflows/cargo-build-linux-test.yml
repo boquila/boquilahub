@@ -2,11 +2,12 @@ name: Build and Test Run on Linux
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ "dev" ]
   workflow_dispatch:
 
 jobs:
   build-and-run:
+    if: github.repository == 'reim-developer/boquilahub'
     runs-on: ubuntu-latest
 
     steps:
@@ -15,7 +16,7 @@ jobs:
 
       - name: Install FFmpeg
         shell: bash
-        run:
+        run: |
           sudo apt-get update
           sudo apt-get install -y \
             ffmpeg \
@@ -27,11 +28,11 @@ jobs:
             libavfilter-dev \
             libswresample-dev
 
-      - name: Download FFmpeg
-        run: |
-          curl -L -o ffmpeg-release.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-          mkdir ffmpeg
-          tar -xf ffmpeg-release.tar.xz -C ffmpeg --strip-components=1
+    #   - name: Download FFmpeg
+    #     run: |
+    #       curl -L -o ffmpeg-release.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+    #       mkdir ffmpeg
+    #       tar -xf ffmpeg-release.tar.xz -C ffmpeg --strip-components=1
 
       - name: Set FFMPEG_DIR and PATH
         run: |

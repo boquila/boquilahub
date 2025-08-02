@@ -2,11 +2,12 @@ name: Build and Test Run on Windows
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ "dev" ]
   workflow_dispatch:
 
 jobs:
   build-and-run:
+    if: github.repository == 'reim-developer/boquilahub'
     runs-on: windows-latest
 
     steps:
