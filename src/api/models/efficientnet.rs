@@ -1,13 +1,11 @@
 use crate::api::{
     abstractions::{AIOutputs, ProbSpace},
-    models::{
-        processing::{
-            ensemble::ensemble::get_common_name,
-            inference::inference,
-            post_processing::{extract_output, process_class_output_logits, PostProcessing},
-            pre_processing::{imgbuf_to_input_array, TensorFormat},
-        },
-        ModelTrait, Task,
+    models::{ModelTrait, Task},
+    processing::{
+        post_processing::get_common_name,
+        inference::inference,
+        post_processing::{extract_output, process_class_output_logits, PostProcessing},
+        pre_processing::{imgbuf_to_input_array, TensorFormat},
     },
 };
 use image::{ImageBuffer, Rgb};

@@ -10,3 +10,4 @@ pub mod utils;
 pub mod import;
 pub mod stream;
 pub mod models;
+pub mod processing;

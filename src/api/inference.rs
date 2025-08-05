@@ -4,9 +4,10 @@ use super::bq::import_bq;
 use super::eps::EP;
 use super::models::Task;
 use crate::api::abstractions::AIOutputs;
-use crate::api::models::processing::post_processing::PostProcessing;
 use crate::api::models::Model;
-use crate::api::{import::import_model, models::processing::pre_processing::slice_image};
+use crate::api::processing::post_processing::PostProcessing;
+use crate::api::processing::pre_processing::slice_image;
+use crate::api::{import::import_model};
 use image::{ImageBuffer, Rgb};
 use std::sync::{OnceLock, RwLock};
 
