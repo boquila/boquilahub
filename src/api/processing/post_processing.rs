@@ -210,34 +210,51 @@ pub fn transform_logits_to_probs(prob_space: &mut ProbSpace) {
 pub struct SpeciesRecord {
     pub uuid: String,
     pub class: String,
-    pub order: String,
-    pub family: String,
-    pub genus: String,
-    pub species: String,
-    pub common_name: String,
+    pub order: Option<String>,
+    pub family: Option<String>,
+    pub genus: Option<String>,
+    pub species: Option<String>,
+    pub common_name: Option<String>,
 }
 
 impl SpeciesRecord {
-    pub fn new(line: &str) -> Result<SpeciesRecord, ()> {
+    pub fn new(line: &str) -> Result<SpeciesRecord, String> {
         let parts: Vec<&str> = line.trim().split(';').collect();
         if parts.len() < 7 {
-            return Err(());
+            return Err("Insufficient number of fields".to_string());
         }
+
+        let uuid = parts[0].trim();
+        let class = parts[1].trim();
+
+        let to_option = |s: &str| {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        };
+
         Ok(SpeciesRecord {
-            uuid: parts[0].to_string(),
-            class: parts[1].to_string(),
-            order: parts[2].to_string(),
-            family: parts[3].to_string(),
-            genus: parts[4].to_string(),
-            species: parts[5].to_string(),
-            common_name: parts[6].to_string(),
+            uuid: uuid.to_string(),
+            class: class.to_string(),
+            order: to_option(parts[2]),
+            family: to_option(parts[3]),
+            genus: to_option(parts[4]),
+            species: to_option(parts[5]),
+            common_name: to_option(parts[6]),
         })
     }
 
     pub fn to_taxonomic_string(&self) -> String {
         format!(
             "{};{};{};{};{}",
-            self.class, self.order, self.family, self.genus, self.species
+            self.class,
+            self.order.as_ref().unwrap_or(&String::new()),
+            self.family.as_ref().unwrap_or(&String::new()),
+            self.genus.as_ref().unwrap_or(&String::new()),
+            self.species.as_ref().unwrap_or(&String::new())
         )
     }
 }
@@ -280,16 +297,12 @@ pub fn apply_geofence_filter(
     for (i, class_name) in probs.classes.iter().enumerate() {
         if let Ok(record) = SpeciesRecord::new(class_name) {
             let taxonomic_string = record.to_taxonomic_string();
-
             // Check if this taxonomic string exists in geofence data
             if let Some(countries) = geofence_data.get(&taxonomic_string) {
                 // Check if target country is in the allowed countries list
                 if countries.contains(&target_country.to_string()) {
                     filtered_indices.push(i);
                 }
-            } else {
-                // If not in geofence data, keep it (or you could choose to filter it out)
-                filtered_indices.push(i);
             }
         }
     }
@@ -325,7 +338,7 @@ pub fn apply_label_rollup(probs: &mut ProbSpace, confidence_threshold: f32) {
         })
         .collect();
 
-    // Find the highest confidence record to use as the base for rollup
+    // Find the highest confidence record (for fallback)
     let (best_record, best_confidence, best_class_id) = record_confidence_pairs
         .iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
@@ -334,104 +347,129 @@ pub fn apply_label_rollup(probs: &mut ProbSpace, confidence_threshold: f32) {
 
     // Check if the best prediction already meets the threshold
     if best_confidence >= confidence_threshold {
-        let name = if !best_record.common_name.is_empty() {
-            if best_record.genus.trim().is_empty() || best_record.species.trim().is_empty() {
-                best_record.common_name.clone()
-            } else {
-                format!(
-                    "{} {} ({})",
-                    best_record.genus.trim(),
-                    best_record.species.trim(),
-                    best_record.common_name
-                )
-            }
-        } else {
-            if best_record.genus.trim().is_empty() || best_record.species.trim().is_empty() {
-                "Unknown species".to_string()
-            } else {
-                format!(
-                    "{} {}",
-                    best_record.genus.trim(),
-                    best_record.species.trim()
-                )
-            }
-        };
-
-        // Return single high-confidence prediction
+        let name = format_species_name(&best_record);
         probs.classes = vec![name];
         probs.probs = vec![best_confidence];
         probs.classes_ids = vec![best_class_id];
         return;
     }
 
-    // Try rollup at each taxonomic level until threshold is met
-    let levels = [
-        ("genus", &best_record.genus),
-        ("family", &best_record.family),
-        ("order", &best_record.order),
-        ("class", &best_record.class),
-    ];
-
-    for (level_name, level_value) in levels {
-        if level_value.trim().is_empty() {
-            continue;
+    // Build consensus at each taxonomic level and track the best overall
+    let taxonomic_levels = ["species", "genus", "family", "order", "class"];
+    let mut best_rollup: Option<(String, f32, u32)> = None;
+    
+    for level in taxonomic_levels {
+        let mut level_totals: HashMap<String, (f32, Vec<u32>)> = HashMap::new();
+        
+        // Aggregate confidence by taxonomic group at this level
+        for (record, confidence, class_id) in &record_confidence_pairs {
+            if let Some(taxon_name) = get_taxon_at_level(record, level) {
+                let entry = level_totals.entry(taxon_name).or_insert((0.0, Vec::new()));
+                entry.0 += confidence;
+                entry.1.push(*class_id);
+            }
         }
-
-        let total_confidence: f32 = record_confidence_pairs
+        
+        // Find the highest confidence group at this level
+        if let Some((best_taxon, (total_confidence, _))) = level_totals
             .iter()
-            .filter(|(record, _, _)| match level_name {
-                "genus" => record.genus == *level_value,
-                "family" => record.family == *level_value,
-                "order" => record.order == *level_value,
-                "class" => record.class == *level_value,
-                _ => false,
-            })
-            .map(|(_, conf, _)| conf)
-            .sum();
-
-        if total_confidence >= confidence_threshold {
-            // Format the rolled-up name based on taxonomic level
-            let rolled_up_name = match level_name {
-                "genus" => format!("{} sp.", level_value.trim()),
-                "family" => format!("Family {}", level_value.trim()),
-                "order" => format!("Order {}", level_value.trim()),
-                "class" => format!("Class {}", level_value.trim()),
-                _ => level_value.trim().to_string(),
-            };
-
-            // Return single rolled-up prediction
-            probs.classes = vec![rolled_up_name];
-            probs.probs = vec![total_confidence];
-            probs.classes_ids = vec![best_class_id];
-            return;
+            .max_by(|a, b| a.1.0.partial_cmp(&b.1.0).unwrap())
+        {
+            // If this meets threshold, return immediately
+            if *total_confidence >= confidence_threshold {
+                let rolled_up_name = format_taxonomic_name(level, best_taxon);
+                
+                // Use the class_id from the highest individual confidence within this group
+                let best_class_id_in_group = record_confidence_pairs
+                    .iter()
+                    .filter(|(record, _, _)| {
+                        get_taxon_at_level(record, level)
+                            .map_or(false, |taxon| &taxon == best_taxon)
+                    })
+                    .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                    .map(|(_, _, id)| *id)
+                    .unwrap_or(best_class_id);
+                
+                probs.classes = vec![rolled_up_name];
+                probs.probs = vec![*total_confidence];
+                probs.classes_ids = vec![best_class_id_in_group];
+                return;
+            }
+            
+            // Track the best rollup even if it doesn't meet threshold
+            let rolled_up_name = format_taxonomic_name(level, best_taxon);
+            let best_class_id_in_group = record_confidence_pairs
+                .iter()
+                .filter(|(record, _, _)| {
+                    get_taxon_at_level(record, level)
+                        .map_or(false, |taxon| &taxon == best_taxon)
+                })
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                .map(|(_, _, id)| *id)
+                .unwrap_or(best_class_id);
+            
+            // Update best_rollup if this is better
+            if best_rollup.as_ref().map_or(true, |(_, conf, _)| total_confidence > conf) {
+                best_rollup = Some((rolled_up_name, *total_confidence, best_class_id_in_group));
+            }
         }
     }
 
-    // If no rollup meets threshold, return the best individual prediction
-    let name = if !best_record.common_name.is_empty() {
-        if best_record.genus.trim().is_empty() || best_record.species.trim().is_empty() {
-            best_record.common_name.clone()
-        } else {
-            format!(
-                "{} {} ({})",
-                best_record.genus.trim(),
-                best_record.species.trim(),
-                best_record.common_name
-            )
+    // Return the best rollup found, or the best individual prediction if no rollup is better
+    if let Some((name, confidence, class_id)) = best_rollup {
+        if confidence > best_confidence {
+            probs.classes = vec![name];
+            probs.probs = vec![confidence];
+            probs.classes_ids = vec![class_id];
+            return;
         }
-    } else {
-        if best_record.genus.trim().is_empty() || best_record.species.trim().is_empty() {
-            "Unknown species".to_string()
-        } else {
-            format!(
-                "{} {}",
-                best_record.genus.trim(),
-                best_record.species.trim()
-            )
-        }
-    };
-
+    }
+    
+    // Fallback to best individual prediction
+    let name = format_species_name(&best_record);
     probs.classes = vec![name];
     probs.probs = vec![best_confidence];
     probs.classes_ids = vec![best_class_id];
+}
+
+fn get_taxon_at_level(record: &SpeciesRecord, level: &str) -> Option<String> {
+    match level {
+        "species" => {
+            // Only return species if we have both genus and species
+            if let (Some(genus), Some(species)) = (&record.genus, &record.species) {
+                Some(format!("{} {}", genus, species))
+            } else {
+                None
+            }
+        }
+        "genus" => record.genus.clone(),
+        "family" => record.family.clone(),
+        "order" => record.order.clone(),
+        "class" => Some(record.class.clone()),
+        _ => None,
+    }
+}
+
+fn format_taxonomic_name(level: &str, taxon: &str) -> String {
+    match level {
+        "species" => taxon.to_string(), // Already formatted as "Genus species"
+        "genus" => format!("{} sp.", taxon),
+        "family" => format!("Family {}", taxon),
+        "order" => format!("Order {}", taxon),
+        "class" => format!("Class {}", taxon),
+        _ => taxon.to_string(),
+    }
+}
+
+fn format_species_name(record: &SpeciesRecord) -> String {
+    match (&record.genus, &record.species, &record.common_name) {
+        (Some(genus), Some(species), Some(common_name)) if !common_name.is_empty() => {
+            format!("{} {} ({})", genus, species, common_name)
+        }
+        (Some(genus), Some(species), _) => {
+            format!("{} {}", genus, species)
+        }
+        (_, _, Some(common_name)) if !common_name.is_empty() => common_name.clone(),
+        _ => "Unknown species".to_string(),
+    }
 }
