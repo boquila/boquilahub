@@ -329,7 +329,7 @@ pub fn apply_label_rollup(probs: &mut ProbSpace, confidence_threshold: f32) {
     let (best_record, best_confidence, best_class_id) = record_confidence_pairs
         .iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-        .map(|(record, conf, id)| (record.clone(), *conf, *id))
+        .map(|(record, conf, id)| (record, *conf, *id))
         .unwrap();
 
     // Check if the best prediction already meets the threshold
