@@ -16,8 +16,10 @@ pub struct EfficientNetV2 {
     input_depth: u32, // 3, RGB or similar
     input_width: u32,
     input_height: u32,
+    input_name: String,
     output_width: u32,
     output_height: u32,
+    output_name: String,
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
     pub task: Task,
@@ -47,12 +49,16 @@ impl ModelTrait for EfficientNetV2 {
                 }
             };
 
+        let input_name = session.inputs[0].name.clone();
+
         let (output_width, output_height) = match &session.outputs[0].output_type {
             ValueType::Tensor { dimensions, .. } => (dimensions[0] as u32, dimensions[1] as u32),
             _ => {
                 panic!("Not supported");
             }
         };
+
+        let output_name: String = session.outputs[0].name.clone();
 
         if post_processing.contains(&PostProcessing::GeoFence) {
             let _ = init_geofence_data();
@@ -64,8 +70,10 @@ impl ModelTrait for EfficientNetV2 {
             input_depth,
             input_width,
             input_height,
+            input_name,
             output_width,
             output_height,
+            output_name,
             confidence_threshold,
             nms_threshold,
             task,
@@ -82,8 +90,8 @@ impl ModelTrait for EfficientNetV2 {
             img,
             TensorFormat::NHWC,
         );
-        let outputs = inference(&self.session, &input, "input_2:0");
-        let output = extract_output(&outputs, "Identity:0");
+        let outputs = inference(&self.session, &input, &self.input_name);
+        let output = extract_output(&outputs, &self.output_name);
         let mut probs: ProbSpace =
             process_class_output(-1000.0, &self.classes, &output);
 
@@ -93,7 +101,6 @@ impl ModelTrait for EfficientNetV2 {
             transform_logits_to_probs(&mut probs);
             apply_label_rollup(&mut probs, self.confidence_threshold);
         }
-        println!("{:?}",probs);
         return AIOutputs::Classification(probs);
     }
 }

@@ -105,7 +105,7 @@ pub fn process_mask(
 
 pub fn extract_output(
     outputs: &SessionOutputs<'_, '_>,
-    b: &'static str,
+    b: &str,
 ) -> ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>> {
     return outputs[b]
         .try_extract_tensor::<f32>()

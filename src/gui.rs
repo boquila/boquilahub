@@ -322,12 +322,14 @@ impl Gui {
                 // Add a '+' button next to the ComboBox
                 if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
                 {
-                    if ui
-                        .button("+")
-                        .on_hover_text(self.t(Key::add_classification_model_to_complement))
-                        .clicked()
-                    {
-                        self.show_ai_cls = true;
+                    if &self.ais[self.ai_selected.unwrap()].task != "classify" {
+                        if ui
+                            .button("+")
+                            .on_hover_text(self.t(Key::add_classification_model_to_complement))
+                            .clicked()
+                        {
+                            self.show_ai_cls = true;
+                        }
                     }
                 }
             });
