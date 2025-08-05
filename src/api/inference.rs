@@ -9,7 +9,22 @@ use crate::api::processing::post_processing::PostProcessing;
 use crate::api::processing::pre_processing::slice_image;
 use crate::api::{import::import_model};
 use image::{ImageBuffer, Rgb};
+use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
+
+pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
+
+pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
+    // Check if already initialized, return early if so
+    if GEOFENCE_DATA.get().is_some() {
+        return Ok(());
+    }
+    
+    let json_content = std::fs::read_to_string("assets/geofence.json")?;
+    let geofence_map: HashMap<String, Vec<String>> = serde_json::from_str(&json_content)?;
+    GEOFENCE_DATA.set(geofence_map).map_err(|_| "Failed to initialize")?;
+    Ok(())
+}
 
 static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
 static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
@@ -57,7 +72,7 @@ pub fn set_model2(value: &String, ep: &EP) {
 
     let aimodel: Model = Model::new(
         model_metadata.classes,
-        0.4,
+        0.98,
         0.0,
         Task::from(model_metadata.task.as_str()),
         post,

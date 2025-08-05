@@ -70,6 +70,18 @@ impl ProbSpace {
             .map(|&exp_logit| exp_logit / sum_exp)
             .collect();
     }
+
+    pub fn top_n(&self, n: u32) -> ProbSpace {
+        let mut indices: Vec<usize> = (0..self.probs.len()).collect();
+        indices.sort_by(|&a, &b| self.probs[b].partial_cmp(&self.probs[a]).unwrap_or(std::cmp::Ordering::Equal));
+        indices.truncate(n as usize);
+
+        ProbSpace::new(
+            indices.iter().map(|&i| self.classes[i].clone()).collect(),
+            indices.iter().map(|&i| self.probs[i]).collect(),
+            indices.iter().map(|&i| self.classes_ids[i]).collect(),
+        )
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -625,7 +637,6 @@ pub struct Dependency {
     name: String,
 }
 
-
 #[derive(Serialize, Deserialize, Clone)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
@@ -641,4 +652,10 @@ impl AIOutputs {
             AIOutputs::Segmentation(segments) => segments.is_empty(),
         }
     }
+}
+
+pub struct ModelConfig {
+    pub confidence_threshold: f32,
+    pub nms_threshold: f32,
+    pub geo_fence: String
 }

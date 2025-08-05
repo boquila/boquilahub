@@ -1,12 +1,11 @@
 use crate::api::{
-    abstractions::{AIOutputs, ProbSpace},
-    models::{ModelTrait, Task},
-    processing::{
-        post_processing::get_common_name,
+    abstractions::{AIOutputs, ProbSpace}, inference::init_geofence_data, models::{ModelTrait, Task}, processing::{
         inference::inference,
-        post_processing::{extract_output, process_class_output_logits, PostProcessing},
+        post_processing::{
+            apply_geofence_filter, apply_label_rollup, extract_output, process_class_output, process_class_output_logits, transform_logits_to_probs, PostProcessing
+        },
         pre_processing::{imgbuf_to_input_array, TensorFormat},
-    },
+    }
 };
 use image::{ImageBuffer, Rgb};
 use ort::{session::Session, value::ValueType};
@@ -55,6 +54,10 @@ impl ModelTrait for EfficientNetV2 {
             }
         };
 
+        if post_processing.contains(&PostProcessing::GeoFence) {
+            let _ = init_geofence_data();
+        }
+
         EfficientNetV2 {
             classes,
             batch_size,
@@ -82,17 +85,15 @@ impl ModelTrait for EfficientNetV2 {
         let outputs = inference(&self.session, &input, "input_2:0");
         let output = extract_output(&outputs, "Identity:0");
         let mut probs: ProbSpace =
-            process_class_output_logits(self.confidence_threshold, &self.classes, &output);
-        for technique in &self.post_processing {
-            if matches!(technique, PostProcessing::Rollup) {
-                probs.classes = probs
-                    .classes
-                    .iter()
-                    .map(|line| get_common_name(line))
-                    .collect();
-            }
-        }
+            process_class_output(-1000.0, &self.classes, &output);
 
+        // Usage in your original code:
+        if self.post_processing.contains(&PostProcessing::GeoFence) {
+            apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), "CHL");
+            transform_logits_to_probs(&mut probs);
+            apply_label_rollup(&mut probs, self.confidence_threshold);
+        }
+        println!("{:?}",probs);
         return AIOutputs::Classification(probs);
     }
 }
