@@ -72,7 +72,7 @@ pub fn set_model2(value: &String, ep: &EP) {
 
     let aimodel: Model = Model::new(
         model_metadata.classes,
-        0.95,
+        0.90,
         0.0,
         Task::from(model_metadata.task.as_str()),
         post,

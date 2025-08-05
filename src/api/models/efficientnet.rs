@@ -2,7 +2,7 @@ use crate::api::{
     abstractions::{AIOutputs, ProbSpace}, inference::init_geofence_data, models::{ModelTrait, Task}, processing::{
         inference::inference,
         post_processing::{
-            apply_geofence_filter, apply_label_rollup, extract_output, process_class_output, transform_logits_to_probs, PostProcessing
+            apply_label_rollup, extract_output, process_class_output, transform_logits_to_probs, PostProcessing
         },
         pre_processing::{imgbuf_to_input_array, TensorFormat},
     }
@@ -97,7 +97,7 @@ impl ModelTrait for EfficientNetV2 {
 
         // Usage in your original code:
         if self.post_processing.contains(&PostProcessing::GeoFence) {
-            apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), "CHL");
+            crate::api::processing::post_processing::apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), "CHL");
             transform_logits_to_probs(&mut probs);
             apply_label_rollup(&mut probs, self.confidence_threshold);
         }
