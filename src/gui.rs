@@ -83,6 +83,8 @@ pub struct Gui {
 
     // bool fields grouped together (1 byte each, but will be padded)
     show_ai_cls: bool,
+    show_ai_config: bool,
+    show_ai_cls_config: bool,
     is_done: bool,
     isapi_deployed: bool,
     // save_img_from_strema: bool,
@@ -174,6 +176,8 @@ impl Gui {
             lang: get_locale(),
             isapi_deployed: false,
             // save_img_from_strema: false,
+            show_ai_config: false,
+            show_ai_cls_config: false,
             error_ocurred: false,
             show_export_dialog: false,
             show_feed_url_dialog: false,
@@ -319,7 +323,17 @@ impl Gui {
                         }
                     });
 
-                // Add a '+' button next to the ComboBox
+                if self.ai_selected.is_some() {
+                    if ui
+                        .button("⚙")
+                        .on_hover_text(self.t(Key::configure_ai))
+                        .clicked()
+                    {
+                        self.show_ai_config = true;
+                    }
+                }
+
+                // '+' button, select a escond AI
                 if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
                 {
                     if &self.ais[self.ai_selected.unwrap()].task != "classify" {
@@ -362,8 +376,16 @@ impl Gui {
                         }
                     });
 
-                // Add a '+' button next to the ComboBox
-                if self.ai_selected.is_some() {
+                // Button to remove AI, and unload it from memory.
+                if self.ai_cls_selected.is_some() {
+                    if ui
+                        .button("⚙")
+                        .on_hover_text(self.t(Key::configure_ai))
+                        .clicked()
+                    {
+                        self.show_ai_cls_config = true;
+                    }
+
                     if ui.button("-").clicked() {
                         self.show_ai_cls = false;
                         self.ai_cls_selected = None;

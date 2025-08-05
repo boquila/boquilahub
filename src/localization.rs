@@ -51,6 +51,10 @@ pub enum Key {
     ok,
     no_predictions,
     add_classification_model_to_complement,
+    configure_ai,
+    confidence_level,
+    overlap_filter,
+    region_filter,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -63,6 +67,42 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选择AI模型",
             Lang::JA => "AIを選択",
             Lang::PT => "Selecionar uma IA",
+        },
+        Key::confidence_level => match lang {
+            Lang::EN => "Confidence",
+            Lang::ES => "Confianza",
+            Lang::FR => "Confiance",
+            Lang::DE => "Genauigkeit",
+            Lang::ZH => "置信度",
+            Lang::JA => "信頼度",
+            Lang::PT => "Confiança",
+        },
+        Key::overlap_filter => match lang {
+            Lang::EN => "Overlap Filter",
+            Lang::ES => "Filtro de Solapamiento",
+            Lang::FR => "Filtre de Chevauchement",
+            Lang::DE => "Überlappungsfilter",
+            Lang::ZH => "重叠过滤",
+            Lang::JA => "重複フィルター",
+            Lang::PT => "Filtro de Sobreposição",
+        },
+        Key::region_filter => match lang {
+            Lang::EN => "Region",
+            Lang::ES => "Región",
+            Lang::FR => "Région",
+            Lang::DE => "Region",
+            Lang::ZH => "区域",
+            Lang::JA => "地域",
+            Lang::PT => "Região",
+        },
+        Key::configure_ai => match lang {
+            Lang::EN => "Configure AI",
+            Lang::ES => "Configurar IA",
+            Lang::FR => "Configurer l'IA",
+            Lang::DE => "KI konfigurieren",
+            Lang::ZH => "配置AI",
+            Lang::JA => "AIを設定",
+            Lang::PT => "Configurar IA",
         },
         Key::add_classification_model_to_complement => match lang {
             Lang::EN => "Add a classification AI to complement the current model",
