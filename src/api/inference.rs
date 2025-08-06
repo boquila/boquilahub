@@ -27,7 +27,7 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
+pub static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
 static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
 
 pub fn clear_current_ai2_simple() {
