@@ -349,7 +349,7 @@ impl Gui {
             });
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-                set_model(
+                let _ = set_model(
                     &self.ais[self.ai_selected.unwrap()].get_path(),
                     &LIST_EPS[self.ep_selected],
                 );
@@ -395,7 +395,7 @@ impl Gui {
             });
 
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
-                set_model2(
+                let _ = set_model2(
                     &self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path(),
                     &LIST_EPS[self.ep_selected],
                 );
@@ -433,7 +433,7 @@ impl Gui {
                         self.ep_selected = temp_ep_selected;
 
                         if let Some(ai_index) = self.ai_selected {
-                            set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                            let _ = set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
                         }
                     } else {
                         self.process_error();
@@ -443,7 +443,7 @@ impl Gui {
                     self.ep_selected = temp_ep_selected;
 
                     if let Some(ai_index) = self.ai_selected {
-                        set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                        let _ = set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
                     }
                 }
             }
