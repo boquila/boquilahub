@@ -50,29 +50,33 @@ impl Model {
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
-        architecture: String,
-    ) -> Self {
-        match architecture.to_lowercase().as_str() {
-            "yolo" => Model::Yolo(Yolo::new(
+        architecture: Option<String>,
+    ) -> Result<Self, String> {
+        let arch = architecture.as_ref().map(|s| s.to_lowercase());
+        match arch.as_deref() {
+            Some("yolo") => Ok(Model::Yolo(Yolo::new(
                 classes,
                 confidence_threshold,
                 nms_threshold,
                 task,
                 post_processing,
                 session,
-            )),
-            "efficientnetv2" => {
-                Model::EfficientNetV2(EfficientNetV2::new(
+            ))),
+            Some("efficientnetv2") => {
+                Ok(Model::EfficientNetV2(EfficientNetV2::new(
                     classes,
                     confidence_threshold, 
                     nms_threshold,
                     task,
                     post_processing,
                     session,
-                ))
+                )))
             }
-            _ => {
-                panic!("Unsupported model architecture: {}", architecture);
+            Some(arch) => {
+                Err(format!("Unsupported model architecture: {}", arch))
+            }
+            None => {
+                Err("No architecture specified".to_string())
             }
         }
     }

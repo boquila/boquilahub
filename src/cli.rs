@@ -136,7 +136,7 @@ pub fn print_ais_table(ais: &Vec<AI>) {
     let arch_width = cmp::max(
         12,
         ais.iter()
-            .map(|ai| ai.architecture.len())
+            .map(|ai| ai.architecture.as_ref().map_or(0, |s| s.len()))
             .max()
             .unwrap_or(0),
     );
@@ -186,7 +186,7 @@ pub fn print_ais_table(ais: &Vec<AI>) {
             "│ {:width1$} │ {:width2$} │ {:width3$} │ {:>width4$} │",
             ai.name,
             ai.task,
-            ai.architecture,
+            ai.architecture.as_deref().unwrap_or(""),
             classes_count,
             width1 = name_width,
             width2 = task_width,
