@@ -1015,7 +1015,7 @@ impl Gui {
 
                 self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
                 self.current_frame = i;
-                if i == self.total_frames.unwrap() {
+                if i+1 == self.total_frames.unwrap() {
                     self.video_state.is_processing = false;
                     self.video_processing_receiver = None;
                 }
