@@ -1,9 +1,12 @@
 use super::localization::*;
 use crate::api::abstractions::*;
-use crate::api::bq::get_bqs;
+use crate::api::bq::{get_bqs, import_bq};
 use crate::api::eps::{get_ep_version, LIST_EPS};
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
+use std::sync::RwLock;
+use crate::api::models::{Model, Task};
+use crate::api::processing::post_processing::PostProcessing;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
     check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,
@@ -54,6 +57,9 @@ pub struct Gui {
     api_server_url: Option<String>,
     temp_str: String,
     temp_api_str: String,
+    temp_architecture: String,
+    pending_model_path: Option<String>,
+    pending_model_ep: Option<usize>,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
@@ -92,6 +98,7 @@ pub struct Gui {
     show_export_dialog: bool,
     show_feed_url_dialog: bool,
     show_api_server_dialog: bool,
+    show_architecture_dialog: bool,
     img_state: State,
     video_state: State,
     feed_state: State,
@@ -157,6 +164,9 @@ impl Gui {
             api_result_receiver: None,
             temp_str: "".to_owned(),
             temp_api_str: "".to_owned(),
+            temp_architecture: "yolo".to_owned(),
+            pending_model_path: None,
+            pending_model_ep: None,
             image_processing_receiver: None,
             feed_processing_receiver: None,
             video_processing_receiver: None,
@@ -182,6 +192,7 @@ impl Gui {
             show_export_dialog: false,
             show_feed_url_dialog: false,
             show_api_server_dialog: false,
+            show_architecture_dialog: false,
             mode: Mode::Image,
             img_state: State::init(),
             video_state: State::init(),
@@ -302,6 +313,7 @@ impl Gui {
             }
 
             self.input_api_url_dialog(ctx);
+            self.architecture_selection_dialog(ctx);
         }
     }
 
@@ -349,10 +361,19 @@ impl Gui {
             });
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-                set_model(
-                    &self.ais[self.ai_selected.unwrap()].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
+                let model_path = self.ais[self.ai_selected.unwrap()].get_path();
+                match set_model(&model_path, &LIST_EPS[self.ep_selected]) {
+                    Ok(_) => {}
+                    Err(error) => {
+                        if error.contains("No architecture specified") {
+                            self.pending_model_path = Some(model_path);
+                            self.pending_model_ep = Some(self.ep_selected);
+                            self.show_architecture_dialog = true;
+                        } else {
+                            self.process_error();
+                        }
+                    }
+                }
             }
 
             ui.add_space(8.0);
@@ -393,12 +414,20 @@ impl Gui {
                     }
                 }
             });
-
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
-                set_model2(
-                    &self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path(),
-                    &LIST_EPS[self.ep_selected],
-                );
+                let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
+                match set_model2(&model_path, &LIST_EPS[self.ep_selected]) {
+                    Ok(_) => {}
+                    Err(error) => {
+                        if error.contains("No architecture specified") {
+                            self.pending_model_path = Some(model_path);
+                            self.pending_model_ep = Some(self.ep_selected);
+                            self.show_architecture_dialog = true;
+                        } else {
+                            self.process_error();
+                        }
+                    }
+                }
             }
             ui.add_space(8.0);
         }
@@ -433,7 +462,7 @@ impl Gui {
                         self.ep_selected = temp_ep_selected;
 
                         if let Some(ai_index) = self.ai_selected {
-                            set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                            let _ = set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
                         }
                     } else {
                         self.process_error();
@@ -443,7 +472,7 @@ impl Gui {
                     self.ep_selected = temp_ep_selected;
 
                     if let Some(ai_index) = self.ai_selected {
-                        set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                        let _ = set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
                     }
                 }
             }
@@ -646,6 +675,85 @@ impl Gui {
         }
     }
 
+    pub fn architecture_selection_dialog(&mut self, ctx: &egui::Context) {
+        if self.show_architecture_dialog {
+            egui::Window::new(self.t(Key::select_architecture))
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.label(self.t(Key::model_have_no_architecture));
+                    ui.add_space(8.0);
+                    
+                    egui::ComboBox::from_id_salt(self.t(Key::select_architecture))
+                        .selected_text(&self.temp_architecture)
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.temp_architecture, "yolo".to_string(), "YOLO");
+                            ui.selectable_value(&mut self.temp_architecture, "efficientnetv2".to_string(), "EfficientNetV2");
+                        });
+                    
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("OK").clicked() {
+                            if let (Some(model_path), Some(ep_index)) = (&self.pending_model_path, &self.pending_model_ep) {
+                                // Load model with selected architecture
+                                let (model_metadata, data) = match import_bq(model_path) {
+                                    Ok(result) => result,
+                                    Err(_) => {
+                                        self.process_error();
+                                        self.show_architecture_dialog = false;
+                                        self.pending_model_path = None;
+                                        self.pending_model_ep = None;
+                                        return;
+                                    }
+                                };
+                                let mut updated_metadata = model_metadata;
+                                updated_metadata.architecture = Some(self.temp_architecture.clone());
+                                
+                                // Create model
+                                let session = import_model(&data, &LIST_EPS[*ep_index]);
+                                let post: Vec<PostProcessing> = updated_metadata
+                                    .post_processing
+                                    .iter()
+                                    .map(|s| PostProcessing::from(s.as_str()))
+                                    .filter(|t| !matches!(t, PostProcessing::None))
+                                    .collect();
+                                
+                                match Model::new(
+                                    updated_metadata.classes,
+                                    0.45,
+                                    0.5,
+                                    Task::from(updated_metadata.task.as_str()),
+                                    post,
+                                    session,
+                                    updated_metadata.architecture,
+                                ) {
+                                    Ok(aimodel) => {
+                                        if CURRENT_AI.get().is_some() {
+                                            *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
+                                        } else {
+                                            let _ = CURRENT_AI.set(RwLock::new(aimodel));
+                                        }
+                                    }
+                                    Err(_) => {
+                                        self.process_error();
+                                    }
+                                }
+                            }
+                            
+                            self.show_architecture_dialog = false;
+                            self.pending_model_path = None;
+                            self.pending_model_ep = None;
+                        }
+                        ui.add_space(8.0);
+                        if ui.button("Cancel").clicked() {
+                            self.show_architecture_dialog = false;
+                            self.pending_model_path = None;
+                            self.pending_model_ep = None;
+                        }
+                    });
+                });
+        }
+    }
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {

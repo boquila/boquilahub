@@ -66,7 +66,7 @@ pub async fn run_cli(command: Commands) {
                     );
                 }
 
-                set_model2(&model_cls_path, &LIST_EPS[1]);
+                let _ = set_model2(&model_cls_path, &LIST_EPS[1]);
             }
 
             let port = args.port;
@@ -80,7 +80,7 @@ pub async fn run_cli(command: Commands) {
                 );
             }
 
-            set_model(&model_path, &LIST_EPS[1]);
+            let _ = set_model(&model_path, &LIST_EPS[1]);
 
             let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
             println!("{}", ASCII_ART);
@@ -136,7 +136,7 @@ pub fn print_ais_table(ais: &Vec<AI>) {
     let arch_width = cmp::max(
         12,
         ais.iter()
-            .map(|ai| ai.architecture.len())
+            .map(|ai| ai.architecture.as_ref().map_or(0, |s| s.len()))
             .max()
             .unwrap_or(0),
     );
@@ -186,7 +186,7 @@ pub fn print_ais_table(ais: &Vec<AI>) {
             "│ {:width1$} │ {:width2$} │ {:width3$} │ {:>width4$} │",
             ai.name,
             ai.task,
-            ai.architecture,
+            ai.architecture.as_deref().unwrap_or(""),
             classes_count,
             width1 = name_width,
             width2 = task_width,

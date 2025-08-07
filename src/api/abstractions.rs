@@ -544,7 +544,8 @@ impl BoundingBoxTrait for XYWH {
 #[derive(Deserialize, Clone, Debug, new)]
 pub struct AI {
     pub task: String,
-    pub architecture: String, // yolo, efficientnet, whatever else
+    #[serde(default)]
+    pub architecture: Option<String>, // yolo, efficientnet, whatever else
     pub post_processing: Vec<String>,
     pub classes: Vec<String>,
     #[serde(skip)]
