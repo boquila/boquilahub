@@ -297,60 +297,26 @@ impl SpeciesRecord {
     }
 }
 
-pub fn get_uuid(line: &str) -> String {
-    line.split(';').nth(0).unwrap().to_string()
-}
-
-pub fn get_class(line: &str) -> String {
-    line.split(';').nth(1).unwrap().to_string()
-}
-
-pub fn get_order(line: &str) -> String {
-    line.split(';').nth(2).unwrap().to_string()
-}
-
-pub fn get_family(line: &str) -> String {
-    line.split(';').nth(3).unwrap().to_string()
-}
-
-pub fn get_genus(line: &str) -> String {
-    line.split(';').nth(4).unwrap().to_string()
-}
-
-pub fn get_species(line: &str) -> String {
-    line.split(';').nth(5).unwrap().to_string()
-}
-
-pub fn get_common_name(line: &str) -> String {
-    line.split(';').nth(6).unwrap().to_string()
-}
-
 pub fn apply_geofence_filter(
     probs: &mut ProbSpace,
     geofence_data: &HashMap<String, Vec<String>>,
     target_country: &str,
 ) {
-    probs.classes = std::mem::take(&mut probs.classes)
-        .into_iter()
-        .map(|class| {
-            // YOUR CODE HERE - return the transformed string
-            let mut record = SpeciesRecord::new(&class).unwrap();
-
-            loop {
-                let taxonomic_string = record.to_taxonomic_string();
-                if let Some(countries) = geofence_data.get(&taxonomic_string) {
-                    if countries.contains(&target_country.to_string()) {
-                        break;
-                    }
-                }
-
-                if record.roll_up().is_err() {
+    probs.classes.iter_mut().for_each(|class| {
+        let mut record = SpeciesRecord::new(class).unwrap();
+        loop {
+            let taxonomic_string = record.to_taxonomic_string();
+            if let Some(countries) = geofence_data.get(&taxonomic_string) {
+                if countries.contains(&target_country.to_string()) {
                     break;
                 }
             }
-            return record.get_line();
-        })
-        .collect();
+            if record.roll_up().is_err() {
+                break;
+            }
+        }
+        *class = record.get_line();
+    });
 }
 
 pub fn apply_label_rollup(probs: &mut ProbSpace, confidence_threshold: f32) {
