@@ -108,7 +108,7 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([250, 128, 114]), // Salmon
 ];
 
-const FONT_SCALE: f32 = 30.0;
+const FONT_SCALE: f32 = 32.0;
 const CHAR_WIDTH: f32 = FONT_SCALE / 2.55;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 pub const FONT_BYTES: &[u8] = include_bytes!("../../assets/NotoSansSC-Regular.ttf");

@@ -3,7 +3,7 @@ use super::abstractions::AI;
 use super::bq::import_bq;
 use super::eps::EP;
 use super::models::Task;
-use crate::api::abstractions::AIOutputs;
+use crate::api::abstractions::{AIOutputs, ModelConfig};
 use crate::api::models::Model;
 use crate::api::processing::post_processing::PostProcessing;
 use crate::api::processing::pre_processing::slice_image;
@@ -37,6 +37,8 @@ pub fn clear_current_ai2_simple() {
 }
 
 pub fn set_model(value: &String, ep: &EP) -> Result<(), String> {
+    let config = ModelConfig::default();
+
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
     let post: Vec<PostProcessing> = model_metadata
@@ -47,12 +49,11 @@ pub fn set_model(value: &String, ep: &EP) -> Result<(), String> {
         .collect();
     let aimodel: Model = Model::new(
         model_metadata.classes,
-        0.45,
-        0.5,
         Task::from(model_metadata.task.as_str()),
         post,
         session,
         model_metadata.architecture,
+        config,
     )?;
     if CURRENT_AI.get().is_some() {
         *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
@@ -63,6 +64,8 @@ pub fn set_model(value: &String, ep: &EP) -> Result<(), String> {
 }
 
 pub fn set_model2(value: &String, ep: &EP) -> Result<(), String> {
+    let config = ModelConfig::new(0.9,0.0,None);
+
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
     let post: Vec<PostProcessing> = model_metadata
@@ -73,13 +76,12 @@ pub fn set_model2(value: &String, ep: &EP) -> Result<(), String> {
         .collect();
 
     let aimodel: Model = Model::new(
-        model_metadata.classes,
-        0.90,
-        0.0,
+        model_metadata.classes,        
         Task::from(model_metadata.task.as_str()),
         post,
         session,
         model_metadata.architecture,
+        config,
     )?;
 
     if CURRENT_AI2.get().is_some() {

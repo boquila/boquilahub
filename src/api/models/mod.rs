@@ -33,11 +33,10 @@ pub enum Model {
 pub trait ModelTrait {
     fn new(
         classes: Vec<String>,
-        confidence_threshold: f32,
-        nms_threshold: f32,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
+        config: ModelConfig,
     ) -> Self;
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs;
 }
@@ -45,31 +44,28 @@ pub trait ModelTrait {
 impl Model {
     pub fn new(
         classes: Vec<String>,
-        confidence_threshold: f32,
-        nms_threshold: f32,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
         architecture: Option<String>,
+        config: ModelConfig,
     ) -> Result<Self, String> {
         let arch = architecture.as_ref().map(|s| s.to_lowercase());
         match arch.as_deref() {
             Some("yolo") => Ok(Model::Yolo(Yolo::new(
                 classes,
-                confidence_threshold,
-                nms_threshold,
                 task,
                 post_processing,
                 session,
+                config
             ))),
             Some("efficientnetv2") => {
                 Ok(Model::EfficientNetV2(EfficientNetV2::new(
                     classes,
-                    confidence_threshold, 
-                    nms_threshold,
                     task,
                     post_processing,
                     session,
+                    config,
                 )))
             }
             Some(arch) => {

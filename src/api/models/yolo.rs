@@ -17,14 +17,13 @@ pub struct Yolo {
     input_height: u32,
     output_width: u32,
     output_height: u32,
-    pub confidence_threshold: f32,
-    pub nms_threshold: f32,
     num_masks: u32,
     mask_height: u32,
     mask_width: u32,
     pub task: Task,
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
+    pub config: ModelConfig,
 }
 
 impl Yolo {
@@ -49,7 +48,7 @@ impl Yolo {
                     .map(|(index, &value)| (index, value))
                     .reduce(|a, b| if b.1 > a.1 { b } else { a })?;
 
-                if prob < self.confidence_threshold {
+                if prob < self.config.confidence_threshold {
                     return None;
                 }
 
@@ -69,7 +68,7 @@ impl Yolo {
 
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
-                let indices = nms_indices(&boxes, self.nms_threshold);
+                let indices = nms_indices(&boxes, self.config.nms_threshold);
                 boxes = indices.iter().map(|&idx| boxes[idx]).collect();
             }
         }
@@ -131,7 +130,7 @@ impl Yolo {
                     .map(|(i, &v)| (i, v))
                     .reduce(|acc, val| if val.1 > acc.1 { val } else { acc })
                     .unwrap();
-                if score < self.confidence_threshold {
+                if score < self.config.confidence_threshold {
                     return None;
                 }
 
@@ -169,7 +168,7 @@ impl Yolo {
 
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
-                let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.nms_threshold);
+                let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.config.nms_threshold);
                 segmentations = keep_indices
                     .iter()
                     .map(|&i| segmentations[i].clone()) // use `.clone()` if needed, depending on the type
@@ -184,11 +183,10 @@ impl Yolo {
 impl ModelTrait for Yolo {
     fn new(
         classes: Vec<String>,
-        confidence_threshold: f32,
-        nms_threshold: f32,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
+        config: ModelConfig,
     ) -> Self {
         let (_batch_size, _input_depth, input_width, input_height) =
             match &session.inputs[0].input_type {
@@ -231,14 +229,13 @@ impl ModelTrait for Yolo {
             input_height,
             output_width,
             output_height,
-            confidence_threshold,
-            nms_threshold,
             num_masks,
             mask_height,
             mask_width,
             task,
             post_processing,
             session,
+            config
         }
     }
 
@@ -260,7 +257,7 @@ impl ModelTrait for Yolo {
             }
             Task::Classify => {
                 let output = extract_output(&outputs, "output0");
-                let probs = process_class_output(self.confidence_threshold, &self.classes, &output);
+                let probs = process_class_output(self.config.confidence_threshold, &self.classes, &output);
                 return AIOutputs::Classification(probs);
             }
             Task::Segment => {

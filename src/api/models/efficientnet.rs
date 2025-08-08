@@ -1,8 +1,8 @@
 use crate::api::{
-    abstractions::{AIOutputs, ProbSpace}, inference::init_geofence_data, models::{ModelTrait, Task}, processing::{
+    abstractions::{AIOutputs, ModelConfig, ProbSpace}, inference::init_geofence_data, models::{ModelTrait, Task}, processing::{
         inference::inference,
         post_processing::{
-            apply_label_rollup, extract_output, process_class_output, transform_logits_to_probs, PostProcessing
+            apply_geofence_filter, apply_label_rollup, extract_output, process_class_output, transform_logits_to_probs, PostProcessing
         },
         pre_processing::{imgbuf_to_input_array, TensorFormat},
     }
@@ -20,21 +20,19 @@ pub struct EfficientNetV2 {
     output_width: u32,
     output_height: u32,
     output_name: String,
-    pub confidence_threshold: f32,
-    pub nms_threshold: f32,
     pub task: Task,
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
+    pub config: ModelConfig
 }
 
 impl ModelTrait for EfficientNetV2 {
     fn new(
         classes: Vec<String>,
-        confidence_threshold: f32,
-        nms_threshold: f32,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
+        config: ModelConfig,
     ) -> Self {
         let (batch_size, input_width, input_height, input_depth) =
             match &session.inputs[0].input_type {
@@ -74,12 +72,12 @@ impl ModelTrait for EfficientNetV2 {
             output_width,
             output_height,
             output_name,
-            confidence_threshold,
-            nms_threshold,
             task,
             post_processing,
             session,
+            config,
         }
+        
     }
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, _img_width, _img_height) = imgbuf_to_input_array(
@@ -97,9 +95,9 @@ impl ModelTrait for EfficientNetV2 {
 
         // Usage in your original code:
         if self.post_processing.contains(&PostProcessing::GeoFence) {
-            crate::api::processing::post_processing::apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), "CHL");
+            apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), &self.config.geo_fence.as_ref().unwrap());
             transform_logits_to_probs(&mut probs);
-            apply_label_rollup(&mut probs, self.confidence_threshold);
+            apply_label_rollup(&mut probs, self.config.confidence_threshold);
         }
         return AIOutputs::Classification(probs);
     }

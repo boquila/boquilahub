@@ -720,12 +720,11 @@ impl Gui {
                                 
                                 match Model::new(
                                     updated_metadata.classes,
-                                    0.45,
-                                    0.5,
                                     Task::from(updated_metadata.task.as_str()),
                                     post,
                                     session,
                                     updated_metadata.architecture,
+                                    ModelConfig::default()
                                 ) {
                                     Ok(aimodel) => {
                                         if CURRENT_AI.get().is_some() {
@@ -754,6 +753,7 @@ impl Gui {
                 });
         }
     }
+    
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {

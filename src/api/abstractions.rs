@@ -655,8 +655,19 @@ impl AIOutputs {
     }
 }
 
+#[derive(new)]
 pub struct ModelConfig {
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
-    pub geo_fence: String
+    pub geo_fence: Option<String>
+}
+
+impl Default for ModelConfig {
+    fn default() -> Self {
+        Self {
+            confidence_threshold: 0.45,
+            nms_threshold: 0.4,
+            geo_fence: None,
+        }
+    }
 }
