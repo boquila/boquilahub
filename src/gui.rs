@@ -86,7 +86,11 @@ macro_rules! ai_config_window {
                             .selected_text($self.$temp_config_field.geo_fence.clone())
                             .show_ui(ui, |ui| {
                                 for str in COUNTRY_CODES {
-                                    ui.selectable_value(&mut $self.$temp_config_field.geo_fence, str.to_owned(), str);
+                                    ui.selectable_value(
+                                        &mut $self.$temp_config_field.geo_fence,
+                                        str.to_owned(),
+                                        str,
+                                    );
                                 }
                             });
                     }
@@ -441,7 +445,11 @@ impl Gui {
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                match set_model(&model_path, &LIST_EPS[self.ep_selected], Some(self.ai_config.clone())) {
+                match set_model(
+                    &model_path,
+                    &LIST_EPS[self.ep_selected],
+                    Some(self.ai_config.clone()),
+                ) {
                     Ok(_) => {}
                     Err(error) => {
                         if error.contains("No architecture specified") {
@@ -455,8 +463,15 @@ impl Gui {
                 }
             }
 
-            ai_config_window!(self, ctx, show_ai_config, ai_config, temp_ai_config, update_config, current_ai);
-
+            ai_config_window!(
+                self,
+                ctx,
+                show_ai_config,
+                ai_config,
+                temp_ai_config,
+                update_config,
+                current_ai
+            );
 
             ui.add_space(8.0);
         }
@@ -498,7 +513,11 @@ impl Gui {
             });
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
                 let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                match set_model2(&model_path, &LIST_EPS[self.ep_selected], Some(self.ai_cls_config.clone())) {
+                match set_model2(
+                    &model_path,
+                    &LIST_EPS[self.ep_selected],
+                    Some(self.ai_cls_config.clone()),
+                ) {
                     Ok(_) => {}
                     Err(error) => {
                         if error.contains("No architecture specified") {
@@ -512,7 +531,15 @@ impl Gui {
                 }
             }
 
-            ai_config_window!(self, ctx, show_ai_cls_config, ai_cls_config, temp_ai_cls_config, update_config2, current_ai_cls);
+            ai_config_window!(
+                self,
+                ctx,
+                show_ai_cls_config,
+                ai_cls_config,
+                temp_ai_cls_config,
+                update_config2,
+                current_ai_cls
+            );
 
             ui.add_space(8.0);
         }
@@ -542,7 +569,14 @@ impl Gui {
                     self.show_api_server_dialog = true;
                 }
                 api::eps::EPType::CUDA => {
-                    let cuda_version = get_ep_version(new_ep);
+                    let cuda_version = match get_ep_version(new_ep) {
+                        Ok(cuda_v) => cuda_v,
+                        Err(error) => {
+                            eprintln!("Could not find CUDA version with error: {error}");
+                            return;
+                        }
+                    };
+
                     if cuda_version >= 12.4 {
                         self.ep_selected = temp_ep_selected;
 
@@ -561,12 +595,19 @@ impl Gui {
                     self.ep_selected = temp_ep_selected;
 
                     if let Some(ai_index) = self.ai_selected {
-                        let _ =
-                            set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected],Some(self.ai_config.clone()));
+                        let _ = set_model(
+                            &self.ais[ai_index].get_path(),
+                            &LIST_EPS[self.ep_selected],
+                            Some(self.ai_config.clone()),
+                        );
                     }
 
                     if let Some(_ai_cls_index) = self.ai_cls_selected {
-                        let _ = set_model2(&self.current_ai_cls().get_path(), &LIST_EPS[self.ep_selected], Some(self.ai_cls_config.clone()));
+                        let _ = set_model2(
+                            &self.current_ai_cls().get_path(),
+                            &LIST_EPS[self.ep_selected],
+                            Some(self.ai_cls_config.clone()),
+                        );
                     }
                 }
             }
@@ -1433,4 +1474,3 @@ enum Mode {
     Video,
     Feed,
 }
-
