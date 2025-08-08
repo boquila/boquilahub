@@ -1,3 +1,4 @@
+use anyhow::Error;
 use std::process::Command;
 
 #[derive(Clone)]
@@ -44,17 +45,17 @@ pub enum EPType {
     BoquilaHUBRemote,
 }
 
-pub fn get_ep_version(provider: &EP) -> f32 {
+pub fn get_ep_version(provider: &EP) -> Result<f32, Error> {
     match provider.ep_type {
-        EPType::CUDA => get_cuda_version(),
-        _ => 0.0,
+        EPType::CUDA => Ok(get_cuda_version()?),
+        _ => Ok(0.0),
     }
 }
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-fn get_cuda_version() -> f32 {
+fn get_cuda_version() -> Result<f32, Error> {
     let mut cmd = Command::new("nvcc");
     cmd.args(["--version"]);
 
@@ -65,20 +66,20 @@ fn get_cuda_version() -> f32 {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let output = cmd.output().unwrap();
+    let output = cmd.output()?;
 
     let output_text = match std::str::from_utf8(&output.stdout) {
         Ok(v) => v,
         Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
     };
 
-    let version_regex = regex::Regex::new(r"release (\d+\.\d+),").unwrap();
+    let version_regex = regex::Regex::new(r"release (\d+\.\d+),")?;
 
     if let Some(captures) = version_regex.captures(output_text) {
         if let Some(version_str) = captures.get(1) {
             // Convert the version string to a float
-            return version_str.as_str().parse::<f32>().unwrap_or(0.0);
+            return Ok(version_str.as_str().parse::<f32>().unwrap_or(0.0));
         }
     }
-    0.0 // Return 0.0 if no match is found
+    Ok(0.0) // Return 0.0 if no match is found
 }
