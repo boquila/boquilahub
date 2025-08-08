@@ -36,8 +36,8 @@ pub fn clear_current_ai2_simple() {
     *guard = None;
 }
 
-pub fn set_model(value: &String, ep: &EP) -> Result<(), String> {
-    let config = ModelConfig::default();
+pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<(), String> {
+    let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
@@ -63,8 +63,8 @@ pub fn set_model(value: &String, ep: &EP) -> Result<(), String> {
     Ok(())
 }
 
-pub fn set_model2(value: &String, ep: &EP) -> Result<(), String> {
-    let config = ModelConfig::new(0.9,0.0,None);
+pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<(), String> {
+    let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
     let session = import_model(&data, ep);
@@ -128,4 +128,18 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
     }
     
     Some(())
+}
+
+pub fn update_config(new_config: ModelConfig) {
+    let ai = CURRENT_AI.get().unwrap();
+    let mut model = ai.write().unwrap();
+    *model.config_mut() = new_config;
+}
+
+pub fn update_config2(new_config: ModelConfig) {
+    let ai = CURRENT_AI2.get().unwrap();
+    let mut model_opt = ai.write().unwrap();
+    if let Some(ref mut model) = model_opt.as_mut() {
+        *model.config_mut() = new_config;
+    }
 }

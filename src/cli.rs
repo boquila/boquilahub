@@ -66,7 +66,7 @@ pub async fn run_cli(command: Commands) {
                     );
                 }
 
-                let _ = set_model2(&model_cls_path, &LIST_EPS[1]);
+                let _ = set_model2(&model_cls_path, &LIST_EPS[1], None);
             }
 
             let port = args.port;
@@ -80,7 +80,7 @@ pub async fn run_cli(command: Commands) {
                 );
             }
 
-            let _ = set_model(&model_path, &LIST_EPS[1]);
+            let _ = set_model(&model_path, &LIST_EPS[1], None);
 
             let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
             println!("{}", ASCII_ART);

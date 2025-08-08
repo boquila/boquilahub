@@ -95,7 +95,7 @@ impl ModelTrait for EfficientNetV2 {
 
         // Usage in your original code:
         if self.post_processing.contains(&PostProcessing::GeoFence) {
-            apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), &self.config.geo_fence.as_ref().unwrap());
+            apply_geofence_filter(&mut probs, &crate::api::inference::GEOFENCE_DATA.get().unwrap(), &self.config.geo_fence);
             transform_logits_to_probs(&mut probs);
             apply_label_rollup(&mut probs, self.config.confidence_threshold);
         }

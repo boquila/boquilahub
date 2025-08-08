@@ -302,21 +302,23 @@ pub fn apply_geofence_filter(
     geofence_data: &HashMap<String, Vec<String>>,
     target_country: &str,
 ) {
-    probs.classes.iter_mut().for_each(|class| {
-        let mut record = SpeciesRecord::new(class).unwrap();
-        loop {
-            let taxonomic_string = record.to_taxonomic_string();
-            if let Some(countries) = geofence_data.get(&taxonomic_string) {
-                if countries.contains(&target_country.to_string()) {
+    if !target_country.is_empty() {
+        probs.classes.iter_mut().for_each(|class| {
+            let mut record = SpeciesRecord::new(class).unwrap();
+            loop {
+                let taxonomic_string = record.to_taxonomic_string();
+                if let Some(countries) = geofence_data.get(&taxonomic_string) {
+                    if countries.contains(&target_country.to_string()) {
+                        break;
+                    }
+                }
+                if record.roll_up().is_err() {
                     break;
                 }
             }
-            if record.roll_up().is_err() {
-                break;
-            }
-        }
-        *class = record.get_line();
-    });
+            *class = record.get_line();
+        });
+    }
 }
 
 pub fn apply_label_rollup(probs: &mut ProbSpace, confidence_threshold: f32) {

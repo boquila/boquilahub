@@ -4,7 +4,6 @@ use crate::api::bq::{get_bqs, import_bq};
 use crate::api::eps::{get_ep_version, LIST_EPS};
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
-use std::sync::RwLock;
 use crate::api::models::{Model, Task};
 use crate::api::processing::post_processing::PostProcessing;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
@@ -13,6 +12,7 @@ use crate::api::rest::{
     rgba_image_to_jpeg_buffer, run_api,
 };
 use crate::api::stream::Feed;
+use crate::api::utils::COUNTRY_CODES;
 use crate::api::video_file::VideofileProcessor;
 use crate::api::{self};
 use api::import::*;
@@ -21,6 +21,7 @@ use image::{open, ImageBuffer, Rgba};
 use rfd::FileDialog;
 use std::fs::{self};
 use std::path::PathBuf;
+use std::sync::RwLock;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -44,6 +45,66 @@ pub fn run_gui() {
             Ok(Box::new(Gui::new()))
         }),
     );
+}
+
+macro_rules! ai_config_window {
+    ($self:expr, $ctx:expr, $show_field:ident, $config_field:ident, $temp_config_field:ident, $update_fn:expr, $current_ai_fn:ident) => {
+        if $self.$show_field {
+            egui::Window::new($self.t(Key::configure_ai))
+                .collapsible(false)
+                .resizable(false)
+                .show($ctx, |ui| {
+                    let text_slide1 = $self.t(Key::confidence_level);
+                    ui.add(
+                        egui::Slider::new(
+                            &mut $self.$temp_config_field.confidence_threshold,
+                            0.10..=0.99,
+                        )
+                        .text(text_slide1),
+                    );
+                    let has_nms = $self
+                        .$current_ai_fn()
+                        .post_processing
+                        .contains(&"NMS".to_owned());
+                    if has_nms {
+                        let text_slide2 = $self.t(Key::overlap_filter);
+                        ui.add(
+                            egui::Slider::new(
+                                &mut $self.$temp_config_field.nms_threshold,
+                                0.10..=0.99,
+                            )
+                            .text(text_slide2),
+                        );
+                    }
+                    let has_geofence = $self
+                        .$current_ai_fn()
+                        .post_processing
+                        .contains(&"geofence".to_owned());
+                    if has_geofence {
+                        ui.label($self.t(Key::region_filter));
+                        egui::ComboBox::from_id_salt("Region")
+                            .selected_text($self.$temp_config_field.geo_fence.clone())
+                            .show_ui(ui, |ui| {
+                                for str in COUNTRY_CODES {
+                                    ui.selectable_value(&mut $self.$temp_config_field.geo_fence, str.to_owned(), str);
+                                }
+                            });
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.button($self.t(Key::ok)).clicked() {
+                            $self.$config_field = $self.$temp_config_field.clone();
+                            $update_fn($self.$config_field.clone());
+                            $self.$show_field = false;
+                        }
+                        ui.add_space(8.0);
+                        if ui.button($self.t(Key::cancel)).clicked() {
+                            $self.$temp_config_field = $self.$config_field.clone();
+                            $self.$show_field = false;
+                        }
+                    });
+                });
+        }
+    };
 }
 
 pub struct Gui {
@@ -71,6 +132,12 @@ pub struct Gui {
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
     done_time: Option<Instant>,
     error_time: Option<Instant>,
+
+    // Model Configurations
+    ai_config: ModelConfig,
+    ai_cls_config: ModelConfig,
+    temp_ai_config: ModelConfig,
+    temp_ai_cls_config: ModelConfig,
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
@@ -177,6 +244,10 @@ impl Gui {
             image_texture_n: 1, // this starts at 1
             // video_step_frame: 1,
             // feed_step_frame: 1,
+            ai_config: ModelConfig::default(),
+            ai_cls_config: ModelConfig::default2(),
+            temp_ai_config: ModelConfig::default(),
+            temp_ai_cls_config: ModelConfig::default2(),
             current_frame: 0,
             total_frames: None,
             show_ai_cls: false,
@@ -222,6 +293,14 @@ impl Gui {
 
     pub fn t(&self, key: Key) -> &'static str {
         translate(key, &self.lang)
+    }
+
+    pub fn current_ai(&self) -> &AI {
+        return &self.ais[self.ai_selected.unwrap()];
+    }
+
+    pub fn current_ai_cls(&self) -> &AI {
+        return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
     }
 
     pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
@@ -317,7 +396,7 @@ impl Gui {
         }
     }
 
-    pub fn ai_widget(&mut self, ui: &mut egui::Ui) {
+    pub fn ai_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if !self.is_remote() {
             let previous_ai = self.ai_selected;
             ui.label(self.t(Key::select_ai));
@@ -362,7 +441,7 @@ impl Gui {
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                match set_model(&model_path, &LIST_EPS[self.ep_selected]) {
+                match set_model(&model_path, &LIST_EPS[self.ep_selected], Some(self.ai_config.clone())) {
                     Ok(_) => {}
                     Err(error) => {
                         if error.contains("No architecture specified") {
@@ -376,11 +455,14 @@ impl Gui {
                 }
             }
 
+            ai_config_window!(self, ctx, show_ai_config, ai_config, temp_ai_config, update_config, current_ai);
+
+
             ui.add_space(8.0);
         }
     }
 
-    pub fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
+    pub fn ai_cls_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if !self.is_remote() && self.show_ai_cls {
             let previous_ai = self.ai_cls_selected;
             ui.label(self.t(Key::select_ai));
@@ -416,7 +498,7 @@ impl Gui {
             });
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
                 let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                match set_model2(&model_path, &LIST_EPS[self.ep_selected]) {
+                match set_model2(&model_path, &LIST_EPS[self.ep_selected], Some(self.ai_cls_config.clone())) {
                     Ok(_) => {}
                     Err(error) => {
                         if error.contains("No architecture specified") {
@@ -429,6 +511,9 @@ impl Gui {
                     }
                 }
             }
+
+            ai_config_window!(self, ctx, show_ai_cls_config, ai_cls_config, temp_ai_cls_config, update_config2, current_ai_cls);
+
             ui.add_space(8.0);
         }
     }
@@ -462,7 +547,11 @@ impl Gui {
                         self.ep_selected = temp_ep_selected;
 
                         if let Some(ai_index) = self.ai_selected {
-                            let _ = set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                            let _ = set_model(
+                                &self.ais[ai_index].get_path(),
+                                &LIST_EPS[self.ep_selected],
+                                Some(self.ai_config.clone()),
+                            );
                         }
                     } else {
                         self.process_error();
@@ -472,7 +561,12 @@ impl Gui {
                     self.ep_selected = temp_ep_selected;
 
                     if let Some(ai_index) = self.ai_selected {
-                        let _ = set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected]);
+                        let _ =
+                            set_model(&self.ais[ai_index].get_path(), &LIST_EPS[self.ep_selected],Some(self.ai_config.clone()));
+                    }
+
+                    if let Some(_ai_cls_index) = self.ai_cls_selected {
+                        let _ = set_model2(&self.current_ai_cls().get_path(), &LIST_EPS[self.ep_selected], Some(self.ai_cls_config.clone()));
                     }
                 }
             }
@@ -683,18 +777,28 @@ impl Gui {
                 .show(ctx, |ui| {
                     ui.label(self.t(Key::model_have_no_architecture));
                     ui.add_space(8.0);
-                    
+
                     egui::ComboBox::from_id_salt(self.t(Key::select_architecture))
                         .selected_text(&self.temp_architecture)
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.temp_architecture, "yolo".to_string(), "YOLO");
-                            ui.selectable_value(&mut self.temp_architecture, "efficientnetv2".to_string(), "EfficientNetV2");
+                            ui.selectable_value(
+                                &mut self.temp_architecture,
+                                "yolo".to_string(),
+                                "YOLO",
+                            );
+                            ui.selectable_value(
+                                &mut self.temp_architecture,
+                                "efficientnetv2".to_string(),
+                                "EfficientNetV2",
+                            );
                         });
-                    
+
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui.button("OK").clicked() {
-                            if let (Some(model_path), Some(ep_index)) = (&self.pending_model_path, &self.pending_model_ep) {
+                            if let (Some(model_path), Some(ep_index)) =
+                                (&self.pending_model_path, &self.pending_model_ep)
+                            {
                                 // Load model with selected architecture
                                 let (model_metadata, data) = match import_bq(model_path) {
                                     Ok(result) => result,
@@ -707,8 +811,9 @@ impl Gui {
                                     }
                                 };
                                 let mut updated_metadata = model_metadata;
-                                updated_metadata.architecture = Some(self.temp_architecture.clone());
-                                
+                                updated_metadata.architecture =
+                                    Some(self.temp_architecture.clone());
+
                                 // Create model
                                 let session = import_model(&data, &LIST_EPS[*ep_index]);
                                 let post: Vec<PostProcessing> = updated_metadata
@@ -717,14 +822,14 @@ impl Gui {
                                     .map(|s| PostProcessing::from(s.as_str()))
                                     .filter(|t| !matches!(t, PostProcessing::None))
                                     .collect();
-                                
+
                                 match Model::new(
                                     updated_metadata.classes,
                                     Task::from(updated_metadata.task.as_str()),
                                     post,
                                     session,
                                     updated_metadata.architecture,
-                                    ModelConfig::default()
+                                    ModelConfig::default(),
                                 ) {
                                     Ok(aimodel) => {
                                         if CURRENT_AI.get().is_some() {
@@ -738,7 +843,7 @@ impl Gui {
                                     }
                                 }
                             }
-                            
+
                             self.show_architecture_dialog = false;
                             self.pending_model_path = None;
                             self.pending_model_ep = None;
@@ -753,7 +858,7 @@ impl Gui {
                 });
         }
     }
-    
+
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
@@ -1123,7 +1228,7 @@ impl Gui {
 
                 self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
                 self.current_frame = i;
-                if i+1 == self.total_frames.unwrap() {
+                if i + 1 == self.total_frames.unwrap() {
                     self.video_state.is_processing = false;
                     self.video_processing_receiver = None;
                 }
@@ -1191,8 +1296,8 @@ impl eframe::App for Gui {
                 if self.is_any_processing() {
                     ui.disable();
                 }
-                self.ai_widget(ui);
-                self.ai_cls_widget(ui);
+                self.ai_widget(ui, ctx);
+                self.ai_cls_widget(ui, ctx);
                 self.ep_widget(ui);
             });
 
@@ -1328,3 +1433,4 @@ enum Mode {
     Video,
     Feed,
 }
+

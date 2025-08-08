@@ -30,6 +30,15 @@ pub enum Model {
     Yolo(Yolo),
 }
 
+impl Model {
+    pub fn config_mut(&mut self) -> &mut ModelConfig {
+        match self {
+            Model::EfficientNetV2(inner) => &mut inner.config,
+            Model::Yolo(inner) => &mut inner.config,
+        }
+    }
+}
+
 pub trait ModelTrait {
     fn new(
         classes: Vec<String>,
