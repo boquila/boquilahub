@@ -1,15 +1,23 @@
 use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
+    processing::post_processing::{nms_indices, process_mask},
     processing::{
         inference::inference,
         post_processing::*,
         pre_processing::{imgbuf_to_input_array, TensorFormat},
-    }, processing::post_processing::{nms_indices, process_mask},
+    },
 };
 use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Array2, Axis, IxDyn};
 use ort::{session::Session, value::ValueType};
+
+enum YoloType {
+    Yolov5,
+    Yolov8plus,
+}
+
+type DetectProcessor = fn(&Yolo, &Array<f32, IxDyn>, u32, u32) -> Vec<XYXYc>;
 
 pub struct Yolo {
     pub classes: Vec<String>,
@@ -24,6 +32,8 @@ pub struct Yolo {
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
     pub config: ModelConfig,
+    yolotype: YoloType,
+    detect_processor: DetectProcessor,
 }
 
 impl Yolo {
@@ -69,6 +79,55 @@ impl Yolo {
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
                 let indices = nms_indices(&boxes, self.config.nms_threshold);
+                boxes = indices.iter().map(|&idx| boxes[idx]).collect();
+            }
+        }
+
+        self.t(&boxes)
+    }
+
+    fn process_detect_output_yolov5(
+        &self,
+        output: &Array<f32, IxDyn>,
+        img_width: u32,
+        img_height: u32,
+    ) -> Vec<XYXYc> {
+        let output = output.slice(s![.., .., 0]);
+        let x_scale = img_width as f32 / self.input_width as f32;
+        let y_scale = img_height as f32 / self.input_height as f32;
+        let mut boxes: Vec<XYXY> = output
+            .axis_iter(Axis(1))
+            .filter_map(|row| {
+                let row: Vec<f32> = row.iter().copied().collect();
+                let prob = row[4];
+                if prob < self.config.confidence_threshold {
+                    return None;
+                }
+                let class_id = row
+                    .iter()
+                    .skip(6)
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .map(|(idx, _)| idx)
+                    .unwrap();
+
+                let xc = row[0] * x_scale;
+                let yc = row[1] * y_scale;
+                let w = row[2] * x_scale;
+                let h = row[3] * y_scale;
+
+                let x1 = xc - w * 0.5;
+                let x2 = xc + w * 0.5;
+                let y1 = yc - h * 0.5;
+                let y2 = yc + h * 0.5;
+
+                Some(XYXY::new(x1, y1, x2, y2, prob, class_id as u32))
+            })
+            .collect();
+
+        for technique in &self.post_processing {
+            if matches!(technique, PostProcessing::NMS) {
+                let indices = nms_indices_all_cls(&boxes, self.config.nms_threshold);
                 boxes = indices.iter().map(|&idx| boxes[idx]).collect();
             }
         }
@@ -168,7 +227,8 @@ impl Yolo {
 
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
-                let keep_indices: Vec<usize> = nms_indices(&bounding_boxes, self.config.nms_threshold);
+                let keep_indices: Vec<usize> =
+                    nms_indices(&bounding_boxes, self.config.nms_threshold);
                 segmentations = keep_indices
                     .iter()
                     .map(|&i| segmentations[i].clone()) // use `.clone()` if needed, depending on the type
@@ -201,11 +261,21 @@ impl ModelTrait for Yolo {
                 }
             };
 
-        let (output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => (dimensions[1] as u32, dimensions[2] as u32),
+        let (output_n, output_width, output_height) = match &session.outputs[0].output_type {
+            ValueType::Tensor { dimensions, .. } => (
+                dimensions[0] as u32,
+                dimensions[1] as u32,
+                dimensions[2] as u32,
+            ),
             _ => {
                 panic!("Not supported");
             }
+        };
+
+        let (yolotype, detect_processor): (YoloType, DetectProcessor) = if output_n > output_width {
+            (YoloType::Yolov8plus, Yolo::process_detect_output)
+        } else {
+            (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
         };
 
         let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
@@ -235,7 +305,9 @@ impl ModelTrait for Yolo {
             task,
             post_processing,
             session,
-            config
+            config,
+            yolotype,
+            detect_processor
         }
     }
 
@@ -252,12 +324,13 @@ impl ModelTrait for Yolo {
         match self.task {
             Task::Detect => {
                 let output = extract_output(&outputs, "output0");
-                let boxes = self.process_detect_output(&output, img_width, img_height);
+                let boxes = (self.detect_processor)(self, &output, img_width, img_height);                
                 return AIOutputs::ObjectDetection(boxes);
             }
             Task::Classify => {
                 let output = extract_output(&outputs, "output0");
-                let probs = process_class_output(self.config.confidence_threshold, &self.classes, &output);
+                let probs =
+                    process_class_output(self.config.confidence_threshold, &self.classes, &output);
                 return AIOutputs::Classification(probs);
             }
             Task::Segment => {

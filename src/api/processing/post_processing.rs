@@ -58,6 +58,36 @@ pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<
     keep
 }
 
+pub fn nms_indices_all_cls<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
+    // Create indices and sort them by probability (descending)
+    let mut indices: Vec<usize> = (0..boxes.len()).collect();
+    indices.sort_by(|&a, &b| {
+        boxes[b]
+            .get_prob()
+            .partial_cmp(&boxes[a].get_prob())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut keep = Vec::new();
+
+    while !indices.is_empty() {
+        // Keep the highest scoring box
+        let current_idx = indices[0];
+        keep.push(current_idx);
+
+        // Filter remaining indices - remove class_id check
+        indices = indices
+            .into_iter()
+            .skip(1)
+            .filter(|&idx| {
+                boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
+            })
+            .collect();
+    }
+
+    keep
+}
+
 pub fn process_mask(
     mask: Array2<f32>,
     bbox: &XYXY,
