@@ -271,7 +271,7 @@ impl ModelTrait for Yolo {
             }
         };
 
-        let (yolotype, detect_processor): (YoloType, DetectProcessor) = if output_n > output_width {
+        let (yolotype, detect_processor): (YoloType, DetectProcessor) = if output_width < output_height {
             (YoloType::Yolov8plus, Yolo::process_detect_output)
         } else {
             (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
