@@ -581,6 +581,10 @@ impl PredImg {
             wasprocessed,
         }
     }
+
+    pub fn reset(&mut self) {
+        self.wasprocessed = false;
+    }
 }
 
 pub trait PredImgSugar {

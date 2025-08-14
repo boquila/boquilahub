@@ -260,7 +260,7 @@ impl ModelTrait for Yolo {
                 }
             };
 
-        let (output_n, output_width, output_height) = match &session.outputs[0].output_type {
+        let (_output_n, output_width, output_height) = match &session.outputs[0].output_type {
             ValueType::Tensor { dimensions, .. } => (
                 dimensions[0] as u32,
                 dimensions[1] as u32,

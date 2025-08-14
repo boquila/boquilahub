@@ -57,6 +57,9 @@ pub enum Key {
     region_filter,
     select_architecture,
     model_have_no_architecture,
+    yes,
+    no_only_missing_data,
+    process_everything,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -69,6 +72,33 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选择AI模型",
             Lang::JA => "AIを選択",
             Lang::PT => "Selecionar uma IA",
+        },
+        Key::yes => match lang {
+            Lang::EN => "Yes",
+            Lang::ES => "Sí",
+            Lang::FR => "Oui",
+            Lang::DE => "Ja",
+            Lang::ZH => "是",
+            Lang::JA => "はい",
+            Lang::PT => "Sim",
+        },
+        Key::no_only_missing_data => match lang {
+            Lang::EN => "No, only missing data",
+            Lang::ES => "No, solo los datos faltantes",
+            Lang::FR => "Non, seulement les données manquantes",
+            Lang::DE => "Nein, nur fehlende Daten",
+            Lang::ZH => "不，只处理缺失的数据",
+            Lang::JA => "いいえ、不足しているデータのみ",
+            Lang::PT => "Não, apenas os dados em falta",
+        },
+        Key::process_everything => match lang {
+            Lang::EN => "Process everything?",
+            Lang::ES => "¿Procesar todo?",
+            Lang::FR => "Tout traiter ?",
+            Lang::DE => "Alles verarbeiten?",
+            Lang::ZH => "处理所有内容？",
+            Lang::JA => "すべて処理しますか？",
+            Lang::PT => "Processar tudo?",
         },
         Key::select_architecture => match lang {
             _ => "Select model architecture",

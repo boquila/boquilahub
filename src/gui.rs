@@ -164,7 +164,9 @@ pub struct Gui {
     is_done: bool,
     isapi_deployed: bool,
     // save_img_from_strema: bool,
+    process_all_imgs: bool,
     error_ocurred: bool,
+    show_process_all_dialog: bool,
     show_export_dialog: bool,
     show_feed_url_dialog: bool,
     show_api_server_dialog: bool,
@@ -260,6 +262,8 @@ impl Gui {
             lang: get_locale(),
             isapi_deployed: false,
             // save_img_from_strema: false,
+            process_all_imgs: true,
+            show_process_all_dialog: false,
             show_ai_config: false,
             show_ai_cls_config: false,
             error_ocurred: false,
@@ -899,6 +903,83 @@ impl Gui {
         }
     }
 
+    pub fn start_img_analysis(&mut self) {
+        self.img_state.is_processing = true;
+        // process all, even if they were process before
+        if self.process_all_imgs {
+            self.selected_files
+                .iter_mut()
+                .for_each(|pred_img| pred_img.reset());
+        }
+        //  Async processing: Images
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.image_processing_receiver = Some(rx);
+
+        let copy_predigms = self.selected_files.clone();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.img_state.cancel_sender = Some(cancel_tx);
+
+        let api_endpoint = if self.is_remote() {
+            self.api_server_url
+                .as_ref()
+                .map(|url| format!("{}/upload", url))
+        } else {
+            None
+        };
+        let is_remote = self.is_remote();
+        tokio::spawn(async move {
+            for (i, predimg) in copy_predigms.iter().enumerate() {
+                if predimg.wasprocessed {
+                    continue;
+                }
+                // CHECK FOR CANCELLATION HERE
+                if cancel_rx.try_recv().is_ok() {
+                    break;
+                }
+                let bbox = if is_remote {
+                    let buffer = fs::read(&predimg.file_path).unwrap();
+                    detect_bbox_from_buf_remotely(api_endpoint.as_ref().unwrap(), buffer)
+                } else {
+                    let img = open(&predimg.file_path).unwrap().into_rgb8();
+                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
+                        .await
+                        .unwrap()
+                };
+
+                if tx.send((i, bbox)).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
+        pub fn process_all_dialog(&mut self, ctx: &egui::Context) {
+        if self.show_process_all_dialog {
+            egui::Window::new(self.t(Key::process_everything))
+                .collapsible(false)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button(self.t(Key::yes)).clicked() {
+                            self.process_all_imgs = true;
+                            self.start_img_analysis();
+                            self.show_process_all_dialog = false;
+                        }
+                        ui.add_space(8.0);
+                        if ui.button(self.t(Key::no_only_missing_data)).clicked() {
+                            self.process_all_imgs = false;
+                            self.start_img_analysis();
+                            self.show_process_all_dialog = false;
+                        }
+                        ui.add_space(8.0);
+                        if ui.button(self.t(Key::cancel)).clicked() {
+                            self.show_process_all_dialog = false;
+                        }
+                    });
+                });
+        }
+    }
+
     pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
@@ -912,55 +993,13 @@ impl Gui {
                 if ui
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
                     .clicked()
-                    && self.image_processing_receiver.is_none()
                 {
-                    if !self.img_state.is_processing {
-                        self.img_state.is_processing = true;
-
-                        //  Async processing: Images
-                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                        self.image_processing_receiver = Some(rx);
-
-                        let file_paths: Vec<String> = self
-                            .selected_files
-                            .iter()
-                            .map(|f| f.file_path.to_str().unwrap().to_string())
-                            .collect();
-                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                        self.img_state.cancel_sender = Some(cancel_tx);
-
-                        let api_endpoint = if self.is_remote() {
-                            self.api_server_url
-                                .as_ref()
-                                .map(|url| format!("{}/upload", url))
+                    if !self.img_state.is_processing {                        
+                        if self.selected_files.get_progress() == 0.0 {
+                            self.start_img_analysis();
                         } else {
-                            None
-                        };
-                        let is_remote = self.is_remote();
-                        tokio::spawn(async move {
-                            for (i, path) in file_paths.iter().enumerate() {
-                                // CHECK FOR CANCELLATION HERE
-                                if cancel_rx.try_recv().is_ok() {
-                                    break;
-                                }
-                                let bbox = if is_remote {
-                                    let buffer = fs::read(path).unwrap();
-                                    detect_bbox_from_buf_remotely(
-                                        api_endpoint.as_ref().unwrap(),
-                                        buffer,
-                                    )
-                                } else {
-                                    let img = open(path).unwrap().into_rgb8();
-                                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
-                                        .await
-                                        .unwrap()
-                                };
-
-                                if tx.send((i, bbox)).is_err() {
-                                    break;
-                                }
-                            }
-                        });
+                            self.show_process_all_dialog = true;
+                        }
                     }
                 }
 
@@ -1056,6 +1095,8 @@ impl Gui {
                         }
                     });
             }
+
+            self.process_all_dialog(ctx);
         }
     }
 
