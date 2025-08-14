@@ -1340,15 +1340,15 @@ impl eframe::App for Gui {
                 self.ai_widget(ui, ctx);
                 self.ai_cls_widget(ui, ctx);
                 self.ep_widget(ui);
+
+                self.api_widget(ui, ctx);
+
+                ui.separator();
+
+                self.data_selection_widget(ctx, ui);
+
+                ui.separator();
             });
-
-            self.api_widget(ui, ctx);
-
-            ui.separator();
-
-            self.data_selection_widget(ctx, ui);
-
-            ui.separator();
 
             match self.mode {
                 Mode::Image => {
