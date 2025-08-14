@@ -98,11 +98,11 @@ impl Yolo {
         let mut boxes: Vec<XYXY> = output
             .axis_iter(Axis(1))
             .filter_map(|row| {
-                let row: Vec<f32> = row.iter().copied().collect();
-                let prob = row[4];
+                let prob = row[4 as usize];
                 if prob < self.config.confidence_threshold {
                     return None;
                 }
+                                
                 let class_id = row
                     .iter()
                     .skip(6)
@@ -111,10 +111,10 @@ impl Yolo {
                     .map(|(idx, _)| idx)
                     .unwrap();
 
-                let xc = row[0] * x_scale;
-                let yc = row[1] * y_scale;
-                let w = row[2] * x_scale;
-                let h = row[3] * y_scale;
+                let xc = row[0 as usize] * x_scale;
+                let yc = row[1 as usize] * y_scale;
+                let w = row[2 as usize] * x_scale;
+                let h = row[3 as usize] * y_scale;
 
                 let x1 = xc - w * 0.5;
                 let x2 = xc + w * 0.5;
