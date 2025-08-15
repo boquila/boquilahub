@@ -1189,17 +1189,16 @@ impl Gui {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
                 ui.heading(self.t(Key::analysis));
-            });
-            ui.separator();
 
-            ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
-                ui.label(self.t(Key::freq));
-                ui.style_mut().spacing.slider_width = 120.0;
-                ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=90));
-                ui.add_space(8.0);
-            });
+                ui.separator();
 
-            ui.vertical_centered(|ui| {
+                ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
+                    ui.label(self.t(Key::freq));
+                    ui.style_mut().spacing.slider_width = 125.0;
+                    ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=90));
+                    ui.add_space(8.0);
+                });
+
                 if !self.video_state.is_processing {
                     if ui.button("▶").clicked() {
                         self.start_video_analysis();
@@ -1210,7 +1209,6 @@ impl Gui {
                     }
                 }
             });
-
             // Progress Bar: Video
             if self.video_file_path.is_some() {
                 ui.add(
@@ -1234,11 +1232,10 @@ impl Gui {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
                 ui.heading(self.t(Key::analysis));
-            });
-            ui.separator();
-            ui.add_space(8.0);
 
-            ui.vertical_centered(|ui| {
+                ui.separator();
+                ui.add_space(8.0);
+
                 ui.label(self.t(Key::export_obs));
                 ui.checkbox(&mut self.save_img_from_feed, "");
                 ui.add_space(8.0);
@@ -1258,8 +1255,7 @@ impl Gui {
                         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
                         self.feed_state.cancel_sender = Some(cancel_tx);
 
-                        let url = self.feed_url.clone();
-                        let mut feed = Feed::new(&url.unwrap()).unwrap();
+                        let mut feed = Feed::new(&self.feed_url.clone().unwrap()).unwrap();
 
                         let api_endpoint = self.get_endpoint();
                         let is_remote = self.is_remote();
@@ -1287,13 +1283,16 @@ impl Gui {
                                                 Err(_) => break,
                                             }
                                         } else {
-                                            let img_copy = img.clone();
                                             match tokio::task::spawn_blocking(move || {
-                                                process_imgbuf(&img_copy)
+                                                let result = process_imgbuf(&img);
+                                                (img, result)
                                             })
                                             .await
                                             {
-                                                Ok(result) => result,
+                                                Ok((returned_img, result)) => {
+                                                    img = returned_img;
+                                                    result
+                                                }
                                                 Err(_) => break,
                                             }
                                         };
