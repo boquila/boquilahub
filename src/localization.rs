@@ -47,7 +47,7 @@ pub enum Key {
     copy_with_classification,
     input_url,
     example,
-    every_how_many_frames,
+    freq,
     ok,
     no_predictions,
     add_classification_model_to_complement,
@@ -60,6 +60,7 @@ pub enum Key {
     yes,
     no_only_missing_data,
     process_everything,
+    export_obs,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -478,14 +479,23 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "例",
             Lang::PT => "Exemplo",
         },
-        Key::every_how_many_frames => match lang {
-            Lang::EN => "Analyze every how many frames?",
-            Lang::ES => "¿Cada cuántos frames quiere analizar?",
-            Lang::FR => "Analyser toutes les combien de trames?",
-            Lang::DE => "Alle wie viele Frames analysieren?",
-            Lang::ZH => "每几帧取样分析？",
-            Lang::JA => "何フレームごとに解析しますか？",
-            Lang::PT => "Analisar a cada quantos quadros?",
+        Key::freq => match lang {
+            Lang::EN => "Frequency",
+            Lang::ES => "Frecuencia",
+            Lang::FR => "Fréquence",
+            Lang::DE => "Frequenz",
+            Lang::ZH => "频率",
+            Lang::JA => "頻度",
+            Lang::PT => "Frequência",
+        },
+        Key::export_obs => match lang {
+            Lang::EN => "Export detections",
+            Lang::ES => "Exportar detecciones",
+            Lang::FR => "Exporter détections", 
+            Lang::DE => "Erkennungen exportieren",
+            Lang::ZH => "导出检测",
+            Lang::JA => "検出をエクスポート",
+            Lang::PT => "Exportar detecções",
         },
     }
 }

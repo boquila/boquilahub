@@ -147,7 +147,7 @@ pub struct Gui {
     ai_cls_selected: Option<usize>,
     ep_selected: usize,
     // video_step_frame: usize,
-    // feed_step_frame: usize,
+    feed_step_frame: usize,
     current_frame: u64,
     total_frames: Option<u64>,
 
@@ -248,7 +248,7 @@ impl Gui {
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
             // video_step_frame: 1,
-            // feed_step_frame: 1,
+            feed_step_frame: 1,
             ai_config: ModelConfig::default(),
             ai_cls_config: ModelConfig::default2(),
             temp_ai_config: ModelConfig::default(),
@@ -1174,7 +1174,7 @@ impl Gui {
                         });
                     }
                 } else {
-                    if ui.button("||").clicked() {
+                    if ui.button("⏸").clicked() {
                         self.cancel_video_processing();
                     }
                 }
@@ -1205,14 +1205,18 @@ impl Gui {
                 ui.heading(self.t(Key::analysis));
             });
             ui.separator();
-
             ui.add_space(8.0);
 
             ui.vertical_centered(|ui| {
-                let text = self.t(Key::export_imgs_with_predictions);
-                ui.checkbox(&mut self.save_img_from_feed, text);
-
+                ui.label(self.t(Key::export_obs));
+                ui.checkbox(&mut self.save_img_from_feed, "");
                 ui.add_space(8.0);
+                ui.add_enabled_ui(!self.feed_state.is_processing, |ui| {
+                    ui.label(self.t(Key::freq));
+                    ui.style_mut().spacing.slider_width = 120.0;
+                    ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=30));
+                    ui.add_space(8.0);
+                });
 
                 if !self.feed_state.is_processing {
                     if ui.button("▶").clicked() {
@@ -1234,30 +1238,41 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
+                        let step: usize = self.feed_step_frame;
                         tokio::spawn(async move {
-                            // Spawn blocking task to generate frames
-                            let processor_handle = tokio::task::spawn_blocking(move || loop {
-                                if cancel_rx.try_recv().is_ok() {
-                                    break;
-                                }
-                                if let Some(mut img) = feed.next() {
-                                    let bbox = if is_remote {
-                                        let buffer = rgba_image_to_jpeg_buffer(
-                                            &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
-                                            95,
-                                        );
-                                        detect_bbox_from_buf_remotely(
-                                            api_endpoint.as_ref().unwrap(),
-                                            buffer,
-                                        )
-                                    } else {
-                                        process_imgbuf(&img)
-                                    };
+                            let processor_handle = tokio::task::spawn_blocking(move || {
+                                let mut frame_counter = 0;
 
-                                    draw_aioutput(&mut img, &bbox);
-                                    let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-                                    if tx.send((bbox, img)).is_err() {
+                                loop {
+                                    if cancel_rx.try_recv().is_ok() {
                                         break;
+                                    }
+                                    if let Some(mut img) = feed.next() {
+                                        frame_counter += 1;
+
+                                        // Only process every `step` frames
+                                        if frame_counter % step == 0 {
+                                            let bbox: AIOutputs = if is_remote {
+                                                let buffer = rgba_image_to_jpeg_buffer(
+                                                    &image::DynamicImage::ImageRgb8(img.clone())
+                                                        .to_rgba8(),
+                                                    95,
+                                                );
+                                                detect_bbox_from_buf_remotely(
+                                                    api_endpoint.as_ref().unwrap(),
+                                                    buffer,
+                                                )
+                                            } else {
+                                                process_imgbuf(&img)
+                                            };
+
+                                            draw_aioutput(&mut img, &bbox);
+                                            let img =
+                                                image::DynamicImage::ImageRgb8(img).to_rgba8();
+                                            if tx.send((bbox, img)).is_err() {
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             });
@@ -1267,7 +1282,7 @@ impl Gui {
                         });
                     }
                 } else {
-                    if ui.button("||").clicked() {
+                    if ui.button("⏸").clicked() {
                         if let Some(cancel_tx) = self.feed_state.cancel_sender.take() {
                             let _ = cancel_tx.send(());
                         }
