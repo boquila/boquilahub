@@ -97,14 +97,15 @@ impl Yolo {
         let mut boxes: Vec<XYXY> = output
             .axis_iter(Axis(1))
             .filter_map(|row| {
+                let row: Vec<f32> = row.iter().copied().collect();
                 let prob = row[4 as usize];
                 if prob < self.config.confidence_threshold {
                     return None;
                 }
-                                
-                let class_id = row
+                let fields: Vec<f32> = row[5 as usize..].to_vec();
+                
+                let class_id = fields
                     .iter()
-                    .skip(6)
                     .enumerate()
                     .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                     .map(|(idx, _)| idx)
@@ -131,7 +132,7 @@ impl Yolo {
             }
         }
 
-        self.t(&boxes)
+        self.t(&boxes)        
     }
 
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
@@ -271,11 +272,12 @@ impl ModelTrait for Yolo {
             }
         };
 
-        let (yolotype, detect_processor): (YoloType, DetectProcessor) = if output_width < output_height {
-            (YoloType::Yolov8plus, Yolo::process_detect_output)
-        } else {
-            (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
-        };
+        let (yolotype, detect_processor): (YoloType, DetectProcessor) =
+            if output_width < output_height {
+                (YoloType::Yolov8plus, Yolo::process_detect_output)
+            } else {
+                (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
+            };
 
         let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
             match &output.output_type {
@@ -306,7 +308,7 @@ impl ModelTrait for Yolo {
             session,
             config,
             yolotype,
-            detect_processor
+            detect_processor,
         }
     }
 
@@ -323,7 +325,7 @@ impl ModelTrait for Yolo {
         match self.task {
             Task::Detect => {
                 let output = extract_output(&outputs, "output0");
-                let boxes = (self.detect_processor)(self, &output, img_width, img_height);                
+                let boxes = (self.detect_processor)(self, &output, img_width, img_height);
                 return AIOutputs::ObjectDetection(boxes);
             }
             Task::Classify => {
