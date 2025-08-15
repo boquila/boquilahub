@@ -163,7 +163,7 @@ pub struct Gui {
     show_ai_cls_config: bool,
     is_done: bool,
     isapi_deployed: bool,
-    // save_img_from_strema: bool,
+    save_img_from_feed: bool,
     process_all_imgs: bool,
     error_ocurred: bool,
     show_process_all_dialog: bool,
@@ -261,7 +261,7 @@ impl Gui {
             error_time: None,
             lang: get_locale(),
             isapi_deployed: false,
-            // save_img_from_strema: false,
+            save_img_from_feed: false,
             process_all_imgs: true,
             show_process_all_dialog: false,
             show_ai_config: false,
@@ -953,7 +953,7 @@ impl Gui {
         });
     }
 
-        pub fn process_all_dialog(&mut self, ctx: &egui::Context) {
+    pub fn process_all_dialog(&mut self, ctx: &egui::Context) {
         if self.show_process_all_dialog {
             egui::Window::new(self.t(Key::process_everything))
                 .collapsible(false)
@@ -994,7 +994,7 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
                     .clicked()
                 {
-                    if !self.img_state.is_processing {                        
+                    if !self.img_state.is_processing {
                         if self.selected_files.get_progress() == 0.0 {
                             self.start_img_analysis();
                         } else {
@@ -1206,7 +1206,14 @@ impl Gui {
             });
             ui.separator();
 
+            ui.add_space(8.0);
+
             ui.vertical_centered(|ui| {
+                let text = self.t(Key::export_imgs_with_predictions);
+                ui.checkbox(&mut self.save_img_from_feed, text);
+
+                ui.add_space(8.0);
+
                 if !self.feed_state.is_processing {
                     if ui.button("▶").clicked() {
                         self.feed_state.is_processing = true;
@@ -1326,8 +1333,12 @@ impl Gui {
                 updates.push(img);
             }
 
-            for (_, img) in updates {
-                self.feed_state.texture = imgbuf_to_texture(&img, ctx)
+            for (aioutput, img) in updates {
+                self.feed_state.texture = imgbuf_to_texture(&img, ctx);
+                if self.save_img_from_feed && !aioutput.is_empty() {
+                    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+                    let _ = img.save(format!("export/feed/{}.png", timestamp));
+                }
             }
 
             ctx.request_repaint();

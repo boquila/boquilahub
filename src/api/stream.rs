@@ -15,6 +15,7 @@ impl Feed {
     pub fn new(url: &str) -> Result<Self, ffmpeg::Error> {
         // Initialize FFmpeg
         ffmpeg::init()?;
+        std::fs::create_dir_all("export/feed").unwrap();
 
         // Open the RTSP stream with options for better RTSP handling
         let mut opts: ffmpeg::Dictionary<'_> = ffmpeg::Dictionary::new();
