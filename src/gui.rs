@@ -8,8 +8,7 @@ use crate::api::models::{Model, Task};
 use crate::api::processing::post_processing::PostProcessing;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
-    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer,
-    rgba_image_to_jpeg_buffer, run_api,
+    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
 };
 use crate::api::stream::Feed;
 use crate::api::utils::COUNTRY_CODES;
@@ -1138,7 +1137,7 @@ impl Gui {
 
                 let (time, mut img) = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
 
-                // Get AI output if we're on a step frame
+                // Only process if frequency says so
                 if i % step as u64 == 0 {
                     let aioutput;
                     if is_remote {
@@ -1155,7 +1154,7 @@ impl Gui {
                         .await
                         {
                             Ok((returned_img, result)) => {
-                                img = returned_img; 
+                                img = returned_img;
                                 aioutput = result;
                             }
                             Err(_) => break,
@@ -1175,7 +1174,7 @@ impl Gui {
                     .as_mut()
                     .unwrap()
                     .encode(&img, time);
-                
+
                 let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
 
                 if tx.send((i, final_img)).is_err() {
@@ -1277,11 +1276,7 @@ impl Gui {
 
                                     if frame_counter % step == 0 {
                                         let aioutput: AIOutputs = if is_remote {
-                                            let buffer = rgba_image_to_jpeg_buffer(
-                                                &image::DynamicImage::ImageRgb8(img.clone())
-                                                    .to_rgba8(),
-                                                95,
-                                            );
+                                            let buffer = rgb_image_to_jpeg_buffer(&img, 95);
                                             match detect_remotely(
                                                 api_endpoint.as_ref().unwrap(),
                                                 buffer,

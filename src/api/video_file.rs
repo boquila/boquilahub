@@ -5,11 +5,6 @@ use std::{iter::Iterator, path::Path};
 use video_rs::encode::Settings;
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
 
-pub struct VideofileProcessor {
-    decoder: Decoder,
-    encoder: Encoder,
-}
-
 pub fn get_output_path(file_path: &str) -> String {
     if let Some(pos) = file_path.rfind('\\') {
         let (directory, file_name) = file_path.split_at(pos + 1);
@@ -18,6 +13,11 @@ pub fn get_output_path(file_path: &str) -> String {
     } else {
         format!("predict_{}", file_path)
     }
+}
+
+pub struct VideofileProcessor {
+    decoder: Decoder,
+    pub encoder: Encoder,
 }
 
 impl VideofileProcessor {
@@ -53,7 +53,6 @@ impl VideofileProcessor {
         let final_frame = image_buffer_to_ndarray(&img);
         self.encoder.encode(&final_frame, time).unwrap(); 
     }
-
 }
 
 impl Iterator for VideofileProcessor {
