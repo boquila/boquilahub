@@ -647,45 +647,40 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::folder)))
                     .clicked()
                 {
-                    match FileDialog::new().pick_folder() {
-                        Some(folder_path) => {
-                            // Read directory contents and filter for image files
-                            match fs::read_dir(&folder_path) {
-                                Ok(entries) => {
-                                    let image_files: Vec<PathBuf> = entries
-                                        .filter_map(|entry| entry.ok())
-                                        .map(|entry| entry.path())
-                                        .filter(|path| path.is_file())
-                                        .filter(|path| {
-                                            path.extension()
-                                                .and_then(|ext| ext.to_str())
-                                                .map(|ext_str| {
-                                                    IMAGE_FORMATS.iter().any(|&format| {
-                                                        ext_str.eq_ignore_ascii_case(format)
-                                                    })
+                    if let Some(folder_path) = FileDialog::new().pick_folder() {
+                        match fs::read_dir(&folder_path) {
+                            Ok(entries) => {
+                                let image_files: Vec<PathBuf> = entries
+                                    .filter_map(|entry| entry.ok())
+                                    .map(|entry| entry.path())
+                                    .filter(|path| path.is_file())
+                                    .filter(|path| {
+                                        path.extension()
+                                            .and_then(|ext| ext.to_str())
+                                            .map(|ext_str| {
+                                                IMAGE_FORMATS.iter().any(|&format| {
+                                                    ext_str.eq_ignore_ascii_case(format)
                                                 })
-                                                .unwrap_or(false)
-                                        })
+                                            })
+                                            .unwrap_or(false)
+                                    })
+                                    .collect();
+
+                                if !image_files.is_empty() {
+                                    self.selected_files = image_files
+                                        .into_iter()
+                                        .map(|path: PathBuf| PredImg::new_simple(path))
                                         .collect();
 
-                                    if !image_files.is_empty() {
-                                        self.selected_files = image_files
-                                            .into_iter()
-                                            .map(|path: PathBuf| PredImg::new_simple(path))
-                                            .collect();
-
-                                        self.paint(ctx, 0);
-                                        self.mode = Mode::Image;
-                                        self.img_state.progress_bar =
-                                            self.selected_files.get_progress()
-                                    }
-                                }
-                                Err(_e) => {
-                                    self.error_ocurred = true;
+                                    self.paint(ctx, 0);
+                                    self.mode = Mode::Image;
+                                    self.img_state.progress_bar = self.selected_files.get_progress()
                                 }
                             }
+                            Err(_e) => {
+                                self.error_ocurred = true;
+                            }
                         }
-                        None => (), // No folder selected
                     }
                 }
 
@@ -694,21 +689,18 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::image)))
                     .clicked()
                 {
-                    match FileDialog::new()
+                    if let Some(paths) = FileDialog::new()
                         .add_filter("Image", &IMAGE_FORMATS)
                         .pick_files()
                     {
-                        Some(paths) => {
-                            self.selected_files = paths
-                                .into_iter()
-                                .map(|path| PredImg::new_simple(path))
-                                .collect();
-                            self.image_texture_n = 1;
-                            self.paint(ctx, 0);
-                            self.mode = Mode::Image;
-                            self.img_state.progress_bar = self.selected_files.get_progress()
-                        }
-                        _ => (), // no selection, do nothing
+                        self.selected_files = paths
+                            .into_iter()
+                            .map(|path| PredImg::new_simple(path))
+                            .collect();
+                        self.image_texture_n = 1;
+                        self.paint(ctx, 0);
+                        self.mode = Mode::Image;
+                        self.img_state.progress_bar = self.selected_files.get_progress()
                     }
                 }
                 ui.end_row();
@@ -718,23 +710,20 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::video_file)))
                     .clicked()
                 {
-                    match FileDialog::new()
+                    if let Some(path) = FileDialog::new()
                         .add_filter("Video", &VIDEO_FORMATS)
                         .pick_file()
                     {
-                        Some(path) => {
-                            self.video_file_path = Some(path);
-                            let processor = Some(VideofileProcessor::new(
-                                &self.video_file_path.clone().unwrap().to_str().unwrap(),
-                            ))
-                            .unwrap();
-                            self.total_frames = Some(processor.get_n_frames());
-                            self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
-                            self.mode = Mode::Video;
-                            self.current_frame = 0;
-                            self.video_state.progress_bar = 0.0;
-                        }
-                        _ => (), // no selection, do nothing
+                        self.video_file_path = Some(path);
+                        let processor = Some(VideofileProcessor::new(
+                            &self.video_file_path.clone().unwrap().to_str().unwrap(),
+                        ))
+                        .unwrap();
+                        self.total_frames = Some(processor.get_n_frames());
+                        self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
+                        self.mode = Mode::Video;
+                        self.current_frame = 0;
+                        self.video_state.progress_bar = 0.0;
                     }
                 }
 
@@ -748,46 +737,49 @@ impl Gui {
 
                 // Feed url dialog
                 if self.show_feed_url_dialog {
-                    egui::Window::new(self.t(Key::input_url))
-                        .collapsible(false)
-                        .resizable(false)
-                        .show(ctx, |ui| {
-                            ui.text_edit_singleline(&mut self.temp_str);
-                            ui.horizontal(|ui| {
-                                if ui.button(self.t(Key::ok)).clicked() {
-                                    let url = self.temp_str.clone();
-                                    match Feed::new(&url) {
-                                        Ok(mut feed) => match feed.next() {
-                                            Some(frame) => {
-                                                self.feed_state.texture = imgbuf_to_texture(
-                                                    &image::DynamicImage::ImageRgb8(frame)
-                                                        .to_rgba8(),
-                                                    ctx,
-                                                );
-                                                self.feed_url = Some(url);
-                                                self.mode = Mode::Feed;
-                                                if self.video_state.is_processing {
-                                                    self.cancel_video_processing();
-                                                }
-                                            }
-                                            None => {
-                                                self.process_error();
-                                            }
-                                        },
-                                        Err(_e) => {
-                                            self.process_error();
-                                        }
-                                    }
-                                    self.show_feed_url_dialog = false;
-                                }
-                                ui.add_space(8.0);
-                                if ui.button(self.t(Key::cancel)).clicked() {
-                                    self.show_feed_url_dialog = false;
-                                    self.feed_url = None
-                                }
-                            });
-                        });
+                    self.feed_input_dialog(ctx);
                 }
+            });
+    }
+
+    pub fn feed_input_dialog(&mut self, ctx: &egui::Context) {
+        egui::Window::new(self.t(Key::input_url))
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.text_edit_singleline(&mut self.temp_str);
+                ui.horizontal(|ui| {
+                    if ui.button(self.t(Key::ok)).clicked() {
+                        let url = self.temp_str.clone();
+                        match Feed::new(&url) {
+                            Ok(mut feed) => match feed.next() {
+                                Some(frame) => {
+                                    self.feed_state.texture = imgbuf_to_texture(
+                                        &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
+                                        ctx,
+                                    );
+                                    self.feed_url = Some(url);
+                                    self.mode = Mode::Feed;
+                                    if self.video_state.is_processing {
+                                        self.cancel_video_processing();
+                                    }
+                                }
+                                None => {
+                                    self.process_error();
+                                }
+                            },
+                            Err(_e) => {
+                                self.process_error();
+                            }
+                        }
+                        self.show_feed_url_dialog = false;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.show_feed_url_dialog = false;
+                        self.feed_url = None
+                    }
+                });
             });
     }
 
