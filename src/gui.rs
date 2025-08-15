@@ -722,6 +722,7 @@ impl Gui {
                             self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
                             self.mode = Mode::Video;
                             self.current_frame = 0;
+                            self.video_state.progress_bar = 0.0;
                         }
                         _ => (), // no selection, do nothing
                     }
@@ -1118,7 +1119,7 @@ impl Gui {
             ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
                 ui.label(self.t(Key::freq));
                 ui.style_mut().spacing.slider_width = 120.0;
-                ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=30));
+                ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=90));
                 ui.add_space(8.0);
             });
 
@@ -1247,7 +1248,7 @@ impl Gui {
                 ui.add_enabled_ui(!self.feed_state.is_processing, |ui| {
                     ui.label(self.t(Key::freq));
                     ui.style_mut().spacing.slider_width = 120.0;
-                    ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=30));
+                    ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=90));
                     ui.add_space(8.0);
                 });
 
@@ -1273,52 +1274,51 @@ impl Gui {
                         let is_remote = self.is_remote();
                         let step: usize = self.feed_step_frame;
                         tokio::spawn(async move {
-                            let processor_handle = tokio::task::spawn_blocking(async move || {
-                                let mut frame_counter = 0;
+                            let mut frame_counter = 0;
+                            loop {
+                                if cancel_rx.try_recv().is_ok() {
+                                    break;
+                                }
 
-                                loop {
-                                    if cancel_rx.try_recv().is_ok() {
-                                        break;
-                                    }
-                                    if let Some(mut img) = feed.next() {
-                                        frame_counter += 1;
+                                if let Some(mut img) = feed.next() {
+                                    frame_counter = frame_counter + 1;
 
-                                        // Only process every `step` frames
-                                        if frame_counter % step == 0 {
-                                            let aioutput: AIOutputs = if is_remote {
-                                                let buffer = rgba_image_to_jpeg_buffer(
-                                                    &image::DynamicImage::ImageRgb8(img.clone())
-                                                        .to_rgba8(),
-                                                    95,
-                                                );
-                                                match detect_remotely(
-                                                    api_endpoint.as_ref().unwrap(),
-                                                    buffer,
-                                                )
-                                                .await
-                                                {
-                                                    Ok(result) => result,
-                                                    Err(_) => {
-                                                        break;
-                                                    }
-                                                }
-                                            } else {
-                                                process_imgbuf(&img)
-                                            };
-
-                                            draw_aioutput(&mut img, &aioutput);
-                                            let img =
-                                                image::DynamicImage::ImageRgb8(img).to_rgba8();
-                                            if tx.send((aioutput, img)).is_err() {
-                                                break;
+                                    if frame_counter % step == 0 {
+                                        let aioutput: AIOutputs = if is_remote {
+                                            let buffer = rgba_image_to_jpeg_buffer(
+                                                &image::DynamicImage::ImageRgb8(img.clone())
+                                                    .to_rgba8(),
+                                                95,
+                                            );
+                                            match detect_remotely(
+                                                api_endpoint.as_ref().unwrap(),
+                                                buffer,
+                                            )
+                                            .await
+                                            {
+                                                Ok(result) => result,
+                                                Err(_) => break,
                                             }
+                                        } else {
+                                            let img_copy = img.clone();
+                                            match tokio::task::spawn_blocking(move || {
+                                                process_imgbuf(&img_copy)
+                                            })
+                                            .await
+                                            {
+                                                Ok(result) => result,
+                                                Err(_) => break,
+                                            }
+                                        };
+
+                                        draw_aioutput(&mut img, &aioutput);
+                                        let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+                                        if tx.send((aioutput, img)).is_err() {
+                                            break;
                                         }
                                     }
                                 }
-                            });
-
-                            // Clean up the blocking task
-                            let _ = processor_handle.await;
+                            }
                         });
                     }
                 } else {
