@@ -1387,6 +1387,7 @@ impl eframe::App for Gui {
                     ui.radio_value(&mut self.lang, Lang::PT, "Português");
                     ui.radio_value(&mut self.lang, Lang::ZH, "简体中文");
                     ui.radio_value(&mut self.lang, Lang::JA, "日本語");
+                    ui.radio_value(&mut self.lang, Lang::VI, "Tiếng Việt")
                 });
 
                 egui::widgets::global_theme_preference_switch(ui);
