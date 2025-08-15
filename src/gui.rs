@@ -8,8 +8,7 @@ use crate::api::models::{Model, Task};
 use crate::api::processing::post_processing::PostProcessing;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
-    check_boquila_hub_api, detect_bbox_from_buf_remotely, get_ipv4_address,
-    rgba_image_to_jpeg_buffer, run_api,
+    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgba_image_to_jpeg_buffer, run_api,
 };
 use crate::api::stream::Feed;
 use crate::api::utils::COUNTRY_CODES;
@@ -146,7 +145,7 @@ pub struct Gui {
     ai_selected: Option<usize>,
     ai_cls_selected: Option<usize>,
     ep_selected: usize,
-    // video_step_frame: usize,
+    video_step_frame: usize,
     feed_step_frame: usize,
     current_frame: u64,
     total_frames: Option<u64>,
@@ -247,7 +246,7 @@ impl Gui {
             ai_cls_selected: None,
             ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
-            // video_step_frame: 1,
+            video_step_frame: 1,
             feed_step_frame: 1,
             ai_config: ModelConfig::default(),
             ai_cls_config: ModelConfig::default2(),
@@ -398,9 +397,10 @@ impl Gui {
                 }
             }
 
-            self.input_api_url_dialog(ctx);
             self.architecture_selection_dialog(ctx);
         }
+
+        self.input_api_url_dialog(ctx);
     }
 
     pub fn ai_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -801,6 +801,8 @@ impl Gui {
                                 self.show_api_server_dialog = false;
                                 self.api_server_url = Some(url);
                                 self.ep_selected = 2;
+                            } else {
+                                self.process_error();
                             }
                         }
                         ui.add_space(8.0);
@@ -938,7 +940,12 @@ impl Gui {
                 }
                 let bbox = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
-                    detect_bbox_from_buf_remotely(api_endpoint.as_ref().unwrap(), buffer)
+                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                        Ok(result) => result,
+                        Err(_) => {
+                            break;
+                        }
+                    }
                 } else {
                     let img = open(&predimg.file_path).unwrap().into_rgb8();
                     tokio::task::spawn_blocking(move || process_imgbuf(&img))
@@ -1108,6 +1115,13 @@ impl Gui {
             });
             ui.separator();
 
+            ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
+                ui.label(self.t(Key::freq));
+                ui.style_mut().spacing.slider_width = 120.0;
+                ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=30));
+                ui.add_space(8.0);
+            });
+
             ui.vertical_centered(|ui| {
                 if !self.video_state.is_processing {
                     if ui.button("▶").clicked() {
@@ -1130,47 +1144,66 @@ impl Gui {
                             None
                         };
                         let is_remote = self.is_remote();
+                        let step: usize = self.feed_step_frame;
+                        let mut cached_aioutput: Option<AIOutputs> = None;
+
                         tokio::spawn(async move {
-                            // Spawn blocking task to generate frames
-                            let processor_handle = tokio::task::spawn_blocking(move || {
-                                for i in current..=n {
-                                    if cancel_rx.try_recv().is_ok() {
-                                        break;
-                                    }
+                            for i in current..=n {
+                                if cancel_rx.try_recv().is_ok() {
+                                    break;
+                                }
 
-                                    let (time, mut img) =
-                                        processor.lock().unwrap().as_mut().unwrap().next().unwrap();
+                                let (time, mut img) =
+                                    processor.lock().unwrap().as_mut().unwrap().next().unwrap();
 
+                                // Get AI output if we're on a step frame
+                                if i % step as u64 == 0 {
                                     let aioutput = if is_remote {
                                         let buffer = rgba_image_to_jpeg_buffer(
                                             &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
                                             95,
                                         );
-                                        detect_bbox_from_buf_remotely(
+                                        match detect_remotely(
                                             api_endpoint.as_ref().unwrap(),
                                             buffer,
                                         )
+                                        .await
+                                        {
+                                            Ok(result) => result,
+                                            Err(_) => break,
+                                        }
                                     } else {
-                                        process_imgbuf(&img)
+                                        let img_copy = img.clone();
+                                        match tokio::task::spawn_blocking(move || {
+                                            process_imgbuf(&img_copy)
+                                        })
+                                        .await
+                                        {
+                                            Ok(result) => result,
+                                            Err(_) => break,
+                                        }
                                     };
-
-                                    draw_aioutput(&mut img, &aioutput);
-
-                                    processor
-                                        .lock()
-                                        .unwrap()
-                                        .as_mut()
-                                        .unwrap()
-                                        .decode(&img, time);
-                                    let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-                                    if tx.send((i, img)).is_err() {
-                                        break;
-                                    }
+                                    cached_aioutput = Some(aioutput);
                                 }
-                            });
 
-                            // Clean up the blocking task
-                            let _ = processor_handle.await;
+                                // Apply AI output if available
+                                if let Some(ref aioutput) = cached_aioutput {
+                                    draw_aioutput(&mut img, aioutput);
+                                }
+
+                                // Process final image
+                                processor
+                                    .lock()
+                                    .unwrap()
+                                    .as_mut()
+                                    .unwrap()
+                                    .decode(&img, time);
+                                let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+
+                                if tx.send((i, final_img)).is_err() {
+                                    break;
+                                }
+                            }
                         });
                     }
                 } else {
@@ -1240,7 +1273,7 @@ impl Gui {
                         let is_remote = self.is_remote();
                         let step: usize = self.feed_step_frame;
                         tokio::spawn(async move {
-                            let processor_handle = tokio::task::spawn_blocking(move || {
+                            let processor_handle = tokio::task::spawn_blocking(async move || {
                                 let mut frame_counter = 0;
 
                                 loop {
@@ -1252,24 +1285,31 @@ impl Gui {
 
                                         // Only process every `step` frames
                                         if frame_counter % step == 0 {
-                                            let bbox: AIOutputs = if is_remote {
+                                            let aioutput: AIOutputs = if is_remote {
                                                 let buffer = rgba_image_to_jpeg_buffer(
                                                     &image::DynamicImage::ImageRgb8(img.clone())
                                                         .to_rgba8(),
                                                     95,
                                                 );
-                                                detect_bbox_from_buf_remotely(
+                                                match detect_remotely(
                                                     api_endpoint.as_ref().unwrap(),
                                                     buffer,
                                                 )
+                                                .await
+                                                {
+                                                    Ok(result) => result,
+                                                    Err(_) => {
+                                                        break;
+                                                    }
+                                                }
                                             } else {
                                                 process_imgbuf(&img)
                                             };
 
-                                            draw_aioutput(&mut img, &bbox);
+                                            draw_aioutput(&mut img, &aioutput);
                                             let img =
                                                 image::DynamicImage::ImageRgb8(img).to_rgba8();
-                                            if tx.send((bbox, img)).is_err() {
+                                            if tx.send((aioutput, img)).is_err() {
                                                 break;
                                             }
                                         }

@@ -3,7 +3,7 @@ use crate::api::abstractions::AIOutputs;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ImageBuffer, Rgba};
-use reqwest::blocking::Client;
+use reqwest::Client;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -39,31 +39,25 @@ pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn detect_bbox_from_buf_remotely(url: &str, buffer: Vec<u8>) -> AIOutputs {
+pub async fn detect_remotely(url: &str, buffer: Vec<u8>) -> Result<AIOutputs, Box<dyn std::error::Error>> {
     let client = Client::new();
+    
     let response = client
         .post(url)
         .multipart(
-            reqwest::blocking::multipart::Form::new().part(
+            reqwest::multipart::Form::new().part(
                 "file",
-                reqwest::blocking::multipart::Part::bytes(buffer)
-                    .mime_str("image/jpeg")
-                    .unwrap(),
+                reqwest::multipart::Part::bytes(buffer)
+                    .mime_str("image/jpeg")?,
             ),
         )
         .send()
-        .expect("Failed to send request");
-
-    let deserialized: AIOutputs = serde_json::from_str(&response.text().unwrap()).unwrap();
-    return deserialized;
-}
-
-pub fn detect_bbox_from_imgbuf_remotely(
-    url: &str,
-    img: &ImageBuffer<Rgba<u8>, Vec<u8>>,
-) -> AIOutputs {
-    let jpeg_buffer = rgba_image_to_jpeg_buffer(img, 95);
-    detect_bbox_from_buf_remotely(url, jpeg_buffer)
+        .await?;
+    
+    let response_text = response.text().await?;
+    let deserialized: AIOutputs = serde_json::from_str(&response_text)?;
+    
+    Ok(deserialized)
 }
 
 pub fn rgba_image_to_jpeg_buffer(img: &ImageBuffer<Rgba<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
@@ -76,11 +70,6 @@ pub fn rgba_image_to_jpeg_buffer(img: &ImageBuffer<Rgba<u8>, Vec<u8>>, quality: 
             .expect("Failed to encode image");
     }
     buffer
-}
-
-pub fn detect_bbox_remotely(url: &str, file_path: &str) -> AIOutputs {
-    let buf = std::fs::read(file_path).unwrap_or(vec![]);
-    return detect_bbox_from_buf_remotely(url, buf);
 }
 
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -131,8 +120,15 @@ pub fn get_ipv4_address() -> Option<String> {
     return None;
 }
 
+
 pub async fn check_boquila_hub_api(url: &str) -> bool {
-    let response = reqwest::get(url).await.unwrap();
-    let body = response.text().await.unwrap();
+    let Ok(response) = reqwest::get(url).await else {
+        return false;
+    };
+    
+    let Ok(body) = response.text().await else {
+        return false;
+    };
+    
     body.trim() == "BoquilaHUB Web API!"
 }
