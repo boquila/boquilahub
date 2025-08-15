@@ -7,6 +7,7 @@ pub enum Lang {
     ZH,
     JA,
     PT,
+    VI,
 }
 
 #[allow(non_camel_case_types)]
@@ -73,6 +74,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选择AI模型",
             Lang::JA => "AIを選択",
             Lang::PT => "Selecionar uma IA",
+            Lang::VI => "Lựa chọn AI",
         },
         Key::yes => match lang {
             Lang::EN => "Yes",
@@ -82,6 +84,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "是",
             Lang::JA => "はい",
             Lang::PT => "Sim",
+            Lang::VI => "Đồng ý",
         },
         Key::no_only_missing_data => match lang {
             Lang::EN => "No, only missing data",
@@ -91,6 +94,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "不，只处理缺失的数据",
             Lang::JA => "いいえ、不足しているデータのみ",
             Lang::PT => "Não, apenas os dados em falta",
+            Lang::VI => "Không, chỉ khi dữ liệu bị thiếu",
         },
         Key::process_everything => match lang {
             Lang::EN => "Process everything?",
@@ -100,11 +104,14 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "处理所有内容？",
             Lang::JA => "すべて処理しますか？",
             Lang::PT => "Processar tudo?",
+            Lang::VI => "Xử lí mọi thứ?"
         },
         Key::select_architecture => match lang {
+            Lang::VI => "Lựa chọn kiến trúc của mô hình",
             _ => "Select model architecture",
         },
         Key::model_have_no_architecture => match lang {
+            Lang::VI => "Mô hình này không hỗ trợ kiến trúc được lựa chọn. Vui lòng chọn kiến trúc phù hợp:",
             _ => "This model doesn't have an architecture specified. Please select the appropriate architecture:",
         }
         Key::confidence_level => match lang {
@@ -115,6 +122,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "置信度",
             Lang::JA => "信頼度",
             Lang::PT => "Confiança",
+            Lang::VI => "Độ tin cậy của mô hình"
         },
         Key::overlap_filter => match lang {
             Lang::EN => "Overlap Filter",
@@ -124,6 +132,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "重叠过滤",
             Lang::JA => "重複フィルター",
             Lang::PT => "Filtro de Sobreposição",
+            Lang::VI => "Bộ lọc trùng lặp",
         },
         Key::region_filter => match lang {
             Lang::EN => "Region (ISO 3166-1 alpha-3)",
@@ -133,6 +142,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "区域 (ISO 3166-1 alpha-3)",
             Lang::JA => "地域 (ISO 3166-1 alpha-3)",
             Lang::PT => "Região (ISO 3166-1 alpha-3)",
+            Lang::VI => "Mã quốc gia (ISO 3166-1 alpha-3)",
         },
         Key::configure_ai => match lang {
             Lang::EN => "Configure AI",
@@ -142,6 +152,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "配置AI",
             Lang::JA => "AIを設定",
             Lang::PT => "Configurar IA",
+            Lang::VI => "Cấu hình AI"
         },
         Key::add_classification_model_to_complement => match lang {
             Lang::EN => "Add a classification AI to complement the current model",
@@ -151,6 +162,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "添加分类AI以补充当前模型",
             Lang::JA => "現在のモデルを補完する分類AIを追加",
             Lang::PT => "Adicionar uma IA de classificação para complementar o modelo atual",
+            Lang::VI => "Bổ sung một mô hình AI phân loại để hỗ trợ mô hình hiện tại"
         },
         Key::select_ep => match lang {
             Lang::EN => "Select a processor",
@@ -160,6 +172,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选择处理器",
             Lang::JA => "プロセッサーを選択",
             Lang::PT => "Selecionar um processador",
+            Lang::VI => "Chọn bộ xử lí",
         },
         Key::setup => match lang {
             Lang::EN => "Setup",
@@ -169,6 +182,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "配置",
             Lang::JA => "セットアップ",
             Lang::PT => "Configuração",
+            Lang::VI => "Thiết lập mô hình",
         },
         Key::no_predictions => match lang {
             Lang::EN => "No predictions",
@@ -178,6 +192,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "没有预测",
             Lang::JA => "予測なし",
             Lang::PT => "Sem previsões",
+            Lang::VI => "Không tìm thấy kết quả dự đoán"
         },
         Key::deploy => match lang {
             Lang::EN => "Deploy",
@@ -187,6 +202,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "部署",
             Lang::JA => "デプロイ",
             Lang::PT => "Implantar",
+            Lang::VI => "Triển khai"
         },
         Key::deployed_api => match lang {
             Lang::EN => "Deployed API",
@@ -196,6 +212,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "已部署API",
             Lang::JA => "デプロイ済みAPI",
             Lang::PT => "API implantada",
+            Lang::VI => "Triển khai API"
         },
         Key::select_your_data => match lang {
             Lang::EN => "Select your data",
@@ -205,6 +222,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选取数据",
             Lang::JA => "データを選択",
             Lang::PT => "Selecionar os seus dados",
+            Lang::VI => "Chọn dữ liệu của bạn"
         },
         Key::folder => match lang {
             Lang::EN => "Folder",
@@ -214,6 +232,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "文件夹",
             Lang::JA => "フォルダ",
             Lang::PT => "Pasta",
+            Lang::VI => "Thư mục"
         },
         Key::image => match lang {
             Lang::EN => "Image",
@@ -223,6 +242,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "图片",
             Lang::JA => "画像",
             Lang::PT => "Imagem",
+            Lang::VI => "Hình ảnh"
         },
         Key::video_file => match lang {
             Lang::EN => "Video",
@@ -232,6 +252,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频",
             Lang::JA => "ビデオ",
             Lang::PT => "Vídeo",
+            Lang::VI => "Video"
         },
         Key::camera_feed => match lang {
             Lang::EN => "Feed",
@@ -241,6 +262,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频流",
             Lang::JA => "カメラフィード",
             Lang::PT => "Transmissão",
+            Lang::VI => "Nguồn khác"
         },
         Key::about => match lang {
             Lang::EN => "About",
@@ -250,6 +272,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "关于",
             Lang::JA => "情報",
             Lang::PT => "Sobre",
+            Lang::VI => "Thông tin"
         },
         Key::idiom => match lang {
             Lang::EN => "Language",
@@ -259,6 +282,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "语言",
             Lang::JA => "言語",
             Lang::PT => "Idioma",
+            Lang::VI => "Ngôn ngữ"
         },
         Key::models => match lang {
             Lang::EN => "Models",
@@ -268,6 +292,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "模型",
             Lang::JA => "モデル",
             Lang::PT => "Modelos",
+            Lang::VI => "Mô hình"
         },
         Key::donate => match lang {
             Lang::EN => "Donate",
@@ -277,6 +302,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "捐助",
             Lang::JA => "寄付する",
             Lang::PT => "Doar",
+            Lang::VI => "Ủng hộ"
         },
         Key::source_code => match lang {
             Lang::EN => "Source code",
@@ -286,6 +312,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "源代码",
             Lang::JA => "ソースコード",
             Lang::PT => "Código-fonte",
+            Lang::VI => "Mã nguồn"
         },
         Key::analyze => match lang {
             Lang::EN => "Analyze",
@@ -295,6 +322,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "开始分析",
             Lang::JA => "解析する",
             Lang::PT => "Analisar",
+            Lang::VI => "Xử lí"
         },
         Key::export => match lang {
             Lang::EN => "Export",
@@ -304,6 +332,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出",
             Lang::JA => "エクスポート",
             Lang::PT => "Exportar",
+            Lang::VI => "Xuất kết quả"
         },
         Key::analysis => match lang {
             Lang::EN => "Analysis",
@@ -313,6 +342,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "分析",
             Lang::JA => "解析",
             Lang::PT => "Análise",
+            Lang::VI => "Phân tích"
         },
         Key::cancel => match lang {
             Lang::EN => "Cancel",
@@ -322,6 +352,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "取消",
             Lang::JA => "キャンセル",
             Lang::PT => "Cancelar",
+            Lang::VI => "Hủy bỏ"
         },
         Key::ok => match lang {
             Lang::EN => "OK",
@@ -331,6 +362,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "确定",
             Lang::JA => "OK",
             Lang::PT => "OK",
+            Lang::VI => "Hủy bỏ"
         },
         Key::process_completed => match lang {
             Lang::EN => "Process completed",
@@ -340,6 +372,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "处理完成",
             Lang::JA => "処理完了",
             Lang::PT => "Processo concluído",
+            Lang::VI => "Tiến trình đã hoàn tất"
         },
         Key::done => match lang {
             Lang::EN => "✅ Done",
@@ -349,6 +382,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "✅ 已完成",
             Lang::JA => "✅ 完了",
             Lang::PT => "✅ Concluído",
+            Lang::VI => "✅ Hoàn tất"
         },
         Key::error_ocurred => match lang {
             Lang::EN => "Error occurred",
@@ -358,6 +392,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "发生错误",
             Lang::JA => "エラーが発生しました",
             Lang::PT => "Ocorreu um erro",
+            Lang::VI => "Đã có lỗi xảy ra"
         },
         Key::website => match lang {
             Lang::EN => "Website",
@@ -367,6 +402,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "网站",
             Lang::JA => "ウェブサイト",
             Lang::PT => "Website",
+            Lang::VI => "Trang web"
         },
         Key::model_hub => match lang {
             Lang::EN => "Model HUB",
@@ -376,6 +412,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "模型库",
             Lang::JA => "モデルハブ",
             Lang::PT => "Central de Modelos",
+            Lang::VI => "Model Hub",
         },
         Key::api => match lang {
             _ => "API",
@@ -388,6 +425,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "图片处理中",
             Lang::JA => "画像を処理中",
             Lang::PT => "Processando imagens",
+            Lang::VI => "Xử lí hình ảnh"
         },
         Key::video_processing => match lang {
             Lang::EN => "Video processing",
@@ -397,6 +435,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频处理中",
             Lang::JA => "ビデオ処理中",
             Lang::PT => "Processando vídeo",
+            Lang::VI => "Xử lí video"
         },
         Key::feed_processing => match lang {
             Lang::EN => "Feed processing",
@@ -406,6 +445,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频流处理中",
             Lang::JA => "フィード処理中",
             Lang::PT => "Processando transmissão",
+            Lang::VI => "Xử lí dữ liệu khác"
         },
         Key::model_hub_url => match lang {
             Lang::EN => "https://boquila.org/hub",
@@ -442,6 +482,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出识别结果（.txt）",
             Lang::JA => "予測をエクスポート（.txt）",
             Lang::PT => "Exportar previsões (.txt)",
+            Lang::VI => "Xuất kết quả (.txt)"
         },
         Key::export_imgs_with_predictions => match lang {
             Lang::EN => "Export images with predictions (.jpg)",
@@ -451,6 +492,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出含识别结果的图片（.jpg）",
             Lang::JA => "予測付き画像をエクスポート（.jpg）",
             Lang::PT => "Exportar imagens com previsões (.jpg)",
+            Lang::VI => "Xuất kết quả (.jpg)"
         },
         Key::copy_with_classification => match lang {
             Lang::EN => "Copy and separate in folders according to classification",
@@ -460,6 +502,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "根据结果将数据复制到不同文件夹",
             Lang::JA => "分類に応じてフォルダにコピー・振り分け",
             Lang::PT => "Copiar e separar em pastas por classificação",
+            Lang::VI => "Sao chép và phân loại theo từng thu mục"
         },
         Key::input_url => match lang {
             Lang::EN => "Add the URL",
@@ -469,6 +512,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "输入视频流地址（URL）",
             Lang::JA => "URLを追加",
             Lang::PT => "Adicionar o URL",
+            Lang::VI => "Nhập URL"
         },
         Key::example => match lang {
             Lang::EN => "Example",
@@ -478,6 +522,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "示例",
             Lang::JA => "例",
             Lang::PT => "Exemplo",
+            Lang::VI => "Mẫu"
         },
         Key::freq => match lang {
             Lang::EN => "Frequency",
@@ -487,6 +532,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "频率",
             Lang::JA => "頻度",
             Lang::PT => "Frequência",
+            Lang::VI => "Tần suất"
         },
         Key::export_obs => match lang {
             Lang::EN => "Export detections",
@@ -496,6 +542,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出检测",
             Lang::JA => "検出をエクスポート",
             Lang::PT => "Exportar detecções",
+            Lang::VI => "Trích xuất kết quả phát hiện"
         },
     }
 }
@@ -511,6 +558,7 @@ pub fn get_locale() -> Lang {
         "zh" => Lang::ZH,
         "ja" => Lang::JA,
         "pt" => Lang::PT,
+        "vi" => Lang::VI,
         _ => Lang::EN,
     }
 }
