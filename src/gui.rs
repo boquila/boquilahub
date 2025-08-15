@@ -1227,6 +1227,62 @@ impl Gui {
         self.video_state.is_processing = false;
     }
 
+    pub fn start_feed_analysis(&mut self) {
+        self.feed_state.is_processing = true;
+        // Async processing: Video
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.feed_processing_receiver = Some(rx);
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.feed_state.cancel_sender = Some(cancel_tx);
+
+        let mut feed = Feed::new(&self.feed_url.clone().unwrap()).unwrap();
+
+        let api_endpoint = self.get_endpoint();
+        let is_remote = self.is_remote();
+        let step: usize = self.feed_step_frame;
+        tokio::spawn(async move {
+            let mut frame_counter = 0;
+            loop {
+                if cancel_rx.try_recv().is_ok() {
+                    break;
+                }
+
+                if let Some(mut img) = feed.next() {
+                    frame_counter = frame_counter + 1;
+
+                    if frame_counter % step == 0 {
+                        let aioutput: AIOutputs = if is_remote {
+                            let buffer = rgb_image_to_jpeg_buffer(&img, 95);
+                            match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                                Ok(result) => result,
+                                Err(_) => break,
+                            }
+                        } else {
+                            match tokio::task::spawn_blocking(move || {
+                                let result = process_imgbuf(&img);
+                                (img, result)
+                            })
+                            .await
+                            {
+                                Ok((returned_img, result)) => {
+                                    img = returned_img;
+                                    result
+                                }
+                                Err(_) => break,
+                            }
+                        };
+
+                        draw_aioutput(&mut img, &aioutput);
+                        let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+                        if tx.send((aioutput, img)).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     pub fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.feed_url.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
@@ -1248,64 +1304,7 @@ impl Gui {
 
                 if !self.feed_state.is_processing {
                     if ui.button("▶").clicked() {
-                        self.feed_state.is_processing = true;
-                        // Async processing: Video
-                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                        self.feed_processing_receiver = Some(rx);
-                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                        self.feed_state.cancel_sender = Some(cancel_tx);
-
-                        let mut feed = Feed::new(&self.feed_url.clone().unwrap()).unwrap();
-
-                        let api_endpoint = self.get_endpoint();
-                        let is_remote = self.is_remote();
-                        let step: usize = self.feed_step_frame;
-                        tokio::spawn(async move {
-                            let mut frame_counter = 0;
-                            loop {
-                                if cancel_rx.try_recv().is_ok() {
-                                    break;
-                                }
-
-                                if let Some(mut img) = feed.next() {
-                                    frame_counter = frame_counter + 1;
-
-                                    if frame_counter % step == 0 {
-                                        let aioutput: AIOutputs = if is_remote {
-                                            let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                                            match detect_remotely(
-                                                api_endpoint.as_ref().unwrap(),
-                                                buffer,
-                                            )
-                                            .await
-                                            {
-                                                Ok(result) => result,
-                                                Err(_) => break,
-                                            }
-                                        } else {
-                                            match tokio::task::spawn_blocking(move || {
-                                                let result = process_imgbuf(&img);
-                                                (img, result)
-                                            })
-                                            .await
-                                            {
-                                                Ok((returned_img, result)) => {
-                                                    img = returned_img;
-                                                    result
-                                                }
-                                                Err(_) => break,
-                                            }
-                                        };
-
-                                        draw_aioutput(&mut img, &aioutput);
-                                        let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-                                        if tx.send((aioutput, img)).is_err() {
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        });
+                        self.start_feed_analysis();
                     }
                 } else {
                     if ui.button("⏸").clicked() {
@@ -1485,68 +1484,58 @@ impl eframe::App for Gui {
             if img_mode || video_mode || feed_mode {
                 ui.separator();
             }
-            match self.mode {
+            egui::ScrollArea::vertical().show(ui, |ui| match self.mode {
                 Mode::Image => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.style_mut().spacing.slider_width = 300.0;
-                        if self.selected_files.len() > 1 {
-                            // Show slider
-                            let response = ui.add(
-                                egui::Slider::new(
-                                    &mut self.image_texture_n,
-                                    1..=self.selected_files.len(),
-                                )
-                                .text(""),
-                            );
+                    ui.style_mut().spacing.slider_width = 300.0;
+                    if self.selected_files.len() > 1 {
+                        let images_slider = ui.add(
+                            egui::Slider::new(
+                                &mut self.image_texture_n,
+                                1..=self.selected_files.len(),
+                            )
+                            .text(""),
+                        );
 
-                            // React to slider change
-                            if response.changed() {
-                                self.paint(ctx, self.image_texture_n - 1);
-                            }
+                        if images_slider.changed() {
+                            self.paint(ctx, self.image_texture_n - 1);
                         }
+                    }
 
-                        if let Some(texture) = &self.img_state.texture {
-                            ui.add(
-                                egui::Image::new(texture)
-                                    .max_height(800.0)
-                                    .corner_radius(10.0),
-                            );
-                        }
-                    });
+                    if let Some(texture) = &self.img_state.texture {
+                        ui.add(
+                            egui::Image::new(texture)
+                                .max_height(800.0)
+                                .corner_radius(10.0),
+                        );
+                    }
+
                     self.img_handle_results(ctx);
                 }
                 Mode::Video => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        if let Some(texture) = &self.video_state.texture {
-                            ui.add(
-                                egui::Image::new(texture)
-                                    .max_height(800.0)
-                                    .corner_radius(10.0),
-                            );
-                        }
-                    });
+                    if let Some(texture) = &self.video_state.texture {
+                        ui.add(
+                            egui::Image::new(texture)
+                                .max_height(800.0)
+                                .corner_radius(10.0),
+                        );
+                    }
+
                     self.video_handle_results(ctx);
                 }
                 Mode::Feed => {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        if let Some(texture) = &self.feed_state.texture {
-                            ui.add(
-                                egui::Image::new(texture)
-                                    .max_height(800.0)
-                                    .corner_radius(10.0),
-                            );
-                        }
-                    });
+                    if let Some(texture) = &self.feed_state.texture {
+                        ui.add(
+                            egui::Image::new(texture)
+                                .max_height(800.0)
+                                .corner_radius(10.0),
+                        );
+                    }
+
                     self.feed_handle_results(ctx);
                 }
-            }
+            });
         });
     }
-}
-
-fn imgbuf_to_colorimg(image_buffer: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> ColorImage {
-    let size: [usize; 2] = [image_buffer.width() as _, image_buffer.height() as _];
-    ColorImage::from_rgba_unmultiplied(size, image_buffer.as_flat_samples().as_slice())
 }
 
 #[inline(always)]
@@ -1554,11 +1543,9 @@ pub fn imgbuf_to_texture(
     img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
     ctx: &egui::Context,
 ) -> Option<TextureHandle> {
-    Some(ctx.load_texture(
-        "current_frame",
-        imgbuf_to_colorimg(&img),
-        TextureOptions::default(),
-    ))
+    let size: [usize; 2] = [img.width() as _, img.height() as _];
+    let color_img = ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
+    Some(ctx.load_texture("current_frame", color_img, TextureOptions::default()))
 }
 
 #[derive(PartialEq)]
