@@ -8,7 +8,8 @@ use crate::api::models::{Model, Task};
 use crate::api::processing::post_processing::PostProcessing;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
-    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgba_image_to_jpeg_buffer, run_api,
+    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer,
+    rgba_image_to_jpeg_buffer, run_api,
 };
 use crate::api::stream::Feed;
 use crate::api::utils::COUNTRY_CODES;
@@ -548,6 +549,16 @@ impl Gui {
         }
     }
 
+    pub fn get_endpoint(&self) -> Option<String> {
+        if self.is_remote() {
+            self.api_server_url
+                .as_ref()
+                .map(|url| format!("{}/upload", url))
+        } else {
+            None
+        }
+    }
+
     pub fn ep_widget(&mut self, ui: &mut egui::Ui) {
         ui.label(self.t(Key::select_ep));
         let mut temp_ep_selected = self.ep_selected;
@@ -922,13 +933,7 @@ impl Gui {
         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
         self.img_state.cancel_sender = Some(cancel_tx);
 
-        let api_endpoint = if self.is_remote() {
-            self.api_server_url
-                .as_ref()
-                .map(|url| format!("{}/upload", url))
-        } else {
-            None
-        };
+        let api_endpoint = self.get_endpoint();
         let is_remote = self.is_remote();
         tokio::spawn(async move {
             for (i, predimg) in copy_predigms.iter().enumerate() {
@@ -1108,6 +1113,78 @@ impl Gui {
         }
     }
 
+    pub fn start_video_analysis(&mut self) {
+        self.video_state.is_processing = true;
+        // Async processing: Video
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.video_processing_receiver = Some(rx);
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.video_state.cancel_sender = Some(cancel_tx);
+
+        let processor = Arc::clone(&self.video_file_processor);
+        let n = self.total_frames.unwrap();
+        let current = self.current_frame;
+
+        let api_endpoint = self.get_endpoint();
+        let is_remote = self.is_remote();
+        let step: usize = self.video_step_frame;
+        let mut cached_aioutput: Option<AIOutputs> = None;
+
+        tokio::spawn(async move {
+            for i in current..=n {
+                if cancel_rx.try_recv().is_ok() {
+                    break;
+                }
+
+                let (time, mut img) = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
+
+                // Get AI output if we're on a step frame
+                if i % step as u64 == 0 {
+                    let aioutput;
+                    if is_remote {
+                        let buffer = rgb_image_to_jpeg_buffer(&img, 95);
+                        match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                            Ok(result) => aioutput = result,
+                            Err(_) => break,
+                        }
+                    } else {
+                        match tokio::task::spawn_blocking(move || {
+                            let result = process_imgbuf(&img);
+                            (img, result) // return img back alongside the result
+                        })
+                        .await
+                        {
+                            Ok((returned_img, result)) => {
+                                img = returned_img; 
+                                aioutput = result;
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    cached_aioutput = Some(aioutput);
+                }
+
+                if let Some(ref aioutput) = cached_aioutput {
+                    draw_aioutput(&mut img, aioutput);
+                }
+
+                // Process final image
+                processor
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .encode(&img, time);
+                
+                let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+
+                if tx.send((i, final_img)).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
     pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
@@ -1126,86 +1203,7 @@ impl Gui {
             ui.vertical_centered(|ui| {
                 if !self.video_state.is_processing {
                     if ui.button("▶").clicked() {
-                        self.video_state.is_processing = true;
-                        // Async processing: Video
-                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                        self.video_processing_receiver = Some(rx);
-                        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-                        self.video_state.cancel_sender = Some(cancel_tx);
-
-                        let processor = Arc::clone(&self.video_file_processor);
-                        let n = self.total_frames.unwrap();
-                        let current = self.current_frame;
-
-                        let api_endpoint = if self.is_remote() {
-                            self.api_server_url
-                                .as_ref()
-                                .map(|url| format!("{}/upload", url))
-                        } else {
-                            None
-                        };
-                        let is_remote = self.is_remote();
-                        let step: usize = self.feed_step_frame;
-                        let mut cached_aioutput: Option<AIOutputs> = None;
-
-                        tokio::spawn(async move {
-                            for i in current..=n {
-                                if cancel_rx.try_recv().is_ok() {
-                                    break;
-                                }
-
-                                let (time, mut img) =
-                                    processor.lock().unwrap().as_mut().unwrap().next().unwrap();
-
-                                // Get AI output if we're on a step frame
-                                if i % step as u64 == 0 {
-                                    let aioutput = if is_remote {
-                                        let buffer = rgba_image_to_jpeg_buffer(
-                                            &image::DynamicImage::ImageRgb8(img.clone()).to_rgba8(),
-                                            95,
-                                        );
-                                        match detect_remotely(
-                                            api_endpoint.as_ref().unwrap(),
-                                            buffer,
-                                        )
-                                        .await
-                                        {
-                                            Ok(result) => result,
-                                            Err(_) => break,
-                                        }
-                                    } else {
-                                        let img_copy = img.clone();
-                                        match tokio::task::spawn_blocking(move || {
-                                            process_imgbuf(&img_copy)
-                                        })
-                                        .await
-                                        {
-                                            Ok(result) => result,
-                                            Err(_) => break,
-                                        }
-                                    };
-                                    cached_aioutput = Some(aioutput);
-                                }
-
-                                // Apply AI output if available
-                                if let Some(ref aioutput) = cached_aioutput {
-                                    draw_aioutput(&mut img, aioutput);
-                                }
-
-                                // Process final image
-                                processor
-                                    .lock()
-                                    .unwrap()
-                                    .as_mut()
-                                    .unwrap()
-                                    .decode(&img, time);
-                                let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-
-                                if tx.send((i, final_img)).is_err() {
-                                    break;
-                                }
-                            }
-                        });
+                        self.start_video_analysis();
                     }
                 } else {
                     if ui.button("⏸").clicked() {
@@ -1264,13 +1262,7 @@ impl Gui {
                         let url = self.feed_url.clone();
                         let mut feed = Feed::new(&url.unwrap()).unwrap();
 
-                        let api_endpoint = if self.is_remote() {
-                            self.api_server_url
-                                .as_ref()
-                                .map(|url| format!("{}/upload", url))
-                        } else {
-                            None
-                        };
+                        let api_endpoint = self.get_endpoint();
                         let is_remote = self.is_remote();
                         let step: usize = self.feed_step_frame;
                         tokio::spawn(async move {

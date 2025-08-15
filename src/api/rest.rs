@@ -2,7 +2,7 @@ use super::inference::*;
 use crate::api::abstractions::AIOutputs;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
-use image::{DynamicImage, ImageBuffer, Rgba};
+use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
 use reqwest::Client;
 
 #[cfg(windows)]
@@ -62,6 +62,18 @@ pub async fn detect_remotely(url: &str, buffer: Vec<u8>) -> Result<AIOutputs, Bo
 
 pub fn rgba_image_to_jpeg_buffer(img: &ImageBuffer<Rgba<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
     let dynamic_image = DynamicImage::ImageRgba8(img.clone());
+    let mut buffer = Vec::new();
+    {
+        let mut encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
+        encoder
+            .encode_image(&dynamic_image)
+            .expect("Failed to encode image");
+    }
+    buffer
+}
+
+pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
+    let dynamic_image = DynamicImage::ImageRgb8(img.clone());
     let mut buffer = Vec::new();
     {
         let mut encoder = JpegEncoder::new_with_quality(&mut buffer, quality);

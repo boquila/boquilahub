@@ -49,7 +49,7 @@ impl VideofileProcessor {
         self.decoder.frames().unwrap()
     }
 
-    pub fn decode(&mut self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>, time: Time){
+    pub fn encode(&mut self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>, time: Time){
         let final_frame = image_buffer_to_ndarray(&img);
         self.encoder.encode(&final_frame, time).unwrap(); 
     }
