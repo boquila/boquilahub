@@ -1,15 +1,46 @@
 use crate::api::abstractions::XYXY;
 use image::{
-    imageops::{resize, FilterType},
     ImageBuffer, Rgb,
 };
 use ndarray::{Array, Ix4};
+use fast_image_resize::{self as fir, Resizer};
 
 const SCALE: f32 = 1.0 / 255.0;
 
 pub enum TensorFormat {
     NCHW, // Batch, Channel, Height, Width
     NHWC, // Batch, Height, Width, Channel
+}
+
+fn fast_resize(
+    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    new_width: u32,
+    new_height: u32,
+) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let (width, height) = img.dimensions();
+    
+    // Create source image view
+    let src_image = fir::images::Image::from_vec_u8(
+        width,
+        height,
+        img.as_raw().clone(),
+        fir::PixelType::U8x3,
+    ).unwrap();
+    
+    // Create destination image
+    let mut dst_image = fir::images::Image::new(
+        new_width,
+        new_height,
+        fir::PixelType::U8x3,
+    );
+    
+    let mut resizer = Resizer::new();
+    let options= fir::ResizeOptions::new().resize_alg(fast_image_resize::ResizeAlg::Nearest);
+
+    resizer.resize(&src_image, &mut dst_image, &options).unwrap();
+    
+    // Convert back to ImageBuffer
+    ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
 }
 
 pub fn imgbuf_to_input_array(
@@ -21,7 +52,8 @@ pub fn imgbuf_to_input_array(
     format: TensorFormat,
 ) -> (Array<f32, Ix4>, u32, u32) {
     let (img_width, img_height) = img.dimensions();
-    let resized = resize(img, input_width, input_height, FilterType::Nearest);
+
+    let resized = fast_resize(img, input_width, input_height);
 
     let (h, w) = (input_height as usize, input_width as usize);
     let mut input = match format {
