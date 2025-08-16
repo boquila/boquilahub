@@ -39,6 +39,7 @@ embed-resource = "3.0.4"
 bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.98"
 fast_image_resize = { version = "=5.1.2", features = ["image"] }
+video-rs = { version = "0.10.3", features = ["ndarray"] }
 
 [profile.release]
 lto = true

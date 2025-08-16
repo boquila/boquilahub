@@ -714,29 +714,16 @@ impl Gui {
                         .add_filter("Video", &VIDEO_FORMATS)
                         .pick_file()
                     {
-                        if let Ok(img) = VideofileProcessor::new_first_frame(path.clone()) {
-                            self.video_state.texture = imgbuf_to_texture(
-                                &image::DynamicImage::ImageRgb8(img).to_rgba8(),
-                                ctx,
-                            );
-
-                            self.video_file_path = Some(path);
-                            match VideofileProcessor::new(
-                                &self.video_file_path.clone().unwrap().to_str().unwrap(),
-                            ) {
-                                Ok(processor) => {
-                                    self.total_frames = Some(processor.total_frames as u64);
-                                    self.video_file_processor =
-                                        Arc::new(Mutex::new(Some(processor)));
-                                    self.mode = Mode::Video;
-                                    self.current_frame = 0;
-                                    self.video_state.progress_bar = 0.0;
-                                }
-                                Err(_) => {
-                                    self.process_error();
-                                }
-                            }
-                        };
+                        self.video_file_path = Some(path);
+                        let processor = Some(VideofileProcessor::new(
+                            &self.video_file_path.clone().unwrap().to_str().unwrap(),
+                        ))
+                        .unwrap();
+                        self.total_frames = Some(processor.get_n_frames());
+                        self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
+                        self.mode = Mode::Video;
+                        self.current_frame = 0;
+                        self.video_state.progress_bar = 0.0;
                     }
                 }
 
@@ -1140,7 +1127,7 @@ impl Gui {
                     break;
                 }
 
-                let mut img = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
+                let (time, mut img) = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
 
                 // Only process if frequency says so
                 if i % step as u64 == 0 {
@@ -1173,7 +1160,12 @@ impl Gui {
                 }
 
                 // Process final image
-                let _ = processor.lock().unwrap().as_mut().unwrap().encode(&img);
+                processor
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .encode(&img, time);
 
                 let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
 
