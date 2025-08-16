@@ -14,13 +14,9 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 - Process camera feed, in real-time.  
 - Deploy REST APIs, with maximum efficiency. Powered by [axum](https://github.com/tokio-rs/axum)
 
-## AIs and binaries
+## AIs 
 
-Go to [boquila.org/hub](https://boquila.org/hub), download the models you want to use and just put them in your models folder, that's it. The compiled binaries are also there.
-
-You can load any [.bq model](https://github.com/boquila/.bq). Right now, only for object detection. But in the future we will expand the format.
-
-Right now, only object detection AIs are supported.
+You can load any [.bq model](https://github.com/boquila/.bq). You can find them on our [Hugging Face profile](https://huggingface.co/boquila).
 
 ## List of Platforms
 
@@ -57,9 +53,6 @@ Right now, only object detection AIs are supported.
 | Arm ACL        | Arm Compute Library (ACL) execution provider for Arm devices                        | 🚧           | 🚀 Soon      |
 | ArmNN          | ArmNN execution provider for ARM-based devices                                     | 🚧           | 🚀 Soon      |
 | Rockchip RKNPU | Rockchip RKNPU execution provider for Rockchip NPUs                                | 🚧           | 🚀 Soon      |
-
-🚧 = Requirements TBA  
-🚀 Soon = In progress
 
 ## How to compile
 
