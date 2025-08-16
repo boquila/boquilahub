@@ -600,6 +600,14 @@ impl Gui {
                                 Some(self.ai_config.clone()),
                             );
                         }
+
+                        if let Some(_ai_cls_index) = self.ai_cls_selected {
+                            let _ = set_model2(
+                                &self.current_ai_cls().get_path(),
+                                &LIST_EPS[self.ep_selected],
+                                Some(self.ai_cls_config.clone()),
+                            );
+                        }
                     } else {
                         self.process_error();
                     }
@@ -671,7 +679,7 @@ impl Gui {
                                         .into_iter()
                                         .map(|path: PathBuf| PredImg::new_simple(path))
                                         .collect();
-
+                                    self.image_texture_n = 1;
                                     self.paint(ctx, 0);
                                     self.mode = Mode::Image;
                                     self.img_state.progress_bar = self.selected_files.get_progress()
@@ -1138,11 +1146,9 @@ impl Gui {
                     break;
                 }
 
-                // let (time, mut img) = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
+                let data = processor.lock().unwrap().as_mut().unwrap().next();
 
-                let a = processor.lock().unwrap().as_mut().unwrap().next();
-
-                match a {
+                match data {
                     Some((time, mut img)) => {
                         // Only process if frequency says so
                         if i % step as u64 == 0 {
