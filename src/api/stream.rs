@@ -3,6 +3,8 @@ use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::iter::Iterator;
 
+use crate::api::utils::extract_img;
+
 pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
@@ -83,73 +85,6 @@ impl Iterator for Feed {
 
         None
     }
-}
-
-/// Converts and saves a video frame as a PNG image
-fn extract_img(frame: &ffmpeg::frame::Video) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let width = frame.width() as usize;
-    let height = frame.height() as usize;
-
-    // Create a new RGB image buffer
-    let mut img_buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width as u32, height as u32);
-
-    // Convert the FFmpeg frame data to RGB format
-    let data = frame.data(0);
-    let linesize = frame.stride(0);
-
-    // Copy data from FFmpeg frame to image buffer
-    match frame.format() {
-        ffmpeg::format::Pixel::RGB24 => {
-            for y in 0..height {
-                for x in 0..width {
-                    let offset = y * linesize + x * 3;
-                    let b = data[offset + 2];
-                    let g = data[offset + 1];
-                    let r = data[offset];
-                    img_buffer.put_pixel(x as u32, y as u32, Rgb([r, g, b]));
-                }
-            }
-        }
-        ffmpeg::format::Pixel::YUV420P | ffmpeg::format::Pixel::YUVJ420P => {
-            // For YUV formats, we need to convert from YUV to RGB
-            // This requires accessing Y, U, and V planes separately
-            let y_plane = frame.data(0);
-            let y_stride = frame.stride(0);
-            let u_plane = frame.data(1);
-            let u_stride = frame.stride(1);
-            let v_plane = frame.data(2);
-            let v_stride = frame.stride(2);
-
-            for y in 0..height {
-                for x in 0..width {
-                    let y_value = y_plane[y * y_stride + x] as f32;
-
-                    // Subsample U and V (they are at quarter resolution in YUV420)
-                    let u_x = x / 2;
-                    let u_y = y / 2;
-                    let v_x = x / 2;
-                    let v_y = y / 2;
-
-                    let u_value = u_plane[u_y * u_stride + u_x] as f32 - 128.0;
-                    let v_value = v_plane[v_y * v_stride + v_x] as f32 - 128.0;
-
-                    // YUV to RGB conversion
-                    let r = (y_value + 1.402 * v_value).clamp(0.0, 255.0) as u8;
-                    let g =
-                        (y_value - 0.344136 * u_value - 0.714136 * v_value).clamp(0.0, 255.0) as u8;
-                    let b = (y_value + 1.772 * u_value).clamp(0.0, 255.0) as u8;
-
-                    img_buffer.put_pixel(x as u32, y as u32, Rgb([r, g, b]));
-                }
-            }
-        }
-        _ => {
-            // For other formats, we would need to convert using ffmpeg's software scaler (SwsContext)
-            // This is more complicated and would require additional code
-        }
-    }
-
-    return img_buffer;
 }
 
 pub fn save_frame(frame: &ImageBuffer<Rgb<u8>, Vec<u8>>) {

@@ -26,7 +26,6 @@ regex = "1.11.1"
 axum = { version = "0.8.3", features = ["multipart"] }
 tokio = { version = "1.44.2", features = ["full"] }
 reqwest = { version = "0.12.15", features = ["blocking", "multipart"] }
-video-rs = { version = "0.10.3", features = ["ndarray"] }
 imageproc = "0.25.0"
 ab_glyph = "0.2.29"
 chrono = "0.4.41"
