@@ -558,6 +558,26 @@ impl Gui {
         }
     }
 
+    pub fn set_ai(&mut self) {
+        if let Some(ai_index) = self.ai_selected {
+            let _ = set_model(
+                &self.ais[ai_index].get_path(),
+                &LIST_EPS[self.ep_selected],
+                Some(self.ai_config.clone()),
+            );
+        }
+    }
+
+    pub fn set_ai_cls(&mut self) {
+        if let Some(_ai_cls_index) = self.ai_cls_selected {
+            let _ = set_model2(
+                &self.current_ai_cls().get_path(),
+                &LIST_EPS[self.ep_selected],
+                Some(self.ai_cls_config.clone()),
+            );
+        }
+    }
+
     pub fn ep_widget(&mut self, ui: &mut egui::Ui) {
         ui.label(self.t(Key::select_ep));
         let mut temp_ep_selected = self.ep_selected;
@@ -590,46 +610,20 @@ impl Gui {
                         }
                     };
 
-                    if cuda_version >= 12.4 {
+                    if cuda_version >= 12.8 {
                         self.ep_selected = temp_ep_selected;
 
-                        if let Some(ai_index) = self.ai_selected {
-                            let _ = set_model(
-                                &self.ais[ai_index].get_path(),
-                                &LIST_EPS[self.ep_selected],
-                                Some(self.ai_config.clone()),
-                            );
-                        }
-
-                        if let Some(_ai_cls_index) = self.ai_cls_selected {
-                            let _ = set_model2(
-                                &self.current_ai_cls().get_path(),
-                                &LIST_EPS[self.ep_selected],
-                                Some(self.ai_cls_config.clone()),
-                            );
-                        }
+                        self.set_ai();
+                        self.set_ai_cls();
                     } else {
                         self.process_error();
                     }
                 }
                 _ => {
                     self.ep_selected = temp_ep_selected;
-
-                    if let Some(ai_index) = self.ai_selected {
-                        let _ = set_model(
-                            &self.ais[ai_index].get_path(),
-                            &LIST_EPS[self.ep_selected],
-                            Some(self.ai_config.clone()),
-                        );
-                    }
-
-                    if let Some(_ai_cls_index) = self.ai_cls_selected {
-                        let _ = set_model2(
-                            &self.current_ai_cls().get_path(),
-                            &LIST_EPS[self.ep_selected],
-                            Some(self.ai_cls_config.clone()),
-                        );
-                    }
+                    
+                    self.set_ai();
+                    self.set_ai_cls();
                 }
             }
         }
