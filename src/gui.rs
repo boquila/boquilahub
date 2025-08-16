@@ -714,16 +714,27 @@ impl Gui {
                         .add_filter("Video", &VIDEO_FORMATS)
                         .pick_file()
                     {
-                        self.video_file_path = Some(path);
-                        let processor = Some(VideofileProcessor::new(
-                            &self.video_file_path.clone().unwrap().to_str().unwrap(),
-                        ))
-                        .unwrap();
-                        self.total_frames = Some(processor.get_n_frames());
-                        self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
-                        self.mode = Mode::Video;
-                        self.current_frame = 0;
-                        self.video_state.progress_bar = 0.0;
+                        match VideofileProcessor::first_frame(path.clone().to_str().unwrap()) {
+                            Ok(frame) => {
+                                self.video_state.texture = imgbuf_to_texture(
+                                    &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
+                                    ctx,
+                                );
+                                self.video_file_path = Some(path);
+                                let processor = Some(VideofileProcessor::new(
+                                    &self.video_file_path.clone().unwrap().to_str().unwrap(),
+                                ))
+                                .unwrap();
+                                self.total_frames = Some(processor.get_n_frames());
+                                self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
+                                self.mode = Mode::Video;
+                                self.current_frame = 0;
+                                self.video_state.progress_bar = 0.0;
+                            }
+                            Err(_) => {
+                                self.process_error();
+                            }
+                        }
                     }
                 }
 
@@ -1127,50 +1138,60 @@ impl Gui {
                     break;
                 }
 
-                let (time, mut img) = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
+                // let (time, mut img) = processor.lock().unwrap().as_mut().unwrap().next().unwrap();
 
-                // Only process if frequency says so
-                if i % step as u64 == 0 {
-                    let aioutput;
-                    if is_remote {
-                        let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                        match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
-                            Ok(result) => aioutput = result,
-                            Err(_) => break,
-                        }
-                    } else {
-                        match tokio::task::spawn_blocking(move || {
-                            let result = process_imgbuf(&img);
-                            (img, result) // return img back alongside the result
-                        })
-                        .await
-                        {
-                            Ok((returned_img, result)) => {
-                                img = returned_img;
-                                aioutput = result;
+                let a = processor.lock().unwrap().as_mut().unwrap().next();
+
+                match a {
+                    Some((time, mut img)) => {
+                        // Only process if frequency says so
+                        if i % step as u64 == 0 {
+                            let aioutput;
+                            if is_remote {
+                                let buffer = rgb_image_to_jpeg_buffer(&img, 95);
+                                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await
+                                {
+                                    Ok(result) => aioutput = result,
+                                    Err(_) => break,
+                                }
+                            } else {
+                                match tokio::task::spawn_blocking(move || {
+                                    let result = process_imgbuf(&img);
+                                    (img, result) // return img back alongside the result
+                                })
+                                .await
+                                {
+                                    Ok((returned_img, result)) => {
+                                        img = returned_img;
+                                        aioutput = result;
+                                    }
+                                    Err(_) => break,
+                                }
                             }
-                            Err(_) => break,
+                            cached_aioutput = Some(aioutput);
+                        }
+
+                        if let Some(ref aioutput) = cached_aioutput {
+                            draw_aioutput(&mut img, aioutput);
+                        }
+
+                        // Process final image
+                        processor
+                            .lock()
+                            .unwrap()
+                            .as_mut()
+                            .unwrap()
+                            .encode(&img, time);
+
+                        let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
+
+                        if tx.send((i, final_img)).is_err() {
+                            break;
                         }
                     }
-                    cached_aioutput = Some(aioutput);
-                }
-
-                if let Some(ref aioutput) = cached_aioutput {
-                    draw_aioutput(&mut img, aioutput);
-                }
-
-                // Process final image
-                processor
-                    .lock()
-                    .unwrap()
-                    .as_mut()
-                    .unwrap()
-                    .encode(&img, time);
-
-                let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-
-                if tx.send((i, final_img)).is_err() {
-                    break;
+                    None => {
+                        let _ = processor.lock().unwrap().as_mut().unwrap().encoder.finish();
+                    }
                 }
             }
         });
@@ -1351,6 +1372,14 @@ impl Gui {
                 if i + 1 == self.total_frames.unwrap() {
                     self.video_state.is_processing = false;
                     self.video_processing_receiver = None;
+                    let _ = self
+                        .video_file_processor
+                        .lock()
+                        .unwrap()
+                        .as_mut()
+                        .unwrap()
+                        .encoder
+                        .finish();
                 }
             }
 
