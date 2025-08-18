@@ -8,8 +8,8 @@ async fn main() {
     match cli {
         Ok(cli) => {
             if cli.command.is_none() {
-                // #[cfg(all(windows, not(debug_assertions)))]
-                // hide_window();
+                #[cfg(all(windows, not(debug_assertions)))]
+                hide_window();
                 boquilahub::gui::run_gui();
 
                 return;
