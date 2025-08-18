@@ -475,14 +475,14 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             _ => "https://boquila.org/donate",
         },
         Key::export_predictions => match lang {
-            Lang::EN => "Export predictions (.txt)",
-            Lang::ES => "Exportar predicciones (.txt)",
-            Lang::FR => "Exporter les prédictions (.txt)",
-            Lang::DE => "Vorhersagen exportieren (.txt)",
-            Lang::ZH => "导出识别结果（.txt）",
-            Lang::JA => "予測をエクスポート（.txt）",
-            Lang::PT => "Exportar previsões (.txt)",
-            Lang::VI => "Xuất kết quả (.txt)"
+            Lang::EN => "Export predictions (.json)",
+            Lang::ES => "Exportar predicciones (.json)",
+            Lang::FR => "Exporter les prédictions (.json)",
+            Lang::DE => "Vorhersagen exportieren (.json)",
+            Lang::ZH => "导出识别结果（.json）",
+            Lang::JA => "予測をエクスポート（.json）",
+            Lang::PT => "Exportar previsões (.json)",
+            Lang::VI => "Xuất kết quả (.json)"
         },
         Key::export_imgs_with_predictions => match lang {
             Lang::EN => "Export images with predictions (.jpg)",

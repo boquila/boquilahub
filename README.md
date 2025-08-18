@@ -23,7 +23,7 @@ You can load any [.bq model](https://github.com/boquila/.bq). You can find them 
 | Platform                           |  Production ready  |
 | --------------------------------- |------------ |
 | Windows          | ✅ |
-| Linux          | On the way |
+| Linux          | ✅ |
 | Android          | On the way |
 | Web        | On the way |
 | MacOS          | Not soon |
