@@ -23,7 +23,7 @@ pub static LIST_EPS: &[EP] = &[
     EP {
         name: "CUDA",
         img_path: "tiny_nvidia.png",
-        version: 12.4,
+        version: 12.8,
         local: true,
         dependencies: "cuDNN",
         ep_type: EPType::CUDA,
