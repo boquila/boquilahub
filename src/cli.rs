@@ -6,7 +6,12 @@ use crate::api::{
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
+use reqwest;
+use serde::Deserialize;
+use std::path::Path;
 use std::process::exit;
+use tokio::fs as tokio_fs;
+use tokio::io::AsyncWriteExt;
 
 #[derive(Args)]
 pub struct ServeArgs {
@@ -23,10 +28,20 @@ pub struct ServeArgs {
     pub port: u16,
 }
 
+#[derive(Args)]
+pub struct PullArgs {
+    /// Model name to pull
+    #[arg(long, value_name = "MODEL_NAME", required = true)]
+    pub model: String,
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     /// Deploy and serve a model
     Serve(ServeArgs),
+
+    /// Download a model
+    Pull(PullArgs),
 
     /// Print list of models
     List,
@@ -103,6 +118,10 @@ pub async fn run_cli(command: Commands) {
             print_ais_table(&ais);
             exit(0);
         }
+        Commands::Pull(args) => match pull(&args.model).await {
+            Ok(_) => println!("Downloaded model: {}", &args.model),
+            Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
+        },
     }
 }
 
@@ -206,4 +225,84 @@ pub fn print_ais_table(ais: &Vec<AI>) {
         width3 = arch_width,
         width4 = classes_width
     );
+}
+
+// Pull
+#[derive(Deserialize)]
+struct Model {
+    name: String,
+    #[allow(dead_code)]
+    description: String,
+    download_link: String,
+}
+
+pub async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+   println!("Searching for model '{}'...", model_name);
+   
+   // Fetch the JSON index
+   let url = "https://boquila.org/api/models.json";
+   let resp = reqwest::get(url)
+       .await
+       .map_err(|e| format!("Failed to fetch model index: {}", e))?
+       .text()
+       .await
+       .map_err(|e| format!("Failed to read model index response: {}", e))?;
+   
+   let models: Vec<Model> = serde_json::from_str(&resp)
+       .map_err(|e| format!("Failed to parse model index: {}", e))?;
+
+   // Find the requested model
+   let model = models
+       .into_iter()
+       .find(|m| m.name == model_name)
+       .ok_or_else(|| {
+           format!("Model '{}' not found in the registry", model_name)
+       })?;
+
+   println!("Model found, starting download...");
+   println!("Downloading from: {}", model.download_link);
+
+   // Ensure models/ directory exists
+   tokio_fs::create_dir_all("models")
+       .await
+       .map_err(|e| format!("Failed to create models directory: {}", e))?;
+
+   // Extract filename from URL
+   let filename = Path::new(&model.download_link)
+       .file_name()
+       .ok_or("Invalid download URL: cannot extract filename")?
+       .to_string_lossy();
+   
+   let file_path = format!("models/{}", filename);
+   
+   // Download the file
+   println!("Downloading to '{}'...", file_path);
+   let response = reqwest::get(&model.download_link)
+       .await
+       .map_err(|e| format!("Failed to download model: {}", e))?;
+   
+   if !response.status().is_success() {
+       return Err(format!(
+           "Download failed with status: {} ({})", 
+           response.status().as_u16(),
+           response.status().canonical_reason().unwrap_or("Unknown error")
+       ).into());
+   }
+   
+   let bytes = response.bytes()
+       .await
+       .map_err(|e| format!("Failed to read downloaded content: {}", e))?;
+
+   // Save the file
+   let mut file = tokio_fs::File::create(&file_path)
+       .await
+       .map_err(|e| format!("Failed to create file '{}': {}", file_path, e))?;
+   
+   file.write_all(&bytes)
+       .await
+       .map_err(|e| format!("Failed to write to file '{}': {}", file_path, e))?;
+
+   println!("File size: {:.2} MB", bytes.len() as f64 / 1_048_576.0);
+
+   Ok(())
 }
