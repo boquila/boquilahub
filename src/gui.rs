@@ -165,11 +165,7 @@ pub struct Gui {
     save_img_from_feed: bool,
     process_all_imgs: bool,
     error_ocurred: bool,
-    show_process_all_dialog: bool,
-    show_export_dialog: bool,
-    show_feed_url_dialog: bool,
-    show_api_server_dialog: bool,
-    show_architecture_dialog: bool,
+    show_dialog: ShowDialog,
     img_state: State,
     video_state: State,
     feed_state: State,
@@ -180,6 +176,26 @@ pub struct State {
     texture: Option<TextureHandle>,
     is_processing: bool,
     progress_bar: f32,
+}
+
+pub struct ShowDialog {
+    process_all: bool,
+    export: bool,
+    feed_url: bool,
+    api_server: bool,
+    architecture: bool,
+}
+
+impl ShowDialog {
+    fn init() -> Self {
+        Self {
+            process_all: false,
+            export: false,
+            feed_url: false,
+            api_server: false,
+            architecture: false,
+        }
+    }
 }
 
 impl State {
@@ -262,14 +278,10 @@ impl Gui {
             isapi_deployed: false,
             save_img_from_feed: false,
             process_all_imgs: true,
-            show_process_all_dialog: false,
             show_ai_config: false,
             show_ai_cls_config: false,
             error_ocurred: false,
-            show_export_dialog: false,
-            show_feed_url_dialog: false,
-            show_api_server_dialog: false,
-            show_architecture_dialog: false,
+            show_dialog: ShowDialog::init(),
             mode: Mode::Image,
             img_state: State::init(),
             video_state: State::init(),
@@ -458,7 +470,8 @@ impl Gui {
                         if error.contains("No architecture specified") {
                             self.pending_model_path = Some(model_path);
                             self.pending_model_ep = Some(self.ep_selected);
-                            self.show_architecture_dialog = true;
+                            self.show_dialog.architecture = true;
+                            
                         } else {
                             self.process_error();
                         }
@@ -526,7 +539,7 @@ impl Gui {
                         if error.contains("No architecture specified") {
                             self.pending_model_path = Some(model_path);
                             self.pending_model_ep = Some(self.ep_selected);
-                            self.show_architecture_dialog = true;
+                            self.show_dialog.architecture = true;
                         } else {
                             self.process_error();
                         }
@@ -599,7 +612,7 @@ impl Gui {
 
             match new_ep.ep_type {
                 api::eps::EPType::BoquilaHUBRemote => {
-                    self.show_api_server_dialog = true;
+                    self.show_dialog.api_server = true;
                 }
                 api::eps::EPType::CUDA => {
                     let cuda_version = match get_ep_version(new_ep) {
@@ -745,11 +758,11 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::camera_feed)))
                     .clicked()
                 {
-                    self.show_feed_url_dialog = true
+                    self.show_dialog.feed_url = true;
                 }
 
                 // Feed url dialog
-                if self.show_feed_url_dialog {
+                if self.show_dialog.feed_url {
                     self.feed_input_dialog(ctx);
                 }
             });
@@ -785,11 +798,11 @@ impl Gui {
                                 self.process_error();
                             }
                         }
-                        self.show_feed_url_dialog = false;
+                        self.show_dialog.feed_url = false;
                     }
                     ui.add_space(8.0);
                     if ui.button(self.t(Key::cancel)).clicked() {
-                        self.show_feed_url_dialog = false;
+                        self.show_dialog.feed_url = false;
                         self.feed_url = None
                     }
                 });
@@ -797,7 +810,7 @@ impl Gui {
     }
 
     pub fn input_api_url_dialog(&mut self, ctx: &egui::Context) {
-        if self.show_api_server_dialog {
+        if self.show_dialog.api_server {
             egui::Window::new(self.t(Key::input_url))
                 .collapsible(false)
                 .resizable(false)
@@ -814,7 +827,7 @@ impl Gui {
                             });
 
                             if is_valid_api {
-                                self.show_api_server_dialog = false;
+                                self.show_dialog.api_server = false;
                                 self.api_server_url = Some(url);
                                 self.ep_selected = 2;
                             } else {
@@ -823,7 +836,7 @@ impl Gui {
                         }
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_api_server_dialog = false;
+                            self.show_dialog.api_server = false;
                             self.api_server_url = None;
                         }
                     });
@@ -832,7 +845,7 @@ impl Gui {
     }
 
     pub fn architecture_selection_dialog(&mut self, ctx: &egui::Context) {
-        if self.show_architecture_dialog {
+        if self.show_dialog.architecture {
             egui::Window::new(self.t(Key::select_architecture))
                 .collapsible(false)
                 .resizable(false)
@@ -866,7 +879,7 @@ impl Gui {
                                     Ok(result) => result,
                                     Err(_) => {
                                         self.process_error();
-                                        self.show_architecture_dialog = false;
+                                        self.show_dialog.architecture = false;
                                         self.pending_model_path = None;
                                         self.pending_model_ep = None;
                                         return;
@@ -906,13 +919,13 @@ impl Gui {
                                 }
                             }
 
-                            self.show_architecture_dialog = false;
+                            self.show_dialog.architecture = false;
                             self.pending_model_path = None;
                             self.pending_model_ep = None;
                         }
                         ui.add_space(8.0);
                         if ui.button("Cancel").clicked() {
-                            self.show_architecture_dialog = false;
+                            self.show_dialog.architecture = false;
                             self.pending_model_path = None;
                             self.pending_model_ep = None;
                         }
@@ -971,7 +984,7 @@ impl Gui {
     }
 
     pub fn process_all_dialog(&mut self, ctx: &egui::Context) {
-        if self.show_process_all_dialog {
+        if self.show_dialog.process_all {
             egui::Window::new(self.t(Key::process_everything))
                 .collapsible(false)
                 .resizable(false)
@@ -980,17 +993,17 @@ impl Gui {
                         if ui.button(self.t(Key::yes)).clicked() {
                             self.process_all_imgs = true;
                             self.start_img_analysis();
-                            self.show_process_all_dialog = false;
+                            self.show_dialog.process_all = false;
                         }
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::no_only_missing_data)).clicked() {
                             self.process_all_imgs = false;
                             self.start_img_analysis();
-                            self.show_process_all_dialog = false;
+                            self.show_dialog.process_all = false;
                         }
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_process_all_dialog = false;
+                            self.show_dialog.process_all = false;
                         }
                     });
                 });
@@ -1015,7 +1028,7 @@ impl Gui {
                         if self.selected_files.get_progress() == 0.0 {
                             self.start_img_analysis();
                         } else {
-                            self.show_process_all_dialog = true;
+                            self.show_dialog.process_all = true;
                         }
                     }
                 }
@@ -1053,13 +1066,13 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
                         .clicked()
                     {
-                        self.show_export_dialog = true;
+                        self.show_dialog.export = true;                        
                     }
                 });
             }
 
             // Export dialog logic
-            if self.show_export_dialog {
+            if self.show_dialog.export {
                 egui::Window::new(self.t(Key::export))
                     .collapsible(false)
                     .resizable(false)
@@ -1073,7 +1086,7 @@ impl Gui {
                             }
 
                             self.process_done();
-                            self.show_export_dialog = false;
+                            self.show_dialog.export = false;
                         }
 
                         // Export option 2
@@ -1087,7 +1100,7 @@ impl Gui {
                                 }
                             }
                             self.process_done();
-                            self.show_export_dialog = false;
+                            self.show_dialog.export = false;
                         }
 
                         // Export option 3
@@ -1103,12 +1116,12 @@ impl Gui {
                                 }
                             });
                             self.process_done();
-                            self.show_export_dialog = false;
+                            self.show_dialog.export = false;
                         }
 
                         // Cancel any export
                         if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_export_dialog = false;
+                            self.show_dialog.export = false;
                         }
                     });
             }
