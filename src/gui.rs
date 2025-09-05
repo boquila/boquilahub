@@ -46,8 +46,8 @@ pub fn run_gui() {
 }
 
 macro_rules! ai_config_window {
-    ($self:expr, $ctx:expr, $show_field:ident, $config_field:ident, $temp_config_field:ident, $update_fn:expr, $current_ai_fn:ident) => {
-        if $self.$show_field {
+    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $update_fn:expr, $current_ai_fn:ident) => {
+        if $show_field { 
             egui::Window::new($self.t(Key::configure_ai))
                 .collapsible(false)
                 .resizable(false)
@@ -96,12 +96,12 @@ macro_rules! ai_config_window {
                         if ui.button($self.t(Key::ok)).clicked() {
                             $self.$config_field = $self.$temp_config_field.clone();
                             $update_fn($self.$config_field.clone());
-                            $self.$show_field = false;
+                            $show_field = false;
                         }
                         ui.add_space(8.0);
                         if ui.button($self.t(Key::cancel)).clicked() {
                             $self.$temp_config_field = $self.$config_field.clone();
-                            $self.$show_field = false;
+                            $show_field = false;
                         }
                     });
                 });
@@ -158,12 +158,10 @@ pub struct Gui {
 
     // bool fields grouped together (1 byte each, but will be padded)
     show_ai_cls: bool,
-    show_ai_config: bool,
-    show_ai_cls_config: bool,
     isapi_deployed: bool,
     save_img_from_feed: bool,
     process_all_imgs: bool,
-    error_ocurred: bool,
+    show_config: ShowConfig,
     show_dialog: ShowDialog,
     img_state: State,
     video_state: State,
@@ -177,24 +175,19 @@ pub struct State {
     progress_bar: f32,
 }
 
+#[derive(Default)]
+pub struct ShowConfig {
+    ai: bool,
+    ai_cls: bool,
+}
+
+#[derive(Default)]
 pub struct ShowDialog {
     process_all: bool,
     export: bool,
     feed_url: bool,
     api_server: bool,
     architecture: bool,
-}
-
-impl ShowDialog {
-    fn init() -> Self {
-        Self {
-            process_all: false,
-            export: false,
-            feed_url: false,
-            api_server: false,
-            architecture: false,
-        }
-    }
 }
 
 impl State {
@@ -276,10 +269,8 @@ impl Gui {
             isapi_deployed: false,
             save_img_from_feed: false,
             process_all_imgs: true,
-            show_ai_config: false,
-            show_ai_cls_config: false,
-            error_ocurred: false,
-            show_dialog: ShowDialog::init(),
+            show_config: ShowConfig::default(),
+            show_dialog: ShowDialog::default(),
             mode: Mode::Image,
             img_state: State::init(),
             video_state: State::init(),
@@ -302,7 +293,6 @@ impl Gui {
     }
 
     pub fn process_error(&mut self) {
-        self.error_ocurred = true;
         self.error_time = Some(Instant::now());
     }
 
@@ -436,7 +426,7 @@ impl Gui {
                         .on_hover_text(self.t(Key::configure_ai))
                         .clicked()
                     {
-                        self.show_ai_config = true;
+                        self.show_config.ai = true;
                     }
                 }
 
@@ -479,7 +469,7 @@ impl Gui {
             ai_config_window!(
                 self,
                 ctx,
-                show_ai_config,
+                self.show_config.ai,
                 ai_config,
                 temp_ai_config,
                 update_config,
@@ -514,7 +504,7 @@ impl Gui {
                         .on_hover_text(self.t(Key::configure_ai))
                         .clicked()
                     {
-                        self.show_ai_cls_config = true;
+                        self.show_config.ai_cls = true;
                     }
 
                     if ui.button("-").clicked() {
@@ -547,7 +537,7 @@ impl Gui {
             ai_config_window!(
                 self,
                 ctx,
-                show_ai_cls_config,
+                self.show_config.ai_cls,
                 ai_cls_config,
                 temp_ai_cls_config,
                 update_config2,
@@ -690,7 +680,7 @@ impl Gui {
                                 }
                             }
                             Err(_e) => {
-                                self.error_ocurred = true;
+                                self.process_error();
                             }
                         }
                     }
