@@ -160,7 +160,6 @@ pub struct Gui {
     show_ai_cls: bool,
     show_ai_config: bool,
     show_ai_cls_config: bool,
-    is_done: bool,
     isapi_deployed: bool,
     save_img_from_feed: bool,
     process_all_imgs: bool,
@@ -271,7 +270,6 @@ impl Gui {
             current_frame: 0,
             total_frames: None,
             show_ai_cls: false,
-            is_done: false,
             done_time: None,
             error_time: None,
             lang: get_locale(),
@@ -300,7 +298,6 @@ impl Gui {
     }
 
     pub fn process_done(&mut self) {
-        self.is_done = true;
         self.done_time = Some(Instant::now());
     }
 
