@@ -119,7 +119,7 @@ pub async fn run_cli(command: Commands) {
             exit(0);
         }
         Commands::Pull(args) => match pull(&args.model).await {
-            Ok(_) => println!("Downloaded model: {}", &args.model),
+            Ok(_) => {},
             Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
         },
     }
