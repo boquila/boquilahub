@@ -109,7 +109,7 @@ macro_rules! ai_config_window {
     };
 }
 
-pub struct Gui {
+struct Gui {
     // Large types first
     ais: Vec<AI>,
     ais_cls_only: Vec<AI>,
@@ -168,7 +168,7 @@ pub struct Gui {
     feed_state: State,
 }
 
-pub struct State {
+struct State {
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     texture: Option<TextureHandle>,
     is_processing: bool,
