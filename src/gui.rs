@@ -47,7 +47,7 @@ pub fn run_gui() {
 
 macro_rules! ai_config_window {
     ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $update_fn:expr, $current_ai_fn:ident) => {
-        if $show_field { 
+        if $show_field {
             egui::Window::new($self.t(Key::configure_ai))
                 .collapsible(false)
                 .resizable(false)
@@ -179,6 +179,9 @@ pub struct State {
 pub struct ShowConfig {
     ai: bool,
     ai_cls: bool,
+    _img: bool,
+    video: bool,
+    feed: bool,
 }
 
 #[derive(Default)]
@@ -458,7 +461,6 @@ impl Gui {
                             self.pending_model_path = Some(model_path);
                             self.pending_model_ep = Some(self.ep_selected);
                             self.show_dialog.architecture = true;
-                            
                         } else {
                             self.process_error();
                         }
@@ -621,7 +623,7 @@ impl Gui {
                 }
                 _ => {
                     self.ep_selected = temp_ep_selected;
-                    
+
                     self.set_ai();
                     self.set_ai_cls();
                 }
@@ -1053,7 +1055,7 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
                         .clicked()
                     {
-                        self.show_dialog.export = true;                        
+                        self.show_dialog.export = true;
                     }
                 });
             }
@@ -1206,10 +1208,15 @@ impl Gui {
                 ui.separator();
 
                 ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
-                    ui.label(self.t(Key::freq));
-                    ui.style_mut().spacing.slider_width = 125.0;
-                    ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=90));
-                    ui.add_space(8.0);
+                    if ui.button("⚙").clicked() {
+                        self.show_config.video = !self.show_config.video;
+                    }
+                    if self.show_config.video {
+                        ui.label(self.t(Key::freq));
+                        ui.style_mut().spacing.slider_width = 125.0;
+                        ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=90));
+                        ui.add_space(8.0);
+                    }
                 });
 
                 if !self.video_state.is_processing {
@@ -1305,16 +1312,21 @@ impl Gui {
                 ui.separator();
                 ui.add_space(8.0);
 
-                ui.label(self.t(Key::export_obs));
-                ui.checkbox(&mut self.save_img_from_feed, "");
-                ui.add_space(8.0);
-                ui.add_enabled_ui(!self.feed_state.is_processing, |ui| {
-                    ui.label(self.t(Key::freq));
-                    ui.style_mut().spacing.slider_width = 120.0;
-                    ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=90));
-                    ui.add_space(8.0);
-                });
+                if ui.button("⚙").clicked() {
+                    self.show_config.feed = !self.show_config.feed;
+                }
 
+                if self.show_config.feed {
+                    ui.label(self.t(Key::export_obs));
+                    ui.checkbox(&mut self.save_img_from_feed, "");
+                    ui.add_space(8.0);
+                    ui.add_enabled_ui(!self.feed_state.is_processing, |ui| {
+                        ui.label(self.t(Key::freq));
+                        ui.style_mut().spacing.slider_width = 120.0;
+                        ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=90));
+                        ui.add_space(8.0);
+                    });
+                }
                 if !self.feed_state.is_processing {
                     if ui.button("▶").clicked() {
                         self.start_feed_analysis();
