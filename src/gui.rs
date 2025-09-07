@@ -176,7 +176,7 @@ pub struct State {
 }
 
 #[derive(Default)]
-pub struct ShowConfig {
+struct ShowConfig {
     ai: bool,
     ai_cls: bool,
     _img: bool,
@@ -185,7 +185,7 @@ pub struct ShowConfig {
 }
 
 #[derive(Default)]
-pub struct ShowDialog {
+struct ShowDialog {
     process_all: bool,
     export: bool,
     feed_url: bool,
@@ -194,7 +194,7 @@ pub struct ShowDialog {
 }
 
 impl State {
-    pub fn init() -> Self {
+    fn init() -> Self {
         State {
             cancel_sender: None,
             is_processing: false,
@@ -205,7 +205,7 @@ impl State {
 }
 
 impl Gui {
-    pub fn setup(ctx: &egui::Context) {
+    fn setup(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "Noto".to_owned(),
@@ -227,7 +227,7 @@ impl Gui {
         egui_extras::install_image_loaders(ctx);
     }
 
-    pub fn new() -> Self {
+    fn new() -> Self {
         let ais: Vec<AI> = get_bqs();
         let classify_ais: Vec<AI> = ais
             .iter()
@@ -281,37 +281,37 @@ impl Gui {
         }
     }
 
-    pub fn is_any_processing(&self) -> bool {
+    fn is_any_processing(&self) -> bool {
         self.video_state.is_processing
             || self.img_state.is_processing
             || self.feed_state.is_processing
     }
 
-    pub fn is_remote(&self) -> bool {
+    fn is_remote(&self) -> bool {
         self.ep_selected == 2
     }
 
-    pub fn process_done(&mut self) {
+    fn process_done(&mut self) {
         self.done_time = Some(Instant::now());
     }
 
-    pub fn process_error(&mut self) {
+    fn process_error(&mut self) {
         self.error_time = Some(Instant::now());
     }
 
-    pub fn t(&self, key: Key) -> &'static str {
+    fn t(&self, key: Key) -> &'static str {
         translate(key, &self.lang)
     }
 
-    pub fn current_ai(&self) -> &AI {
+    fn current_ai(&self) -> &AI {
         return &self.ais[self.ai_selected.unwrap()];
     }
 
-    pub fn current_ai_cls(&self) -> &AI {
+    fn current_ai_cls(&self) -> &AI {
         return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
     }
 
-    pub fn paint(&mut self, ctx: &egui::Context, i: usize) {
+    fn paint(&mut self, ctx: &egui::Context, i: usize) {
         let img = &self.draw_gui(&self.selected_files[i]);
         self.img_state.texture = imgbuf_to_texture(img, ctx)
     }
@@ -354,19 +354,19 @@ impl Gui {
         }
     }
 
-    pub fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let message = &self.t(Key::done);
         let time = &mut self.done_time;
         Gui::show_timed_message(time, ui, ctx, message);
     }
 
-    pub fn show_error_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn show_error_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let message = &self.t(Key::error_ocurred);
         let time = &mut self.error_time;
         Gui::show_timed_message(time, ui, ctx, message);
     }
 
-    pub fn api_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn api_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if self.ai_selected.is_some() && !self.is_remote() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
@@ -405,7 +405,7 @@ impl Gui {
         self.input_api_url_dialog(ctx);
     }
 
-    pub fn ai_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn ai_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if !self.is_remote() {
             let previous_ai = self.ai_selected;
             ui.label(self.t(Key::select_ai));
@@ -482,7 +482,7 @@ impl Gui {
         }
     }
 
-    pub fn ai_cls_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn ai_cls_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if !self.is_remote() && self.show_ai_cls {
             let previous_ai = self.ai_cls_selected;
             ui.label(self.t(Key::select_ai));
@@ -550,7 +550,7 @@ impl Gui {
         }
     }
 
-    pub fn get_endpoint(&self) -> Option<String> {
+    fn get_endpoint(&self) -> Option<String> {
         if self.is_remote() {
             self.api_server_url
                 .as_ref()
@@ -560,7 +560,7 @@ impl Gui {
         }
     }
 
-    pub fn set_ai(&mut self) {
+    fn set_ai(&mut self) {
         if let Some(ai_index) = self.ai_selected {
             let _ = set_model(
                 &self.ais[ai_index].get_path(),
@@ -570,7 +570,7 @@ impl Gui {
         }
     }
 
-    pub fn set_ai_cls(&mut self) {
+    fn set_ai_cls(&mut self) {
         if let Some(_ai_cls_index) = self.ai_cls_selected {
             let _ = set_model2(
                 &self.current_ai_cls().get_path(),
@@ -580,7 +580,7 @@ impl Gui {
         }
     }
 
-    pub fn ep_widget(&mut self, ui: &mut egui::Ui) {
+    fn ep_widget(&mut self, ui: &mut egui::Ui) {
         ui.label(self.t(Key::select_ep));
         let mut temp_ep_selected = self.ep_selected;
 
@@ -632,7 +632,7 @@ impl Gui {
         ui.add_space(8.0);
     }
 
-    pub fn data_selection_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn data_selection_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
             ui.heading(format!("📎 {}", self.t(Key::select_your_data)));
         });
@@ -757,7 +757,7 @@ impl Gui {
             });
     }
 
-    pub fn feed_input_dialog(&mut self, ctx: &egui::Context) {
+    fn feed_input_dialog(&mut self, ctx: &egui::Context) {
         egui::Window::new(self.t(Key::input_url))
             .collapsible(false)
             .resizable(false)
@@ -798,7 +798,7 @@ impl Gui {
             });
     }
 
-    pub fn input_api_url_dialog(&mut self, ctx: &egui::Context) {
+    fn input_api_url_dialog(&mut self, ctx: &egui::Context) {
         if self.show_dialog.api_server {
             egui::Window::new(self.t(Key::input_url))
                 .collapsible(false)
@@ -833,7 +833,7 @@ impl Gui {
         }
     }
 
-    pub fn architecture_selection_dialog(&mut self, ctx: &egui::Context) {
+    fn architecture_selection_dialog(&mut self, ctx: &egui::Context) {
         if self.show_dialog.architecture {
             egui::Window::new(self.t(Key::select_architecture))
                 .collapsible(false)
@@ -923,7 +923,7 @@ impl Gui {
         }
     }
 
-    pub fn start_img_analysis(&mut self) {
+    fn start_img_analysis(&mut self) {
         self.img_state.is_processing = true;
         // process all, even if they were process before
         if self.process_all_imgs {
@@ -972,7 +972,7 @@ impl Gui {
         });
     }
 
-    pub fn process_all_dialog(&mut self, ctx: &egui::Context) {
+    fn process_all_dialog(&mut self, ctx: &egui::Context) {
         if self.show_dialog.process_all {
             egui::Window::new(self.t(Key::process_everything))
                 .collapsible(false)
@@ -999,7 +999,7 @@ impl Gui {
         }
     }
 
-    pub fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
@@ -1119,7 +1119,7 @@ impl Gui {
         }
     }
 
-    pub fn start_video_analysis(&mut self) {
+    fn start_video_analysis(&mut self) {
         self.video_state.is_processing = true;
         // Async processing: Video
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1199,7 +1199,7 @@ impl Gui {
         });
     }
 
-    pub fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
+    fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
@@ -1240,14 +1240,14 @@ impl Gui {
         }
     }
 
-    pub fn cancel_video_processing(&mut self) {
+    fn cancel_video_processing(&mut self) {
         if let Some(cancel_tx) = self.video_state.cancel_sender.take() {
             let _ = cancel_tx.send(());
         }
         self.video_state.is_processing = false;
     }
 
-    pub fn start_feed_analysis(&mut self) {
+    fn start_feed_analysis(&mut self) {
         self.feed_state.is_processing = true;
         // Async processing: Video
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1303,7 +1303,7 @@ impl Gui {
         });
     }
 
-    pub fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
+    fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.feed_url.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
@@ -1343,7 +1343,7 @@ impl Gui {
         }
     }
 
-    pub fn img_handle_results(&mut self, ctx: &egui::Context) {
+    fn img_handle_results(&mut self, ctx: &egui::Context) {
         if let Some(rx) = &mut self.image_processing_receiver {
             let mut updates = Vec::new();
             while let Ok((i, bbox)) = rx.try_recv() {
@@ -1369,7 +1369,7 @@ impl Gui {
         }
     }
 
-    pub fn video_handle_results(&mut self, ctx: &egui::Context) {
+    fn video_handle_results(&mut self, ctx: &egui::Context) {
         if let Some(rx) = &mut self.video_processing_receiver {
             let mut updates = Vec::new();
             while let Ok(img) = rx.try_recv() {
@@ -1399,7 +1399,7 @@ impl Gui {
         }
     }
 
-    pub fn feed_handle_results(&mut self, ctx: &egui::Context) {
+    fn feed_handle_results(&mut self, ctx: &egui::Context) {
         if let Some(rx) = &mut self.feed_processing_receiver {
             let mut updates = Vec::new();
             while let Ok(img) = rx.try_recv() {
@@ -1572,7 +1572,7 @@ impl eframe::App for Gui {
 }
 
 #[inline(always)]
-pub fn imgbuf_to_texture(
+fn imgbuf_to_texture(
     img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
     ctx: &egui::Context,
 ) -> Option<TextureHandle> {
