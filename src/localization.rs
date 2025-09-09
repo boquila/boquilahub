@@ -10,6 +10,17 @@ pub enum Lang {
     VI,
 }
 
+pub const LANGUAGES: [(Lang, &'static str); 8] = [
+    (Lang::EN, "English"),
+    (Lang::ES, "Español"),
+    (Lang::FR, "Français"),
+    (Lang::DE, "Deutsch"),
+    (Lang::ZH, "简体中文"),
+    (Lang::JA, "日本語"),
+    (Lang::PT, "Português"),
+    (Lang::VI, "Tiếng Việt"),
+];
+
 #[allow(non_camel_case_types)]
 pub enum Key {
     select_ai,

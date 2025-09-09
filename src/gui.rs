@@ -1438,14 +1438,9 @@ impl eframe::App for Gui {
                 });
 
                 ui.menu_button(self.t(Key::idiom), |ui| {
-                    ui.radio_value(&mut self.lang, Lang::EN, "English");
-                    ui.radio_value(&mut self.lang, Lang::ES, "Español");
-                    ui.radio_value(&mut self.lang, Lang::FR, "Français");
-                    ui.radio_value(&mut self.lang, Lang::DE, "Deutsch");
-                    ui.radio_value(&mut self.lang, Lang::PT, "Português");
-                    ui.radio_value(&mut self.lang, Lang::ZH, "简体中文");
-                    ui.radio_value(&mut self.lang, Lang::JA, "日本語");
-                    ui.radio_value(&mut self.lang, Lang::VI, "Tiếng Việt")
+                    for (lang, label) in LANGUAGES {
+                        ui.radio_value(&mut self.lang, lang, label);
+                    }
                 });
 
                 egui::widgets::global_theme_preference_switch(ui);
