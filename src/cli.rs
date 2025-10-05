@@ -119,24 +119,24 @@ pub async fn run_cli(command: Commands) {
             exit(0);
         }
         Commands::Pull(args) => match pull(&args.model).await {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
         },
     }
 }
 
 const ASCII_ART: &'static str = r#"
-     
- /$$$$$$$                                /$$ /$$           /$$   /$$ /$$   /$$ /$$$$$$$ 
+
+ /$$$$$$$                                /$$ /$$           /$$   /$$ /$$   /$$ /$$$$$$$
 | $$__  $$                              |__/| $$          | $$  | $$| $$  | $$| $$__  $$
 | $$  \ $$  /$$$$$$   /$$$$$$  /$$   /$$ /$$| $$  /$$$$$$ | $$  | $$| $$  | $$| $$  \ $$
-| $$$$$$$  /$$__  $$ /$$__  $$| $$  | $$| $$| $$ |____  $$| $$$$$$$$| $$  | $$| $$$$$$$ 
+| $$$$$$$  /$$__  $$ /$$__  $$| $$  | $$| $$| $$ |____  $$| $$$$$$$$| $$  | $$| $$$$$$$
 | $$__  $$| $$  \ $$| $$  \ $$| $$  | $$| $$| $$  /$$$$$$$| $$__  $$| $$  | $$| $$__  $$
 | $$  \ $$| $$  | $$| $$  | $$| $$  | $$| $$| $$ /$$__  $$| $$  | $$| $$  | $$| $$  \ $$
 | $$$$$$$/|  $$$$$$/|  $$$$$$$|  $$$$$$/| $$| $$|  $$$$$$$| $$  | $$|  $$$$$$/| $$$$$$$/
-|_______/  \______/  \____  $$ \______/ |__/|__/ \_______/|__/  |__/ \______/ |_______/ 
-                          | $$                                                          
-                          | $$                                                          
+|_______/  \______/  \____  $$ \______/ |__/|__/ \_______/|__/  |__/ \______/ |_______/
+                          | $$
+                          | $$
                           |__/                                      AI for Biodiversity
 
 "#;
@@ -236,73 +236,76 @@ struct Model {
     download_link: String,
 }
 
-pub async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-   println!("Searching for model '{}'...", model_name);
-   
-   // Fetch the JSON index
-   let url = "https://boquila.org/api/models.json";
-   let resp = reqwest::get(url)
-       .await
-       .map_err(|e| format!("Failed to fetch model index: {}", e))?
-       .text()
-       .await
-       .map_err(|e| format!("Failed to read model index response: {}", e))?;
-   
-   let models: Vec<Model> = serde_json::from_str(&resp)
-       .map_err(|e| format!("Failed to parse model index: {}", e))?;
+async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Searching for model '{}'...", model_name);
 
-   // Find the requested model
-   let model = models
-       .into_iter()
-       .find(|m| m.name == model_name)
-       .ok_or_else(|| {
-           format!("Model '{}' not found in the registry", model_name)
-       })?;
+    // Fetch the JSON index
+    let url = "https://boquila.org/api/models.json";
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Failed to fetch model index: {}", e))?
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read model index response: {}", e))?;
 
-   println!("Model found, starting download...");
-   println!("Downloading from: {}", model.download_link);
+    let models: Vec<Model> =
+        serde_json::from_str(&resp).map_err(|e| format!("Failed to parse model index: {}", e))?;
 
-   // Ensure models/ directory exists
-   tokio_fs::create_dir_all("models")
-       .await
-       .map_err(|e| format!("Failed to create models directory: {}", e))?;
+    // Find the requested model
+    let model = models
+        .into_iter()
+        .find(|m| m.name == model_name)
+        .ok_or_else(|| format!("Model '{}' not found in the registry", model_name))?;
 
-   // Extract filename from URL
-   let filename = Path::new(&model.download_link)
-       .file_name()
-       .ok_or("Invalid download URL: cannot extract filename")?
-       .to_string_lossy();
-   
-   let file_path = format!("models/{}", filename);
-   
-   // Download the file
-   println!("Downloading to '{}'...", file_path);
-   let response = reqwest::get(&model.download_link)
-       .await
-       .map_err(|e| format!("Failed to download model: {}", e))?;
-   
-   if !response.status().is_success() {
-       return Err(format!(
-           "Download failed with status: {} ({})", 
-           response.status().as_u16(),
-           response.status().canonical_reason().unwrap_or("Unknown error")
-       ).into());
-   }
-   
-   let bytes = response.bytes()
-       .await
-       .map_err(|e| format!("Failed to read downloaded content: {}", e))?;
+    println!("Model found, starting download...");
+    println!("Downloading from: {}", model.download_link);
 
-   // Save the file
-   let mut file = tokio_fs::File::create(&file_path)
-       .await
-       .map_err(|e| format!("Failed to create file '{}': {}", file_path, e))?;
-   
-   file.write_all(&bytes)
-       .await
-       .map_err(|e| format!("Failed to write to file '{}': {}", file_path, e))?;
+    // Ensure models/ directory exists
+    tokio_fs::create_dir_all("models")
+        .await
+        .map_err(|e| format!("Failed to create models directory: {}", e))?;
 
-   println!("File size: {:.2} MB", bytes.len() as f64 / 1_048_576.0);
+    // Extract filename from URL
+    let filename = Path::new(&model.download_link)
+        .file_name()
+        .ok_or("Invalid download URL: cannot extract filename")?
+        .to_string_lossy();
 
-   Ok(())
+    let file_path = format!("models/{}", filename);
+
+    // Download the file
+    println!("Downloading to '{}'...", file_path);
+    let response = reqwest::get(&model.download_link)
+        .await
+        .map_err(|e| format!("Failed to download model: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "Download failed with status: {} ({})",
+            response.status().as_u16(),
+            response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error")
+        )
+        .into());
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read downloaded content: {}", e))?;
+
+    // Save the file
+    let mut file = tokio_fs::File::create(&file_path)
+        .await
+        .map_err(|e| format!("Failed to create file '{}': {}", file_path, e))?;
+
+    file.write_all(&bytes)
+        .await
+        .map_err(|e| format!("Failed to write to file '{}': {}", file_path, e))?;
+
+    println!("File size: {:.2} MB", bytes.len() as f64 / 1_048_576.0);
+
+    Ok(())
 }

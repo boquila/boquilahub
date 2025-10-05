@@ -41,7 +41,7 @@ pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
 pub async fn detect_remotely(url: &str, buffer: Vec<u8>) -> Result<AIOutputs, Box<dyn std::error::Error>> {
     let client = Client::new();
-    
+
     let response = client
         .post(url)
         .multipart(
@@ -53,10 +53,10 @@ pub async fn detect_remotely(url: &str, buffer: Vec<u8>) -> Result<AIOutputs, Bo
         )
         .send()
         .await?;
-    
+
     let response_text = response.text().await?;
     let deserialized: AIOutputs = serde_json::from_str(&response_text)?;
-    
+
     Ok(deserialized)
 }
 
@@ -141,10 +141,10 @@ pub async fn check_boquila_hub_api(url: &str) -> bool {
     let Ok(response) = reqwest::get(url).await else {
         return false;
     };
-    
+
     let Ok(body) = response.text().await else {
         return false;
     };
-    
+
     body.trim() == "BoquilaHUB Web API!"
 }

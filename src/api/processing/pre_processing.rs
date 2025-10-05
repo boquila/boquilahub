@@ -18,7 +18,7 @@ fn fast_resize(
     new_height: u32,
 ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
     let (width, height) = img.dimensions();
-    
+
     // Create source image view
     let src_image = fir::images::Image::from_vec_u8(
         width,
@@ -26,19 +26,19 @@ fn fast_resize(
         img.as_raw().clone(),
         fir::PixelType::U8x3,
     ).unwrap();
-    
+
     // Create destination image
     let mut dst_image = fir::images::Image::new(
         new_width,
         new_height,
         fir::PixelType::U8x3,
     );
-    
+
     let mut resizer = Resizer::new();
     let options= fir::ResizeOptions::new().resize_alg(fast_image_resize::ResizeAlg::Nearest);
 
     resizer.resize(&src_image, &mut dst_image, &options).unwrap();
-    
+
     // Convert back to ImageBuffer
     ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
 }

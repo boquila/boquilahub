@@ -20,14 +20,14 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([103, 58, 183]),  // Deep Purple
     Rgb([3, 169, 244]),   // Light Blue Accent
     Rgb([139, 195, 74]),  // Light Green
-    Rgb([150, 160, 40]),  // Lime 
+    Rgb([150, 160, 40]),  // Lime
     Rgb([255, 152, 0]),   // Orange
-    Rgb([200, 150, 0]),   // Amber 
+    Rgb([200, 150, 0]),   // Amber
     Rgb([174, 0, 255]),   // Purple Accent
     Rgb([33, 150, 243]),  // Blue
     Rgb([255, 87, 34]),   // Deep Orange
     Rgb([156, 39, 176]),  // Purple
-    Rgb([180, 160, 20]),  // Yellow 
+    Rgb([180, 160, 20]),  // Yellow
     Rgb([0, 188, 212]),   // Cyan
     Rgb([121, 85, 72]),   // Brown
     Rgb([255, 64, 129]),  // Pink Accent
@@ -38,10 +38,10 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([128, 169, 179]), // Blue Gray
     Rgb([153, 102, 153]), // Dark Lilac
     Rgb([85, 107, 47]),   // Dark Olive Green
-    Rgb([180, 160, 90]),  // Khaki 
+    Rgb([180, 160, 90]),  // Khaki
     Rgb([210, 180, 140]), // Tan
     Rgb([219, 112, 147]), // Dusty Rose
-    Rgb([200, 150, 120]), // Peach 
+    Rgb([200, 150, 120]), // Peach
     Rgb([139, 117, 85]),  // Rosy Brown
     Rgb([255, 160, 122]), // Light Salmon
     Rgb([60, 179, 113]),  // Medium Sea Green
@@ -59,8 +59,8 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([178, 34, 34]),   // Fire Brick
     Rgb([160, 32, 240]),  // Purple
     Rgb([199, 21, 133]),  // Medium Violet Red
-    Rgb([180, 140, 120]), // Bisque 
-    Rgb([120, 160, 180]), // Powder Blue 
+    Rgb([180, 140, 120]), // Bisque
+    Rgb([120, 160, 180]), // Powder Blue
     Rgb([221, 160, 221]), // Plum
     Rgb([255, 51, 102]),  // Cerise
     Rgb([204, 102, 153]), // Pale Magenta
@@ -68,7 +68,7 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([102, 204, 204]), // Aquamarine
     Rgb([255, 153, 153]), // Salmon
     Rgb([204, 153, 255]), // Lavender
-    Rgb([180, 140, 30]),  // Mustard 
+    Rgb([180, 140, 30]),  // Mustard
     Rgb([153, 102, 102]), // Brick
     Rgb([102, 153, 153]), // Teal
     Rgb([255, 102, 102]), // Coral
@@ -76,16 +76,16 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([204, 102, 102]), // Terracotta
     Rgb([51, 153, 102]),  // Viridian
     Rgb([204, 102, 255]), // Orchid
-    Rgb([100, 180, 100]), // Pale Green 
+    Rgb([100, 180, 100]), // Pale Green
     Rgb([255, 153, 204]), // Blush
     Rgb([255, 102, 204]), // Fuchsia
     Rgb([153, 102, 204]), // Indigo
-    Rgb([60, 180, 180]),  // Turquoise 
+    Rgb([60, 180, 180]),  // Turquoise
     Rgb([204, 102, 153]), // Mauve
-    Rgb([60, 180, 60]),   // Spring Green 
+    Rgb([60, 180, 60]),   // Spring Green
     Rgb([255, 153, 102]), // Tangerine
     Rgb([102, 153, 102]), // Olive
-    Rgb([200, 150, 100]), // Apricot 
+    Rgb([200, 150, 100]), // Apricot
     Rgb([102, 153, 204]), // Cornflower
     Rgb([204, 153, 102]), // Copper
     Rgb([153, 204, 102]), // Chartreuse
@@ -94,10 +94,10 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([64, 224, 208]),  // Turquoise
     Rgb([255, 140, 0]),   // Dark Orange
     Rgb([147, 112, 219]), // Medium Purple
-    Rgb([0, 180, 120]),   // Medium Spring Green 
+    Rgb([0, 180, 120]),   // Medium Spring Green
     Rgb([255, 99, 71]),   // Tomato
     Rgb([186, 85, 211]),  // Medium Orchid
-    Rgb([100, 180, 100]), // Pale Green 
+    Rgb([100, 180, 100]), // Pale Green
     Rgb([219, 112, 147]), // Pale Violet Red
     Rgb([244, 164, 96]),  // Sandy Brown
     Rgb([176, 196, 222]), // Light Steel Blue

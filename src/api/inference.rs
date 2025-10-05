@@ -20,7 +20,7 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
     if GEOFENCE_DATA.get().is_some() {
         return Ok(());
     }
-    
+
     let json_content = std::fs::read_to_string("assets/geofence.json")?;
     let geofence_map: HashMap<String, Vec<String>> = serde_json::from_str(&json_content)?;
     GEOFENCE_DATA.set(geofence_map).map_err(|_| "Failed to initialize")?;
@@ -76,7 +76,7 @@ pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Resul
         .collect();
 
     let aimodel: Model = Model::new(
-        model_metadata.classes,        
+        model_metadata.classes,
         Task::from(model_metadata.task.as_str()),
         post,
         session,
@@ -103,7 +103,7 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
     let ai2 = CURRENT_AI2.get()?;
     let ai2_guard = ai2.read().ok()?;
     let ai2_ref = ai2_guard.as_ref()?;
-    
+
     match outputs {
         AIOutputs::ObjectDetection(detections) => {
             for xyxyc in detections.iter_mut() {
@@ -126,7 +126,7 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
         }
         _ => {}
     }
-    
+
     Some(())
 }
 

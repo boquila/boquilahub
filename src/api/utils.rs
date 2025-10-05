@@ -143,4 +143,3 @@ pub fn extract_img(frame: &ffmpeg::frame::Video) -> ImageBuffer<Rgb<u8>, Vec<u8>
 
     return img_buffer;
 }
-

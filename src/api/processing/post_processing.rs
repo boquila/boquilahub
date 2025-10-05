@@ -79,9 +79,7 @@ pub fn nms_indices_all_cls<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32)
         indices = indices
             .into_iter()
             .skip(1)
-            .filter(|&idx| {
-                boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
-            })
+            .filter(|&idx| boxes[idx].iou(&boxes[current_idx]) <= iou_threshold)
             .collect();
     }
 
@@ -135,9 +133,9 @@ pub fn process_mask(
 
 pub fn extract_output(
     outputs: &SessionOutputs<'_, '_>,
-    b: &str,
+    output_name: &str,
 ) -> ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>> {
-    return outputs[b]
+    return outputs[output_name]
         .try_extract_tensor::<f32>()
         .unwrap()
         .t()
