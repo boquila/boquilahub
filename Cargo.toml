@@ -7,39 +7,39 @@ authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
 [dependencies]
-egui = "0.32.2"
-eframe = { version = "0.32.2", default-features = false, features = [
+egui = "0.33.0"
+eframe = { version = "0.33.0", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
 ] }
-egui_extras = { version = "0.32.2", features = ["all_loaders"] }
+egui_extras = { version = "0.33.0", features = ["all_loaders"] }
 ffmpeg-next = "7.1.0"
 image = { version = "0.25.8", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.143"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 ort = { version = "2.0.0-rc.9", features = ["cuda"] }
-regex = "1.11.1"
-axum = { version = "0.8.4", features = ["multipart"] }
+regex = "1.12.1"
+axum = { version = "0.8.6", features = ["multipart"] }
 tokio = { version = "1.47.1", features = ["full"] }
 reqwest = { version = "0.12.23", features = ["blocking", "multipart"] }
 imageproc = "0.25.0"
-ab_glyph = "0.2.29"
+ab_glyph = "0.2.29" # Fonts
 chrono = "0.4.42"
-rfd = "0.15.4"
-clap = { version = "4.5.39", features = ["derive"] }
+rfd = "0.15.4" # File dialogs
+clap = { version = "4.5.48", features = ["derive"] }
 derive-new = "0.7.0"
 sys-locale = "0.3.2"
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
 rayon = "1.11.0"
 embed-resource = "3.0.4"
 bitvec = { version = "1.0.1", features = ["serde"] }
-anyhow = "1.0.98"
-fast_image_resize = { version = "=5.1.2", features = ["image"] }
-video-rs = { version = "0.10.3", features = ["ndarray"] }
+anyhow = "1.0.100"
+fast_image_resize = { version = "=5.3.0", features = ["image"] }
+video-rs = { version = "0.10.5", features = ["ndarray"] }
 
 [profile.release]
 lto = true
