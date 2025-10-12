@@ -31,7 +31,8 @@ async fn root() -> &'static str {
 pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
         .route("/", get(root))
-        .route("/upload", post(upload));
+        .route("/upload", post(upload))
+        .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)); // 10MB limit;
 
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
