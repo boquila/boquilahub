@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use boquilahub::api::processing::post_processing::SpeciesRecord;
+    use boquilahub::api::processing::post::SpeciesRecord;
     
     #[test]
     fn test_species_record_to_taxonomic_string() {

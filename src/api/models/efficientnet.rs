@@ -1,10 +1,10 @@
 use crate::api::{
     abstractions::{AIOutputs, ModelConfig, ProbSpace}, inference::init_geofence_data, models::{ModelTrait, Task}, processing::{
         inference::inference,
-        post_processing::{
+        post::{
             apply_geofence_filter, apply_label_rollup, extract_output, process_class_output, transform_logits_to_probs, PostProcessing
         },
-        pre_processing::{imgbuf_to_input_array, TensorFormat},
+        pre::{imgbuf_to_input_array, TensorFormat},
     }
 };
 use image::{ImageBuffer, Rgb};

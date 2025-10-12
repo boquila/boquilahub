@@ -5,7 +5,7 @@ use crate::api::eps::{get_ep_version, LIST_EPS};
 use crate::api::export::write_pred_img_to_file;
 use crate::api::inference::*;
 use crate::api::models::{Model, Task};
-use crate::api::processing::post_processing::PostProcessing;
+use crate::api::processing::post::PostProcessing;
 use crate::api::render::{draw_aioutput, draw_no_predictions};
 use crate::api::rest::{
     check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,

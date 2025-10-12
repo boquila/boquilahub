@@ -1,11 +1,11 @@
 use super::*;
 use crate::api::{
     abstractions::{BoundingBoxTrait, XYXY},
-    processing::post_processing::{nms_indices, process_mask},
+    processing::post::{nms_indices, process_mask},
     processing::{
         inference::inference,
-        post_processing::*,
-        pre_processing::{imgbuf_to_input_array, TensorFormat},
+        post::*,
+        pre::{imgbuf_to_input_array, TensorFormat},
     },
 };
 use image::{ImageBuffer, Rgb};
