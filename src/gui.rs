@@ -1,23 +1,17 @@
 use super::localization::*;
-use crate::api::abstractions::*;
-use crate::api::bq::{get_bqs, import_bq};
-use crate::api::eps::{get_ep_version, LIST_EPS};
-use crate::api::export::write_pred_img_to_file;
-use crate::api::inference::*;
-use crate::api::models::{Model, Task};
-use crate::api::processing::post::PostProcessing;
-use crate::api::render::{draw_aioutput, draw_no_predictions};
-use crate::api::rest::{
+use crate::api::*;
+use abstractions::*;
+use bq::{get_bqs, import_bq};
+use eps::{get_ep_version, LIST_EPS};
+use inference::*;
+use models::{Model, Task};
+use processing::post::PostProcessing;
+use render::{draw_aioutput, draw_no_predictions};
+use rest::{
     check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
 };
-use crate::api::stream::Feed;
-use crate::api::utils::COUNTRY_CODES;
-use crate::api::video_file::VideofileProcessor;
-use crate::api::{self};
-use api::import::*;
-use egui::{ColorImage, TextureHandle, TextureOptions};
+use video_file::VideofileProcessor;
 use image::{open, ImageBuffer, Rgba};
-use rfd::FileDialog;
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::RwLock;
@@ -83,7 +77,7 @@ macro_rules! ai_config_window {
                         egui::ComboBox::from_id_salt("Region")
                             .selected_text($self.$temp_config_field.geo_fence.clone())
                             .show_ui(ui, |ui| {
-                                for str in COUNTRY_CODES {
+                                for str in utils::COUNTRY_CODES {
                                     ui.selectable_value(
                                         &mut $self.$temp_config_field.geo_fence,
                                         str.to_owned(),
@@ -170,7 +164,7 @@ struct Gui {
 
 struct State {
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
-    texture: Option<TextureHandle>,
+    texture: Option<egui::TextureHandle>,
     is_processing: bool,
     progress_bar: f32,
 }
@@ -209,7 +203,7 @@ impl Gui {
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "Noto".to_owned(),
-            egui::FontData::from_static(&api::render::FONT_BYTES.as_ref()).into(),
+            egui::FontData::from_static(&render::FONT_BYTES.as_ref()).into(),
         );
 
         fonts.families.insert(
@@ -332,7 +326,7 @@ impl Gui {
 
     fn save_gui(&self, predimg: &PredImg) {
         let img_data = image::DynamicImage::ImageRgba8(self.draw_gui(predimg)).to_rgb8();
-        let filename = api::export::prepare_export_img(&predimg.file_path);
+        let filename = export::prepare_export_img(&predimg.file_path);
         img_data.save(&filename).unwrap();
     }
 
@@ -597,13 +591,13 @@ impl Gui {
             });
 
         if temp_ep_selected != self.ep_selected {
-            let new_ep: &api::eps::EP = &LIST_EPS[temp_ep_selected];
+            let new_ep: &eps::EP = &LIST_EPS[temp_ep_selected];
 
             match new_ep.ep_type {
-                api::eps::EPType::BoquilaHUBRemote => {
+                eps::EPType::BoquilaHUBRemote => {
                     self.show_dialog.api_server = true;
                 }
-                api::eps::EPType::CUDA => {
+                eps::EPType::CUDA => {
                     let cuda_version = match get_ep_version(new_ep) {
                         Ok(cuda_v) => cuda_v,
                         Err(error) => {
@@ -651,7 +645,7 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::folder)))
                     .clicked()
                 {
-                    if let Some(folder_path) = FileDialog::new().pick_folder() {
+                    if let Some(folder_path) = rfd::FileDialog::new().pick_folder() {
                         match fs::read_dir(&folder_path) {
                             Ok(entries) => {
                                 let image_files: Vec<PathBuf> = entries
@@ -662,7 +656,7 @@ impl Gui {
                                         path.extension()
                                             .and_then(|ext| ext.to_str())
                                             .map(|ext_str| {
-                                                IMAGE_FORMATS.iter().any(|&format| {
+                                                import::IMAGE_FORMATS.iter().any(|&format| {
                                                     ext_str.eq_ignore_ascii_case(format)
                                                 })
                                             })
@@ -693,8 +687,8 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::image)))
                     .clicked()
                 {
-                    if let Some(paths) = FileDialog::new()
-                        .add_filter("Image", &IMAGE_FORMATS)
+                    if let Some(paths) = rfd::FileDialog::new()
+                        .add_filter("Image", &import::IMAGE_FORMATS)
                         .pick_files()
                     {
                         self.selected_files = paths
@@ -714,8 +708,8 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::video_file)))
                     .clicked()
                 {
-                    if let Some(path) = FileDialog::new()
-                        .add_filter("Video", &VIDEO_FORMATS)
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Video", &import::VIDEO_FORMATS)
                         .pick_file()
                     {
                         match VideofileProcessor::first_frame(path.clone().to_str().unwrap()) {
@@ -766,7 +760,7 @@ impl Gui {
                 ui.horizontal(|ui| {
                     if ui.button(self.t(Key::ok)).clicked() {
                         let url = self.temp_str.clone();
-                        match Feed::new(&url) {
+                        match stream::Feed::new(&url) {
                             Ok(mut feed) => match feed.next() {
                                 Some(frame) => {
                                     self.feed_state.texture = imgbuf_to_texture(
@@ -879,7 +873,7 @@ impl Gui {
                                     Some(self.temp_architecture.clone());
 
                                 // Create model
-                                let session = import_model(&data, &LIST_EPS[*ep_index]);
+                                let session = import::import_model(&data, &LIST_EPS[*ep_index]);
                                 let post: Vec<PostProcessing> = updated_metadata
                                     .post_processing
                                     .iter()
@@ -1070,7 +1064,7 @@ impl Gui {
                         if ui.button(self.t(Key::export_predictions)).clicked() {
                             for file in self.selected_files.clone() {
                                 tokio::spawn(async move {
-                                    let _ = write_pred_img_to_file(&file).await;
+                                    let _ = export::write_pred_img_to_file(&file).await;
                                 });
                             }
 
@@ -1101,7 +1095,7 @@ impl Gui {
                                 let path = format!("export/export_{}", timestamp);
                                 async move {
                                     let _ =
-                                        api::export::copy_to_folder(&selected_files, &path).await;
+                                        export::copy_to_folder(&selected_files, &path).await;
                                 }
                             });
                             self.process_done();
@@ -1255,7 +1249,7 @@ impl Gui {
         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
         self.feed_state.cancel_sender = Some(cancel_tx);
 
-        let mut feed = Feed::new(&self.feed_url.clone().unwrap()).unwrap();
+        let mut feed = stream::Feed::new(&self.feed_url.clone().unwrap()).unwrap();
 
         let api_endpoint = self.get_endpoint();
         let is_remote = self.is_remote();
@@ -1570,10 +1564,10 @@ impl eframe::App for Gui {
 fn imgbuf_to_texture(
     img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
     ctx: &egui::Context,
-) -> Option<TextureHandle> {
+) -> Option<egui::TextureHandle> {
     let size: [usize; 2] = [img.width() as _, img.height() as _];
-    let color_img = ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
-    Some(ctx.load_texture("current_frame", color_img, TextureOptions::default()))
+    let color_img = egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
+    Some(ctx.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 
 #[derive(PartialEq)]
