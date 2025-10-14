@@ -16,7 +16,7 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 
 ## AIs 
 
-You can load any [.bq model](https://github.com/boquila/.bq). You can find them on our [Hugging Face profile](https://huggingface.co/boquila).
+You can load any [.bq model](https://github.com/boquila/.bq). You can find them on our [website](https://boquila.org/hub).
 
 ## List of Platforms
 
