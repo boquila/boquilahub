@@ -166,6 +166,28 @@ pub fn process_class_output(
     return ProbSpace::new(classes, probs, classes_ids);
 }
 
+pub fn process_class_output_no_filt(
+    classes: &Vec<String>,
+    output: &Array<f32, IxDyn>,
+) -> ProbSpace {
+    let mut indexed_scores: Vec<(usize, f32)> = output
+        .iter()
+        .enumerate()
+        .map(|(i, &score)| (i, score))
+        .collect();
+
+    indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+    let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
+    let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
+    let classes: Vec<String> = classes_ids
+        .iter()
+        .map(|&idx| classes[idx as usize].clone())
+        .collect();
+
+    return ProbSpace::new(classes, probs, classes_ids);
+}
+
 pub fn process_class_output_logits(
     conf: f32,
     classes: &Vec<String>,

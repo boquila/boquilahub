@@ -49,7 +49,7 @@ pub fn imgbuf_to_input_array(
     input_height: u32,
     input_width: u32,
     img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
-    format: TensorFormat,
+    format: &TensorFormat,
 ) -> (Array<f32, Ix4>, u32, u32) {
     let (img_width, img_height) = img.dimensions();
 

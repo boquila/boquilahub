@@ -82,6 +82,24 @@ impl ProbSpace {
             indices.iter().map(|&i| self.classes_ids[i]).collect(),
         )
     }
+    
+    pub fn filter(&self, conf: f32) -> Self {
+        let mut filtered = ProbSpace {
+            classes: Vec::new(),
+            probs: Vec::new(),
+            classes_ids: Vec::new(),
+        };
+
+        for (class, (prob, class_id)) in self.classes.iter().zip(self.probs.iter().zip(self.classes_ids.iter())) {
+            if *prob >= conf {
+                filtered.classes.push(class.clone());
+                filtered.probs.push(*prob);
+                filtered.classes_ids.push(*class_id);
+            }
+        }
+
+        filtered
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

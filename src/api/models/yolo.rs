@@ -319,7 +319,7 @@ impl ModelTrait for Yolo {
             self.input_height,
             self.input_width,
             img,
-            TensorFormat::NCHW,
+            &TensorFormat::NCHW,
         );
         let outputs = inference(&self.session, &input, "images");
         match self.task {
