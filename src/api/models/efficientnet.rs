@@ -109,7 +109,6 @@ impl ModelTrait for EfficientNetV2 {
         );
         let outputs = inference(&self.session, &input, &self.input_name);
         let output = extract_output(&outputs, &self.output_name);
-        // let mut probs: ProbSpace = process_class_output_no_filt(&self.classes, &output);
 
         // Usage in your original code:
         let probs = if self.post_processing.contains(&PostProcessing::GeoFence) {
