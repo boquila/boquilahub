@@ -227,29 +227,13 @@ pub fn print_ais_table(ais: &Vec<AI>) {
     );
 }
 
-// Pull
-#[derive(Deserialize)]
-struct Model {
-    name: String,
-    #[allow(dead_code)]
-    description: String,
-    download_link: String,
-}
-
 async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Searching for model '{}'...", model_name);
 
     // Fetch the JSON index
-    let url = "https://boquila.org/api/models.json";
-    let resp = reqwest::get(url)
+    let models = crate::api::pull::get_list()
         .await
-        .map_err(|e| format!("Failed to fetch model index: {}", e))?
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read model index response: {}", e))?;
-
-    let models: Vec<Model> =
-        serde_json::from_str(&resp).map_err(|e| format!("Failed to parse model index: {}", e))?;
+        .map_err(|e| format!("Failed to fetch model index: {}", e))?;
 
     // Find the requested model
     let model = models
@@ -270,7 +254,6 @@ async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
         .file_name()
         .ok_or("Invalid download URL: cannot extract filename")?
         .to_string_lossy();
-
     let file_path = format!("models/{}", filename);
 
     // Download the file

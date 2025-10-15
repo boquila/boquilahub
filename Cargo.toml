@@ -25,7 +25,7 @@ ort = { version = "2.0.0-rc.9", features = ["cuda"] }
 regex = "1.12.1"
 axum = { version = "0.8.6", features = ["multipart"] }
 tokio = { version = "1.47.1", features = ["full"] }
-reqwest = { version = "0.12.23", features = ["blocking", "multipart"] }
+reqwest = { version = "0.12.23", features = ["json","blocking", "multipart"] }
 imageproc = "0.25.0"
 ab_glyph = "0.2.29" # Fonts
 chrono = "0.4.42"

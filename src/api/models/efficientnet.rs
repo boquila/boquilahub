@@ -39,7 +39,6 @@ impl ModelTrait for EfficientNetV2 {
         session: Session,
         config: ModelConfig,
     ) -> Self {
-        println!("{:?}", &session.inputs[0]);
         let (batch_size, input_width, input_height, channel, input_format) =
             match &session.inputs[0].input_type {
                 ValueType::Tensor { dimensions, .. } => {
