@@ -73,6 +73,7 @@ pub enum Key {
     no_only_missing_data,
     process_everything,
     export_obs,
+    deployed_api_allows,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -87,6 +88,16 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "Selecionar uma IA",
             Lang::VI => "Lựa chọn AI",
         },
+        Key::deployed_api_allows => match lang {
+            Lang::EN => "Allows devices on your local network to connect to this BoquilaHUB instance and use your computer for processing",
+            Lang::ES => "Permite que los dispositivos de tu red local se conecten a esta instancia de BoquilaHUB y usen tu computadora para el procesamiento",
+            Lang::FR => "Permet aux appareils de votre réseau local de se connecter à cette instance de BoquilaHUB et d'utiliser votre ordinateur pour le traitement",
+            Lang::DE => "Ermöglicht Geräten in Ihrem lokalen Netzwerk, sich mit dieser BoquilaHUB-Instanz zu verbinden und Ihren Computer zur Verarbeitung zu verwenden",
+            Lang::ZH => "允许本地网络中的设备连接到此 BoquilaHUB 实例并使用你的计算机进行处理",
+            Lang::JA => "ローカルネットワーク上のデバイスがこのBoquilaHUBインスタンスに接続し、あなたのコンピュータを処理に使用できるようにします",
+            Lang::PT => "Permite que dispositivos na sua rede local se conectem a esta instância do BoquilaHUB e usem o seu computador para processamento",
+            Lang::VI => "Cho phép các thiết bị trong mạng cục bộ kết nối với BoquilaHUB này và sử dụng máy tính của bạn để xử lý",
+        }
         Key::yes => match lang {
             Lang::EN => "Yes",
             Lang::ES => "Sí",
@@ -548,7 +559,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::export_obs => match lang {
             Lang::EN => "Export detections",
             Lang::ES => "Exportar detecciones",
-            Lang::FR => "Exporter détections", 
+            Lang::FR => "Exporter détections",
             Lang::DE => "Erkennungen exportieren",
             Lang::ZH => "导出检测",
             Lang::JA => "検出をエクスポート",

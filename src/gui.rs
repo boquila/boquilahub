@@ -3,6 +3,7 @@ use crate::api::*;
 use abstractions::*;
 use bq::{get_bqs, import_bq};
 use eps::{get_ep_version, LIST_EPS};
+use image::{open, ImageBuffer, Rgba};
 use inference::*;
 use models::{Model, Task};
 use processing::post::PostProcessing;
@@ -10,13 +11,12 @@ use render::{draw_aioutput, draw_no_predictions};
 use rest::{
     check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
 };
-use video_file::VideofileProcessor;
-use image::{open, ImageBuffer, Rgba};
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use video_file::VideofileProcessor;
 
 pub fn run_gui() {
     let native_options = eframe::NativeOptions {
@@ -364,7 +364,11 @@ impl Gui {
         if self.ai_selected.is_some() && !self.is_remote() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
-                if ui.button(self.t(Key::deploy)).clicked() {
+                if ui
+                    .button(self.t(Key::deploy))
+                    .on_hover_text(self.t(Key::deployed_api_allows))
+                    .clicked()
+                {
                     let (tx, rx) = std::sync::mpsc::channel();
                     tokio::spawn(async move {
                         let result = run_api(8791).await;
@@ -1094,8 +1098,7 @@ impl Gui {
                                 let selected_files = self.selected_files.clone(); // Make sure it's Send + 'static
                                 let path = format!("export/export_{}", timestamp);
                                 async move {
-                                    let _ =
-                                        export::copy_to_folder(&selected_files, &path).await;
+                                    let _ = export::copy_to_folder(&selected_files, &path).await;
                                 }
                             });
                             self.process_done();
@@ -1566,7 +1569,8 @@ fn imgbuf_to_texture(
     ctx: &egui::Context,
 ) -> Option<egui::TextureHandle> {
     let size: [usize; 2] = [img.width() as _, img.height() as _];
-    let color_img = egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
+    let color_img =
+        egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
     Some(ctx.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 

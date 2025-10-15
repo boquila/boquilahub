@@ -5,7 +5,7 @@ use crate::api::{
     processing::{
         inference::inference,
         post::{
-            apply_geofence_filter, apply_label_rollup, extract_output, process_class_output,
+            apply_geofence_filter, apply_label_rollup, extract_output,
             process_class_output_no_filt, transform_logits_to_probs, PostProcessing,
         },
         pre::{imgbuf_to_input_array, TensorFormat},
