@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
+use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, ProbSpace, XYXY};
 use bitvec::vec::BitVec;
 use ndarray::{Array, Array2, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 use ort::session::SessionOutputs;
-
-use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, ProbSpace, XYXY};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostProcessing {

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 pub mod efficientnet;
 pub mod yolo;
 use super::abstractions::*;
@@ -66,23 +65,17 @@ impl Model {
                 task,
                 post_processing,
                 session,
-                config
+                config,
             ))),
-            Some("efficientnetv2") => {
-                Ok(Model::EfficientNetV2(EfficientNetV2::new(
-                    classes,
-                    task,
-                    post_processing,
-                    session,
-                    config,
-                )))
-            }
-            Some(arch) => {
-                Err(format!("Unsupported model architecture: {}", arch))
-            }
-            None => {
-                Err("No architecture specified".to_string())
-            }
+            Some("efficientnetv2") => Ok(Model::EfficientNetV2(EfficientNetV2::new(
+                classes,
+                task,
+                post_processing,
+                session,
+                config,
+            ))),
+            Some(arch) => Err(format!("Unsupported model architecture: {}", arch)),
+            None => Err("No architecture specified".to_string()),
         }
     }
 

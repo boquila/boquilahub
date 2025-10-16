@@ -1,10 +1,10 @@
-use std::path::Path;
-use std::{fs, io};
-use ort::session::builder::GraphOptimizationLevel;
-use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use crate::api::abstractions::AIOutputs;
 use crate::api::eps::EP;
 use crate::api::utils::create_predictions_file_path;
+use ort::session::builder::GraphOptimizationLevel;
+use ort::{execution_providers::CUDAExecutionProvider, session::Session};
+use std::path::Path;
+use std::{fs, io};
 
 // First formats
 // then, some logic and checks

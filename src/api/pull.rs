@@ -1,6 +1,6 @@
 /// Logic to retrieve models
-use serde::*;
 use anyhow::Result;
+use serde::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvailableModel {

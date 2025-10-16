@@ -24,7 +24,7 @@ pub struct Yolo {
     input_width: u32,
     input_height: u32,
     output_width: u32,
-    output_height: u32,
+    pub output_height: u32,
     num_masks: u32,
     mask_height: u32,
     mask_width: u32,
@@ -32,7 +32,7 @@ pub struct Yolo {
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
     pub config: ModelConfig,
-    yolotype: YoloType,
+    _yolotype: YoloType,
     detect_processor: DetectProcessor,
 }
 
@@ -272,7 +272,7 @@ impl ModelTrait for Yolo {
             }
         };
 
-        let (yolotype, detect_processor): (YoloType, DetectProcessor) =
+        let (_yolotype, detect_processor): (YoloType, DetectProcessor) =
             if output_width <= output_height {
                 (YoloType::Yolov8plus, Yolo::process_detect_output)
             } else {
@@ -307,7 +307,7 @@ impl ModelTrait for Yolo {
             post_processing,
             session,
             config,
-            yolotype,
+            _yolotype,
             detect_processor,
         }
     }

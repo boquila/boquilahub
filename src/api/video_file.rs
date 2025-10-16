@@ -54,10 +54,14 @@ impl VideofileProcessor {
         self.encoder.encode(&final_frame, time).unwrap();
     }
 
-    pub fn first_frame(file_path: &str) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
+    pub fn first_frame(
+        file_path: &str,
+    ) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
         video_rs::init()?;
         let mut decoder = DecoderBuilder::new(Path::new(file_path)).build()?;
-        let (_, frame) = decoder.decode_iter().next()
+        let (_, frame) = decoder
+            .decode_iter()
+            .next()
             .ok_or("No frames found")?
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
         Ok(ndarray_to_image_buffer(&frame))

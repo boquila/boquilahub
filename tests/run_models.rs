@@ -14,7 +14,6 @@ pub struct AvailableModel {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_models() -> Result<()> {
     let listmodels = get_list().await?;
     let img = image::open("assets/img.jpg")?.to_rgb8();

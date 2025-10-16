@@ -6,10 +6,7 @@ use crate::api::{
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
-use reqwest;
-use serde::Deserialize;
 use std::path::Path;
-use std::process::exit;
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
 
@@ -116,7 +113,7 @@ pub async fn run_cli(command: Commands) {
         Commands::List => {
             let ais: Vec<AI> = get_bqs();
             print_ais_table(&ais);
-            exit(0);
+            std::process::exit(0);
         }
         Commands::Pull(args) => match pull(&args.model).await {
             Ok(_) => {}

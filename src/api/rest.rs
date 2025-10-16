@@ -40,18 +40,18 @@ pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub async fn detect_remotely(url: &str, buffer: Vec<u8>) -> Result<AIOutputs, Box<dyn std::error::Error>> {
+pub async fn detect_remotely(
+    url: &str,
+    buffer: Vec<u8>,
+) -> Result<AIOutputs, Box<dyn std::error::Error>> {
     let client = Client::new();
 
     let response = client
         .post(url)
-        .multipart(
-            reqwest::multipart::Form::new().part(
-                "file",
-                reqwest::multipart::Part::bytes(buffer)
-                    .mime_str("image/jpeg")?,
-            ),
-        )
+        .multipart(reqwest::multipart::Form::new().part(
+            "file",
+            reqwest::multipart::Part::bytes(buffer).mime_str("image/jpeg")?,
+        ))
         .send()
         .await?;
 
@@ -69,7 +69,7 @@ pub fn rgba_image_to_jpeg_buffer(img: &ImageBuffer<Rgba<u8>, Vec<u8>>, quality: 
             img.as_raw(),
             img.width(),
             img.height(),
-            ColorType::Rgba8.into()
+            ColorType::Rgba8.into(),
         )
         .expect("Failed to encode image");
     buffer
@@ -83,7 +83,7 @@ pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8
             img.as_raw(),
             img.width(),
             img.height(),
-            ColorType::Rgb8.into()
+            ColorType::Rgb8.into(),
         )
         .expect("Failed to encode image");
     buffer
@@ -136,7 +136,6 @@ pub fn get_ipv4_address() -> Option<String> {
 
     return None;
 }
-
 
 pub async fn check_boquila_hub_api(url: &str) -> bool {
     let Ok(response) = reqwest::get(url).await else {

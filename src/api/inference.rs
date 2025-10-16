@@ -4,10 +4,10 @@ use super::bq::import_bq;
 use super::eps::EP;
 use super::models::Task;
 use crate::api::abstractions::{AIOutputs, ModelConfig};
+use crate::api::import::import_model;
 use crate::api::models::Model;
 use crate::api::processing::post::PostProcessing;
 use crate::api::processing::pre::slice_image;
-use crate::api::{import::import_model};
 use eframe::Result;
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;
@@ -23,7 +23,9 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
 
     let json_content = std::fs::read_to_string("assets/geofence.json")?;
     let geofence_map: HashMap<String, Vec<String>> = serde_json::from_str(&json_content)?;
-    GEOFENCE_DATA.set(geofence_map).map_err(|_| "Failed to initialize")?;
+    GEOFENCE_DATA
+        .set(geofence_map)
+        .map_err(|_| "Failed to initialize")?;
     Ok(())
 }
 

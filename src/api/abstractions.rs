@@ -73,7 +73,11 @@ impl ProbSpace {
 
     pub fn top_n(&self, n: u32) -> ProbSpace {
         let mut indices: Vec<usize> = (0..self.probs.len()).collect();
-        indices.sort_by(|&a, &b| self.probs[b].partial_cmp(&self.probs[a]).unwrap_or(std::cmp::Ordering::Equal));
+        indices.sort_by(|&a, &b| {
+            self.probs[b]
+                .partial_cmp(&self.probs[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         indices.truncate(n as usize);
 
         ProbSpace::new(
@@ -82,7 +86,7 @@ impl ProbSpace {
             indices.iter().map(|&i| self.classes_ids[i]).collect(),
         )
     }
-    
+
     pub fn filter(&self, conf: f32) -> Self {
         let mut filtered = ProbSpace {
             classes: Vec::new(),
@@ -90,7 +94,11 @@ impl ProbSpace {
             classes_ids: Vec::new(),
         };
 
-        for (class, (prob, class_id)) in self.classes.iter().zip(self.probs.iter().zip(self.classes_ids.iter())) {
+        for (class, (prob, class_id)) in self
+            .classes
+            .iter()
+            .zip(self.probs.iter().zip(self.classes_ids.iter()))
+        {
             if *prob >= conf {
                 filtered.classes.push(class.clone());
                 filtered.probs.push(*prob);
@@ -677,11 +685,11 @@ impl AIOutputs {
     }
 }
 
-#[derive(Clone,new)]
+#[derive(Clone, new)]
 pub struct ModelConfig {
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
-    pub geo_fence: String
+    pub geo_fence: String,
 }
 
 impl Default for ModelConfig {
@@ -694,7 +702,7 @@ impl Default for ModelConfig {
     }
 }
 
-impl ModelConfig{
+impl ModelConfig {
     pub fn default2() -> Self {
         Self {
             confidence_threshold: 0.5,

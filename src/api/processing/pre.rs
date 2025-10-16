@@ -1,9 +1,7 @@
 use crate::api::abstractions::XYXY;
-use image::{
-    ImageBuffer, Rgb,
-};
-use ndarray::{Array, Ix4};
 use fast_image_resize::{self as fir, Resizer};
+use image::{ImageBuffer, Rgb};
+use ndarray::{Array, Ix4};
 
 const SCALE: f32 = 1.0 / 255.0;
 
@@ -20,24 +18,19 @@ fn fast_resize(
     let (width, height) = img.dimensions();
 
     // Create source image view
-    let src_image = fir::images::Image::from_vec_u8(
-        width,
-        height,
-        img.as_raw().clone(),
-        fir::PixelType::U8x3,
-    ).unwrap();
+    let src_image =
+        fir::images::Image::from_vec_u8(width, height, img.as_raw().clone(), fir::PixelType::U8x3)
+            .unwrap();
 
     // Create destination image
-    let mut dst_image = fir::images::Image::new(
-        new_width,
-        new_height,
-        fir::PixelType::U8x3,
-    );
+    let mut dst_image = fir::images::Image::new(new_width, new_height, fir::PixelType::U8x3);
 
     let mut resizer = Resizer::new();
-    let options= fir::ResizeOptions::new().resize_alg(fast_image_resize::ResizeAlg::Nearest);
+    let options = fir::ResizeOptions::new().resize_alg(fast_image_resize::ResizeAlg::Nearest);
 
-    resizer.resize(&src_image, &mut dst_image, &options).unwrap();
+    resizer
+        .resize(&src_image, &mut dst_image, &options)
+        .unwrap();
 
     // Convert back to ImageBuffer
     ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
@@ -63,7 +56,7 @@ pub fn imgbuf_to_input_array(
 
     for (x, y, pixel) in resized.enumerate_pixels() {
         let (x, y) = (x as usize, y as usize);
-        let [r, g, b, ..] = pixel.0;
+        let [r, g, b] = pixel.0;
         let rgb: [f32; 3] = [r as f32 * SCALE, g as f32 * SCALE, b as f32 * SCALE];
 
         match format {
