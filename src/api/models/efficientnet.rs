@@ -6,7 +6,7 @@ use crate::api::{
         inference::inference,
         post::{
             apply_geofence_filter, apply_label_rollup, extract_output,
-            process_class_output_no_filt, transform_logits_to_probs, PostProcessing,
+            process_class_output_no_filt, PostProcessing,
         },
         pre::{imgbuf_to_input_array, TensorFormat},
     },
@@ -16,14 +16,14 @@ use ort::{session::Session, value::ValueType};
 
 pub struct EfficientNetV2 {
     pub classes: Vec<String>,
-    batch_size: i32,
-    channel: u32, // 3, RGB or similar
-    input_width: u32,
-    input_height: u32,
-    input_name: String,
-    output_width: u32,
-    output_height: u32,
-    output_name: String,
+    pub batch_size: i32,
+    pub channel: u32, // 3, RGB or similar
+    pub input_width: u32,
+    pub input_height: u32,
+    pub input_name: String,
+    pub output_width: u32,
+    pub output_height: u32,
+    pub output_name: String,
     pub task: Task,
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
@@ -117,12 +117,12 @@ impl ModelTrait for EfficientNetV2 {
                 &crate::api::inference::GEOFENCE_DATA.get().unwrap(),
                 &self.config.geo_fence,
             );
-            transform_logits_to_probs(&mut probs);
+            probs.logits_to_probs();
             apply_label_rollup(&mut probs, self.config.confidence_threshold);
             probs
         } else {
             let mut probs: ProbSpace = process_class_output_no_filt(&self.classes, &output);
-            transform_logits_to_probs(&mut probs);
+            probs.logits_to_probs();
             probs.filter(self.config.confidence_threshold)
         };
 

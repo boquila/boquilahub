@@ -7,15 +7,6 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-// For file 'img.jpg', creates a file 'img_predictions.json' that contains the predictions
-pub async fn write_pred_img_to_file(pred_img: &PredImg) -> io::Result<()> {
-    let output_path = create_predictions_file_path(&pred_img.file_path)?;
-    let mut file = File::create(&output_path)?;
-    let json_string = serde_json::to_string(&pred_img.aioutput)?;
-    file.write_all(json_string.as_bytes())?;
-    Ok(())
-}
-
 // Get the most frequent label from a list of bounding boxes
 fn get_most_frequent_label<T>(items: &[T], get_label: impl Fn(&T) -> &String) -> String {
     if items.is_empty() {
@@ -44,7 +35,7 @@ fn get_main_label(output: &AIOutputs) -> String {
     }
 }
 
-pub async fn copy_to_folder(pred_imgs: &Vec<PredImg>, output_path: &str) {
+pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) {
     for pred_img in pred_imgs {
         let image_file_path = &pred_img.file_path;
         if std::path::Path::new(image_file_path).exists() {
@@ -78,6 +69,15 @@ impl PredImg {
         let img_data = image::DynamicImage::ImageRgba8(self.draw()).to_rgb8();
         let filename = prepare_export_img(&self.file_path);
         img_data.save(&filename).unwrap();
+    }
+    
+    // For file 'img.jpg', creates a file 'img_predictions.json' that contains the AI outputs
+    pub async fn write_pred_img_to_file(&self) -> io::Result<()> {
+        let output_path = create_predictions_file_path(&self.file_path)?;
+        let mut file = File::create(&output_path)?;
+        let json_string = serde_json::to_string(&self.aioutput)?;
+        file.write_all(json_string.as_bytes())?;
+        Ok(())
     }
 }
 

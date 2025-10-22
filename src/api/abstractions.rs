@@ -50,7 +50,7 @@ impl ProbSpace {
             .unwrap_or_else(|| ("no prediction".to_string(), 0.0, 0))
     }
 
-    pub fn logits_to_probabilities(&mut self) {
+    pub fn logits_to_probs(&mut self) {
         // Find the maximum logit for numerical stability
         let max_logit = self.probs.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
 

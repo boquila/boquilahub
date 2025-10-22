@@ -1,5 +1,5 @@
 use crate::api::abstractions::XYXY;
-use fast_image_resize::{self as fir, Resizer};
+use fast_image_resize::{self as fir};
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array, Ix4};
 
@@ -25,7 +25,7 @@ fn fast_resize(
     // Create destination image
     let mut dst_image = fir::images::Image::new(new_width, new_height, fir::PixelType::U8x3);
 
-    let mut resizer = Resizer::new();
+    let mut resizer = fir::Resizer::new();
     let options = fir::ResizeOptions::new().resize_alg(fast_image_resize::ResizeAlg::Nearest);
 
     resizer

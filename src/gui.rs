@@ -1068,7 +1068,7 @@ impl Gui {
                         if ui.button(self.t(Key::export_predictions)).clicked() {
                             for file in self.selected_files.clone() {
                                 tokio::spawn(async move {
-                                    let _ = export::write_pred_img_to_file(&file).await;
+                                    let _ = file.write_pred_img_to_file().await;
                                 });
                             }
 

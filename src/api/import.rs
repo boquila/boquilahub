@@ -86,7 +86,7 @@ pub fn is_supported_videofile(file_path: &str) -> bool {
     false
 }
 
-pub fn import_model(model_data: &Vec<u8>, ep: &EP) -> Session {
+pub fn import_model(model_data: &[u8], ep: &EP) -> Session {
     let mut builder = Session::builder()
         .unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level3)

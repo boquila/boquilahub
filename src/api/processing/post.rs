@@ -142,7 +142,7 @@ pub fn extract_output(
 
 pub fn process_class_output(
     conf: f32,
-    classes: &Vec<String>,
+    classes: &[String],
     output: &Array<f32, IxDyn>,
 ) -> ProbSpace {
     let mut indexed_scores: Vec<(usize, f32)> = output
@@ -164,10 +164,7 @@ pub fn process_class_output(
     return ProbSpace::new(classes, probs, classes_ids);
 }
 
-pub fn process_class_output_no_filt(
-    classes: &Vec<String>,
-    output: &Array<f32, IxDyn>,
-) -> ProbSpace {
+pub fn process_class_output_no_filt(classes: &[String], output: &Array<f32, IxDyn>) -> ProbSpace {
     let mut indexed_scores: Vec<(usize, f32)> = output
         .iter()
         .enumerate()
@@ -188,7 +185,7 @@ pub fn process_class_output_no_filt(
 
 pub fn process_class_output_logits(
     conf: f32,
-    classes: &Vec<String>,
+    classes: &[String],
     output: &Array<f32, IxDyn>,
 ) -> ProbSpace {
     // First, convert logits to probabilities using softmax
@@ -229,29 +226,6 @@ pub fn process_class_output_logits(
         .collect();
 
     ProbSpace::new(filtered_classes, probs, classes_ids)
-}
-
-pub fn transform_logits_to_probs(prob_space: &mut ProbSpace) {
-    let logits = &prob_space.probs; // Assuming probs field contains logits
-
-    // Find max logit for numerical stability
-    let max_logit = logits.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-
-    // Compute softmax probabilities
-    let exp_logits: Vec<f32> = logits
-        .iter()
-        .map(|&logit| (logit - max_logit).exp())
-        .collect();
-
-    let sum_exp: f32 = exp_logits.iter().sum();
-
-    let probabilities: Vec<f32> = exp_logits
-        .iter()
-        .map(|&exp_logit| exp_logit / sum_exp)
-        .collect();
-
-    // Update the probs field with actual probabilities
-    prob_space.probs = probabilities;
 }
 
 #[derive(Debug)]
