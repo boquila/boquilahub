@@ -1,13 +1,12 @@
 #![allow(dead_code)]
-use super::abstractions::AI;
+use super::abstractions::{AIOutputs, ModelConfig, AI};
 use super::bq::import_bq;
 use super::eps::EP;
+use super::import::import_model;
+use super::models::Model;
 use super::models::Task;
-use crate::api::abstractions::{AIOutputs, ModelConfig};
-use crate::api::import::import_model;
-use crate::api::models::Model;
-use crate::api::processing::post::PostProcessing;
-use crate::api::processing::pre::slice_image;
+use super::processing::post::PostProcessing;
+use super::processing::pre::slice_image;
 use eframe::Result;
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;

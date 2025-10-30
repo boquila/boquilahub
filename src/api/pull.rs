@@ -1,4 +1,3 @@
-/// Logic to retrieve models
 use anyhow::Result;
 use serde::*;
 

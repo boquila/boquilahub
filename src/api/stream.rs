@@ -1,9 +1,8 @@
+use crate::api::utils::extract_img;
 use chrono::Local;
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::iter::Iterator;
-
-use crate::api::utils::extract_img;
 
 pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,

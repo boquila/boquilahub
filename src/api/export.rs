@@ -1,7 +1,6 @@
 #![allow(dead_code)]
-use super::abstractions::PredImg;
-use crate::api::abstractions::AIOutputs;
-use crate::api::utils::create_predictions_file_path;
+use super::abstractions::{AIOutputs, PredImg};
+use super::utils::create_predictions_file_path;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
@@ -70,7 +69,7 @@ impl PredImg {
         let filename = prepare_export_img(&self.file_path);
         img_data.save(&filename).unwrap();
     }
-    
+
     // For file 'img.jpg', creates a file 'img_predictions.json' that contains the AI outputs
     pub async fn write_pred_img_to_file(&self) -> io::Result<()> {
         let output_path = create_predictions_file_path(&self.file_path)?;

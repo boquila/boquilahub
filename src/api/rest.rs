@@ -1,5 +1,5 @@
 use super::inference::*;
-use crate::api::abstractions::AIOutputs;
+use super::abstractions::AIOutputs;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};

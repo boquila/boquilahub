@@ -1,7 +1,7 @@
 pub mod efficientnet;
 pub mod yolo;
-use super::abstractions::*;
-use crate::api::{models::efficientnet::EfficientNetV2, processing::post::PostProcessing};
+use super::{abstractions::*, processing::post::PostProcessing};
+pub use efficientnet::EfficientNetV2;
 use image::{ImageBuffer, Rgb};
 use ort::session::Session;
 pub use yolo::Yolo;
