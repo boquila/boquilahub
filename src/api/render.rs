@@ -16,7 +16,7 @@ fn blend_pixel(base: Rgb<u8>, overlay: Rgb<u8>, alpha: f32) -> Rgb<u8> {
 }
 
 const BBOX_COLORS: [Rgb<u8>; 90] = [
-    Rgb([255, 0, 0]),     // Red
+    Rgb([220, 20, 60]), // Rich crimson
     Rgb([103, 58, 183]),  // Deep Purple
     Rgb([3, 169, 244]),   // Light Blue Accent
     Rgb([139, 195, 74]),  // Light Green

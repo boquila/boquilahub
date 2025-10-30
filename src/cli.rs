@@ -28,7 +28,7 @@ pub struct ServeArgs {
 #[derive(Args)]
 pub struct PullArgs {
     /// Model name to pull
-    #[arg(long, value_name = "MODEL_NAME", required = true)]
+    #[arg(value_name = "MODEL_NAME", required = true)]
     pub model: String,
 }
 
