@@ -7,7 +7,7 @@ use super::models::Model;
 use super::models::Task;
 use super::processing::post::PostProcessing;
 use super::processing::pre::slice_image;
-use eframe::Result;
+use anyhow::Result;
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};

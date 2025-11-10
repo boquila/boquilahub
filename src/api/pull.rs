@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AvailableModel {
     pub name: String,
     pub description: String,

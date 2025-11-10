@@ -4,7 +4,7 @@
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-/// Probabilities in the YOLO format
+/// Probabilities 
 /// `classes` is a Vec with the names for each classification
 /// `probs` is a Vec with the probabilities/confidence for each classification
 #[derive(Serialize, Deserialize, Debug, Clone)]

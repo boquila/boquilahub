@@ -1,15 +1,12 @@
-use super::inference::*;
 use super::abstractions::AIOutputs;
+use super::inference::*;
 use axum::{extract::Multipart, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};
 use reqwest::Client;
-
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::process::Command;
-
-use std::str;
 
 async fn upload(mut multipart: Multipart) -> String {
     let mut serialized: String = String::new();
@@ -100,7 +97,7 @@ pub fn get_ipv4_address() -> Option<String> {
             .expect("Failed to execute ipconfig");
 
         // Try UTF-8 first, fall back to lossy conversion if it fails
-        let output_str = match str::from_utf8(&output.stdout) {
+        let output_str = match std::str::from_utf8(&output.stdout) {
             Ok(s) => s.to_string(),
             Err(_) => String::from_utf8_lossy(&output.stdout).to_string(),
         };

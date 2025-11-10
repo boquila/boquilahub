@@ -102,6 +102,7 @@ macro_rules! ai_config_window {
     };
 }
 
+#[derive(Default)]
 struct Gui {
     // Large types first
     ais: Vec<AI>,
@@ -161,6 +162,7 @@ struct Gui {
     feed_state: State,
 }
 
+#[derive(Default)]
 struct State {
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     texture: Option<egui::TextureHandle>,
@@ -186,34 +188,19 @@ struct ShowDialog {
     architecture: bool,
 }
 
-impl State {
-    fn init() -> Self {
-        State {
-            cancel_sender: None,
-            is_processing: false,
-            progress_bar: 0.0,
-            texture: None,
-        }
-    }
-}
-
 impl Gui {
     fn setup(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
+
         fonts.font_data.insert(
             "Noto".to_owned(),
             egui::FontData::from_static(&render::FONT_BYTES.as_ref()).into(),
         );
 
-        fonts.families.insert(
-            egui::FontFamily::Name("Noto".into()),
-            vec!["Noto".to_owned()],
-        );
-
         fonts
             .families
             .get_mut(&egui::FontFamily::Proportional)
-            .unwrap() //it works
+            .unwrap()
             .insert(0, "Noto".to_owned());
 
         ctx.set_fonts(fonts);
@@ -231,46 +218,14 @@ impl Gui {
         Self {
             ais: ais,
             ais_cls_only: classify_ais,
-            selected_files: Vec::new(),
-            video_file_path: None,
-            feed_url: None,
-            host_server_url: None,
-            api_server_url: None,
-            api_result_receiver: None,
-            temp_str: "".to_owned(),
-            temp_api_str: "".to_owned(),
             temp_architecture: "yolo".to_owned(),
-            pending_model_path: None,
-            pending_model_ep: None,
-            image_processing_receiver: None,
-            feed_processing_receiver: None,
-            video_processing_receiver: None,
-            video_file_processor: Arc::new(Mutex::new(None)),
-            ai_selected: None,
-            ai_cls_selected: None,
-            ep_selected: 0,     // CPU is the default
             image_texture_n: 1, // this starts at 1
             video_step_frame: 1,
             feed_step_frame: 1,
-            ai_config: ModelConfig::default(),
             ai_cls_config: ModelConfig::default2(),
-            temp_ai_config: ModelConfig::default(),
             temp_ai_cls_config: ModelConfig::default2(),
-            current_frame: 0,
-            total_frames: None,
-            show_ai_cls: false,
-            done_time: None,
-            error_time: None,
-            lang: get_locale(),
-            isapi_deployed: false,
-            save_img_from_feed: false,
             process_all_imgs: true,
-            show_config: ShowConfig::default(),
-            show_dialog: ShowDialog::default(),
-            mode: Mode::Image,
-            img_state: State::init(),
-            video_state: State::init(),
-            feed_state: State::init(),
+            ..Default::default()
         }
     }
 
@@ -1573,8 +1528,9 @@ fn imgbuf_to_texture(
     Some(ctx.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 
-#[derive(PartialEq)]
+#[derive(Default, PartialEq)]
 enum Mode {
+    #[default]
     Image,
     Video,
     Feed,

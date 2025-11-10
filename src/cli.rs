@@ -13,7 +13,7 @@ use tokio::io::AsyncWriteExt;
 #[derive(Args)]
 pub struct ServeArgs {
     /// Model name to deploy
-    #[arg(long, value_name = "MODEL_NAME", required = true)]
+    #[arg(value_name = "MODEL_NAME", required = true)]
     pub model: String,
 
     /// Model name to deploy, complementary classification model
@@ -139,17 +139,15 @@ const ASCII_ART: &'static str = r#"
 "#;
 
 pub fn print_ais_table(ais: &Vec<AI>) {
-    use std::cmp;
-
     if ais.is_empty() {
         println!("No AI models found.");
         return;
     }
 
     // Calculate column widths
-    let name_width = cmp::max(4, ais.iter().map(|ai| ai.name.len()).max().unwrap_or(0));
-    let task_width = cmp::max(4, ais.iter().map(|ai| ai.task.len()).max().unwrap_or(0));
-    let arch_width = cmp::max(
+    let name_width = std::cmp::max(4, ais.iter().map(|ai| ai.name.len()).max().unwrap_or(0));
+    let task_width = std::cmp::max(4, ais.iter().map(|ai| ai.task.len()).max().unwrap_or(0));
+    let arch_width = std::cmp::max(
         12,
         ais.iter()
             .map(|ai| ai.architecture.as_ref().map_or(0, |s| s.len()))
@@ -158,70 +156,37 @@ pub fn print_ais_table(ais: &Vec<AI>) {
     );
     let classes_width = 8;
 
-    // Header
-    println!(
-        "┌─{:─<width1$}─┬─{:─<width2$}─┬─{:─<width3$}─┬─{:─<width4$}─┐",
-        "",
-        "",
-        "",
-        "",
-        width1 = name_width,
-        width2 = task_width,
-        width3 = arch_width,
-        width4 = classes_width
-    );
+    let widths = [name_width, task_width, arch_width, classes_width];
 
-    println!(
-        "│ {:^width1$} │ {:^width2$} │ {:^width3$} │ {:^width4$} │",
-        "Name",
-        "Task",
-        "Architecture",
-        "Classes",
-        width1 = name_width,
-        width2 = task_width,
-        width3 = arch_width,
-        width4 = classes_width
-    );
+    // Helper to print borders
+    let print_border = |left: &str, mid: &str, right: &str| {
+        print!("{}", left);
+        for (i, &w) in widths.iter().enumerate() {
+            print!("{:─<width$}", "", width = w + 2);
+            print!("{}", if i < widths.len() - 1 { mid } else { right });
+        }
+        println!();
+    };
 
+    // Table
+    print_border("┌", "┬", "┐");
     println!(
-        "├─{:─<width1$}─┼─{:─<width2$}─┼─{:─<width3$}─┼─{:─<width4$}─┤",
-        "",
-        "",
-        "",
-        "",
-        width1 = name_width,
-        width2 = task_width,
-        width3 = arch_width,
-        width4 = classes_width
+        "│ {:^name_width$} │ {:^task_width$} │ {:^arch_width$} │ {:^classes_width$} │",
+        "Name", "Task", "Architecture", "Classes"
     );
+    print_border("├", "┼", "┤");
 
-    // Rows
     for ai in ais {
-        let classes_count = ai.classes.len().to_string();
         println!(
-            "│ {:width1$} │ {:width2$} │ {:width3$} │ {:>width4$} │",
+            "│ {:name_width$} │ {:task_width$} │ {:arch_width$} │ {:>classes_width$} │",
             ai.name,
             ai.task,
             ai.architecture.as_deref().unwrap_or(""),
-            classes_count,
-            width1 = name_width,
-            width2 = task_width,
-            width3 = arch_width,
-            width4 = classes_width
+            ai.classes.len()
         );
     }
 
-    println!(
-        "└─{:─<width1$}─┴─{:─<width2$}─┴─{:─<width3$}─┴─{:─<width4$}─┘",
-        "",
-        "",
-        "",
-        "",
-        width1 = name_width,
-        width2 = task_width,
-        width3 = arch_width,
-        width4 = classes_width
-    );
+    print_border("└", "┴", "┘");
 }
 
 async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {

@@ -10,6 +10,24 @@ pub enum Lang {
     VI,
 }
 
+impl Default for Lang {
+    fn default() -> Self {
+        let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
+        let lang_code = locale.get(0..2).unwrap_or("en").to_lowercase();
+        match lang_code.as_str() {
+            "en" => Lang::EN,
+            "es" => Lang::ES,
+            "fr" => Lang::FR,
+            "de" => Lang::DE,
+            "zh" => Lang::ZH,
+            "ja" => Lang::JA,
+            "pt" => Lang::PT,
+            "vi" => Lang::VI,
+            _ => Lang::EN,
+        }
+    }
+}
+
 pub const LANGUAGES: [(Lang, &'static str); 8] = [
     (Lang::EN, "English"),
     (Lang::ES, "Español"),
@@ -566,21 +584,5 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "Exportar detecções",
             Lang::VI => "Trích xuất kết quả phát hiện"
         },
-    }
-}
-
-pub fn get_locale() -> Lang {
-    let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
-    let lang_code = locale.get(0..2).unwrap_or("en").to_lowercase();
-    match lang_code.as_str() {
-        "en" => Lang::EN,
-        "es" => Lang::ES,
-        "fr" => Lang::FR,
-        "de" => Lang::DE,
-        "zh" => Lang::ZH,
-        "ja" => Lang::JA,
-        "pt" => Lang::PT,
-        "vi" => Lang::VI,
-        _ => Lang::EN,
     }
 }

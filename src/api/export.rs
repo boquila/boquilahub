@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use super::abstractions::{AIOutputs, PredImg};
 use super::utils::create_predictions_file_path;
 use std::collections::HashMap;
