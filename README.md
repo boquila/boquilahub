@@ -6,15 +6,19 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 
 ## Features
 
-- Cross-platform. 
+- Cross-platform.
 - CLI tool
 - Run AIs for computer vision locally
 - Process image files
-- Process video files  
-- Process camera feed, in real-time.  
+- Process video files
+- Process camera feed, in real-time.
 - Deploy REST APIs, with maximum efficiency. Powered by [axum](https://github.com/tokio-rs/axum)
 
-## AIs 
+## Installation
+
+Downlaod the latest binaries from [releases](https://github.com/boquila/boquilahub/releases
+
+## AIs
 
 You can load any [.bq model](https://github.com/boquila/.bq). You can find them on our [website](https://boquila.org/hub).
 
