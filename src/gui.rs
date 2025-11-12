@@ -12,8 +12,7 @@ use rest::{
 };
 use std::fs::{self};
 use std::path::PathBuf;
-use std::sync::RwLock;
-use std::sync::{Arc, Mutex};
+use std::sync::{RwLock, Arc, Mutex};
 use std::time::Instant;
 use video_file::VideofileProcessor;
 

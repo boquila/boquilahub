@@ -42,6 +42,9 @@ pub enum Commands {
 
     /// Print list of models
     List,
+    
+    /// Start the GUI, but keeping the terminal
+    Gui,
 }
 
 #[derive(Parser)]
@@ -119,6 +122,9 @@ pub async fn run_cli(command: Commands) {
             Ok(_) => {}
             Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
         },
+        Commands::Gui => {
+            let _ = crate::gui::run_gui();
+        }
     }
 }
 
