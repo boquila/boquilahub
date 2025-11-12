@@ -2,6 +2,7 @@ use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, ProbSpace, XYXY};
 use bitvec::vec::BitVec;
 use ndarray::{Array, Array2, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 use ort::session::SessionOutputs;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,9 +185,9 @@ pub fn process_class_output_no_filt(classes: &[String], output: &Array<f32, IxDy
 }
 
 #[derive(Debug)]
-pub struct SpeciesRecord {
-    pub uuid: String,
-    pub class: String,
+pub struct SpeciesRecord<'a> {
+    pub uuid: Cow<'a, str>,
+    pub class: Cow<'a, str>,
     pub order: Option<String>,
     pub family: Option<String>,
     pub genus: Option<String>,
@@ -194,8 +195,8 @@ pub struct SpeciesRecord {
     pub common_name: Option<String>,
 }
 
-impl SpeciesRecord {
-    pub fn new(line: &str) -> Result<SpeciesRecord, String> {
+impl<'a> SpeciesRecord<'a> {
+    pub fn new(line: &'a str) -> Result<SpeciesRecord<'a>, String> {
         let parts: Vec<&str> = line.trim().split(';').collect();
         if parts.len() < 7 {
             return Err("Insufficient number of fields".to_string());
@@ -214,8 +215,8 @@ impl SpeciesRecord {
         };
 
         Ok(SpeciesRecord {
-            uuid: uuid.to_string(),
-            class: class.to_string(),
+            uuid: Cow::from(uuid),
+            class: Cow::from(class),
             order: to_option(parts[2]),
             family: to_option(parts[3]),
             genus: to_option(parts[4]),
@@ -420,7 +421,7 @@ fn get_taxon_at_level(record: &SpeciesRecord, level: &str) -> Option<String> {
         "genus" => record.genus.clone(),
         "family" => record.family.clone(),
         "order" => record.order.clone(),
-        "class" => Some(record.class.clone()),
+        "class" => Some(record.class.to_string()),
         _ => None,
     }
 }
@@ -454,7 +455,7 @@ fn format_species_name(record: &SpeciesRecord) -> String {
             } else if let Some(order) = &record.order {
                 order.clone()
             } else {
-                record.class.clone()
+                record.class.to_string()
             }
         }
     }

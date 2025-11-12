@@ -30,7 +30,7 @@ imageproc = "0.25.0"
 ab_glyph = "0.2.29" # Fonts
 chrono = "0.4.42"
 rfd = "0.15.4" # File dialogs
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.5.51", features = ["derive"] }
 derive-new = "0.7.0"
 sys-locale = "0.3.2"
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
