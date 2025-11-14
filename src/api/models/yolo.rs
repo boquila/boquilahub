@@ -1,6 +1,6 @@
 use super::*;
 use crate::api::{
-    abstractions::{BoundingBoxTrait, XYXY},
+    abstractions::{XYXY},
     processing::post::{nms_indices, process_mask},
     processing::{
         inference::inference,
@@ -137,9 +137,9 @@ impl Yolo {
 
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
         boxes
-            .into_iter()
+            .iter()
             .map(|xyxy| {
-                let label = &self.classes[xyxy.get_class_id() as usize];
+                let label = &self.classes[xyxy.class_id as usize];
                 XYXYc::new(*xyxy,label.to_string())
             })
             .collect()

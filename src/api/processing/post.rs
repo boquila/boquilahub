@@ -1,4 +1,4 @@
-use crate::api::abstractions::{BitMatrix, BoundingBoxTrait, ProbSpace, XYXY};
+use crate::api::abstractions::{BitMatrix, ProbSpace, XYXY};
 use bitvec::vec::BitVec;
 use ndarray::{Array, Array2, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 use ort::session::SessionOutputs;
@@ -26,13 +26,13 @@ impl From<&str> for PostProcessing {
     }
 }
 
-pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
+pub fn nms_indices(boxes: &[XYXY], iou_threshold: f32) -> Vec<usize> {
     // Create indices and sort them by probability (descending)
     let mut indices: Vec<usize> = (0..boxes.len()).collect();
     indices.sort_by(|&a, &b| {
         boxes[b]
-            .get_prob()
-            .partial_cmp(&boxes[a].get_prob())
+            .prob
+            .partial_cmp(&boxes[a].prob)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
@@ -48,7 +48,7 @@ pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<
             .into_iter()
             .skip(1)
             .filter(|&idx| {
-                boxes[idx].get_class_id() != boxes[current_idx].get_class_id()
+                boxes[idx].class_id != boxes[current_idx].class_id
                     || boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
             })
             .collect();
@@ -57,13 +57,13 @@ pub fn nms_indices<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<
     keep
 }
 
-pub fn nms_indices_all_cls<T: BoundingBoxTrait>(boxes: &[T], iou_threshold: f32) -> Vec<usize> {
+pub fn nms_indices_all_cls(boxes: &[XYXY], iou_threshold: f32) -> Vec<usize> {
     // Create indices and sort them by probability (descending)
     let mut indices: Vec<usize> = (0..boxes.len()).collect();
     indices.sort_by(|&a, &b| {
         boxes[b]
-            .get_prob()
-            .partial_cmp(&boxes[a].get_prob())
+            .prob
+            .partial_cmp(&boxes[a].prob)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 

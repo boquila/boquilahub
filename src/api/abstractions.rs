@@ -120,17 +120,6 @@ pub struct SEGc {
     pub bbox: XYXYc,
 }
 
-// Trait for all bounding boxes (that don't have a string)
-pub trait BoundingBoxTrait: Copy {
-    fn area(&self) -> f32;
-    fn intersect(&self, other: &Self) -> f32;
-    fn iou(&self, other: &Self) -> f32;
-    fn get_coords(&self) -> (f32, f32, f32, f32);
-    fn get_prob(&self) -> f32;
-    fn get_class_id(&self) -> u32;
-    fn check(&self) -> bool;
-}
-
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, new)]
 pub struct XYXY {
     pub x1: f32,
@@ -141,13 +130,7 @@ pub struct XYXY {
     pub class_id: u32,
 }
 
-fn iou<T: BoundingBoxTrait>(a: &T, b: &T) -> f32 {
-    let intersection = a.intersect(b);
-    let union = a.area() + b.area() - intersection;
-    intersection / union
-}
-
-impl BoundingBoxTrait for XYXY {
+impl XYXY {
     fn area(&self) -> f32 {
         (self.x2 - self.x1) * (self.y2 - self.y1)
     }
@@ -161,24 +144,14 @@ impl BoundingBoxTrait for XYXY {
         (x_right - x_left) * (y_bottom - y_top)
     }
 
-    fn iou(&self, other: &XYXY) -> f32 {
-        iou(self, other)
+    pub fn iou(&self, other: &XYXY) -> f32 {
+        let intersection = self.intersect(other);
+        let union = self.area() + other.area() - intersection;
+        intersection / union
     }
 
-    fn get_prob(&self) -> f32 {
-        self.prob
-    }
-
-    fn get_class_id(&self) -> u32 {
-        self.class_id
-    }
-
-    fn check(&self) -> bool {
+    pub fn check(&self) -> bool {
         self.x2 >= self.x1 && self.y2 >= self.y1 && self.prob >= 0.0 && self.prob <= 1.0
-    }
-
-    fn get_coords(&self) -> (f32, f32, f32, f32) {
-        (self.x1, self.y1, self.x2, self.y2)
     }
 }
 
