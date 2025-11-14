@@ -373,9 +373,8 @@ impl BoundingBoxTrait for XYXY {
         return XYXYnc::new(temp, label);
     }
 
-    fn to_xyxyc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYXYc {
-        let temp = self.to_xyxy(w, h);
-        return XYXYc::new(temp, label);
+    fn to_xyxyc(&self, _w: Option<f32>, _h: Option<f32>, label: String) -> XYXYc {
+        return XYXYc::new(*self, label);
     }
 
     fn to_xywhc(&self, w: Option<f32>, h: Option<f32>, label: String) -> XYWHc {
