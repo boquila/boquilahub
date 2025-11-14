@@ -140,7 +140,7 @@ impl Yolo {
             .into_iter()
             .map(|xyxy| {
                 let label = &self.classes[xyxy.get_class_id() as usize];
-                xyxy.to_xyxyc(None, None, label.to_string())
+                XYXYc::new(*xyxy,label.to_string())
             })
             .collect()
     }
