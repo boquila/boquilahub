@@ -54,21 +54,27 @@ pub fn imgbuf_to_input_array(
         TensorFormat::NHWC => Array::zeros((batch_size, h, w, input_depth)),
     };
 
+    let input_slice = input.as_slice_mut().unwrap();
+
     for (x, y, pixel) in resized.enumerate_pixels() {
         let (x, y) = (x as usize, y as usize);
         let [r, g, b] = pixel.0;
-        let rgb: [f32; 3] = [r as f32 * SCALE, g as f32 * SCALE, b as f32 * SCALE];
+        let (r, g, b) = (r as f32 * SCALE, g as f32 * SCALE, b as f32 * SCALE);
 
         match format {
             TensorFormat::NCHW => {
-                input[[0, 0, y, x]] = rgb[0];
-                input[[0, 1, y, x]] = rgb[1];
-                input[[0, 2, y, x]] = rgb[2];
+                // Layout: [batch, channel, height, width]
+                let idx = y * w + x;
+                input_slice[idx] = r;
+                input_slice[h * w + idx] = g;
+                input_slice[2 * h * w + idx] = b;
             }
             TensorFormat::NHWC => {
-                input[[0, y, x, 0]] = rgb[0];
-                input[[0, y, x, 1]] = rgb[1];
-                input[[0, y, x, 2]] = rgb[2];
+                // Layout: [batch, height, width, channel]
+                let idx = (y * w + x) * 3;
+                input_slice[idx] = r;
+                input_slice[idx + 1] = g;
+                input_slice[idx + 2] = b;
             }
         }
     }

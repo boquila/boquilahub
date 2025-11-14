@@ -313,6 +313,7 @@ impl ModelTrait for Yolo {
     }
 
     fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+        let start = std::time::Instant::now();
         let (input, img_width, img_height) = imgbuf_to_input_array(
             1,
             3,
@@ -321,6 +322,12 @@ impl ModelTrait for Yolo {
             img,
             &TensorFormat::NCHW,
         );
+        let duration = start.elapsed();
+        // Print the results
+        println!("Time elapsed: {:?}", duration);
+        println!("Time in microseconds: {} µs", duration.as_micros());
+        println!("Time in nanoseconds: {} ns", duration.as_nanos());
+        
         let outputs = inference(&self.session, &input, "images");
         match self.task {
             Task::Detect => {
