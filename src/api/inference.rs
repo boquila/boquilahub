@@ -41,7 +41,7 @@ pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result
     let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
-    let session = import_model(&data, ep);
+    let session = import_model(&data, ep).unwrap();
     let post: Vec<PostProcessing> = model_metadata
         .post_processing
         .iter()
@@ -68,7 +68,7 @@ pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Resul
     let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
-    let session = import_model(&data, ep);
+    let session = import_model(&data, ep).unwrap();
     let post: Vec<PostProcessing> = model_metadata
         .post_processing
         .iter()

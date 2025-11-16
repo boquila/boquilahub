@@ -86,19 +86,16 @@ pub fn is_supported_videofile(file_path: &str) -> bool {
     false
 }
 
-pub fn import_model(model_data: &[u8], ep: &EP) -> Session {
-    let mut builder = Session::builder()
-        .unwrap()
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .unwrap();
+pub fn import_model(model_data: &[u8], ep: &EP) -> Result<Session, ort::Error> {
+    let mut builder = Session::builder()?
+        .with_optimization_level(GraphOptimizationLevel::Level3)?;
 
     if ep.name == "CUDA" {
         builder = builder
-            .with_execution_providers([CUDAExecutionProvider::default().build()])
-            .unwrap();
+            .with_execution_providers([CUDAExecutionProvider::default().build()])?;
     }
 
-    builder.commit_from_memory(model_data).unwrap()
+    builder.commit_from_memory(model_data)
 }
 
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {

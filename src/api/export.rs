@@ -1,8 +1,9 @@
 use super::abstractions::{AIOutputs, PredImg};
 use super::utils::create_predictions_file_path;
+use anyhow::Result;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
 // Get the most frequent label from a list of bounding boxes
@@ -33,7 +34,7 @@ fn get_main_label(output: &AIOutputs) -> String {
     }
 }
 
-pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) {
+pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) -> Result<()> {
     for pred_img in pred_imgs {
         let image_file_path = &pred_img.file_path;
         if std::path::Path::new(image_file_path).exists() {
@@ -43,7 +44,7 @@ pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) {
 
             // Create directory if it doesn't exist
             if !std::path::Path::new(&folder_path).exists() {
-                std::fs::create_dir_all(&folder_path).unwrap();
+                std::fs::create_dir_all(&folder_path)?;
             }
 
             // Extract the image name from path
@@ -56,10 +57,11 @@ pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) {
             let new_image_path = format!("{}/{}", folder_path, image_name);
 
             // Read the original file and write to the new location
-            let image_data = tokio::fs::read(image_file_path).await.unwrap();
-            tokio::fs::write(&new_image_path, image_data).await.unwrap();
+            let image_data = tokio::fs::read(image_file_path).await?;
+            tokio::fs::write(&new_image_path, image_data).await?;
         }
     }
+    Ok(())
 }
 
 impl PredImg {
@@ -70,7 +72,7 @@ impl PredImg {
     }
 
     // For file 'img.jpg', creates a file 'img_predictions.json' that contains the AI outputs
-    pub async fn write_pred_img_to_file(&self) -> io::Result<()> {
+    pub async fn write_pred_img_to_file(&self) -> Result<()> {
         let output_path = create_predictions_file_path(&self.file_path)?;
         let mut file = File::create(&output_path)?;
         let json_string = serde_json::to_string(&self.aioutput)?;

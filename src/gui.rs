@@ -12,7 +12,7 @@ use rest::{
 };
 use std::fs::{self};
 use std::path::PathBuf;
-use std::sync::{RwLock, Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 use video_file::VideofileProcessor;
 
@@ -221,8 +221,6 @@ impl Gui {
             image_texture_n: 1, // this starts at 1
             video_step_frame: 1,
             feed_step_frame: 1,
-            ai_cls_config: ModelConfig::default2(),
-            temp_ai_cls_config: ModelConfig::default2(),
             process_all_imgs: true,
             ..Default::default()
         }
@@ -830,7 +828,7 @@ impl Gui {
                                     Some(self.temp_architecture.clone());
 
                                 // Create model
-                                let session = import::import_model(&data, &LIST_EPS[*ep_index]);
+                                let session = import::import_model(&data, &LIST_EPS[*ep_index]).unwrap();
                                 let post: Vec<PostProcessing> = updated_metadata
                                     .post_processing
                                     .iter()

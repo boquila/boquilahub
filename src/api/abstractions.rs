@@ -267,13 +267,3 @@ impl Default for ModelConfig {
         }
     }
 }
-
-impl ModelConfig {
-    pub fn default2() -> Self {
-        Self {
-            confidence_threshold: 0.5,
-            nms_threshold: 0.0,
-            geo_fence: "".to_owned(),
-        }
-    }
-}
