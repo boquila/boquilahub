@@ -14,7 +14,7 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 
 ## Installation
 
-Downlaod the latest binaries from [releases](https://github.com/boquila/boquilahub/releases
+Downlaod the latest binaries from [releases](https://github.com/boquila/boquilahub/releases)
 
 ## AIs
 
