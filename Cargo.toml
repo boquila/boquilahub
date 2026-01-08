@@ -7,36 +7,36 @@ authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
 [dependencies]
-egui = "0.33.2"
-eframe = { version = "0.33.2", default-features = false, features = [
+egui = "0.33.3"
+eframe = { version = "0.33.3", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
 ] }
-egui_extras = { version = "0.33.2", features = ["all_loaders"] }
+egui_extras = { version = "0.33.3", features = ["all_loaders"] }
 ffmpeg-next = "7.1.0"
 image = { version = "0.25.9", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-ort = { version = "2.0.0-rc.9", features = ["cuda"] }
+serde_json = "1.0.149"
+ort = { version = "=2.0.0-rc.9", features = ["cuda"] }
 regex = "1.12.2"
-axum = { version = "0.8.7", features = ["multipart"] }
-tokio = { version = "1.48.0", features = ["full"] }
-reqwest = { version = "0.12.24", features = ["json","blocking", "multipart"] }
-imageproc = "0.25.0"
+axum = { version = "0.8.8", features = ["multipart"] }
+tokio = { version = "1.49.0", features = ["full"] }
+reqwest = { version = "0.12.26", features = ["json","blocking", "multipart"] }
+imageproc = "0.26.0"
 ab_glyph = "0.2.32" # Fonts
 chrono = "0.4.42"
-rfd = "0.16.0" # File dialogs
-clap = { version = "4.5.53", features = ["derive"] }
+rfd = "0.17.1" # File dialogs
+clap = { version = "4.5.54", features = ["derive"] }
 derive-new = "0.7.0"
 sys-locale = "0.3.2"
 rayon = "1.11.0"
-embed-resource = "3.0.4"
+embed-resource = "3.0.6"
 bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.100"
-fast_image_resize = { version = "=5.4.0", features = ["image"] }
+fast_image_resize = { version = "=5.6.0", features = ["image"] }
 video-rs = { version = "0.10.5", features = ["ndarray"] }
 
 [target.'cfg(windows)'.dependencies]
