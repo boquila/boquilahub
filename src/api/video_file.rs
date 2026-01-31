@@ -1,17 +1,23 @@
 use super::utils::{image_buffer_to_ndarray, ndarray_to_image_buffer};
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;
-use std::{iter::Iterator, path::Path};
+use std::{
+    iter::Iterator,
+    path::{Path, PathBuf},
+};
 use video_rs::encode::Settings;
 use video_rs::{Decoder, DecoderBuilder, Encoder, Time, WriterBuilder};
 
-pub fn get_output_path(file_path: &str) -> String {
-    if let Some(pos) = file_path.rfind('\\') {
-        let (directory, file_name) = file_path.split_at(pos + 1);
-        let new_file_name = format!("predict_{}", file_name);
-        format!("{}{}", directory, new_file_name)
-    } else {
-        format!("predict_{}", file_path)
+pub fn get_output_path(file_path: &str) -> PathBuf {
+    let path = Path::new(file_path);
+    let file_name = path
+        .file_name()
+        .map(|name| format!("predict_{}", name.to_string_lossy()))
+        .unwrap_or_else(|| "predict_output".to_string());
+
+    match path.parent() {
+        Some(parent) => parent.join(file_name),
+        None => PathBuf::from(file_name),
     }
 }
 
@@ -32,15 +38,15 @@ impl VideofileProcessor {
             "movflags".to_string(),
             "frag_keyframe+empty_moov".to_string(),
         );
-        let output_path = get_output_path(&file_path);
+        let output_path = get_output_path(file_path);
 
-        let _writer = WriterBuilder::new(Path::new(&output_path))
+        let _writer = WriterBuilder::new(output_path.as_path())
             .with_options(&options.into())
             .build()
             .unwrap();
 
         let settings = Settings::preset_h264_yuv420p(w as _, h as _, false);
-        let encoder = Encoder::new(Path::new(&output_path), settings).unwrap();
+        let encoder = Encoder::new(output_path.as_path(), settings).unwrap();
 
         Self { decoder, encoder }
     }
