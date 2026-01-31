@@ -30,7 +30,6 @@ ab_glyph = "0.2.32" # Fonts
 chrono = "0.4.42"
 rfd = "0.17.1" # File dialogs
 clap = { version = "4.5.54", features = ["derive"] }
-derive-new = "0.7.0"
 sys-locale = "0.3.2"
 rayon = "1.11.0"
 embed-resource = "3.0.6"

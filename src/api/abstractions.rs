@@ -1,4 +1,3 @@
-use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 /// Probabilities
@@ -114,13 +113,22 @@ pub struct BitMatrix {
     pub height: usize,
 }
 
-#[derive(Serialize, Deserialize, Clone, new)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SEGc {
     pub mask: BitMatrix,
     pub bbox: XYXYc,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, new)]
+impl SEGc {
+    pub fn new(mask: BitMatrix, bbox: XYXYc) -> Self {
+        Self {
+            mask,
+            bbox,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct XYXY {
     pub x1: f32,
     pub y1: f32,
@@ -131,6 +139,17 @@ pub struct XYXY {
 }
 
 impl XYXY {
+    pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u32) -> Self {
+        Self {
+            x1,
+            y1,
+            x2,
+            y2,
+            prob,
+            class_id,
+        }
+    }
+
     fn area(&self) -> f32 {
         (self.x2 - self.x1) * (self.y2 - self.y1)
     }
@@ -156,7 +175,7 @@ impl XYXY {
 }
 
 // AI model for Image Processing
-#[derive(Deserialize, Clone, Debug, new)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct AI {
     pub task: String,
     #[serde(default)]
@@ -173,7 +192,7 @@ impl AI {
     }
 }
 
-#[derive(new, Clone)]
+#[derive(Clone)]
 pub struct PredImg {
     pub file_path: std::path::PathBuf,
     pub aioutput: Option<AIOutputs>,
@@ -251,7 +270,7 @@ impl AIOutputs {
     }
 }
 
-#[derive(Clone, new)]
+#[derive(Clone)]
 pub struct ModelConfig {
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
