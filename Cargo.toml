@@ -24,12 +24,12 @@ ort = { version = "=2.0.0-rc.9", features = ["cuda"] }
 regex = "1.12.2"
 axum = { version = "0.8.8", features = ["multipart"] }
 tokio = { version = "1.49.0", features = ["full"] }
-reqwest = { version = "0.12.26", features = ["json","blocking", "multipart"] }
+reqwest = { version = "0.13.1", features = ["json","blocking", "multipart"] }
 imageproc = "0.26.0"
 ab_glyph = "0.2.32" # Fonts
-chrono = "0.4.42"
-rfd = "0.17.1" # File dialogs
-clap = { version = "4.5.54", features = ["derive"] }
+chrono = "0.4.43"
+rfd = "0.17.2" # File dialogs
+clap = { version = "4.5.56", features = ["derive"] }
 sys-locale = "0.3.2"
 rayon = "1.11.0"
 embed-resource = "3.0.6"

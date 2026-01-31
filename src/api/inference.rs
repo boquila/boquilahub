@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use super::abstractions::{AIOutputs, ModelConfig, AI};
 use super::bq::import_bq;
 use super::eps::EP;
