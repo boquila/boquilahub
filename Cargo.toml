@@ -36,7 +36,7 @@ rayon = "1.11.0"
 embed-resource = "3.0.6"
 bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.100"
-fast_image_resize = { version = "=5.6.0", features = ["image"] }
+fast_image_resize = { version = "=6.0.0", features = ["image"] }
 video-rs = { version = "0.10.5", features = ["ndarray"] }
 
 [target.'cfg(windows)'.dependencies]

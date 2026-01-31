@@ -434,7 +434,7 @@ impl Gui {
     fn ai_cls_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if !self.is_remote() && self.show_ai_cls {
             let previous_ai = self.ai_cls_selected;
-            ui.label(self.t(Key::select_ai));
+            ui.label(self.t(Key::select_2nd_ai));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("AI_CLS")
                     .selected_text(match self.ai_cls_selected {

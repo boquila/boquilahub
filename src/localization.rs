@@ -92,19 +92,30 @@ pub enum Key {
     process_everything,
     export_obs,
     deployed_api_allows,
+    select_2nd_ai,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
     match key {
         Key::select_ai => match lang {
-            Lang::EN => "Select an AI",
-            Lang::ES => "Selecciona una IA",
-            Lang::FR => "Sélectionnez une IA",
-            Lang::DE => "Wählen Sie eine KI aus",
+            Lang::EN => "AI",
+            Lang::ES => "IA",
+            Lang::FR => "IA",
+            Lang::DE => "KI",
             Lang::ZH => "选择AI模型",
             Lang::JA => "AIを選択",
-            Lang::PT => "Selecionar uma IA",
+            Lang::PT => "IA",
             Lang::VI => "Lựa chọn AI",
+        },
+        Key::select_2nd_ai => match lang {
+            Lang::EN => "Classification AI",
+            Lang::ES => "IA de clasificación",
+            Lang::FR => "IA de classification",
+            Lang::DE => "Klassifizierungs-KI",
+            Lang::ZH => "分类AI",
+            Lang::JA => "分類AI",
+            Lang::PT => "IA de classificação",
+            Lang::VI => "AI phân loại",
         },
         Key::deployed_api_allows => match lang {
             Lang::EN => "Allows devices on your local network to connect to this BoquilaHUB instance and use your computer for processing",
@@ -205,13 +216,13 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::VI => "Bổ sung một mô hình AI phân loại để hỗ trợ mô hình hiện tại"
         },
         Key::select_ep => match lang {
-            Lang::EN => "Select a processor",
-            Lang::ES => "Selecciona un procesador",
-            Lang::FR => "Sélectionnez un processeur",
-            Lang::DE => "Wählen Sie einen Prozessor aus",
+            Lang::EN => "Processor",
+            Lang::ES => "Procesador",
+            Lang::FR => "Processeur",
+            Lang::DE => "Prozessor",
             Lang::ZH => "选择处理器",
             Lang::JA => "プロセッサーを選択",
-            Lang::PT => "Selecionar um processador",
+            Lang::PT => "Processador",
             Lang::VI => "Chọn bộ xử lí",
         },
         Key::setup => match lang {
