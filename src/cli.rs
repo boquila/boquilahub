@@ -140,7 +140,7 @@ pub async fn run_cli(command: Commands) {
             let _ = crate::gui::run_gui();
         }
         Commands::Bq { command } => match command {
-            BqCommands::Shape { name } => match crate::api::import::peek_shape(&name) {
+            BqCommands::Shape { name } => match crate::api::bq::peek_shape(&name) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             },
