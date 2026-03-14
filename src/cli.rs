@@ -33,6 +33,14 @@ pub struct PullArgs {
 }
 
 #[derive(Subcommand)]
+pub enum BqCommands {
+    // /// Create a new .bq model
+    // Create { name: String },
+    /// Returns the shape of a .bq model
+    Shape { name: String },
+}
+
+#[derive(Subcommand)]
 pub enum Commands {
     /// Deploy and serve a model
     Serve(ServeArgs),
@@ -42,9 +50,15 @@ pub enum Commands {
 
     /// Print list of models
     List,
-    
+
     /// Start the GUI, but keeping the terminal
     Gui,
+
+    /// Utils for .bq models (for devs)
+    Bq {
+        #[command(subcommand)]
+        command: BqCommands,
+    },
 }
 
 #[derive(Parser)]
@@ -125,6 +139,12 @@ pub async fn run_cli(command: Commands) {
         Commands::Gui => {
             let _ = crate::gui::run_gui();
         }
+        Commands::Bq { command } => match command {
+            BqCommands::Shape { name } => match crate::api::import::peek_shape(&name) {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            },
+        },
     }
 }
 

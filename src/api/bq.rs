@@ -3,9 +3,9 @@ use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::Path;
 
-pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
+pub fn import_bq(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
     // Open the .bq file
-    let mut file = File::open(file_path)?;
+    let mut file = File::open(&file_path)?;
     let mut file_content = Vec::new();
     file.read_to_end(&mut file_content)?;
 
@@ -35,8 +35,8 @@ pub fn import_bq(file_path: &str) -> io::Result<(AI, Vec<u8>)> {
         .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
 
     // Extract the name from the file path
-    let path = std::path::Path::new(file_path);
-    let name = path
+    
+    let name = file_path.as_ref()
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap()

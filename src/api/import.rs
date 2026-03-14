@@ -5,6 +5,7 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::path::Path;
 use std::{fs, io};
+use anyhow::Result;
 
 // First formats
 // then, some logic and checks
@@ -96,6 +97,28 @@ pub fn import_model(model_data: &[u8], ep: &EP) -> Result<Session, ort::Error> {
     }
 
     builder.commit_from_memory(model_data)
+}
+
+pub fn peek_shape(model_path: impl AsRef<Path>) -> Result<()> {
+    let path = model_path.as_ref();
+
+    let model_data = match path.extension().and_then(|e| e.to_str()) {
+        Some("onnx") => fs::read(path)?,
+        Some("bq") => {
+            let (_metadata, data) = super::bq::import_bq(path)?;
+            data
+        }
+        Some(ext) => return Err(anyhow::anyhow!("Unsupported extension: .{}", ext)),
+        None => return Err(anyhow::anyhow!("No file extension found")),
+    };
+
+    let session = Session::builder()?
+        .commit_from_memory(&model_data)?;
+
+    println!("Inputs:\n{:?}", session.inputs);
+    println!("Outputs:\n{:?}", session.outputs);
+
+    Ok(())
 }
 
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {
