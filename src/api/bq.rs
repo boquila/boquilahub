@@ -1,6 +1,6 @@
 use super::abstractions::AI;
 use std::fs::{self, File};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::Path;
 
 pub fn import_bq(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
@@ -35,8 +35,8 @@ pub fn import_bq(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
         .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
 
     // Extract the name from the file path
-    
-    let name = file_path.as_ref()
+    let name = file_path
+        .as_ref()
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap()
@@ -148,7 +148,7 @@ pub fn get_bqs() -> Vec<AI> {
     analyze_folder("models/").unwrap()
 }
 
-pub fn peek_shape(model_path: impl AsRef<Path>) -> anyhow::Result<()> {
+pub fn print_shape(model_path: impl AsRef<Path>) -> anyhow::Result<()> {
     let path = model_path.as_ref();
 
     let model_data = match path.extension().and_then(|e| e.to_str()) {
@@ -161,11 +161,38 @@ pub fn peek_shape(model_path: impl AsRef<Path>) -> anyhow::Result<()> {
         None => return Err(anyhow::anyhow!("No file extension found")),
     };
 
-    let session = ort::session::Session::builder()?
-        .commit_from_memory(&model_data)?;
+    let session = ort::session::Session::builder()?.commit_from_memory(&model_data)?;
 
     println!("Inputs:\n{:?}", session.inputs);
     println!("Outputs:\n{:?}", session.outputs);
 
+    Ok(())
+}
+
+pub fn create_bq_file(name: String) -> io::Result<()> {
+    let json_path = format!("{}.json", name);
+    let onnx_path = format!("{}.onnx", name);
+    let output_path = format!("{}.bq", name);
+
+    let json_content =
+        fs::read(&json_path).unwrap_or_else(|_| panic!("Failed to open JSON file: {}", json_path));
+    let onnx_content =
+        fs::read(&onnx_path).unwrap_or_else(|_| panic!("Failed to open ONNX file: {}", onnx_path));
+
+    let mut output_file = File::create(&output_path)
+        .unwrap_or_else(|_| panic!("Failed to create output file: {}", output_path));
+
+    output_file.write_all(b"BQMODEL")?; // Magic string
+    output_file.write_all(&[1])?; // Version
+
+    let json_length = json_content.len() as u32;
+    output_file.write_all(&json_length.to_le_bytes())?;
+    output_file.write_all(&json_content)?;
+
+    let onnx_length = onnx_content.len() as u32;
+    output_file.write_all(&onnx_length.to_le_bytes())?;
+    output_file.write_all(&onnx_content)?;
+
+    println!("New model: {}", output_path);
     Ok(())
 }
