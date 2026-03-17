@@ -13,11 +13,11 @@ use tokio::io::AsyncWriteExt;
 #[derive(Args)]
 pub struct ServeArgs {
     /// Model name to deploy
-    #[arg(value_name = "MODEL_NAME", required = true)]
+    #[arg(value_name = "MODEL_PATH", required = true)]
     pub model: String,
 
     /// Model name to deploy, complementary classification model
-    #[arg(long, value_name = "MODEL_CLS_NAME", required = false)]
+    #[arg(long, value_name = "MODEL_CLS_PATH", required = false)]
     pub model_cls: Option<String>,
 
     /// Port number for the server
@@ -33,6 +33,16 @@ pub struct PullArgs {
 }
 
 #[derive(Subcommand)]
+pub enum BqCommands {
+    /// Create a new .bq model. 
+    /// Pass a name and to use "name.json" and "name.onnx"
+    New { name: String },
+
+    /// Returns the shape of a .bq model
+    Shape { name: String },
+}
+
+#[derive(Subcommand)]
 pub enum Commands {
     /// Deploy and serve a model
     Serve(ServeArgs),
@@ -42,9 +52,15 @@ pub enum Commands {
 
     /// Print list of models
     List,
-    
+
     /// Start the GUI, but keeping the terminal
     Gui,
+
+    /// Utils for .bq models (for devs)
+    Bq {
+        #[command(subcommand)]
+        command: BqCommands,
+    },
 }
 
 #[derive(Parser)]
@@ -125,6 +141,16 @@ pub async fn run_cli(command: Commands) {
         Commands::Gui => {
             let _ = crate::gui::run_gui();
         }
+        Commands::Bq { command } => match command {
+            BqCommands::Shape { name } => match crate::api::bq::print_shape(&name) {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            },
+            BqCommands::New { name } => match crate::api::bq::create_bq_file(name) {
+                Ok(_) => {}
+                Err(e) => eprintln!("{}", e),
+            }
+        },
     }
 }
 

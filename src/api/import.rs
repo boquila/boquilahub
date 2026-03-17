@@ -5,6 +5,7 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::path::Path;
 use std::{fs, io};
+use anyhow::Result;
 
 // First formats
 // then, some logic and checks
