@@ -2,6 +2,7 @@ use super::abstractions::AI;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
+use anyhow::{Context, Result};
 
 pub fn import_bq(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
     // Open the .bq file
@@ -148,7 +149,7 @@ pub fn get_bqs() -> Vec<AI> {
     analyze_folder("models/").unwrap()
 }
 
-pub fn print_shape(model_path: impl AsRef<Path>) -> anyhow::Result<()> {
+pub fn print_shape(model_path: impl AsRef<Path>) -> Result<()> {
     let path = model_path.as_ref();
 
     let model_data = match path.extension().and_then(|e| e.to_str()) {
@@ -169,15 +170,18 @@ pub fn print_shape(model_path: impl AsRef<Path>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn create_bq_file(name: String) -> io::Result<()> {
+pub fn create_bq_file(name: String) -> Result<()> {
     let json_path = format!("{}.json", name);
     let onnx_path = format!("{}.onnx", name);
     let output_path = format!("{}.bq", name);
 
-    let json_content =
-        fs::read(&json_path).unwrap_or_else(|_| panic!("Failed to open JSON file: {}", json_path));
-    let onnx_content =
-        fs::read(&onnx_path).unwrap_or_else(|_| panic!("Failed to open ONNX file: {}", onnx_path));
+    let json_content = fs::read(&json_path).context(format!("Failed to open {}", json_path))?;
+    let _ai: AI = serde_json::from_slice(&json_content).context(format!("Failed to deserialize {} into required AI metadata", json_path))?;
+    let onnx_content = fs::read(&onnx_path).context(format!("Failed to open {}", onnx_path))?;
+
+    if !matches!(onnx_content.get(0..2), Some(&[0x08, ir_ver]) if ir_ver > 0) {
+        anyhow::bail!("File {} does not appear to be a valid ONNX model", onnx_path);
+    }
 
     let mut output_file = File::create(&output_path)
         .unwrap_or_else(|_| panic!("Failed to create output file: {}", output_path));
