@@ -7,16 +7,16 @@ authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
 [dependencies]
-egui = "0.33.3"
-eframe = { version = "0.33.3", default-features = false, features = [
+egui = "0.34.1"
+eframe = { version = "0.34.1", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
 ] }
-egui_extras = { version = "0.33.3", features = ["all_loaders"] }
+egui_extras = { version = "0.34.1", features = ["all_loaders"] }
 ffmpeg-next = "7.1.0"
-image = { version = "0.25.9", features = ["jpeg", "png"] }
+image = { version = "0.25.10", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
