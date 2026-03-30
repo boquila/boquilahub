@@ -292,7 +292,6 @@ impl Gui {
                     ui.label(message);
                 });
                 ui.request_repaint();
-                // ctx.request_repaint();
             } else {
                 *time = None;
             }
