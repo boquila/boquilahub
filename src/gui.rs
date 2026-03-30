@@ -256,9 +256,9 @@ impl Gui {
         return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
     }
 
-    fn paint(&mut self, ctx: &egui::Context, i: usize) {
+    fn paint(&mut self, ui: &egui::Ui, i: usize) {
         let img = &self.draw_gui(&self.selected_files[i]);
-        self.img_state.texture = imgbuf_to_texture(img, ctx)
+        self.img_state.texture = imgbuf_to_texture(img, ui)
     }
 
     fn draw_gui(&self, predimg: &PredImg) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -284,7 +284,6 @@ impl Gui {
     fn show_timed_message(
         time: &mut Option<std::time::Instant>,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
         message: &str,
     ) {
         if let Some(start_time) = *time {
@@ -292,26 +291,27 @@ impl Gui {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     ui.label(message);
                 });
-                ctx.request_repaint();
+                ui.request_repaint();
+                // ctx.request_repaint();
             } else {
                 *time = None;
             }
         }
     }
 
-    fn show_done_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn show_done_message(&mut self, ui: &mut egui::Ui) {
         let message = &self.t(Key::done);
         let time = &mut self.done_time;
-        Gui::show_timed_message(time, ui, ctx, message);
+        Gui::show_timed_message(time, ui, message);
     }
 
-    fn show_error_message(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn show_error_message(&mut self, ui: &mut egui::Ui) {
         let message = &self.t(Key::error_ocurred);
         let time = &mut self.error_time;
-        Gui::show_timed_message(time, ui, ctx, message);
+        Gui::show_timed_message(time, ui, message);
     }
 
-    fn api_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn api_widget(&mut self, ui: &mut egui::Ui) {
         if self.ai_selected.is_some() && !self.is_remote() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
@@ -348,13 +348,13 @@ impl Gui {
                 }
             }
 
-            self.architecture_selection_dialog(ctx);
+            self.architecture_selection_dialog(ui);
         }
 
-        self.input_api_url_dialog(ctx);
+        self.input_api_url_dialog(ui);
     }
 
-    fn ai_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn ai_widget(&mut self, ui: &mut egui::Ui) {
         if !self.is_remote() {
             let previous_ai = self.ai_selected;
             ui.label(self.t(Key::select_ai));
@@ -419,7 +419,7 @@ impl Gui {
 
             ai_config_window!(
                 self,
-                ctx,
+                ui,
                 self.show_config.ai,
                 ai_config,
                 temp_ai_config,
@@ -431,7 +431,7 @@ impl Gui {
         }
     }
 
-    fn ai_cls_widget(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
         if !self.is_remote() && self.show_ai_cls {
             let previous_ai = self.ai_cls_selected;
             ui.label(self.t(Key::select_2nd_ai));
@@ -487,7 +487,7 @@ impl Gui {
 
             ai_config_window!(
                 self,
-                ctx,
+                ui,
                 self.show_config.ai_cls,
                 ai_cls_config,
                 temp_ai_cls_config,
@@ -581,7 +581,7 @@ impl Gui {
         ui.add_space(8.0);
     }
 
-    fn data_selection_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn data_selection_widget(&mut self, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
             ui.heading(format!("📎 {}", self.t(Key::select_your_data)));
         });
@@ -625,7 +625,7 @@ impl Gui {
                                         .map(|path: PathBuf| PredImg::new_simple(path))
                                         .collect();
                                     self.image_texture_n = 1;
-                                    self.paint(ctx, 0);
+                                    self.paint(ui, 0);
                                     self.mode = Mode::Image;
                                     self.img_state.progress_bar = self.selected_files.get_progress()
                                 }
@@ -651,7 +651,7 @@ impl Gui {
                             .map(|path| PredImg::new_simple(path))
                             .collect();
                         self.image_texture_n = 1;
-                        self.paint(ctx, 0);
+                        self.paint(ui, 0);
                         self.mode = Mode::Image;
                         self.img_state.progress_bar = self.selected_files.get_progress()
                     }
@@ -671,7 +671,7 @@ impl Gui {
                             Ok(frame) => {
                                 self.video_state.texture = imgbuf_to_texture(
                                     &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
-                                    ctx,
+                                    ui,
                                 );
                                 self.video_file_path = Some(path);
                                 let processor = Some(VideofileProcessor::new(
@@ -701,16 +701,16 @@ impl Gui {
 
                 // Feed url dialog
                 if self.show_dialog.feed_url {
-                    self.feed_input_dialog(ctx);
+                    self.feed_input_dialog(ui);
                 }
             });
     }
 
-    fn feed_input_dialog(&mut self, ctx: &egui::Context) {
+    fn feed_input_dialog(&mut self, ui: &egui::Ui) {
         egui::Window::new(self.t(Key::input_url))
             .collapsible(false)
             .resizable(false)
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 ui.text_edit_singleline(&mut self.temp_str);
                 ui.horizontal(|ui| {
                     if ui.button(self.t(Key::ok)).clicked() {
@@ -720,7 +720,7 @@ impl Gui {
                                 Some(frame) => {
                                     self.feed_state.texture = imgbuf_to_texture(
                                         &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
-                                        ctx,
+                                        ui,
                                     );
                                     self.feed_url = Some(url);
                                     self.mode = Mode::Feed;
@@ -747,12 +747,12 @@ impl Gui {
             });
     }
 
-    fn input_api_url_dialog(&mut self, ctx: &egui::Context) {
+    fn input_api_url_dialog(&mut self, ui: &egui::Ui) {
         if self.show_dialog.api_server {
             egui::Window::new(self.t(Key::input_url))
                 .collapsible(false)
                 .resizable(false)
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     ui.text_edit_singleline(&mut self.temp_api_str);
                     ui.horizontal(|ui| {
                         if ui.button(self.t(Key::ok)).clicked() {
@@ -782,12 +782,12 @@ impl Gui {
         }
     }
 
-    fn architecture_selection_dialog(&mut self, ctx: &egui::Context) {
+    fn architecture_selection_dialog(&mut self, ui: &egui::Ui) {
         if self.show_dialog.architecture {
             egui::Window::new(self.t(Key::select_architecture))
                 .collapsible(false)
                 .resizable(false)
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     ui.label(self.t(Key::model_have_no_architecture));
                     ui.add_space(8.0);
 
@@ -921,12 +921,12 @@ impl Gui {
         });
     }
 
-    fn process_all_dialog(&mut self, ctx: &egui::Context) {
+    fn process_all_dialog(&mut self, ui: &egui::Ui) {
         if self.show_dialog.process_all {
             egui::Window::new(self.t(Key::process_everything))
                 .collapsible(false)
                 .resizable(false)
-                .show(ctx, |ui| {
+                .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         if ui.button(self.t(Key::yes)).clicked() {
                             self.process_all_imgs = true;
@@ -948,7 +948,7 @@ impl Gui {
         }
     }
 
-    fn img_analysis_widget(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
@@ -1014,7 +1014,7 @@ impl Gui {
                 egui::Window::new(self.t(Key::export))
                     .collapsible(false)
                     .resizable(false)
-                    .show(ctx, |ui| {
+                    .show(ui, |ui| {
                         // Export option 1
                         if ui.button(self.t(Key::export_predictions)).clicked() {
                             for file in self.selected_files.clone() {
@@ -1063,7 +1063,7 @@ impl Gui {
                     });
             }
 
-            self.process_all_dialog(ctx);
+            self.process_all_dialog(ui);
         }
     }
 
@@ -1291,7 +1291,7 @@ impl Gui {
         }
     }
 
-    fn img_handle_results(&mut self, ctx: &egui::Context) {
+    fn img_handle_results(&mut self, ui: &egui::Ui) {
         if let Some(rx) = &mut self.image_processing_receiver {
             let mut updates = Vec::new();
             while let Ok((i, bbox)) = rx.try_recv() {
@@ -1303,7 +1303,7 @@ impl Gui {
                 self.selected_files[i].wasprocessed = true;
                 // if the img is the same that the user is seeing, we'll repaint it
                 if i == self.image_texture_n - 1 {
-                    self.paint(ctx, i);
+                    self.paint(ui, i);
                 }
             }
 
@@ -1313,11 +1313,11 @@ impl Gui {
             }
 
             self.img_state.progress_bar = self.selected_files.get_progress();
-            ctx.request_repaint();
+            ui.request_repaint();
         }
     }
 
-    fn video_handle_results(&mut self, ctx: &egui::Context) {
+    fn video_handle_results(&mut self, ui: &egui::Ui) {
         if let Some(rx) = &mut self.video_processing_receiver {
             let mut updates = Vec::new();
             while let Ok(img) = rx.try_recv() {
@@ -1325,7 +1325,7 @@ impl Gui {
             }
 
             for (i, img) in updates {
-                self.video_state.texture = imgbuf_to_texture(&img, ctx);
+                self.video_state.texture = imgbuf_to_texture(&img, ui);
 
                 self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
                 self.current_frame = i;
@@ -1343,11 +1343,11 @@ impl Gui {
                 }
             }
 
-            ctx.request_repaint();
+            ui.request_repaint();
         }
     }
 
-    fn feed_handle_results(&mut self, ctx: &egui::Context) {
+    fn feed_handle_results(&mut self, ui: &egui::Ui) {
         if let Some(rx) = &mut self.feed_processing_receiver {
             let mut updates = Vec::new();
             while let Ok(img) = rx.try_recv() {
@@ -1355,22 +1355,22 @@ impl Gui {
             }
 
             for (aioutput, img) in updates {
-                self.feed_state.texture = imgbuf_to_texture(&img, ctx);
+                self.feed_state.texture = imgbuf_to_texture(&img, ui);
                 if self.save_img_from_feed && !aioutput.is_empty() {
                     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
                     let _ = img.save(format!("export/feed/{}.png", timestamp));
                 }
             }
 
-            ctx.request_repaint();
+            ui.request_repaint();
         }
     }
 }
 
 impl eframe::App for Gui {
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn ui(&mut self, ctx: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+    fn ui(&mut self, main_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::Panel::top("top_panel").show_inside(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
                     ui.hyperlink_to(self.t(Key::website), self.t(Key::website_url));
@@ -1395,7 +1395,7 @@ impl eframe::App for Gui {
             });
         });
 
-        egui::SidePanel::left("left_panel").show(ctx, |ui| {
+        egui::Panel::left("left_panel").show_inside(main_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(format!("💻 {}", self.t(Key::setup)));
             });
@@ -1405,22 +1405,22 @@ impl eframe::App for Gui {
                 if self.is_any_processing() {
                     ui.disable();
                 }
-                self.ai_widget(ui, ctx);
-                self.ai_cls_widget(ui, ctx);
+                self.ai_widget(ui);
+                self.ai_cls_widget(ui);
                 self.ep_widget(ui);
 
-                self.api_widget(ui, ctx);
+                self.api_widget(ui);
 
                 ui.separator();
 
-                self.data_selection_widget(ctx, ui);
+                self.data_selection_widget(ui);
 
                 ui.separator();
             });
 
             match self.mode {
                 Mode::Image => {
-                    self.img_analysis_widget(ctx, ui);
+                    self.img_analysis_widget(ui);
                 }
                 Mode::Video => {
                     self.video_analysis_widget(ui);
@@ -1430,11 +1430,11 @@ impl eframe::App for Gui {
                 }
             }
 
-            self.show_done_message(ui, ctx);
-            self.show_error_message(ui, ctx);
+            self.show_done_message(ui);
+            self.show_error_message(ui);
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(main_ui, |ui| {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = self.video_file_path.is_some();
             let cond3 = self.feed_url.is_some();
@@ -1473,7 +1473,7 @@ impl eframe::App for Gui {
                         );
 
                         if images_slider.changed() {
-                            self.paint(ctx, self.image_texture_n - 1);
+                            self.paint(ui, self.image_texture_n - 1);
                         }
                     }
 
@@ -1485,7 +1485,7 @@ impl eframe::App for Gui {
                         );
                     }
 
-                    self.img_handle_results(ctx);
+                    self.img_handle_results(ui);
                 }
                 Mode::Video => {
                     if let Some(texture) = &self.video_state.texture {
@@ -1496,7 +1496,7 @@ impl eframe::App for Gui {
                         );
                     }
 
-                    self.video_handle_results(ctx);
+                    self.video_handle_results(ui);
                 }
                 Mode::Feed => {
                     if let Some(texture) = &self.feed_state.texture {
@@ -1507,7 +1507,7 @@ impl eframe::App for Gui {
                         );
                     }
 
-                    self.feed_handle_results(ctx);
+                    self.feed_handle_results(ui);
                 }
             });
         });
@@ -1517,12 +1517,12 @@ impl eframe::App for Gui {
 #[inline(always)]
 fn imgbuf_to_texture(
     img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
-    ctx: &egui::Context,
+    ui: &egui::Ui,
 ) -> Option<egui::TextureHandle> {
     let size: [usize; 2] = [img.width() as _, img.height() as _];
     let color_img =
         egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
-    Some(ctx.load_texture("current_frame", color_img, egui::TextureOptions::default()))
+    Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 
 #[derive(Default, PartialEq)]
