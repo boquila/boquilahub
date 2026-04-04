@@ -15,7 +15,7 @@ eframe = { version = "0.34.1", default-features = false, features = [
     "wayland",       # To support Linux (and CI)
 ] }
 egui_extras = { version = "0.34.1", features = ["all_loaders"] }
-ffmpeg-next = "7.1.0"
+ffmpeg-next = "8.1.0"
 image = { version = "0.25.10", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -36,7 +36,6 @@ embed-resource = "3.0.6"
 bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.102"
 fast_image_resize = { version = "=6.0.0", features = ["image"] }
-video-rs = { version = "0.10.5", features = ["ndarray"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
@@ -46,6 +45,13 @@ lto = true
 strip = true
 codegen-units = 1
 opt-level = 3
+
+[profile.prerelease]
+inherits = "release"
+lto = false
+strip = false 
+codegen-units = 16
+incremental = true
 
 [build-dependencies]
 embed-resource = "3.0"

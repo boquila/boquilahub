@@ -13,3 +13,6 @@ target_wasm
 /deps
 /models
 /export
+
+# random ideas
+/thoughts

@@ -219,8 +219,8 @@ impl Gui {
             ais_cls_only: classify_ais,
             temp_architecture: "yolo".to_owned(),
             image_texture_n: 1, // this starts at 1
-            video_step_frame: 1,
-            feed_step_frame: 1,
+            video_step_frame: 3,
+            feed_step_frame: 3,
             process_all_imgs: true,
             ..Default::default()
         }
@@ -1140,6 +1140,7 @@ impl Gui {
                     }
                     None => {
                         let _ = processor.lock().unwrap().as_mut().unwrap().encoder.finish();
+                        break;
                     }
                 }
             }
@@ -1192,6 +1193,7 @@ impl Gui {
             let _ = cancel_tx.send(());
         }
         self.video_state.is_processing = false;
+        self.video_processing_receiver = None;
     }
 
     fn start_feed_analysis(&mut self) {
@@ -1319,27 +1321,36 @@ impl Gui {
     fn video_handle_results(&mut self, ui: &egui::Ui) {
         if let Some(rx) = &mut self.video_processing_receiver {
             let mut updates = Vec::new();
-            while let Ok(img) = rx.try_recv() {
-                updates.push(img);
+            let mut channel_closed = false;
+            loop {
+                match rx.try_recv() {
+                    Ok(img) => updates.push(img),
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                        channel_closed = true;
+                        break;
+                    }
+                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                }
             }
 
             for (i, img) in updates {
                 self.video_state.texture = imgbuf_to_texture(&img, ui);
-
                 self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
                 self.current_frame = i;
-                if i + 1 == self.total_frames.unwrap() {
-                    self.video_state.is_processing = false;
-                    self.video_processing_receiver = None;
-                    let _ = self
-                        .video_file_processor
-                        .lock()
-                        .unwrap()
-                        .as_mut()
-                        .unwrap()
-                        .encoder
-                        .finish();
-                }
+            }
+
+            if channel_closed {
+                self.video_state.progress_bar = 1.0;
+                self.video_state.is_processing = false;
+                self.video_processing_receiver = None;
+                let _ = self
+                    .video_file_processor
+                    .lock()
+                    .unwrap()
+                    .as_mut()
+                    .unwrap()
+                    .encoder
+                    .finish();
             }
 
             ui.request_repaint();
