@@ -37,7 +37,6 @@ bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.102"
 fast_image_resize = { version = "=6.0.0", features = ["image"] }
 
-
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
 
@@ -46,6 +45,13 @@ lto = true
 strip = true
 codegen-units = 1
 opt-level = 3
+
+[profile.prerelease]
+inherits = "release"
+lto = false
+strip = false 
+codegen-units = 16
+incremental = true
 
 [build-dependencies]
 embed-resource = "3.0"
