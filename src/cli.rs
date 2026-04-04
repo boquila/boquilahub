@@ -53,8 +53,11 @@ pub enum Commands {
     /// Print list of models
     List,
 
-    /// Start the GUI, but keeping the terminal
+    /// Start the GUI, while keeping the terminal
     Gui,
+    
+    /// Start the TUI
+    Tui,
 
     /// Utils for .bq models (for devs)
     Bq {
@@ -140,6 +143,9 @@ pub async fn run_cli(command: Commands) {
         },
         Commands::Gui => {
             let _ = crate::gui::run_gui();
+        }
+        Commands::Tui => {
+            let _ = crate::tui::run_tui();
         }
         Commands::Bq { command } => match command {
             BqCommands::Shape { name } => match crate::api::bq::print_shape(&name) {
