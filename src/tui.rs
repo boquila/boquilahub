@@ -7,6 +7,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Frame;
 
+use super::api::{
+    abstractions::AI,
+    bq::get_bqs,
+    eps::LIST_EPS,
+    inference::set_model,
+    rest::{get_ipv4_address, run_api},
+};
+
 // ── palette ──────────────────────────────────────────────────────────
 const BG_DARK: Color = Color::Rgb(13, 13, 18);
 const BG_SIDEBAR: Color = Color::Rgb(18, 18, 24);
@@ -35,29 +43,44 @@ enum Row { Ai, ClsAi, Ep, Deploy }
 struct App {
     row: usize,
     side_btn: bool, // true = focus is on the +/- button, not the combo
+    ais: Vec<AI>,
     ai_options: Vec<String>,  ai_selected: Option<usize>,  ai_open: bool,  ai_cursor: usize,
+    cls_ais: Vec<AI>,
     cls_active: bool, cls_selected: Option<usize>, cls_open: bool, cls_cursor: usize,
     ep_options: Vec<String>,  ep_selected: Option<usize>,  ep_open: bool,  ep_cursor: usize,
     api_deployed: bool,
+    host_url: Option<String>,
+    status_msg: Option<String>,
 }
 
 impl App {
     fn new() -> Self {
+        let ais = get_bqs();
+        let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
+        let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify").cloned().collect();
+        let ep_options: Vec<String> = LIST_EPS.iter()
+            .filter(|ep| !matches!(ep.ep_type, super::api::eps::EPType::BoquilaHUBRemote))
+            .map(|ep| ep.name.to_string()).collect();
         Self {
             row: 0, side_btn: false,
-            ai_options: vec!["yolov8n".into(), "yolov8s".into(), "megadetectorv5".into(), "efficientnetv2".into()],
+            ais, ai_options,
             ai_selected: None, ai_open: false, ai_cursor: 0,
+            cls_ais,
             cls_active: false, cls_selected: None, cls_open: false, cls_cursor: 0,
-            ep_options: vec!["CPU".into(), "CUDA".into()],
+            ep_options,
             ep_selected: None, ep_open: false, ep_cursor: 0,
             api_deployed: false,
+            host_url: None,
+            status_msg: None,
         }
     }
     fn rows(&self) -> Vec<Row> {
         let mut v = vec![Row::Ai];
         if self.cls_active { v.push(Row::ClsAi); }
         v.push(Row::Ep);
-        v.push(Row::Deploy);
+        if self.ai_selected.is_some() && self.ep_selected.is_some() || self.api_deployed {
+            v.push(Row::Deploy);
+        }
         v
     }
     fn cur_row(&self) -> Row {
@@ -100,13 +123,24 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
     if matches!(code, KeyCode::Char('q') | KeyCode::Esc) && !app.any_open() { return true; }
 
     if app.ai_open {
-        return handle_dropdown(code, &app.ai_options, &mut app.ai_cursor, &mut app.ai_selected, &mut app.ai_open);
+        let prev = app.ai_selected;
+        let r = handle_dropdown(code, &app.ai_options, &mut app.ai_cursor, &mut app.ai_selected, &mut app.ai_open);
+        if !app.ai_open && app.ai_selected != prev && app.ai_selected.is_some() {
+            load_ai_model(app);
+        }
+        return r;
     }
     if app.cls_open {
-        return handle_dropdown(code, &app.ai_options, &mut app.cls_cursor, &mut app.cls_selected, &mut app.cls_open);
+        let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
+        return handle_dropdown(code, &cls_names, &mut app.cls_cursor, &mut app.cls_selected, &mut app.cls_open);
     }
     if app.ep_open {
-        return handle_dropdown(code, &app.ep_options, &mut app.ep_cursor, &mut app.ep_selected, &mut app.ep_open);
+        let prev = app.ep_selected;
+        let r = handle_dropdown(code, &app.ep_options, &mut app.ep_cursor, &mut app.ep_selected, &mut app.ep_open);
+        if !app.ep_open && app.ep_selected != prev && app.ep_selected.is_some() {
+            load_ai_model(app);
+        }
+        return r;
     }
 
     let row_len = app.rows().len();
@@ -127,7 +161,11 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
                     Row::Ai => { app.ai_open = true; app.ai_cursor = app.ai_selected.unwrap_or(0); }
                     Row::ClsAi => { app.cls_open = true; app.cls_cursor = app.cls_selected.unwrap_or(0); }
                     Row::Ep => { app.ep_open = true; app.ep_cursor = app.ep_selected.unwrap_or(0); }
-                    Row::Deploy => app.api_deployed = !app.api_deployed,
+                    Row::Deploy => {
+                        if !app.api_deployed && app.ai_selected.is_some() && app.ep_selected.is_some() {
+                            deploy_api(app);
+                        }
+                    }
                 }
             }
         }
@@ -145,6 +183,34 @@ fn handle_dropdown(code: KeyCode, options: &[String], cursor: &mut usize, select
         _ => {}
     }
     false
+}
+
+fn resolve_ep(app: &App) -> &'static super::api::eps::EP {
+    let name = app.ep_selected.map_or("CPU", |i| app.ep_options[i].as_str());
+    LIST_EPS.iter().find(|ep| ep.name == name).unwrap_or(&LIST_EPS[0])
+}
+
+fn load_ai_model(app: &mut App) {
+    if let Some(ai_idx) = app.ai_selected {
+        let ep = resolve_ep(app);
+        let model_path = app.ais[ai_idx].get_path();
+        match set_model(&model_path, ep, None) {
+            Ok(_) => { app.status_msg = Some(format!("Loaded {}", app.ais[ai_idx].name)); }
+            Err(e) => { app.status_msg = Some(format!("Error: {}", e)); }
+        }
+    }
+}
+
+fn deploy_api(app: &mut App) {
+    let port = 8791u16;
+    tokio::spawn(async move {
+        if let Err(e) = run_api(port).await {
+            eprintln!("API error: {}", e);
+        }
+    });
+    app.host_url = get_ipv4_address().map(|ip| format!("http://{}:{}", ip, port));
+    app.api_deployed = true;
+    app.status_msg = Some("API deployed".into());
 }
 
 // ── drawing ──────────────────────────────────────────────────────────
@@ -190,26 +256,30 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
 
     // classification AI section
     if app.cls_active {
-        draw_combo(frame, cls_area, "Classification AI", &app.ai_options, app.cls_selected, app.cur_row() == Row::ClsAi && !app.side_btn);
+        let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
+        draw_combo(frame, cls_area, "Classification AI", &cls_names, app.cls_selected, app.cur_row() == Row::ClsAi && !app.side_btn);
         let focused = app.cur_row() == Row::ClsAi && app.side_btn;
         draw_side_btn(frame, cls_area, "-", focused);
     }
 
     draw_combo(frame, ep, "Processor", &app.ep_options, app.ep_selected, app.cur_row() == Row::Ep);
 
-    // deploy button
-    let focused = app.cur_row() == Row::Deploy;
-    let label = if app.api_deployed { " ● API Live" } else { " Deploy API" };
-    let style = match (focused, app.api_deployed) {
-        (true, true)   => s(FG_BRIGHT, Color::Rgb(25, 70, 40)),
-        (_, true)      => s(ACCENT, Color::Rgb(20, 55, 35)),
-        (true, false)  => s(FG_BRIGHT, BG_ACTIVE),
-        (false, false) => s(FG_MUTED, BG_SURFACE),
-    };
-    frame.render_widget(
-        Paragraph::new(Span::styled(label, style)).alignment(Alignment::Center),
-        Rect { x: btn.x + 2, y: btn.y + 1, width: btn.width.saturating_sub(4), height: 1 },
-    );
+    // deploy button — only visible when both AI and processor are chosen
+    let can_deploy = app.ai_selected.is_some() && app.ep_selected.is_some();
+    if can_deploy || app.api_deployed {
+        let focused = app.cur_row() == Row::Deploy;
+        let label = if app.api_deployed { " ● API Live" } else { " Deploy API" };
+        let style = match (focused, app.api_deployed) {
+            (true, true)   => s(FG_BRIGHT, Color::Rgb(25, 70, 40)),
+            (_, true)      => s(ACCENT, Color::Rgb(20, 55, 35)),
+            (true, false)  => s(FG_BRIGHT, BG_ACTIVE),
+            (false, false) => s(FG_MUTED, BG_SURFACE),
+        };
+        frame.render_widget(
+            Paragraph::new(Span::styled(label, style)).alignment(Alignment::Center),
+            Rect { x: btn.x + 2, y: btn.y + 1, width: btn.width.saturating_sub(4), height: 1 },
+        );
+    }
 
     // hints
     frame.render_widget(
@@ -259,6 +329,14 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
     if app.api_deployed {
         frame.render_widget(centered(Span::styled("●", bold(ACCENT))), at(area, cy.saturating_sub(1)));
         frame.render_widget(centered(Span::styled("API deployed", Style::default().fg(FG_MUTED))), at(area, cy + 1));
+        if let Some(url) = &app.host_url {
+            let focused = app.cur_row() == Row::Deploy;
+            if focused {
+                frame.render_widget(centered(Span::styled(url.as_str(), Style::default().fg(FG_BRIGHT))), at(area, cy + 3));
+            } else {
+                frame.render_widget(centered(Span::styled("▸ focus Deploy to reveal IP", Style::default().fg(FG_DIM))), at(area, cy + 3));
+            }
+        }
     } else {
         if cy >= 2 {
             frame.render_widget(centered(Span::styled("◇", bold(FG_DIM))), at(area, cy - 2));
@@ -270,7 +348,7 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let model = app.ai_selected.map_or(String::new(), |i| format!("  {}  ", app.ai_options[i]));
-    let cls = app.cls_selected.map_or(String::new(), |i| format!("+ {}  ", app.ai_options[i]));
+    let cls = app.cls_selected.map_or(String::new(), |i| format!("+ {}  ", app.cls_ais[i].name));
     let ep = app.ep_selected.map_or(String::new(), |i| format!("  {}  ", app.ep_options[i]));
     let (api_label, api_fg) = if app.api_deployed { (" ● LIVE ", ACCENT) } else { (" ○ OFF ", FG_DIM) };
 
@@ -286,9 +364,10 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
+    let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
     let (options, cursor, selected, title) = match which {
         "ai"  => (&app.ai_options, app.ai_cursor, app.ai_selected, "Model"),
-        "cls" => (&app.ai_options, app.cls_cursor, app.cls_selected, "Classification AI"),
+        "cls" => (&cls_names, app.cls_cursor, app.cls_selected, "Classification AI"),
         _     => (&app.ep_options, app.ep_cursor, app.ep_selected, "Processor"),
     };
 
@@ -298,10 +377,15 @@ fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
         "cls" => 7,
         _     => 7 + cls_offset,
     };
-    let popup = Rect { x: 2, y, width: 24, height: (options.len() as u16 + 2).min(frame.area().height) };
+    let max_h = frame.area().height.saturating_sub(y);
+    if max_h < 3 { return; }
+    let popup_h = (options.len() as u16 + 2).min(max_h);
+    let visible = popup_h.saturating_sub(2) as usize; // inner rows (minus border)
+    let scroll = if cursor >= visible { cursor - visible + 1 } else { 0 };
+    let popup = Rect { x: 2, y, width: 24, height: popup_h };
     frame.render_widget(Clear, popup);
 
-    let items: Vec<ListItem> = options.iter().enumerate().map(|(i, opt)| {
+    let items: Vec<ListItem> = options.iter().enumerate().skip(scroll).map(|(i, opt)| {
         let cur = i == cursor;
         let sel = selected == Some(i);
         let base = if cur { bold(FG_BRIGHT).bg(BG_ACTIVE) } else { s(FG_MUTED, BG_POPUP) };
