@@ -49,6 +49,9 @@ pub struct VideoEncoder {
     input_time_base: ffmpeg::Rational,
     encoder_time_base: ffmpeg::Rational,
     output_time_base: ffmpeg::Rational,
+    audio_output_stream_index: Option<usize>,
+    audio_input_time_base: Option<ffmpeg::Rational>,
+    audio_output_time_base: Option<ffmpeg::Rational>,
 }
 
 impl VideoEncoder {
@@ -88,6 +91,18 @@ impl VideoEncoder {
         }
     }
 
+    pub fn write_audio_packet(&mut self, mut packet: ffmpeg::Packet) {
+        if let (Some(out_idx), Some(in_tb), Some(out_tb)) = (
+            self.audio_output_stream_index,
+            self.audio_input_time_base,
+            self.audio_output_time_base,
+        ) {
+            packet.set_stream(out_idx);
+            packet.rescale_ts(in_tb, out_tb);
+            packet.write_interleaved(&mut self.output_ctx).unwrap();
+        }
+    }
+
     pub fn finish(&mut self) {
         if self.finished {
             return;
@@ -103,6 +118,7 @@ pub struct VideofileProcessor {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
     stream_index: usize,
+    audio_stream_index: Option<usize>,
     decoded: ffmpeg::frame::Video,
     pub encoder: VideoEncoder,
     frames: i64,
@@ -128,6 +144,13 @@ impl VideofileProcessor {
                 .video()
                 .unwrap();
             (idx, tb, fr, dec)
+        };
+
+        let audio_info = {
+            input_ctx
+                .streams()
+                .best(ffmpeg::media::Type::Audio)
+                .map(|s| (s.index(), s.time_base(), s.parameters()))
         };
 
         let width = decoder.width();
@@ -162,11 +185,25 @@ impl VideofileProcessor {
         let encoder = enc.open_as(codec).unwrap();
         ost.set_parameters(&encoder);
 
+        let (audio_input_idx, audio_output_stream_index, audio_input_time_base) =
+            if let Some((a_idx, a_tb, a_params)) = audio_info {
+                let mut audio_ost =
+                    output_ctx.add_stream(None::<ffmpeg::Codec>).unwrap();
+                audio_ost.set_parameters(a_params);
+                let a_out_idx = audio_ost.index();
+                (Some(a_idx), Some(a_out_idx), Some(a_tb))
+            } else {
+                (None, None, None)
+            };
+
         output_ctx.write_header().unwrap();
 
         // Must read output stream time_base AFTER write_header (ffmpeg may change it)
         let output_time_base = output_ctx.stream(enc_stream_index).unwrap().time_base();
         let encoder_time_base = encoder.time_base();
+
+        let audio_output_time_base = audio_output_stream_index
+            .map(|idx| output_ctx.stream(idx).unwrap().time_base());
 
         let scaler = ffmpeg::software::scaling::Context::get(
             ffmpeg::format::Pixel::RGB24,
@@ -190,12 +227,16 @@ impl VideofileProcessor {
             input_time_base: time_base,
             encoder_time_base,
             output_time_base,
+            audio_output_stream_index,
+            audio_input_time_base,
+            audio_output_time_base,
         };
 
         Self {
             input_ctx,
             decoder,
             stream_index,
+            audio_stream_index: audio_input_idx,
             decoded: ffmpeg::frame::Video::empty(),
             encoder: video_encoder,
             frames,
@@ -253,7 +294,12 @@ impl Iterator for VideofileProcessor {
 
     fn next(&mut self) -> Option<Self::Item> {
         for (stream, packet) in &mut self.input_ctx.packets() {
-            if stream.index() != self.stream_index {
+            let idx = stream.index();
+            if idx == self.audio_stream_index.unwrap_or(usize::MAX) {
+                self.encoder.write_audio_packet(packet);
+                continue;
+            }
+            if idx != self.stream_index {
                 continue;
             }
             if self.decoder.send_packet(&packet).is_err() {

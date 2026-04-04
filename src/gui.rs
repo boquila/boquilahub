@@ -219,8 +219,8 @@ impl Gui {
             ais_cls_only: classify_ais,
             temp_architecture: "yolo".to_owned(),
             image_texture_n: 1, // this starts at 1
-            video_step_frame: 1,
-            feed_step_frame: 1,
+            video_step_frame: 3,
+            feed_step_frame: 3,
             process_all_imgs: true,
             ..Default::default()
         }
