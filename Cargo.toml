@@ -15,7 +15,7 @@ eframe = { version = "0.34.1", default-features = false, features = [
     "wayland",       # To support Linux (and CI)
 ] }
 egui_extras = { version = "0.34.1", features = ["all_loaders"] }
-ffmpeg-next = "7.1.0"
+ffmpeg-next = "8.1.0"
 image = { version = "0.25.10", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
 serde = { version = "1.0.228", features = ["derive"] }
