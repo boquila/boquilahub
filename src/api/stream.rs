@@ -1,12 +1,29 @@
-use crate::api::utils::extract_img;
+use crate::api::utils::rgb_frame_to_imgbuf;
 use chrono::Local;
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::iter::Iterator;
 
+struct SendScaler(ffmpeg::software::scaling::Context);
+unsafe impl Send for SendScaler {}
+
+impl std::ops::Deref for SendScaler {
+    type Target = ffmpeg::software::scaling::Context;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for SendScaler {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,
     decoder: ffmpeg::decoder::Video,
+    scaler: SendScaler,
     index: usize,
     decoded: ffmpeg::frame::Video,
     pub frames: i64,
@@ -41,11 +58,22 @@ impl Feed {
             .decoder()
             .video()?;
 
+        let scaler = SendScaler(ffmpeg::software::scaling::Context::get(
+            decoder.format(),
+            decoder.width(),
+            decoder.height(),
+            ffmpeg::format::Pixel::RGB24,
+            decoder.width(),
+            decoder.height(),
+            ffmpeg::software::scaling::Flags::BILINEAR,
+        )?);
+
         let decoded = ffmpeg::frame::Video::empty();
 
         Ok(Self {
             input_ctx,
             decoder,
+            scaler,
             index,
             decoded,
             frames,
@@ -58,28 +86,27 @@ impl Iterator for Feed {
     type Item = ImageBuffer<Rgb<u8>, Vec<u8>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Process packets until we get a frame
         for (stream, packet) in &mut self.input_ctx.packets() {
-            // Only process video stream packets
             if stream.index() != self.index {
                 continue;
             }
 
-            // Try to decode the packet
             if self.decoder.send_packet(&packet).is_err() {
                 continue;
             }
 
-            // If we got a frame, return it
             if self.decoder.receive_frame(&mut self.decoded).is_ok() {
-                return Some(extract_img(&self.decoded));
+                let mut rgb_frame = ffmpeg::frame::Video::empty();
+                self.scaler.run(&self.decoded, &mut rgb_frame).unwrap();
+                return Some(rgb_frame_to_imgbuf(&rgb_frame));
             }
         }
 
-        // Try to flush any remaining frames
         self.decoder.send_eof().ok();
         if self.decoder.receive_frame(&mut self.decoded).is_ok() {
-            return Some(extract_img(&self.decoded));
+            let mut rgb_frame = ffmpeg::frame::Video::empty();
+            self.scaler.run(&self.decoded, &mut rgb_frame).unwrap();
+            return Some(rgb_frame_to_imgbuf(&rgb_frame));
         }
 
         None

@@ -1,4 +1,4 @@
-use super::utils::extract_img;
+use super::utils::rgb_frame_to_imgbuf;
 use ffmpeg_next as ffmpeg;
 use ffmpeg_next::Rescale;
 use image::{ImageBuffer, Rgb};
@@ -38,6 +38,15 @@ pub fn get_output_path(file_path: &str) -> PathBuf {
     }
 }
 
+enum DecodedItem {
+    VideoFrame(Time, ImageBuffer<Rgb<u8>, Vec<u8>>),
+    AudioPacket(ffmpeg::Packet),
+}
+
+// SAFETY: We transfer exclusive ownership of ffmpeg types across threads.
+// No concurrent access occurs.
+unsafe impl Send for DecodedItem {}
+
 pub struct VideoEncoder {
     encoder: ffmpeg::encoder::Video,
     output_ctx: ffmpeg::format::context::Output,
@@ -56,22 +65,21 @@ pub struct VideoEncoder {
 
 impl VideoEncoder {
     fn encode_frame(&mut self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>, pts: Time) {
-        // Rescale PTS from input stream time_base to encoder time_base
         let enc_pts = pts.rescale(self.input_time_base, self.encoder_time_base);
 
         let mut rgb_frame =
             ffmpeg::frame::Video::new(ffmpeg::format::Pixel::RGB24, self.width, self.height);
 
+        // Row-by-row memcpy instead of pixel-by-pixel copy
+        let raw = img.as_raw();
         let stride = rgb_frame.stride(0);
         let data = rgb_frame.data_mut(0);
+        let row_bytes = self.width as usize * 3;
         for y in 0..self.height as usize {
-            for x in 0..self.width as usize {
-                let pixel = img.get_pixel(x as u32, y as u32);
-                let offset = y * stride + x * 3;
-                data[offset] = pixel[0];
-                data[offset + 1] = pixel[1];
-                data[offset + 2] = pixel[2];
-            }
+            let src_start = y * row_bytes;
+            let dst_start = y * stride;
+            data[dst_start..dst_start + row_bytes]
+                .copy_from_slice(&raw[src_start..src_start + row_bytes]);
         }
 
         let mut yuv_frame = ffmpeg::frame::Video::empty();
@@ -115,11 +123,7 @@ impl VideoEncoder {
 }
 
 pub struct VideofileProcessor {
-    input_ctx: ffmpeg::format::context::Input,
-    decoder: ffmpeg::decoder::Video,
-    stream_index: usize,
-    audio_stream_index: Option<usize>,
-    decoded: ffmpeg::frame::Video,
+    receiver: std::sync::mpsc::Receiver<DecodedItem>,
     pub encoder: VideoEncoder,
     frames: i64,
 }
@@ -155,6 +159,7 @@ impl VideofileProcessor {
 
         let width = decoder.width();
         let height = decoder.height();
+        let decoder_format = decoder.format();
 
         let output_path = get_output_path(file_path);
         let mut output_ctx = ffmpeg::format::output(&output_path).unwrap();
@@ -205,7 +210,7 @@ impl VideofileProcessor {
         let audio_output_time_base = audio_output_stream_index
             .map(|idx| output_ctx.stream(idx).unwrap().time_base());
 
-        let scaler = ffmpeg::software::scaling::Context::get(
+        let encode_scaler = ffmpeg::software::scaling::Context::get(
             ffmpeg::format::Pixel::RGB24,
             width,
             height,
@@ -219,7 +224,7 @@ impl VideofileProcessor {
         let video_encoder = VideoEncoder {
             encoder,
             output_ctx,
-            scaler: SendScaler(scaler),
+            scaler: SendScaler(encode_scaler),
             stream_index: enc_stream_index,
             width,
             height,
@@ -232,12 +237,74 @@ impl VideofileProcessor {
             audio_output_time_base,
         };
 
+        // Decode scaler: decoder pixel format -> RGB24 (SIMD-optimized)
+        let mut decode_scaler = SendScaler(
+            ffmpeg::software::scaling::Context::get(
+                decoder_format,
+                width,
+                height,
+                ffmpeg::format::Pixel::RGB24,
+                width,
+                height,
+                ffmpeg::software::scaling::Flags::BILINEAR,
+            )
+            .unwrap(),
+        );
+
+        // Prefetch: decode ahead in a background thread with a bounded buffer
+        let (tx, rx) = std::sync::mpsc::sync_channel::<DecodedItem>(8);
+
+        std::thread::spawn(move || {
+            let mut decoder = decoder;
+            let mut input_ctx = input_ctx;
+            let mut decoded = ffmpeg::frame::Video::empty();
+
+            for (stream, packet) in input_ctx.packets() {
+                let idx = stream.index();
+
+                if Some(idx) == audio_input_idx {
+                    if tx.send(DecodedItem::AudioPacket(packet)).is_err() {
+                        return;
+                    }
+                    continue;
+                }
+
+                if idx != stream_index {
+                    continue;
+                }
+
+                if decoder.send_packet(&packet).is_err() {
+                    continue;
+                }
+
+                while decoder.receive_frame(&mut decoded).is_ok() {
+                    let pts = decoded.pts().unwrap_or(0);
+                    let mut rgb_frame = ffmpeg::frame::Video::empty();
+                    decode_scaler.run(&decoded, &mut rgb_frame).unwrap();
+                    let img = rgb_frame_to_imgbuf(&rgb_frame);
+
+                    if tx.send(DecodedItem::VideoFrame(pts, img)).is_err() {
+                        return;
+                    }
+                }
+            }
+
+            // Flush buffered frames from decoder
+            let _ = decoder.send_eof();
+            while decoder.receive_frame(&mut decoded).is_ok() {
+                let pts = decoded.pts().unwrap_or(0);
+                let mut rgb_frame = ffmpeg::frame::Video::empty();
+                decode_scaler.run(&decoded, &mut rgb_frame).unwrap();
+                let img = rgb_frame_to_imgbuf(&rgb_frame);
+
+                if tx.send(DecodedItem::VideoFrame(pts, img)).is_err() {
+                    return;
+                }
+            }
+        });
+
         Self {
-            input_ctx,
-            decoder,
-            stream_index,
-            audio_stream_index: audio_input_idx,
-            decoded: ffmpeg::frame::Video::empty(),
+            receiver: rx,
             encoder: video_encoder,
             frames,
         }
@@ -271,6 +338,16 @@ impl VideofileProcessor {
             (idx, dec)
         };
 
+        let mut scaler = ffmpeg::software::scaling::Context::get(
+            decoder.format(),
+            decoder.width(),
+            decoder.height(),
+            ffmpeg::format::Pixel::RGB24,
+            decoder.width(),
+            decoder.height(),
+            ffmpeg::software::scaling::Flags::BILINEAR,
+        )?;
+
         let mut decoded = ffmpeg::frame::Video::empty();
 
         for (stream, packet) in input_ctx.packets() {
@@ -281,7 +358,9 @@ impl VideofileProcessor {
                 continue;
             }
             if decoder.receive_frame(&mut decoded).is_ok() {
-                return Ok(extract_img(&decoded));
+                let mut rgb_frame = ffmpeg::frame::Video::empty();
+                scaler.run(&decoded, &mut rgb_frame)?;
+                return Ok(rgb_frame_to_imgbuf(&rgb_frame));
             }
         }
 
@@ -293,30 +372,14 @@ impl Iterator for VideofileProcessor {
     type Item = (Time, ImageBuffer<Rgb<u8>, Vec<u8>>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        for (stream, packet) in &mut self.input_ctx.packets() {
-            let idx = stream.index();
-            if idx == self.audio_stream_index.unwrap_or(usize::MAX) {
-                self.encoder.write_audio_packet(packet);
-                continue;
-            }
-            if idx != self.stream_index {
-                continue;
-            }
-            if self.decoder.send_packet(&packet).is_err() {
-                continue;
-            }
-            if self.decoder.receive_frame(&mut self.decoded).is_ok() {
-                let pts = self.decoded.pts().unwrap_or(0);
-                return Some((pts, extract_img(&self.decoded)));
+        loop {
+            match self.receiver.recv() {
+                Ok(DecodedItem::VideoFrame(pts, img)) => return Some((pts, img)),
+                Ok(DecodedItem::AudioPacket(packet)) => {
+                    self.encoder.write_audio_packet(packet);
+                }
+                Err(_) => return None,
             }
         }
-
-        self.decoder.send_eof().ok();
-        if self.decoder.receive_frame(&mut self.decoded).is_ok() {
-            let pts = self.decoded.pts().unwrap_or(0);
-            return Some((pts, extract_img(&self.decoded)));
-        }
-
-        None
     }
 }
