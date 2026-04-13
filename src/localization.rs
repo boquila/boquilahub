@@ -28,6 +28,25 @@ impl Default for Lang {
     }
 }
 
+impl Lang {
+    pub fn from_optional_str(s: Option<&str>) -> Self {
+        match s {
+            Some(code) => match code.to_lowercase().as_str() {
+                "en" => Lang::EN,
+                "es" => Lang::ES,
+                "fr" => Lang::FR,
+                "de" => Lang::DE,
+                "zh" => Lang::ZH,
+                "ja" => Lang::JA,
+                "pt" => Lang::PT,
+                "vi" => Lang::VI,
+                _ => Lang::default(),
+            },
+            None => Lang::default(),
+        }
+    }
+}
+
 pub const LANGUAGES: [(Lang, &'static str); 8] = [
     (Lang::EN, "English"),
     (Lang::ES, "Español"),
@@ -93,6 +112,14 @@ pub enum Key {
     export_obs,
     deployed_api_allows,
     select_2nd_ai,
+    no_api_running,
+    select_model_and_deploy,
+    api_live,
+    deploy_api,
+    nav_hint,
+    select_hint,
+    loaded,
+    focus_deploy_to_reveal_ip,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -594,6 +621,86 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "検出をエクスポート",
             Lang::PT => "Exportar detecções",
             Lang::VI => "Trích xuất kết quả phát hiện"
+        },
+        Key::no_api_running => match lang {
+            Lang::EN => "No API running",
+            Lang::ES => "No hay API en ejecución",
+            Lang::FR => "Aucune API en cours",
+            Lang::DE => "Keine API aktiv",
+            Lang::ZH => "没有运行中的API",
+            Lang::JA => "APIが実行されていません",
+            Lang::PT => "Nenhuma API em execução",
+            Lang::VI => "Chưa có API nào đang chạy",
+        },
+        Key::select_model_and_deploy => match lang {
+            Lang::EN => "Select a model and deploy",
+            Lang::ES => "Selecciona un modelo y despliega",
+            Lang::FR => "Sélectionnez un modèle et déployez",
+            Lang::DE => "Modell auswählen und bereitstellen",
+            Lang::ZH => "选择模型并部署",
+            Lang::JA => "モデルを選択してデプロイ",
+            Lang::PT => "Selecione um modelo e implante",
+            Lang::VI => "Chọn mô hình và triển khai",
+        },
+        Key::api_live => match lang {
+            Lang::EN => "● API Live",
+            Lang::ES => "● API activa",
+            Lang::FR => "● API active",
+            Lang::DE => "● API aktiv",
+            Lang::ZH => "● API 运行中",
+            Lang::JA => "● API稼働中",
+            Lang::PT => "● API ativa",
+            Lang::VI => "● API đang chạy",
+        },
+        Key::deploy_api => match lang {
+            Lang::EN => "Deploy API",
+            Lang::ES => "Desplegar API",
+            Lang::FR => "Déployer l'API",
+            Lang::DE => "API bereitstellen",
+            Lang::ZH => "部署API",
+            Lang::JA => "APIをデプロイ",
+            Lang::PT => "Implantar API",
+            Lang::VI => "Triển khai API",
+        },
+        Key::nav_hint => match lang {
+            Lang::EN => "nav",
+            Lang::ES => "nav",
+            Lang::FR => "nav",
+            Lang::DE => "Nav",
+            Lang::ZH => "导航",
+            Lang::JA => "移動",
+            Lang::PT => "nav",
+            Lang::VI => "di chuyển",
+        },
+        Key::select_hint => match lang {
+            Lang::EN => "select",
+            Lang::ES => "elegir",
+            Lang::FR => "choisir",
+            Lang::DE => "wählen",
+            Lang::ZH => "选择",
+            Lang::JA => "選択",
+            Lang::PT => "escolher",
+            Lang::VI => "chọn",
+        },
+        Key::loaded => match lang {
+            Lang::EN => "Loaded",
+            Lang::ES => "Cargado",
+            Lang::FR => "Chargé",
+            Lang::DE => "Geladen",
+            Lang::ZH => "已加载",
+            Lang::JA => "読み込み済み",
+            Lang::PT => "Carregado",
+            Lang::VI => "Đã tải",
+        },
+        Key::focus_deploy_to_reveal_ip => match lang {
+            Lang::EN => "▸ focus Deploy to reveal IP",
+            Lang::ES => "▸ enfoca Desplegar para ver la IP",
+            Lang::FR => "▸ sélectionnez Déployer pour voir l'IP",
+            Lang::DE => "▸ Bereitstellen fokussieren für IP",
+            Lang::ZH => "▸ 聚焦部署以显示IP",
+            Lang::JA => "▸ デプロイを選択してIPを表示",
+            Lang::PT => "▸ foque em Implantar para ver o IP",
+            Lang::VI => "▸ chọn Triển khai để xem IP",
         },
     }
 }

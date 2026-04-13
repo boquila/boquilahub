@@ -14,6 +14,7 @@ use super::api::{
     inference::set_model,
     rest::{get_ipv4_address, run_api},
 };
+use super::localization::{translate, Key, Lang};
 
 // ── palette ──────────────────────────────────────────────────────────
 const BG_DARK: Color = Color::Rgb(13, 13, 18);
@@ -41,6 +42,7 @@ fn at(area: Rect, y: u16) -> Rect { Rect { y, height: 1, ..area } }
 enum Row { Ai, ClsAi, Ep, Deploy }
 
 struct App {
+    lang: Lang,
     row: usize,
     side_btn: bool, // true = focus is on the +/- button, not the combo
     ais: Vec<AI>,
@@ -54,7 +56,7 @@ struct App {
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(lang: Lang) -> Self {
         let ais = get_bqs();
         let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
         let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify").cloned().collect();
@@ -62,6 +64,7 @@ impl App {
             .filter(|ep| !matches!(ep.ep_type, super::api::eps::EPType::BoquilaHUBRemote))
             .map(|ep| ep.name.to_string()).collect();
         Self {
+            lang,
             row: 0, side_btn: false,
             ais, ai_options,
             ai_selected: None, ai_open: false, ai_cursor: 0,
@@ -73,6 +76,9 @@ impl App {
             host_url: None,
             status_msg: None,
         }
+    }
+    fn t(&self, key: Key) -> &'static str {
+        translate(key, &self.lang)
     }
     fn rows(&self) -> Vec<Row> {
         let mut v = vec![Row::Ai];
@@ -103,8 +109,8 @@ impl App {
 }
 
 // ── main ─────────────────────────────────────────────────────────────
-pub fn run_tui() -> std::io::Result<()> {
-    let mut app = App::new();
+pub fn run_tui(lang: Lang) -> std::io::Result<()> {
+    let mut app = App::new(lang);
     ratatui::run(|terminal| loop {
         terminal.draw(|f| draw(f, &app))?;
         if event::poll(Duration::from_millis(50))? {
@@ -195,8 +201,8 @@ fn load_ai_model(app: &mut App) {
         let ep = resolve_ep(app);
         let model_path = app.ais[ai_idx].get_path();
         match set_model(&model_path, ep, None) {
-            Ok(_) => { app.status_msg = Some(format!("Loaded {}", app.ais[ai_idx].name)); }
-            Err(e) => { app.status_msg = Some(format!("Error: {}", e)); }
+            Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.ais[ai_idx].name)); }
+            Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
         }
     }
 }
@@ -210,7 +216,7 @@ fn deploy_api(app: &mut App) {
     });
     app.host_url = get_ipv4_address().map(|ip| format!("http://{}:{}", ip, port));
     app.api_deployed = true;
-    app.status_msg = Some("API deployed".into());
+    app.status_msg = Some(app.t(Key::deployed_api).to_string());
 }
 
 // ── drawing ──────────────────────────────────────────────────────────
@@ -241,12 +247,12 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
 
     // heading
     frame.render_widget(
-        Paragraph::new(Line::from(vec![Span::styled("◈ ", Style::default().fg(ACCENT)), Span::styled("Setup", bold(FG_BRIGHT))]))
+        Paragraph::new(Line::from(vec![Span::styled("◈ ", Style::default().fg(ACCENT)), Span::styled(app.t(Key::setup), bold(FG_BRIGHT))]))
             .alignment(Alignment::Center),
         at(head, head.y + 1),
     );
 
-    draw_combo(frame, ai, "Model", &app.ai_options, app.ai_selected, app.cur_row() == Row::Ai && !app.side_btn);
+    draw_combo(frame, ai, app.t(Key::select_ai), &app.ai_options, app.ai_selected, app.cur_row() == Row::Ai && !app.side_btn);
 
     // [+] button to the right of the Model combo
     if app.ai_selected.is_some() && !app.cls_active {
@@ -257,18 +263,19 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
     // classification AI section
     if app.cls_active {
         let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
-        draw_combo(frame, cls_area, "Classification AI", &cls_names, app.cls_selected, app.cur_row() == Row::ClsAi && !app.side_btn);
+        draw_combo(frame, cls_area, app.t(Key::select_2nd_ai), &cls_names, app.cls_selected, app.cur_row() == Row::ClsAi && !app.side_btn);
         let focused = app.cur_row() == Row::ClsAi && app.side_btn;
         draw_side_btn(frame, cls_area, "-", focused);
     }
 
-    draw_combo(frame, ep, "Processor", &app.ep_options, app.ep_selected, app.cur_row() == Row::Ep);
+    draw_combo(frame, ep, app.t(Key::select_ep), &app.ep_options, app.ep_selected, app.cur_row() == Row::Ep);
 
     // deploy button — only visible when both AI and processor are chosen
     let can_deploy = app.ai_selected.is_some() && app.ep_selected.is_some();
     if can_deploy || app.api_deployed {
         let focused = app.cur_row() == Row::Deploy;
-        let label = if app.api_deployed { " ● API Live" } else { " Deploy API" };
+        let label_text = if app.api_deployed { app.t(Key::api_live) } else { app.t(Key::deploy_api) };
+        let label = &format!(" {}", label_text);
         let style = match (focused, app.api_deployed) {
             (true, true)   => s(FG_BRIGHT, Color::Rgb(25, 70, 40)),
             (_, true)      => s(ACCENT, Color::Rgb(20, 55, 35)),
@@ -284,8 +291,8 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
     // hints
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(ACCENT_DIM)), Span::styled(" nav  ", Style::default().fg(FG_DIM)),
-            Span::styled("⏎", Style::default().fg(ACCENT_DIM)),  Span::styled(" select", Style::default().fg(FG_DIM)),
+            Span::styled("↑↓", Style::default().fg(ACCENT_DIM)), Span::styled(format!(" {}  ", app.t(Key::nav_hint)), Style::default().fg(FG_DIM)),
+            Span::styled("⏎", Style::default().fg(ACCENT_DIM)),  Span::styled(format!(" {}", app.t(Key::select_hint)), Style::default().fg(FG_DIM)),
         ])).alignment(Alignment::Center),
         at(hints, hints.y + 1),
     );
@@ -328,21 +335,21 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
     let cy = area.y + area.height / 2;
     if app.api_deployed {
         frame.render_widget(centered(Span::styled("●", bold(ACCENT))), at(area, cy.saturating_sub(1)));
-        frame.render_widget(centered(Span::styled("API deployed", Style::default().fg(FG_MUTED))), at(area, cy + 1));
+        frame.render_widget(centered(Span::styled(app.t(Key::deployed_api), Style::default().fg(FG_MUTED))), at(area, cy + 1));
         if let Some(url) = &app.host_url {
             let focused = app.cur_row() == Row::Deploy;
             if focused {
                 frame.render_widget(centered(Span::styled(url.as_str(), Style::default().fg(FG_BRIGHT))), at(area, cy + 3));
             } else {
-                frame.render_widget(centered(Span::styled("▸ focus Deploy to reveal IP", Style::default().fg(FG_DIM))), at(area, cy + 3));
+                frame.render_widget(centered(Span::styled(app.t(Key::focus_deploy_to_reveal_ip), Style::default().fg(FG_DIM))), at(area, cy + 3));
             }
         }
     } else {
         if cy >= 2 {
             frame.render_widget(centered(Span::styled("◇", bold(FG_DIM))), at(area, cy - 2));
         }
-        frame.render_widget(centered(Span::styled("No API running", Style::default().fg(FG_DIM))), at(area, cy));
-        frame.render_widget(centered(Span::styled("Select a model and deploy", Style::default().fg(Color::Rgb(55, 55, 70)))), at(area, cy + 1));
+        frame.render_widget(centered(Span::styled(app.t(Key::no_api_running), Style::default().fg(FG_DIM))), at(area, cy));
+        frame.render_widget(centered(Span::styled(app.t(Key::select_model_and_deploy), Style::default().fg(Color::Rgb(55, 55, 70)))), at(area, cy + 1));
     }
 }
 
@@ -366,9 +373,9 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
     let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
     let (options, cursor, selected, title) = match which {
-        "ai"  => (&app.ai_options, app.ai_cursor, app.ai_selected, "Model"),
-        "cls" => (&cls_names, app.cls_cursor, app.cls_selected, "Classification AI"),
-        _     => (&app.ep_options, app.ep_cursor, app.ep_selected, "Processor"),
+        "ai"  => (&app.ai_options, app.ai_cursor, app.ai_selected, app.t(Key::select_ai)),
+        "cls" => (&cls_names, app.cls_cursor, app.cls_selected, app.t(Key::select_2nd_ai)),
+        _     => (&app.ep_options, app.ep_cursor, app.ep_selected, app.t(Key::select_ep)),
     };
 
     let cls_offset: u16 = if app.cls_active { 3 } else { 0 };
