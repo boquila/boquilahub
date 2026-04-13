@@ -28,15 +28,21 @@ jobs:
             libswresample-dev
             
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Build
-        run: cargo build
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
 
-      - name: Run for at least 30 seconds
+      - name: Test
+        run: cargo test -- --nocapture
+
+      - name: Run for at least 10 seconds
         run: |
           cargo run &
-          sleep 30
+          PID=$!
+          sleep 15
+          if ! kill -0 $PID 2>/dev/null; then
+            wait $PID
+            exit $?
+          fi
+          kill $PID

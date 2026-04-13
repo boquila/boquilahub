@@ -405,7 +405,7 @@ impl Gui {
                 ) {
                     Ok(_) => {}
                     Err(error) => {
-                        if error.contains("No architecture specified") {
+                        if error.to_string().contains("No architecture specified") {
                             self.pending_model_path = Some(model_path);
                             self.pending_model_ep = Some(self.ep_selected);
                             self.show_dialog.architecture = true;
@@ -473,7 +473,7 @@ impl Gui {
                 ) {
                     Ok(_) => {}
                     Err(error) => {
-                        if error.contains("No architecture specified") {
+                        if error.to_string().contains("No architecture specified") {
                             self.pending_model_path = Some(model_path);
                             self.pending_model_ep = Some(self.ep_selected);
                             self.show_dialog.architecture = true;

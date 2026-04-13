@@ -1,0 +1,155 @@
+name: Release
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: boquilahub.exe
+            minimal_name: boquilahub-windows-x86_64-minimal.7z
+            full_name: boquilahub-windows-x86_64-full.7z
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: boquilahub
+            minimal_name: boquilahub-linux-x86_64-minimal.tar.gz
+            full_name: boquilahub-linux-x86_64-full.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            ffmpeg libavutil-dev libavcodec-dev libavformat-dev \
+            libswscale-dev libavdevice-dev libavfilter-dev libswresample-dev \
+            p7zip-full
+
+      - name: Install Windows FFmpeg
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          curl -L -o ffmpeg.7z https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build-shared.7z
+          7z x ffmpeg.7z -offmpeg -y
+          echo "FFMPEG_DIR=${{ github.workspace }}\ffmpeg\ffmpeg-7.1.1-full_build-shared" >> $env:GITHUB_ENV
+          echo "${{ github.workspace }}\ffmpeg\ffmpeg-7.1.1-full_build-shared\bin" >> $env:GITHUB_PATH
+
+      - name: Download ONNX Runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          curl -L -o onnxruntime.zip https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-win-x64-gpu-1.24.4.zip
+          7z x onnxruntime.zip -oonnxruntime -y
+
+      - name: Download ONNX Runtime (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -L -o onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.24.4/onnxruntime-linux-x64-gpu-1.24.4.tgz
+          tar xzf onnxruntime.tgz
+
+      - name: Build release
+        run: cargo build --release --locked
+
+      - name: Run tests
+        run: cargo test --locked -- --nocapture
+
+      - name: Smoke test - pull models (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
+          ./target/release/${{ matrix.artifact }} pull boquilanet-gen
+
+      - name: Smoke test - pull models (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
+          ./target/release/${{ matrix.artifact }} pull boquilanet-gen
+
+      - name: Package minimal (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mkdir minimal
+          cp target/release/${{ matrix.artifact }} minimal/
+          cp -Recurse target/release/assets minimal/assets
+          7z a ${{ matrix.minimal_name }} ./minimal/*
+
+      - name: Package full (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mkdir full
+          cp target/release/${{ matrix.artifact }} full/
+          cp -Recurse target/release/assets full/assets
+          cp ffmpeg/ffmpeg-7.1.1-full_build-shared/bin/*.dll full/
+          cp onnxruntime/onnxruntime-win-x64-gpu-1.24.4/lib/*.dll full/
+          cp -Recurse models full/models
+          7z a ${{ matrix.full_name }} ./full/*
+
+      - name: Package minimal (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir minimal
+          cp target/release/${{ matrix.artifact }} minimal/
+          cp -r target/release/assets minimal/assets
+          chmod +x minimal/${{ matrix.artifact }}
+          tar czf ${{ matrix.minimal_name }} -C minimal .
+
+      - name: Package full (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir full
+          cp target/release/${{ matrix.artifact }} full/
+          cp -r target/release/assets full/assets
+          chmod +x full/${{ matrix.artifact }}
+          cp -a /usr/lib/x86_64-linux-gnu/libavcodec.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libavformat.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libavutil.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libavdevice.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libavfilter.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libswscale.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libswresample.so* full/
+          find onnxruntime-linux-x64-gpu-1.24.4/lib -maxdepth 1 \( -type f -o -type l \) -name '*.so*' -exec cp -a {} full/ \;
+          cp -r models full/models
+          tar czf ${{ matrix.full_name }} -C full .
+
+      - name: Upload minimal artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.minimal_name }}
+          path: ${{ matrix.minimal_name }}
+
+      - name: Upload full artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.full_name }}
+          path: ${{ matrix.full_name }}
+
+      - name: Attach to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.minimal_name }}" --clobber
+          gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.full_name }}" --clobber
