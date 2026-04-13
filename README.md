@@ -7,7 +7,7 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 ## Features
 
 - Cross-platform.
-- GUI and CLI tool
+- GUI, TUI and CLI tool
 - Run AIs for computer vision, locally
 - Process image, video and live feed
 - Deploy and consume REST APIs, with maximum efficiency. Powered by [axum](https://github.com/tokio-rs/axum)
@@ -15,6 +15,8 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 ## Installation
 
 Download the latest binaries from [releases](https://github.com/boquila/boquilahub/releases)
+
+We offer two versions, one with both dependencies (ffmpeg and onnxruntime) and one without, in case you have them in your computer already.
 
 ## AIs
 
@@ -98,3 +100,7 @@ sudo apt-get install -y \
   libavfilter-dev \
   libswresample-dev
 ```
+
+### ONNX Runtime
+
+Prefer 1.24.4 version: https://github.com/microsoft/onnxruntime/releases/tag/v1.24.4
