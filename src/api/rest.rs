@@ -1,6 +1,6 @@
 use super::abstractions::AIOutputs;
 use super::inference::*;
-use axum::{extract::Multipart, routing::get, routing::post, Router};
+use axum::{extract::Multipart, http::StatusCode, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};
 use reqwest::Client;
@@ -8,17 +8,18 @@ use reqwest::Client;
 use std::os::windows::process::CommandExt;
 use std::process::Command;
 
-async fn upload(mut multipart: Multipart) -> String {
-    let mut serialized: String = String::new();
-    while let Some(field) = multipart.next_field().await.unwrap() {
-        // let name = field.name().unwrap().to_string();
-        let data = field.bytes().await.unwrap();
-        let imgbuf = image::load_from_memory(&data.to_vec()).unwrap().into_rgb8();
+async fn upload(mut multipart: Multipart) -> Result<String, StatusCode> {
+    let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? else {
+        return Err(StatusCode::BAD_REQUEST);
+    };
 
-        let test = process_imgbuf(&imgbuf);
-        serialized = serde_json::to_string(&test).unwrap_or("Error".to_string());
-    }
-    return serialized;
+    let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+    let imgbuf = image::load_from_memory(&data)
+        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
+        .into_rgb8();
+
+    let result = process_imgbuf(&imgbuf);
+    serde_json::to_string(&result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 async fn root() -> &'static str {
@@ -113,21 +114,15 @@ pub fn get_ipv4_address() -> Option<String> {
     #[cfg(not(windows))]
     {
         let output = Command::new("ip")
-            .args(["addr", "show"])
+            .args(["route", "get", "1.1.1.1"])
             .output()
             .ok()?
             .stdout;
 
         let output_str = String::from_utf8_lossy(&output);
-
-        for line in output_str.lines() {
-            if line.trim().starts_with("inet ") {
-                let ip = line.split('/').next()?.split_ascii_whitespace().last()?;
-
-                if !ip.starts_with("127.") {
-                    return Some(ip.to_string());
-                }
-            }
+        let parts: Vec<&str> = output_str.split_whitespace().collect();
+        if let Some(pos) = parts.iter().position(|&p| p == "src") {
+            return parts.get(pos + 1).map(|s| s.to_string());
         }
     }
 
