@@ -106,14 +106,14 @@ impl ProbSpace {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BitMatrix {
     pub data: bitvec::vec::BitVec,
     pub width: usize,
     pub height: usize,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SEGc {
     pub mask: BitMatrix,
     pub bbox: XYXYc,
@@ -253,7 +253,7 @@ impl XYXYc {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),

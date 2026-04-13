@@ -1,5 +1,6 @@
 pub mod efficientnet;
 pub mod yolo;
+use anyhow::{anyhow, Error, Result};
 use super::{abstractions::*, processing::post::PostProcessing};
 pub use efficientnet::EfficientNetV2;
 use image::{ImageBuffer, Rgb};
@@ -57,7 +58,7 @@ impl Model {
         session: Session,
         architecture: Option<String>,
         config: ModelConfig,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, Error> {
         let arch = architecture.as_ref().map(|s| s.to_lowercase());
         match arch.as_deref() {
             Some("yolo") => Ok(Model::Yolo(Yolo::new(
@@ -74,8 +75,8 @@ impl Model {
                 session,
                 config,
             ))),
-            Some(arch) => Err(format!("Unsupported model architecture: {}", arch)),
-            None => Err("No architecture specified".to_string()),
+            Some(arch) => Err(anyhow!("Unsupported model architecture: {}", arch)),
+            None => Err(anyhow!("No architecture specified")),
         }
     }
 

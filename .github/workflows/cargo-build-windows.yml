@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download FFmpeg
         run: |
@@ -23,16 +23,21 @@ jobs:
           echo "FFMPEG_DIR=${{ github.workspace }}\ffmpeg\ffmpeg-7.1.1-full_build-shared" >> $env:GITHUB_ENV
           echo "${{ github.workspace }}\ffmpeg\ffmpeg-7.1.1-full_build-shared\bin" >> $env:GITHUB_PATH
 
-      - name: Install Rust (if needed)
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Build
-        run: cargo build
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
 
-      - name: Run for at least 30 seconds
+      - name: Test
+        run: cargo test -- --nocapture
+
+      - name: Run for at least 10 seconds
+        shell: pwsh
         run: |
-          Start-Process -NoNewWindow -FilePath cargo -ArgumentList "run" 
-          Start-Sleep -Seconds 30
+          $proc = Start-Process -NoNewWindow -FilePath cargo -ArgumentList "run" -PassThru
+          Start-Sleep -Seconds 10
+          if ($proc.HasExited) {
+            exit $proc.ExitCode
+          }
+          Stop-Process -Id $proc.Id -Force

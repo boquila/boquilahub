@@ -36,7 +36,7 @@ pub fn clear_current_ai2_simple() {
     *guard = None;
 }
 
-pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<(), String> {
+pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<()> {
     let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
@@ -63,7 +63,7 @@ pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result
     Ok(())
 }
 
-pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<(), String> {
+pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<()> {
     let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = import_bq(value).unwrap();
