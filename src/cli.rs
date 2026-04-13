@@ -57,7 +57,11 @@ pub enum Commands {
     Gui,
     
     /// Start the TUI
-    Tui,
+    Tui {
+        /// Language override (en, es, fr, de, zh, ja, pt, vi)
+        #[arg(long)]
+        lang: Option<String>,
+    },
 
     /// Utils for .bq models (for devs)
     Bq {
@@ -144,8 +148,9 @@ pub async fn run_cli(command: Commands) {
         Commands::Gui => {
             let _ = crate::gui::run_gui();
         }
-        Commands::Tui => {
-            let _ = crate::tui::run_tui();
+        Commands::Tui { lang } => {
+            let language = crate::localization::Lang::from_optional_str(lang.as_deref());
+            let _ = crate::tui::run_tui(language);
         }
         Commands::Bq { command } => match command {
             BqCommands::Shape { name } => match crate::api::bq::print_shape(&name) {
