@@ -64,6 +64,7 @@ If you want to compile from source just have to
 git clone https://github.com/boquila/boquilahub/
 cd boquilahub
 cargo build --release
+cargo run --release
 ```
 
 Probably instead of cloning from main, you should prefer to get the source code from a tagged version
