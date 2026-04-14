@@ -458,16 +458,6 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "Ocorreu um erro",
             Lang::VI => "Đã có lỗi xảy ra"
         },
-        // Key::website => match lang {
-        //     Lang::EN => "Website",
-        //     Lang::ES => "Sitio web",
-        //     Lang::FR => "Site web",
-        //     Lang::DE => "Website",
-        //     Lang::ZH => "网站",
-        //     Lang::JA => "ウェブサイト",
-        //     Lang::PT => "Website",
-        //     Lang::VI => "Trang web"
-        // },
         Key::model_hub => match lang {
             Lang::EN => "Model HUB",
             Lang::ES => "HUB de Modelos",
