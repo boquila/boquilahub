@@ -1383,8 +1383,6 @@ impl eframe::App for Gui {
         egui::Panel::top("top_panel").show_inside(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
-                    ui.hyperlink_to(self.t(Key::website), self.t(Key::website_url));
-                    ui.hyperlink_to(self.t(Key::donate), self.t(Key::donate_url));
                     ui.hyperlink_to(
                         self.t(Key::source_code),
                         "https://github.com/boquila/boquilahub/",

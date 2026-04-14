@@ -73,7 +73,6 @@ pub enum Key {
     about,
     idiom,
     models,
-    donate,
     source_code,
     analyze,
     export,
@@ -82,15 +81,12 @@ pub enum Key {
     process_completed,
     done,
     error_ocurred,
-    website,
     model_hub,
     api,
     image_processing,
     video_processing,
     feed_processing,
     model_hub_url,
-    donate_url,
-    website_url,
     export_predictions,
     export_imgs_with_predictions,
     copy_with_classification,
@@ -372,16 +368,6 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "Modelos",
             Lang::VI => "Mô hình"
         },
-        Key::donate => match lang {
-            Lang::EN => "Donate",
-            Lang::ES => "Donar",
-            Lang::FR => "Faire un don",
-            Lang::DE => "Spenden",
-            Lang::ZH => "捐助",
-            Lang::JA => "寄付する",
-            Lang::PT => "Doar",
-            Lang::VI => "Ủng hộ"
-        },
         Key::source_code => match lang {
             Lang::EN => "Source code",
             Lang::ES => "Código fuente",
@@ -472,16 +458,16 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "Ocorreu um erro",
             Lang::VI => "Đã có lỗi xảy ra"
         },
-        Key::website => match lang {
-            Lang::EN => "Website",
-            Lang::ES => "Sitio web",
-            Lang::FR => "Site web",
-            Lang::DE => "Website",
-            Lang::ZH => "网站",
-            Lang::JA => "ウェブサイト",
-            Lang::PT => "Website",
-            Lang::VI => "Trang web"
-        },
+        // Key::website => match lang {
+        //     Lang::EN => "Website",
+        //     Lang::ES => "Sitio web",
+        //     Lang::FR => "Site web",
+        //     Lang::DE => "Website",
+        //     Lang::ZH => "网站",
+        //     Lang::JA => "ウェブサイト",
+        //     Lang::PT => "Website",
+        //     Lang::VI => "Trang web"
+        // },
         Key::model_hub => match lang {
             Lang::EN => "Model HUB",
             Lang::ES => "HUB de Modelos",
@@ -533,24 +519,6 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "https://boquila.org/zh/hub",
             Lang::JA => "https://boquila.org/jp/hub",
             _ => "https://boquila.org/hub",
-        },
-        Key::website_url => match lang {
-            Lang::EN => "https://boquila.org/en",
-            Lang::ES => "https://boquila.org/",
-            Lang::FR => "https://boquila.org/fr",
-            Lang::DE => "https://boquila.org/de",
-            Lang::ZH => "https://boquila.org/zh",
-            Lang::JA => "https://boquila.org/jp",
-            _ => "https://boquila.org/en",
-        },
-        Key::donate_url => match lang {
-            Lang::EN => "https://boquila.org/donate",
-            Lang::ES => "https://boquila.org/donar",
-            Lang::FR => "https://boquila.org/fr/donate",
-            Lang::DE => "https://boquila.org/spenden",
-            Lang::ZH => "https://boquila.org/zh/donate",
-            Lang::JA => "https://boquila.org/jp/donate",
-            _ => "https://boquila.org/donate",
         },
         Key::export_predictions => match lang {
             Lang::EN => "Export predictions (.json)",
