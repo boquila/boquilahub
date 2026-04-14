@@ -73,8 +73,8 @@ pub enum Commands {
 #[derive(Parser)]
 #[command(
     name = "BoquilaHUB",
-    version = "0.3",
-    about = "BoquilaHUB - GUI and CLI tool"
+    version = "0.4",
+    about = "BoquilaHUB - AIs for Nature"
 )]
 pub struct Cli {
     #[command(subcommand)]

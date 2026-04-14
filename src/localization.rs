@@ -507,7 +507,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::FR => "https://boquila.org/fr/hub",
             Lang::DE => "https://boquila.org/de/hub",
             Lang::ZH => "https://boquila.org/zh/hub",
-            Lang::JA => "https://boquila.org/jp/hub",
+            Lang::JA => "https://boquila.org/ja/hub",
             _ => "https://boquila.org/hub",
         },
         Key::export_predictions => match lang {
