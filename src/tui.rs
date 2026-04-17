@@ -11,7 +11,7 @@ use super::api::{
     abstractions::AI,
     bq::get_bqs,
     eps::LIST_EPS,
-    inference::set_model,
+    inference::{clear_current_ai2_simple, set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
 use super::localization::{translate, Key, Lang};
@@ -93,9 +93,15 @@ impl App {
         let rows = self.rows();
         rows[self.row.min(rows.len() - 1)]
     }
+    fn can_add_cls(&self) -> bool {
+        self.ai_selected.is_some()
+            && !self.cls_active
+            && !self.cls_ais.is_empty()
+            && self.ai_selected.map_or(false, |i| self.ais[i].task != "classify")
+    }
     fn has_side_btn(&self) -> bool {
         match self.cur_row() {
-            Row::Ai => self.ai_selected.is_some() && !self.cls_active,
+            Row::Ai => self.can_add_cls(),
             Row::ClsAi => true,
             _ => false,
         }
@@ -138,13 +144,19 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
     }
     if app.cls_open {
         let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
-        return handle_dropdown(code, &cls_names, &mut app.cls_cursor, &mut app.cls_selected, &mut app.cls_open);
+        let prev = app.cls_selected;
+        let r = handle_dropdown(code, &cls_names, &mut app.cls_cursor, &mut app.cls_selected, &mut app.cls_open);
+        if !app.cls_open && app.cls_selected != prev && app.cls_selected.is_some() {
+            load_cls_model(app);
+        }
+        return r;
     }
     if app.ep_open {
         let prev = app.ep_selected;
         let r = handle_dropdown(code, &app.ep_options, &mut app.ep_cursor, &mut app.ep_selected, &mut app.ep_open);
         if !app.ep_open && app.ep_selected != prev && app.ep_selected.is_some() {
             load_ai_model(app);
+            load_cls_model(app);
         }
         return r;
     }
@@ -159,7 +171,7 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
             if app.side_btn {
                 match app.cur_row() {
                     Row::Ai => { app.cls_active = true; app.side_btn = false; app.row = 1; }
-                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; app.side_btn = false; app.clamp(); }
+                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; clear_current_ai2_simple(); app.side_btn = false; app.clamp(); }
                     _ => {}
                 }
             } else {
@@ -202,6 +214,17 @@ fn load_ai_model(app: &mut App) {
         let model_path = app.ais[ai_idx].get_path();
         match set_model(&model_path, ep, None) {
             Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.ais[ai_idx].name)); }
+            Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
+        }
+    }
+}
+
+fn load_cls_model(app: &mut App) {
+    if let Some(cls_idx) = app.cls_selected {
+        let ep = resolve_ep(app);
+        let model_path = app.cls_ais[cls_idx].get_path();
+        match set_model2(&model_path, ep, None) {
+            Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.cls_ais[cls_idx].name)); }
             Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
         }
     }
@@ -255,7 +278,7 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
     draw_combo(frame, ai, app.t(Key::select_ai), &app.ai_options, app.ai_selected, app.cur_row() == Row::Ai && !app.side_btn);
 
     // [+] button to the right of the Model combo
-    if app.ai_selected.is_some() && !app.cls_active {
+    if app.can_add_cls() {
         let focused = app.cur_row() == Row::Ai && app.side_btn;
         draw_side_btn(frame, ai, "+", focused);
     }
