@@ -35,7 +35,7 @@ pub struct PullArgs {
 #[derive(Subcommand)]
 pub enum BqCommands {
     /// Create a new .bq model. 
-    /// Pass a name and to use "name.json" and "name.onnx"
+    /// Pass "name" to use "name.json" and "name.onnx" and create "name.bq"
     New { name: String },
 
     /// Returns the shape of a .bq model
