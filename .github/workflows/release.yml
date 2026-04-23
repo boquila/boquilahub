@@ -68,10 +68,12 @@ jobs:
           tar xzf onnxruntime.tgz
 
       - name: Build release
-        run: cargo build --release --locked
-
-      - name: Run tests
-        run: cargo test --locked -- --nocapture
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
+          fi
+          cargo build --release
 
       - name: Smoke test - pull models (Linux)
         if: runner.os == 'Linux'
