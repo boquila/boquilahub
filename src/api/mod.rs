@@ -12,3 +12,4 @@ pub mod rest;
 pub mod stream;
 pub mod utils;
 pub mod video_file;
+pub mod audio;
