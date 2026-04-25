@@ -12,6 +12,7 @@ pub struct AudioData {
 
 pub fn load_audio(path: impl AsRef<std::path::Path>) -> Result<AudioData, ffmpeg::Error> {
     ffmpeg::init()?;
+    ffmpeg::util::log::set_level(ffmpeg::util::log::Level::Quiet);
     let mut ictx = ffmpeg::format::input(&path.as_ref())?;
 
     let stream = ictx.streams().best(ffmpeg::media::Type::Audio)
@@ -61,8 +62,45 @@ pub fn load_audio(path: impl AsRef<std::path::Path>) -> Result<AudioData, ffmpeg
     })
 }
 
+impl AudioData {
+    /// Duration in seconds.
+    pub fn duration(&self) -> f64 {
+        let samples_per_channel = self.samples.len() / self.channels.max(1) as usize;
+        let seconds = samples_per_channel as f64 / self.sample_rate as f64;
+        seconds
+    }
+
+    /// Returns (min_amplitude, max_amplitude, rms_amplitude).
+    pub fn amplitude_stats(&self) -> (f32, f32, f32) {
+        let min_amplitude = self.samples.iter().cloned().fold(f32::INFINITY, f32::min);
+        let max_amplitude = self.samples.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        let mean_square = self.samples.iter().map(|s| s * s).sum::<f32>() / self.samples.len().max(1) as f32;
+        let rms_amplitude = mean_square.sqrt();
+        (min_amplitude, max_amplitude, rms_amplitude)
+    }
+
+    /// Average sample value (should be near 0.0 for normal audio).
+    pub fn dc_offset(&self) -> f32 {
+        if self.samples.is_empty() { return 0.0; }
+        let sum = self.samples.iter().sum::<f32>();
+        let average = sum / self.samples.len() as f32;
+        average
+    }
+
+    /// First n samples.
+    pub fn preview(&self, n: usize) -> &[f32] {
+        let count = n.min(self.samples.len());
+        &self.samples[..count]
+    }
+}
+
 #[test]
 fn smoke() {
-    let audio = load_audio("assets/test/audio.mp3").unwrap();
-    println!("{:?}",audio)
+    let a = load_audio("assets/test/audio.mp3").unwrap();
+    let (min, max, rms) = a.amplitude_stats();
+
+    println!("samples={} rate={} ch={} dur={:.3}s", a.samples.len(), a.sample_rate, a.channels, a.duration());
+    println!("amp min={:.4} max={:.4} rms={:.4}", min, max, rms);
+    println!("dc_offset={:.6}", a.dc_offset());
+    println!("preview={:?}", a.preview(16));
 }
