@@ -1,5 +1,6 @@
 pub mod efficientnet;
 pub mod yolo;
+pub mod resnet18;
 use anyhow::{anyhow, Error, Result};
 use super::{abstractions::*, processing::post::PostProcessing};
 pub use efficientnet::EfficientNetV2;

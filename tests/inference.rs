@@ -3,7 +3,7 @@ use boquilahub::api::eps::*;
 use boquilahub::api::inference::*;
 
 #[tokio::test]
-async fn test_model() -> Result<()> {
+async fn image_inference() -> Result<()> {
     let img = image::open("assets/img.jpg")?.to_rgb8();    
     let model_name = "yolov11n";
     let model_download_link = "https://huggingface.co/boquila/yolov11/resolve/main/yolov11n.bq";

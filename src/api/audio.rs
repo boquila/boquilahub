@@ -99,7 +99,7 @@ fn smoke() {
     let a = load_audio("assets/test/audio.mp3").unwrap();
     let (min, max, rms) = a.amplitude_stats();
 
-    println!("samples={} rate={} ch={} dur={:.3}s", a.samples.len(), a.sample_rate, a.channels, a.duration());
+    println!("samples={} rate={} channels={} duration={:.3}s", a.samples.len(), a.sample_rate, a.channels, a.duration());
     println!("amp min={:.4} max={:.4} rms={:.4}", min, max, rms);
     println!("dc_offset={:.6}", a.dc_offset());
     println!("preview={:?}", a.preview(16));
