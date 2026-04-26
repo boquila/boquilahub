@@ -1,16 +1,9 @@
 use super::*;
 use crate::api::{
-    abstractions::XYXY,
+    abstractions::{AIOutputs, ProbSpace},
     audio::AudioData,
-    processing::post::{nms_indices, process_mask},
-    processing::{
-        inference::inference,
-        post::*,
-        pre::{imgbuf_to_input_array, TensorFormat},
-    },
 };
-use image::{ImageBuffer, Rgb};
-use ndarray::{s, Array, Array2, Axis, IxDyn};
+use anyhow::{bail, Error, Result};
 use ort::{session::Session, value::ValueType};
 
 pub struct ResNet18 {
@@ -33,15 +26,13 @@ pub struct ResNet18 {
 }
 
 impl ModelTrait for ResNet18 {
-    type Input = AudioData;
-    
     fn new(
         classes: Vec<String>,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
         config: ModelConfig,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let (batch_size, channel, input_height, input_width) = match &session.inputs[0].input_type {
             ValueType::Tensor { dimensions, .. } => (
                 dimensions[0] as i32,
@@ -50,7 +41,7 @@ impl ModelTrait for ResNet18 {
                 dimensions[3] as i32,
             ),
             _ => {
-                panic!("Not supported");
+                bail!("expected tensor input for ResNet18");
             }
         };
 
@@ -59,13 +50,13 @@ impl ModelTrait for ResNet18 {
         let (output_width, output_height) = match &session.outputs[0].output_type {
             ValueType::Tensor { dimensions, .. } => (dimensions[0] as i32, dimensions[1] as u32),
             _ => {
-                panic!("Not supported");
+                bail!("expected tensor output for ResNet18");
             }
         };
 
         let output_name: String = session.outputs[0].name.clone();
 
-        ResNet18 {
+        Ok(ResNet18 {
             classes,
             batch_size,
             channel,
@@ -79,10 +70,12 @@ impl ModelTrait for ResNet18 {
             post_processing,
             session,
             config,
-        }
+        })
     }
+}
 
-    fn run(&self, audio: &AudioData) -> AIOutputs {
+impl ResNet18 {
+    pub fn run_audio(&self, _audio: &AudioData) -> AIOutputs {
         let probs = ProbSpace {
             classes: vec![],
             probs: vec![],

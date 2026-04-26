@@ -2,7 +2,7 @@ use super::abstractions::{AIOutputs, ModelConfig, AI};
 use super::bq::import_bq;
 use super::eps::EP;
 use super::import::import_model;
-use super::models::Model;
+use super::models::{AIInput, Model};
 use super::models::Task;
 use super::processing::post::PostProcessing;
 use super::processing::pre::slice_image;
@@ -94,7 +94,7 @@ pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Resul
 
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-    let mut outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&img);
+    let mut outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&AIInput::Image(img));
     process_with_ai2(&mut outputs, img);
     return outputs;
 }
@@ -108,7 +108,7 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
         AIOutputs::ObjectDetection(detections) => {
             for xyxyc in detections.iter_mut() {
                 let sliced_img = slice_image(img, &xyxyc.xyxy);
-                let cls_output = ai2_ref.run(&sliced_img);
+                let cls_output = ai2_ref.run(&AIInput::Image(&sliced_img));
                 if let AIOutputs::Classification(prob_space) = cls_output {
                     xyxyc.extra_cls = Some(prob_space);
                 }
@@ -118,7 +118,7 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
             for segc in segmentations {
                 let xyxyc = &mut segc.bbox;
                 let sliced_img = slice_image(img, &xyxyc.xyxy);
-                let cls_output = ai2_ref.run(&sliced_img);
+                let cls_output = ai2_ref.run(&AIInput::Image(&sliced_img));
                 if let AIOutputs::Classification(prob_space) = cls_output {
                     xyxyc.extra_cls = Some(prob_space);
                 }

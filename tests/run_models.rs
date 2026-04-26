@@ -17,7 +17,7 @@ pub struct AvailableModel {
 #[ignore]
 async fn test_models() -> Result<()> {
     let listmodels = get_list().await?;
-    let img = image::open("assets/img.jpg")?.to_rgb8();
+    let img = image::open("assets/test/img.jpg")?.to_rgb8();
     let n = listmodels.len();
     
     for model in listmodels {
