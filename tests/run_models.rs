@@ -24,6 +24,7 @@ async fn test_models() -> Result<()> {
         let filename = format!("{}.bq", model.name);
         println!("Testing inference with model: {}...", model.name);
         let path = std::path::Path::new("models").join(&filename);
+        let model_path = path.to_string_lossy().into_owned();
         let should_download = !path.exists();
 
         if should_download {
@@ -32,7 +33,7 @@ async fn test_models() -> Result<()> {
         }
 
         // Test inference
-        set_model(&filename, &LIST_EPS[1], None)?;
+        set_model(&model_path, &LIST_EPS[0], None)?;
         process_imgbuf(&img);
 
         if should_download {
