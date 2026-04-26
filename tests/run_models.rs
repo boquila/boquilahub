@@ -23,17 +23,21 @@ async fn test_models() -> Result<()> {
     for model in listmodels {
         let filename = format!("{}.bq", model.name);
         println!("Testing inference with model: {}...", model.name);
-        let path = std::path::Path::new(&filename);
+        let path = std::path::Path::new("models").join(&filename);
+        let should_download = !path.exists();
 
-        // Download model
-        let bytes = reqwest::get(&model.download_link).await?.bytes().await?;
-        std::fs::write(&path, bytes)?;
+        if should_download {
+            let bytes = reqwest::get(&model.download_link).await?.bytes().await?;
+            std::fs::write(&path, bytes)?;
+        }
 
         // Test inference
-        let _ = set_model(&filename.to_owned(), &LIST_EPS[1], None);
-        let _aioutput = process_imgbuf(&img);
+        set_model(&filename, &LIST_EPS[1], None)?;
+        process_imgbuf(&img);
 
-        std::fs::remove_file(&path)?;
+        if should_download {
+            std::fs::remove_file(&path)?;
+        }
     }
     println!("Success on {} models", n);
     Ok(())

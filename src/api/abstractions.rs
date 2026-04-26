@@ -174,7 +174,7 @@ impl XYXY {
     }
 }
 
-// AI model for Image Processing
+// AI complementary data
 #[derive(Deserialize, Clone, Debug)]
 pub struct AI {
     pub task: String,
@@ -184,6 +184,17 @@ pub struct AI {
     pub classes: Vec<String>,
     #[serde(skip)]
     pub name: String,
+
+    // input modality so we know how to preprocess (None defaults to "image")
+    pub modality: Option<String>, // "image" or "audio"
+
+    // Audio processing
+    pub sample_rate: Option<u32>, // e.g. 48000
+    pub window_size: Option<f32>, // seconds, e.g. 5.0
+    pub stride: Option<f32>,      // seconds, e.g. 1.0
+    pub n_fft: Option<u32>,       // e.g. 2048
+    pub hop_length: Option<u32>,  // e.g. 512
+    pub top_db: Option<f32>,      // e.g. 80.0
 }
 
 impl AI {

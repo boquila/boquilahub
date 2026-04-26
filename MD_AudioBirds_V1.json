@@ -1,0 +1,13 @@
+{
+  "task": "classify",
+  "architecture": "resnet18",
+  "modality": "audio",
+  "post_processing": ["sigmoid"],
+  "classes": ["No Birds", "Birds"],
+  "sample_rate": 48000,
+  "window_size": 5.0,
+  "stride": 1.0,
+  "n_fft": 2048,
+  "hop_length": 512,
+  "top_db": 80.0
+}
