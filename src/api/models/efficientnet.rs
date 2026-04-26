@@ -32,6 +32,7 @@ pub struct EfficientNetV2 {
 }
 
 impl ModelTrait for EfficientNetV2 {
+    type Input = ImageBuffer<Rgb<u8>, Vec<u8>>;
     fn new(
         classes: Vec<String>,
         task: Task,

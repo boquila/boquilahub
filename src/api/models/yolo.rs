@@ -241,6 +241,8 @@ impl Yolo {
 }
 
 impl ModelTrait for Yolo {
+    type Input = ImageBuffer<Rgb<u8>, Vec<u8>>;
+    
     fn new(
         classes: Vec<String>,
         task: Task,

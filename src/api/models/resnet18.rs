@@ -1,6 +1,7 @@
 use super::*;
 use crate::api::{
     abstractions::XYXY,
+    audio::AudioData,
     processing::post::{nms_indices, process_mask},
     processing::{
         inference::inference,
@@ -32,6 +33,8 @@ pub struct ResNet18 {
 }
 
 impl ModelTrait for ResNet18 {
+    type Input = AudioData;
+    
     fn new(
         classes: Vec<String>,
         task: Task,
@@ -79,7 +82,7 @@ impl ModelTrait for ResNet18 {
         }
     }
 
-    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+    fn run(&self, audio: &AudioData) -> AIOutputs {
         let probs = ProbSpace {
             classes: vec![],
             probs: vec![],

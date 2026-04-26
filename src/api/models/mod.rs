@@ -1,8 +1,8 @@
 pub mod efficientnet;
-pub mod yolo;
 pub mod resnet18;
+pub mod yolo;
+use super::{audio::AudioData, abstractions::*, processing::post::PostProcessing};
 use anyhow::{anyhow, Error, Result};
-use super::{abstractions::*, processing::post::PostProcessing};
 pub use efficientnet::EfficientNetV2;
 use image::{ImageBuffer, Rgb};
 use ort::session::Session;
@@ -31,6 +31,11 @@ pub enum Model {
     Yolo(Yolo),
 }
 
+pub enum AIInput {
+    Image(ImageBuffer<Rgb<u8>, Vec<u8>>),
+    Audio(AudioData),
+}
+
 impl Model {
     pub fn config_mut(&mut self) -> &mut ModelConfig {
         match self {
@@ -41,6 +46,8 @@ impl Model {
 }
 
 pub trait ModelTrait {
+    type Input;
+
     fn new(
         classes: Vec<String>,
         task: Task,
@@ -48,7 +55,8 @@ pub trait ModelTrait {
         session: Session,
         config: ModelConfig,
     ) -> Self;
-    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs;
+
+    fn run(&self, input: &Self::Input) -> AIOutputs;
 }
 
 impl Model {
