@@ -1,5 +1,6 @@
 use super::abstractions::{AIOutputs, ModelConfig, AI};
 use super::bq::import_bq;
+use super::audio::*;
 use super::eps::EP;
 use super::import::import_model;
 use super::models::{AIInput, Model};
@@ -97,6 +98,12 @@ pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Resul
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
     let mut outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&AIInput::Image(img));
     process_with_ai2(&mut outputs, img);
+    return outputs;
+}
+
+#[inline(always)]
+pub fn process_audio(audio: &AudioData) -> AIOutputs {
+    let outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&AIInput::Audio(audio));
     return outputs;
 }
 

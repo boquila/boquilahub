@@ -92,6 +92,44 @@ impl AudioData {
         let count = n.min(self.samples.len());
         &self.samples[..count]
     }
+
+    /// Iterate over overlapping fixed-length chunks of audio.
+    ///
+    /// `chunk_secs` is the duration of each emitted chunk.
+    /// `hop_secs` is how far the window advances between chunks.
+    ///
+    /// The iterator only yields full chunks; if the audio ends before a
+    /// full chunk would finish, that partial tail is silently dropped.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// for chunk in audio.chunks(5.0, 1.0) {
+    ///     model.process(&chunk);
+    /// }
+    /// ```
+    ///
+    /// A 10-second file with 5-second windows and 1-second hops yields
+    /// chunks covering seconds `[0-5)`, `[1-6)`, `[2-7)`, `[3-8)`, `[4-9)`.
+    pub fn chunks(&self, chunk_secs: f64, hop_secs: f64) -> impl Iterator<Item = AudioData> + '_ {
+        let ch = self.channels.max(1) as usize;
+        let chunk_frames = (chunk_secs * self.sample_rate as f64).ceil() as usize;
+        let hop_frames = (hop_secs * self.sample_rate as f64).ceil() as usize;
+        let total_frames = self.samples.len() / ch;
+
+        (0..)
+            .map(move |i| i * hop_frames)
+            .take_while(move |&start| start + chunk_frames <= total_frames)
+            .map(move |start| {
+                let s = start * ch;
+                let e = s + chunk_frames * ch;
+                AudioData {
+                    samples: self.samples[s..e].to_vec(),
+                    sample_rate: self.sample_rate,
+                    channels: self.channels,
+                }
+            })
+    }
 }
 
 #[test]
@@ -103,4 +141,29 @@ fn smoke() {
     println!("amp min={:.4} max={:.4} rms={:.4}", min, max, rms);
     println!("dc_offset={:.6}", a.dc_offset());
     println!("preview={:?}", a.preview(16));
+}
+
+#[test]
+fn chunks_iterator() {
+    // 10 seconds of mono audio @ 1000 Hz => 10000 samples
+    let audio = AudioData {
+        samples: (0..10000).map(|i| i as f32).collect(),
+        sample_rate: 1000,
+        channels: 1,
+    };
+
+    let mut count = 0;
+    for chunk in audio.chunks(5.0, 1.0) {
+        // Each chunk is just another AudioData — pass it by reference
+        assert_eq!(chunk.sample_rate, 1000);
+        assert_eq!(chunk.channels, 1);
+        assert_eq!(chunk.samples.len(), 5000, "each chunk is 5s = 5000 frames");
+
+        let expected_first = (count * 1000) as f32;
+        assert!((chunk.samples[0] - expected_first).abs() < f32::EPSILON);
+
+        count += 1;
+    }
+
+    assert_eq!(count, 6, "10s audio with 5s window / 1s hop => 6 full chunks");
 }
