@@ -178,7 +178,6 @@ impl XYXY {
 #[derive(Deserialize, Clone, Debug)]
 pub struct AI {
     pub task: String,
-    #[serde(default)]
     pub architecture: Option<String>, // yolo, efficientnet, whatever else
     pub post_processing: Vec<String>,
     pub classes: Vec<String>,
