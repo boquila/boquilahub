@@ -1,7 +1,7 @@
 use crate::api::{
     abstractions::AI,
     bq::{BQModel, set_model, set_model2},
-    eps::LIST_EPS,
+    eps::Ep,
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
@@ -103,7 +103,7 @@ pub async fn run_cli(command: Commands) {
                     );
                 }
 
-                let _ = set_model2(&model_cls_path, &LIST_EPS[1], None);
+                let _ = set_model2(&model_cls_path, Ep::Cuda, None);
             }
 
             let port = args.port;
@@ -117,7 +117,7 @@ pub async fn run_cli(command: Commands) {
                 );
             }
 
-            let _ = set_model(&model_path, &LIST_EPS[1], None);
+            let _ = set_model(&model_path, Ep::Cuda, None);
 
             let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
             println!("{}", ASCII_ART);

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boquilahub::api::eps::*;
+use boquilahub::api::eps::Ep;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
@@ -17,7 +17,7 @@ async fn image_inference() -> Result<()> {
     std::fs::write(&path, bytes)?;
 
     // Test inference
-    set_model(&filename.to_owned(), &LIST_EPS[1], None)?;
+    set_model(&filename.to_owned(), Ep::Cpu, None)?;
     let aioutput = process_imgbuf(&img);
     println!("{:?}",aioutput);
 

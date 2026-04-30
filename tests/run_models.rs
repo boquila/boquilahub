@@ -1,7 +1,7 @@
 /// Here we run supported models and check that they always work
 /// eg. no index out of bounds, no wrong pre or post-processing.
 use anyhow::Result;
-use boquilahub::api::eps::*;
+use boquilahub::api::eps::Ep;
 use boquilahub::api::bq::*;
 use boquilahub::api::pull::*;
 use serde::*;
@@ -33,7 +33,7 @@ async fn test_models() -> Result<()> {
         }
 
         // Test inference
-        set_model(&model_path, &LIST_EPS[0], None)?;
+        set_model(&model_path, Ep::Cpu, None)?;
         process_imgbuf(&img);
 
         if should_download {

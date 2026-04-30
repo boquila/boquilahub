@@ -1,5 +1,5 @@
 use crate::api::abstractions::AIOutputs;
-use crate::api::eps::EP;
+use crate::api::eps::Ep;
 use crate::api::utils::create_predictions_file_path;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
@@ -87,11 +87,11 @@ pub fn is_supported_videofile(file_path: &str) -> bool {
     false
 }
 
-pub fn import_model(model_data: &[u8], ep: &EP) -> Result<Session, ort::Error> {
+pub fn import_model(model_data: &[u8], ep: Ep) -> Result<Session, ort::Error> {
     let mut builder = Session::builder()?
         .with_optimization_level(GraphOptimizationLevel::Level3)?;
 
-    if ep.name == "CUDA" {
+    if let Ep::Cuda = ep {
         builder = builder
             .with_execution_providers([CUDAExecutionProvider::default().build()])?;
     }

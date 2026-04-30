@@ -1,5 +1,5 @@
 use super::abstractions::{AI, AIOutputs, ModelConfig};
-use super::eps::EP;
+use super::eps::Ep;
 use anyhow::{Context, Result};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -24,10 +24,10 @@ impl BQModel {
     pub fn from_file_and_allocate(
         file_path: impl AsRef<Path>,
         allocation: GlobalBQ,
-        ep: Option<&EP>,
+        ep: Option<Ep>,
         config: Option<ModelConfig>,
     ) -> Result<()> {
-        let ep = ep.unwrap_or(&super::eps::LIST_EPS[0]);
+        let ep = ep.unwrap_or(Ep::Cpu);
         let path_str: String = file_path.as_ref().to_string_lossy().into_owned();
         match allocation {
             GlobalBQ::First => set_model(&path_str, ep, config),
@@ -280,7 +280,7 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
 pub static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
 pub static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
 
-pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<()> {
+pub fn set_model(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result<()> {
     let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value).unwrap();
@@ -308,7 +308,7 @@ pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result
     Ok(())
 }
 
-pub fn set_model2(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<()> {
+pub fn set_model2(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result<()> {
     let config = config.unwrap_or_default();
 
     let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value).unwrap();

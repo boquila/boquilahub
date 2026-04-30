@@ -1,7 +1,7 @@
 use super::{api::*, localization::*};
 use abstractions::*;
 use bq::*;
-use eps::{get_ep_version, LIST_EPS};
+use eps::Ep;
 use image::{open, ImageBuffer, Rgba};
 use models::{Model, Task};
 use processing::post::PostProcessing;
@@ -114,7 +114,7 @@ struct Gui {
     temp_api_str: String,
     temp_architecture: String,
     pending_model_path: Option<String>,
-    pending_model_ep: Option<usize>,
+    pending_model_ep: Option<Ep>,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
@@ -136,7 +136,7 @@ struct Gui {
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
     ai_cls_selected: Option<usize>,
-    ep_selected: usize,
+    ep_selected: Ep,
     video_step_frame: usize,
     feed_step_frame: usize,
     current_frame: u64,
@@ -231,10 +231,6 @@ impl Gui {
             || self.feed_state.is_processing
     }
 
-    fn is_remote(&self) -> bool {
-        self.ep_selected == 2
-    }
-
     fn process_done(&mut self) {
         self.done_time = Some(Instant::now());
     }
@@ -310,7 +306,7 @@ impl Gui {
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ai_selected.is_some() && !self.is_remote() {
+        if self.ai_selected.is_some() && self.ep_selected.is_local() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
                 if ui
@@ -353,7 +349,7 @@ impl Gui {
     }
 
     fn ai_widget(&mut self, ui: &mut egui::Ui) {
-        if !self.is_remote() {
+        if self.ep_selected.is_local() {
             let previous_ai = self.ai_selected;
             ui.label(self.t(Key::select_ai));
 
@@ -399,7 +395,7 @@ impl Gui {
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
                 match set_model(
                     &model_path,
-                    &LIST_EPS[self.ep_selected],
+                    self.ep_selected,
                     Some(self.ai_config.clone()),
                 ) {
                     Ok(_) => {}
@@ -430,7 +426,7 @@ impl Gui {
     }
 
     fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
-        if !self.is_remote() && self.show_ai_cls {
+        if self.ep_selected.is_local() && self.show_ai_cls {
             let previous_ai = self.ai_cls_selected;
             ui.label(self.t(Key::select_2nd_ai));
             ui.horizontal(|ui| {
@@ -467,7 +463,7 @@ impl Gui {
                 let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
                 match set_model2(
                     &model_path,
-                    &LIST_EPS[self.ep_selected],
+                    self.ep_selected,
                     Some(self.ai_cls_config.clone()),
                 ) {
                     Ok(_) => {}
@@ -498,7 +494,7 @@ impl Gui {
     }
 
     fn get_endpoint(&self) -> Option<String> {
-        if self.is_remote() {
+        if !self.ep_selected.is_local() {
             self.api_server_url
                 .as_ref()
                 .map(|url| format!("{}/upload", url))
@@ -511,7 +507,7 @@ impl Gui {
         if let Some(ai_index) = self.ai_selected {
             let _ = set_model(
                 &self.ais[ai_index].get_path(),
-                &LIST_EPS[self.ep_selected],
+                self.ep_selected,
                 Some(self.ai_config.clone()),
             );
         }
@@ -521,7 +517,7 @@ impl Gui {
         if let Some(_ai_cls_index) = self.ai_cls_selected {
             let _ = set_model2(
                 &self.current_ai_cls().get_path(),
-                &LIST_EPS[self.ep_selected],
+                self.ep_selected,
                 Some(self.ai_cls_config.clone()),
             );
         }
@@ -532,26 +528,26 @@ impl Gui {
         let mut temp_ep_selected = self.ep_selected;
 
         egui::ComboBox::from_id_salt("EP")
-            .selected_text(LIST_EPS[self.ep_selected].name)
+            .selected_text(self.ep_selected.name())
             .show_ui(ui, |ui| {
-                for (i, ep) in LIST_EPS.iter().enumerate() {
-                    ui.selectable_value(&mut temp_ep_selected, i, ep.name)
+                for ep in [Ep::Cpu, Ep::Cuda, Ep::BoquilaHubRemote] {
+                    ui.selectable_value(&mut temp_ep_selected, ep, ep.name())
                         .on_hover_text(format!(
                             "Version: {:.1}, Local: {}, Dependencies: {}",
-                            ep.version, ep.local, ep.dependencies
+                            ep.version().unwrap_or(0.0),
+                            ep.is_local(),
+                            ep.dependencies()
                         ));
                 }
             });
 
         if temp_ep_selected != self.ep_selected {
-            let new_ep: &eps::EP = &LIST_EPS[temp_ep_selected];
-
-            match new_ep.ep_type {
-                eps::EPType::BoquilaHUBRemote => {
+            match temp_ep_selected {
+                Ep::BoquilaHubRemote => {
                     self.show_dialog.api_server = true;
                 }
-                eps::EPType::CUDA => {
-                    let cuda_version = match get_ep_version(new_ep) {
+                Ep::Cuda => {
+                    let cuda_version = match temp_ep_selected.version() {
                         Ok(cuda_v) => cuda_v,
                         Err(error) => {
                             eprintln!("Could not find CUDA version with error: {error}");
@@ -765,7 +761,7 @@ impl Gui {
                             if is_valid_api {
                                 self.show_dialog.api_server = false;
                                 self.api_server_url = Some(url);
-                                self.ep_selected = 2;
+                                self.ep_selected = Ep::BoquilaHubRemote;
                             } else {
                                 self.process_error();
                             }
@@ -807,8 +803,8 @@ impl Gui {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui.button("OK").clicked() {
-                            if let (Some(model_path), Some(ep_index)) =
-                                (&self.pending_model_path, &self.pending_model_ep)
+                            if let (Some(model_path), Some(ep)) =
+                                (&self.pending_model_path, self.pending_model_ep)
                             {
                                 // Load model with selected architecture
                                 let (model_metadata, data) = match BQModel::import_data(model_path) {
@@ -826,7 +822,7 @@ impl Gui {
                                     Some(self.temp_architecture.clone());
 
                                 // Create model
-                                let session = import::import_model(&data, &LIST_EPS[*ep_index]).unwrap();
+                                let session = import::import_model(&data, ep).unwrap();
                                 let post: Vec<PostProcessing> = updated_metadata
                                     .post_processing
                                     .iter()
@@ -887,7 +883,7 @@ impl Gui {
         self.img_state.cancel_sender = Some(cancel_tx);
 
         let api_endpoint = self.get_endpoint();
-        let is_remote = self.is_remote();
+        let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             for (i, predimg) in copy_predigms.iter().enumerate() {
                 if predimg.wasprocessed {
@@ -947,7 +943,7 @@ impl Gui {
     }
 
     fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
+        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
                 ui.heading(self.t(Key::analysis));
@@ -1078,7 +1074,7 @@ impl Gui {
         let current = self.current_frame;
 
         let api_endpoint = self.get_endpoint();
-        let is_remote = self.is_remote();
+        let is_remote = !self.ep_selected.is_local();
         let step: usize = self.video_step_frame;
         let mut cached_aioutput: Option<AIOutputs> = None;
 
@@ -1147,7 +1143,7 @@ impl Gui {
     }
 
     fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
+        if self.video_file_path.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
                 ui.heading(self.t(Key::analysis));
@@ -1206,7 +1202,7 @@ impl Gui {
         let mut feed = stream::Feed::new(&self.feed_url.clone().unwrap()).unwrap();
 
         let api_endpoint = self.get_endpoint();
-        let is_remote = self.is_remote();
+        let is_remote = !self.ep_selected.is_local();
         let step: usize = self.feed_step_frame;
         tokio::spawn(async move {
             let mut frame_counter = 0;
@@ -1252,7 +1248,7 @@ impl Gui {
     }
 
     fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.feed_url.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
+        if self.feed_url.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
                 ui.heading(self.t(Key::analysis));
