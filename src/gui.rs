@@ -840,9 +840,9 @@ impl Gui {
                                 ) {
                                     Ok(aimodel) => {
                                         if CURRENT_AI.get().is_some() {
-                                            *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
+                                            *CURRENT_AI.get().unwrap().write().unwrap() = Some(aimodel);
                                         } else {
-                                            let _ = CURRENT_AI.set(RwLock::new(aimodel));
+                                            let _ = CURRENT_AI.set(RwLock::new(Some(aimodel)));
                                         }
                                     }
                                     Err(_) => {

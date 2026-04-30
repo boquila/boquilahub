@@ -156,7 +156,7 @@ pub async fn run_cli(command: Commands) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             },
-            BqCommands::New { name } => match crate::api::bq::create_bq_file(name) {
+            BqCommands::New { name } => match BQModel::create_bq_file(name) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             }

@@ -151,8 +151,10 @@ impl BQModel {
         match global_bq {
             GlobalBQ::First => {
                 let ai = CURRENT_AI.get().unwrap();
-                let mut model = ai.write().unwrap();
-                *model.config_mut() = new_config;
+                let mut model_opt = ai.write().unwrap();
+                if let Some(ref mut model) = model_opt.as_mut() {
+                    *model.config_mut() = new_config;
+                }
             }
             GlobalBQ::Second => {
                 let ai = CURRENT_AI2.get().unwrap();
@@ -190,6 +192,43 @@ impl BQModel {
     
         Ok(())
     }
+
+    pub fn create_bq_file(name: String) -> Result<()> {
+        let json_path = format!("{}.json", name);
+        let onnx_path = format!("{}.onnx", name);
+        let output_path = format!("{}.bq", name);
+    
+        let json_content = fs::read(&json_path).context(format!("Failed to open {}", json_path))?;
+        let _ai: AI = serde_json::from_slice(&json_content).context(format!(
+            "Failed to deserialize {} into required AI metadata",
+            json_path
+        ))?;
+        let onnx_content = fs::read(&onnx_path).context(format!("Failed to open {}", onnx_path))?;
+    
+        if !matches!(onnx_content.get(0..2), Some(&[0x08, ir_ver]) if ir_ver > 0) {
+            anyhow::bail!(
+                "File {} does not appear to be a valid ONNX model",
+                onnx_path
+            );
+        }
+    
+        let mut output_file = File::create(&output_path)
+            .unwrap_or_else(|_| panic!("Failed to create output file: {}", output_path));
+    
+        output_file.write_all(b"BQMODEL")?; // Magic string
+        output_file.write_all(&[1])?; // Version
+    
+        let json_length = json_content.len() as u32;
+        output_file.write_all(&json_length.to_le_bytes())?;
+        output_file.write_all(&json_content)?;
+    
+        let onnx_length = onnx_content.len() as u32;
+        output_file.write_all(&onnx_length.to_le_bytes())?;
+        output_file.write_all(&onnx_content)?;
+    
+        println!("New model: {}", output_path);
+        Ok(())
+    }
 }
 
 fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
@@ -225,43 +264,6 @@ fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
     Ok(ai_models)
 }
 
-pub fn create_bq_file(name: String) -> Result<()> {
-    let json_path = format!("{}.json", name);
-    let onnx_path = format!("{}.onnx", name);
-    let output_path = format!("{}.bq", name);
-
-    let json_content = fs::read(&json_path).context(format!("Failed to open {}", json_path))?;
-    let _ai: AI = serde_json::from_slice(&json_content).context(format!(
-        "Failed to deserialize {} into required AI metadata",
-        json_path
-    ))?;
-    let onnx_content = fs::read(&onnx_path).context(format!("Failed to open {}", onnx_path))?;
-
-    if !matches!(onnx_content.get(0..2), Some(&[0x08, ir_ver]) if ir_ver > 0) {
-        anyhow::bail!(
-            "File {} does not appear to be a valid ONNX model",
-            onnx_path
-        );
-    }
-
-    let mut output_file = File::create(&output_path)
-        .unwrap_or_else(|_| panic!("Failed to create output file: {}", output_path));
-
-    output_file.write_all(b"BQMODEL")?; // Magic string
-    output_file.write_all(&[1])?; // Version
-
-    let json_length = json_content.len() as u32;
-    output_file.write_all(&json_length.to_le_bytes())?;
-    output_file.write_all(&json_content)?;
-
-    let onnx_length = onnx_content.len() as u32;
-    output_file.write_all(&onnx_length.to_le_bytes())?;
-    output_file.write_all(&onnx_content)?;
-
-    println!("New model: {}", output_path);
-    Ok(())
-}
-
 pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 
 pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
@@ -277,7 +279,7 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
+pub static CURRENT_AI: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
 pub static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
 
 pub fn set_model(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result<()> {
@@ -301,9 +303,9 @@ pub fn set_model(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result<
         config,
     )?;
     if CURRENT_AI.get().is_some() {
-        *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
+        *CURRENT_AI.get().unwrap().write().unwrap() = Some(aimodel);
     } else {
-        let _ = CURRENT_AI.set(RwLock::new(aimodel));
+        let _ = CURRENT_AI.set(RwLock::new(Some(aimodel)));
     }
     Ok(())
 }
@@ -339,21 +341,20 @@ pub fn set_model2(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result
 
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-    let mut outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&AIInput::Image(img));
+    let mut outputs = CURRENT_AI.get().unwrap().read().ok().unwrap().as_ref().unwrap().run(&AIInput::Image(img));
     process_with_ai2(&mut outputs, img);
     return outputs;
 }
 
 #[inline(always)]
 pub fn process_audio(audio: &AudioData) -> AIOutputs {
-    let outputs: AIOutputs = CURRENT_AI.get().unwrap().read().unwrap().run(&AIInput::Audio(audio));
+    let outputs = CURRENT_AI.get().unwrap().read().ok().unwrap().as_ref().unwrap().run(&AIInput::Audio(audio));
     return outputs;
 }
 
 fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Option<()> {
-    let ai2 = CURRENT_AI2.get()?;
-    let ai2_guard = ai2.read().ok()?;
-    let ai2_ref = ai2_guard.as_ref()?;
+    let ai2 = CURRENT_AI2.get()?.read().ok()?;
+    let ai2_ref = ai2.as_ref()?;
 
     match outputs {
         AIOutputs::ObjectDetection(detections) => {
