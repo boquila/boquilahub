@@ -2,6 +2,11 @@ use super::*;
 use crate::api::{
     abstractions::{AIOutputs, ProbSpace},
     audio::AudioData,
+    processing::{
+        inference::inference,
+        post::extract_output,
+        pre::audio_to_input_array,
+    },
 };
 use anyhow::{bail, Error, Result};
 use ort::{session::Session, value::ValueType};
@@ -75,12 +80,25 @@ impl ModelTrait for ResNet18 {
 }
 
 impl ResNet18 {
-    pub fn run_audio(&self, _audio: &AudioData) -> AIOutputs {
-        let probs = ProbSpace {
-            classes: vec![],
-            probs: vec![],
-            classes_ids: vec![],
+    pub fn run_audio(&self, audio: &AudioData) -> AIOutputs {
+        // HARDCODED PREPROCESSING PARAMS FROM MD_AUDIOBIRDS_V1 SPEC
+        // TODO: PULL FROM MODEL METADATA (AI.n_fft, AI.hop_length, AI.n_mels, AI.top_db,
+        //       AI.window_size, AI.stride) WHEN THE IMPORT PIPELINE PASSES THEM THROUGH
+        let input = audio_to_input_array(audio, 2048, 512, 224, 80.0, 5.0, 1.0);
+
+        let outputs = inference(&self.session, &input, &self.input_name);
+        let output = extract_output(&outputs, &self.output_name);
+
+        // output shape is [batch, 1]; take the highest probability across windows (OR logic)
+        let max_logit = output.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+        let prob = 1.0 / (1.0 + (-max_logit).exp());
+
+        let classes = if self.classes.is_empty() {
+            vec!["Birds".to_string()]
+        } else {
+            self.classes.clone()
         };
-        return AIOutputs::Classification(probs);
+
+        AIOutputs::Classification(ProbSpace::new(classes, vec![prob], vec![0]))
     }
 }

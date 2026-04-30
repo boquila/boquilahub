@@ -23,10 +23,13 @@ impl AudioData {
         let mut decoder = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?
             .decoder().audio()?;
     
+        // HARDCODED: MODEL EXPECTS 48 KHZ (SEE MD_AUDIOBIRDS_V1 SPEC)
+        // TODO: MAKE CONFIGURABLE VIA MODEL METADATA WHEN MULTIPLE AUDIO MODELS EXIST
+        let target_rate = 48000;
         let mut resampler = decoder.resampler(
             Sample::F32(SampleType::Packed),
             decoder.channel_layout(),
-            decoder.rate(),
+            target_rate,
         )?;
     
         let mut samples: Vec<f32> = Vec::new();
@@ -58,7 +61,7 @@ impl AudioData {
     
         Ok(Self {
             samples,
-            sample_rate: decoder.rate(),
+            sample_rate: target_rate,
             channels: decoder.channels(),
         })
     }
@@ -91,6 +94,45 @@ impl AudioData {
     pub fn preview(&self, n: usize) -> &[f32] {
         let count = n.min(self.samples.len());
         &self.samples[..count]
+    }
+
+    /// Mix all channels down to mono by averaging.
+    pub fn to_mono(&self) -> Self {
+        if self.channels <= 1 {
+            return self.clone();
+        }
+        let ch = self.channels as usize;
+        let frames = self.samples.len() / ch;
+        let mut mono = Vec::with_capacity(frames);
+        for i in 0..frames {
+            let sum: f32 = self.samples[i * ch..(i + 1) * ch].iter().sum();
+            mono.push(sum / ch as f32);
+        }
+        Self {
+            samples: mono,
+            sample_rate: self.sample_rate,
+            channels: 1,
+        }
+    }
+
+    /// Pad (or truncate) to exactly `secs` duration with silence.
+    pub fn padded_to(&self, secs: f64) -> Self {
+        let ch = self.channels.max(1) as usize;
+        let target_samples = (secs * self.sample_rate as f64).ceil() as usize * ch;
+        if self.samples.len() >= target_samples {
+            return Self {
+                samples: self.samples[..target_samples].to_vec(),
+                sample_rate: self.sample_rate,
+                channels: self.channels,
+            };
+        }
+        let mut padded = self.samples.clone();
+        padded.resize(target_samples, 0.0);
+        Self {
+            samples: padded,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+        }
     }
 
     /// Iterate over overlapping fixed-length chunks of audio.

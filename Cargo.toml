@@ -37,6 +37,7 @@ bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.102"
 fast_image_resize = { version = "=6.0.0", features = ["image"] }
 ratatui = "0.30.0"
+realfft = "3.4"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
