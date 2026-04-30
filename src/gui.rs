@@ -459,7 +459,7 @@ impl Gui {
                     if ui.button("-").clicked() {
                         self.show_ai_cls = false;
                         self.ai_cls_selected = None;
-                        clear_current_ai2_simple();
+                        BQModel::clear_second();
                     }
                 }
             });

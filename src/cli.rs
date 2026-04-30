@@ -1,8 +1,7 @@
 use crate::api::{
     abstractions::AI,
-    bq::BQModel,
+    bq::{BQModel, set_model, set_model2},
     eps::LIST_EPS,
-    bq::{set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};

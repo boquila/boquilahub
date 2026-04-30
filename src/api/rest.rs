@@ -1,6 +1,6 @@
 use super::abstractions::AIOutputs;
 use super::bq::*;
-use axum::{extract::Multipart, http::StatusCode, routing::get, routing::post, Router};
+use axum::{extract::Multipart, http::StatusCode, routing::{get, post}, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};
 use reqwest::Client;

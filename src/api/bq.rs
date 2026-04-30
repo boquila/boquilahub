@@ -1,15 +1,13 @@
-use super::abstractions::{ModelConfig, AI};
+use super::abstractions::{AI, AIOutputs, ModelConfig};
 use super::eps::EP;
 use anyhow::{Context, Result};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
-use super::abstractions::{AIOutputs};
 use super::audio::*;
 use super::import::import_model;
-use super::models::{AIInput, Model};
-use super::models::Task;
+use super::models::{AIInput, Model, Task};
 use super::processing::post::PostProcessing;
 use super::processing::pre::slice_image;
 use image::{ImageBuffer, Rgb};
@@ -281,12 +279,6 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
 
 pub static CURRENT_AI: OnceLock<RwLock<Model>> = OnceLock::new();
 pub static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
-
-pub fn clear_current_ai2_simple() {
-    let rw_lock = CURRENT_AI2.get_or_init(|| RwLock::new(None));
-    let mut guard = rw_lock.write().unwrap();
-    *guard = None;
-}
 
 pub fn set_model(value: &String, ep: &EP, config: Option<ModelConfig>) -> Result<()> {
     let config = config.unwrap_or_default();

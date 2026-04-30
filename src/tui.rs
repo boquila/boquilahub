@@ -9,9 +9,8 @@ use ratatui::Frame;
 
 use super::api::{
     abstractions::AI,
-    bq::BQModel,
+    bq::{BQModel, set_model, set_model2},
     eps::LIST_EPS,
-    bq::{clear_current_ai2_simple, set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
 use super::localization::{translate, Key, Lang};
@@ -171,7 +170,7 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
             if app.side_btn {
                 match app.cur_row() {
                     Row::Ai => { app.cls_active = true; app.side_btn = false; app.row = 1; }
-                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; clear_current_ai2_simple(); app.side_btn = false; app.clamp(); }
+                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; BQModel::clear_second(); app.side_btn = false; app.clamp(); }
                     _ => {}
                 }
             } else {
