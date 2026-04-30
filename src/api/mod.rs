@@ -3,7 +3,6 @@ pub mod bq;
 pub mod eps;
 pub mod export;
 pub mod import;
-pub mod inference;
 pub mod models;
 pub mod processing;
 pub mod pull;

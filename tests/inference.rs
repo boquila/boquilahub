@@ -1,6 +1,6 @@
 use anyhow::Result;
 use boquilahub::api::eps::*;
-use boquilahub::api::inference::*;
+use boquilahub::api::bq::*;
 
 #[tokio::test]
 async fn image_inference() -> Result<()> {

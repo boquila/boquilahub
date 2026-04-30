@@ -1,8 +1,8 @@
 use crate::api::{
     abstractions::AI,
-    bq::get_bqs,
+    bq::BQModel,
     eps::LIST_EPS,
-    inference::{set_model, set_model2},
+    bq::{set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
@@ -88,7 +88,7 @@ pub async fn run_cli(command: Commands) {
             let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
             let model_path = format!("models/{}.bq", model_name_clean);
 
-            let ais: Vec<AI> = get_bqs();
+            let ais: Vec<AI> = BQModel::get_bqs();
 
             if let Some(model_cls_name) = &args.model_cls {
                 let model_cls_name_clean =
@@ -137,7 +137,7 @@ pub async fn run_cli(command: Commands) {
             }
         }
         Commands::List => {
-            let ais: Vec<AI> = get_bqs();
+            let ais: Vec<AI> = BQModel::get_bqs();
             print_ais_table(&ais);
             std::process::exit(0);
         }
@@ -153,7 +153,7 @@ pub async fn run_cli(command: Commands) {
             let _ = crate::tui::run_tui(language);
         }
         Commands::Bq { command } => match command {
-            BqCommands::Shape { name } => match crate::api::bq::print_shape(&name) {
+            BqCommands::Shape { name } => match BQModel::from_file_print_shape(&name) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             },

@@ -1,9 +1,8 @@
 use super::{api::*, localization::*};
 use abstractions::*;
-use bq::{get_bqs, import_bq};
+use bq::*;
 use eps::{get_ep_version, LIST_EPS};
 use image::{open, ImageBuffer, Rgba};
-use inference::*;
 use models::{Model, Task};
 use processing::post::PostProcessing;
 use render::{draw_aioutput, draw_no_predictions};
@@ -38,7 +37,7 @@ pub fn run_gui() {
 }
 
 macro_rules! ai_config_window {
-    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $update_fn:expr, $current_ai_fn:ident) => {
+    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $variant:expr, $current_ai_fn:ident) => {
         if $show_field {
             egui::Window::new($self.t(Key::configure_ai))
                 .collapsible(false)
@@ -87,7 +86,7 @@ macro_rules! ai_config_window {
                     ui.horizontal(|ui| {
                         if ui.button($self.t(Key::ok)).clicked() {
                             $self.$config_field = $self.$temp_config_field.clone();
-                            $update_fn($self.$config_field.clone());
+                            BQModel::update_config($self.$config_field.clone(), $variant);
                             $show_field = false;
                         }
                         ui.add_space(8.0);
@@ -207,7 +206,7 @@ impl Gui {
     }
 
     fn new() -> Self {
-        let ais: Vec<AI> = get_bqs();
+        let ais: Vec<AI> = BQModel::get_bqs();
         let classify_ais: Vec<AI> = ais
             .iter()
             .filter(|ai| ai.task == "classify")
@@ -422,7 +421,7 @@ impl Gui {
                 self.show_config.ai,
                 ai_config,
                 temp_ai_config,
-                update_config,
+                GlobalBQ::First,
                 current_ai
             );
 
@@ -490,7 +489,7 @@ impl Gui {
                 self.show_config.ai_cls,
                 ai_cls_config,
                 temp_ai_cls_config,
-                update_config2,
+                GlobalBQ::Second,
                 current_ai_cls
             );
 
@@ -812,7 +811,7 @@ impl Gui {
                                 (&self.pending_model_path, &self.pending_model_ep)
                             {
                                 // Load model with selected architecture
-                                let (model_metadata, data) = match import_bq(model_path) {
+                                let (model_metadata, data) = match BQModel::import_data(model_path) {
                                     Ok(result) => result,
                                     Err(_) => {
                                         self.process_error();

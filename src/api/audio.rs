@@ -195,12 +195,17 @@ fn chunks_iterator() {
     };
 
     let mut count = 0;
+
+    let _ = super::bq::BQModel::from_file_and_allocate("models/MD_AudioBirds_V1.bq", super::bq::GlobalBQ::First, None, None);
     for chunk in audio.chunks(5.0, 1.0) {
         // Each chunk is just another AudioData — pass it by reference
         assert_eq!(chunk.sample_rate, 1000);
         assert_eq!(chunk.channels, 1);
         assert_eq!(chunk.samples.len(), 5000, "each chunk is 5s = 5000 frames");
 
+        let outputs = super::bq::process_audio(&chunk);
+        println!("{:?}",outputs);
+        
         let expected_first = (count * 1000) as f32;
         assert!((chunk.samples[0] - expected_first).abs() < f32::EPSILON);
 

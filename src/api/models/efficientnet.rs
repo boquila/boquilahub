@@ -1,6 +1,6 @@
 use crate::api::{
     abstractions::{AIOutputs, ModelConfig, ProbSpace},
-    inference::init_geofence_data,
+    bq::init_geofence_data,
     models::{ModelTrait, Task},
     processing::{
         inference::inference,
@@ -118,7 +118,7 @@ impl EfficientNetV2 {
             let mut probs: ProbSpace = process_class_output_no_filt(&self.classes, &output);
             apply_geofence_filter(
                 &mut probs,
-                &crate::api::inference::GEOFENCE_DATA.get().unwrap(),
+                &crate::api::bq::GEOFENCE_DATA.get().unwrap(),
                 &self.config.geo_fence,
             );
             probs.logits_to_probs();

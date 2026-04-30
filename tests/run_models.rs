@@ -2,7 +2,7 @@
 /// eg. no index out of bounds, no wrong pre or post-processing.
 use anyhow::Result;
 use boquilahub::api::eps::*;
-use boquilahub::api::inference::*;
+use boquilahub::api::bq::*;
 use boquilahub::api::pull::*;
 use serde::*;
 

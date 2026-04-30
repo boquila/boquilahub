@@ -9,9 +9,9 @@ use ratatui::Frame;
 
 use super::api::{
     abstractions::AI,
-    bq::get_bqs,
+    bq::BQModel,
     eps::LIST_EPS,
-    inference::{clear_current_ai2_simple, set_model, set_model2},
+    bq::{clear_current_ai2_simple, set_model, set_model2},
     rest::{get_ipv4_address, run_api},
 };
 use super::localization::{translate, Key, Lang};
@@ -57,7 +57,7 @@ struct App {
 
 impl App {
     fn new(lang: Lang) -> Self {
-        let ais = get_bqs();
+        let ais = BQModel::get_bqs();
         let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
         let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify").cloned().collect();
         let ep_options: Vec<String> = LIST_EPS.iter()

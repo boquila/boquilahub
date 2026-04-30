@@ -1,5 +1,5 @@
 use super::abstractions::AIOutputs;
-use super::inference::*;
+use super::bq::*;
 use axum::{extract::Multipart, http::StatusCode, routing::get, routing::post, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};
