@@ -67,22 +67,6 @@ impl ProbSpace {
             .collect();
     }
 
-    pub fn top_n(&self, n: u32) -> ProbSpace {
-        let mut indices: Vec<usize> = (0..self.probs.len()).collect();
-        indices.sort_by(|&a, &b| {
-            self.probs[b]
-                .partial_cmp(&self.probs[a])
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        indices.truncate(n as usize);
-
-        ProbSpace::new(
-            indices.iter().map(|&i| self.classes[i].clone()).collect(),
-            indices.iter().map(|&i| self.probs[i]).collect(),
-            indices.iter().map(|&i| self.classes_ids[i]).collect(),
-        )
-    }
-
     pub fn filter(&self, conf: f32) -> Self {
         let mut filtered = ProbSpace {
             classes: Vec::new(),
@@ -140,14 +124,7 @@ pub struct XYXY {
 
 impl XYXY {
     pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u32) -> Self {
-        Self {
-            x1,
-            y1,
-            x2,
-            y2,
-            prob,
-            class_id,
-        }
+        Self {x1,y1,x2,y2,prob,class_id}
     }
 
     fn area(&self) -> f32 {
@@ -263,11 +240,19 @@ impl XYXYc {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AudioProb {
+    pub start: f32, // seconds
+    pub end: f32, // seconds
+    pub probs: ProbSpace,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),
     Segmentation(Vec<SEGc>),
+    AudioClassification(AudioProb),
 }
 
 impl AIOutputs {
@@ -276,6 +261,7 @@ impl AIOutputs {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
             AIOutputs::Classification(prob_space) => prob_space.classes.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
+            AIOutputs::AudioClassification((audio_probs))=> audio_probs.probs.classes.is_empty()
         }
     }
 }

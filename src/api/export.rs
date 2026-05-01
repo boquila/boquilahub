@@ -31,6 +31,7 @@ fn get_main_label(output: &AIOutputs) -> String {
             get_most_frequent_label(segments, |seg| &seg.bbox.label)
         }
         AIOutputs::Classification(prob_space) => prob_space.highest_confidence(),
+        AIOutputs::AudioClassification(audio_prob) => audio_prob.probs.highest_confidence(),
     }
 }
 
