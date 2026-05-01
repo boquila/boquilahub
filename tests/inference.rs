@@ -17,7 +17,7 @@ async fn image_inference() -> Result<()> {
     std::fs::write(&path, bytes)?;
 
     // Test inference
-    set_model(&filename.to_owned(), Ep::Cpu, None)?;
+    GlobalBQ::First.set_model(&filename.to_owned(), Ep::Cpu, None)?;
     let aioutput = process_imgbuf(&img);
     println!("{:?}",aioutput);
 

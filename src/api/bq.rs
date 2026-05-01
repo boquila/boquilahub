@@ -1,40 +1,81 @@
-use super::abstractions::{AI, AIOutputs, ModelConfig};
-use super::eps::Ep;
-use anyhow::{Context, Result};
-use std::fs::{self, File};
-use std::io::{self, Read, Write};
-use std::path::Path;
-use std::sync::{OnceLock, RwLock};
+use super::abstractions::{AIOutputs, ModelConfig, AI};
 use super::audio::*;
+use super::eps::Ep;
 use super::import::import_model;
 use super::models::{AIInput, Model, Task};
 use super::processing::post::PostProcessing;
 use super::processing::pre::slice_image;
+use anyhow::{Context, Result};
 use image::{ImageBuffer, Rgb};
 use std::collections::HashMap;
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
+use std::path::Path;
+use std::sync::{OnceLock, RwLock};
 
+// Just an interface for interacting with .bq models
 pub struct BQModel;
 
+// An interface for interacting with .bq models In Memory
 pub enum GlobalBQ {
     First,
     Second,
 }
 
-impl BQModel {
-    pub fn from_file_and_allocate(
-        file_path: impl AsRef<Path>,
-        allocation: GlobalBQ,
-        ep: Option<Ep>,
+impl GlobalBQ {
+    pub fn set_model(
+        &self,
+        value: impl AsRef<Path>,
+        ep: Ep,
         config: Option<ModelConfig>,
     ) -> Result<()> {
-        let ep = ep.unwrap_or(Ep::Cpu);
-        let path_str: String = file_path.as_ref().to_string_lossy().into_owned();
-        match allocation {
-            GlobalBQ::First => set_model(&path_str, ep, config),
-            GlobalBQ::Second => set_model2(&path_str, ep, config),
+        let config = config.unwrap_or_default();
+
+        let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value).unwrap();
+        debug_assert!(model_metadata.architecture.is_some());
+        let session = import_model(&data, ep).unwrap();
+        let post: Vec<PostProcessing> = model_metadata
+            .post_processing
+            .iter()
+            .map(|s| PostProcessing::from(s.as_str()))
+            .filter(|t| !matches!(t, PostProcessing::None))
+            .collect();
+        let aimodel: Model = Model::new(
+            model_metadata.classes,
+            Task::from(model_metadata.task.as_str()),
+            post,
+            session,
+            model_metadata.architecture,
+            config,
+        )?;
+        match self {
+            GlobalBQ::First => {
+                *CURRENT_AI.write().unwrap() = Some(aimodel);
+            }
+            GlobalBQ::Second => {
+                *CURRENT_AI2.write().unwrap() = Some(aimodel);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn update_config(&self, new_config: ModelConfig) {
+        let lock = match self {
+            GlobalBQ::First => &CURRENT_AI,
+            GlobalBQ::Second => &CURRENT_AI2,
+        };
+        if let Some(ref mut model) = lock.write().unwrap().as_mut() {
+            *model.config_mut() = new_config;
         }
     }
 
+    pub fn clear(&self) {
+        let mut guard = CURRENT_AI2.write().unwrap();
+        *guard = None;
+    }
+}
+
+impl BQModel {
     pub fn import_data(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
         // Open the .bq file
         let mut file = File::open(&file_path)?;
@@ -147,34 +188,14 @@ impl BQModel {
         analyze_folder("models/").unwrap()
     }
 
-    pub fn update_config(new_config: ModelConfig, global_bq: GlobalBQ) {
-        match global_bq {
-            GlobalBQ::First => {
-                let ai = CURRENT_AI.get().unwrap();
-                let mut model_opt = ai.write().unwrap();
-                if let Some(ref mut model) = model_opt.as_mut() {
-                    *model.config_mut() = new_config;
-                }
-            }
-            GlobalBQ::Second => {
-                let ai = CURRENT_AI2.get().unwrap();
-                let mut model_opt = ai.write().unwrap();
-                if let Some(ref mut model) = model_opt.as_mut() {
-                    *model.config_mut() = new_config;
-                }
-            }
-        }
-    }
-
     pub fn clear_second() {
-        let rw_lock = CURRENT_AI2.get_or_init(|| RwLock::new(None));
-        let mut guard = rw_lock.write().unwrap();
+        let mut guard = CURRENT_AI2.write().unwrap();
         *guard = None;
     }
 
     pub fn from_file_print_shape(model_path: impl AsRef<Path>) -> Result<()> {
         let path = model_path.as_ref();
-    
+
         let model_data = match path.extension().and_then(|e| e.to_str()) {
             Some("onnx") => fs::read(path)?,
             Some("bq") => {
@@ -184,12 +205,12 @@ impl BQModel {
             Some(ext) => return Err(anyhow::anyhow!("Unsupported extension: .{}", ext)),
             None => return Err(anyhow::anyhow!("No file extension found")),
         };
-    
+
         let session = ort::session::Session::builder()?.commit_from_memory(&model_data)?;
-    
+
         println!("Inputs:\n{:?}", session.inputs);
         println!("Outputs:\n{:?}", session.outputs);
-    
+
         Ok(())
     }
 
@@ -197,35 +218,35 @@ impl BQModel {
         let json_path = format!("{}.json", name);
         let onnx_path = format!("{}.onnx", name);
         let output_path = format!("{}.bq", name);
-    
+
         let json_content = fs::read(&json_path).context(format!("Failed to open {}", json_path))?;
         let _ai: AI = serde_json::from_slice(&json_content).context(format!(
             "Failed to deserialize {} into required AI metadata",
             json_path
         ))?;
         let onnx_content = fs::read(&onnx_path).context(format!("Failed to open {}", onnx_path))?;
-    
+
         if !matches!(onnx_content.get(0..2), Some(&[0x08, ir_ver]) if ir_ver > 0) {
             anyhow::bail!(
                 "File {} does not appear to be a valid ONNX model",
                 onnx_path
             );
         }
-    
+
         let mut output_file = File::create(&output_path)
             .unwrap_or_else(|_| panic!("Failed to create output file: {}", output_path));
-    
+
         output_file.write_all(b"BQMODEL")?; // Magic string
         output_file.write_all(&[1])?; // Version
-    
+
         let json_length = json_content.len() as u32;
         output_file.write_all(&json_length.to_le_bytes())?;
         output_file.write_all(&json_content)?;
-    
+
         let onnx_length = onnx_content.len() as u32;
         output_file.write_all(&onnx_length.to_le_bytes())?;
         output_file.write_all(&onnx_content)?;
-    
+
         println!("New model: {}", output_path);
         Ok(())
     }
@@ -279,81 +300,34 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub static CURRENT_AI: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
-pub static CURRENT_AI2: OnceLock<RwLock<Option<Model>>> = OnceLock::new();
-
-pub fn set_model(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result<()> {
-    let config = config.unwrap_or_default();
-
-    let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value).unwrap();
-    debug_assert!(model_metadata.architecture.is_some());
-    let session = import_model(&data, ep).unwrap();
-    let post: Vec<PostProcessing> = model_metadata
-        .post_processing
-        .iter()
-        .map(|s| PostProcessing::from(s.as_str()))
-        .filter(|t| !matches!(t, PostProcessing::None))
-        .collect();
-    let aimodel: Model = Model::new(
-        model_metadata.classes,
-        Task::from(model_metadata.task.as_str()),
-        post,
-        session,
-        model_metadata.architecture,
-        config,
-    )?;
-    if CURRENT_AI.get().is_some() {
-        *CURRENT_AI.get().unwrap().write().unwrap() = Some(aimodel);
-    } else {
-        let _ = CURRENT_AI.set(RwLock::new(Some(aimodel)));
-    }
-    Ok(())
-}
-
-pub fn set_model2(value: &String, ep: Ep, config: Option<ModelConfig>) -> Result<()> {
-    let config = config.unwrap_or_default();
-
-    let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value).unwrap();
-    let session = import_model(&data, ep).unwrap();
-    let post: Vec<PostProcessing> = model_metadata
-        .post_processing
-        .iter()
-        .map(|s| PostProcessing::from(s.as_str()))
-        .filter(|t| !matches!(t, PostProcessing::None))
-        .collect();
-
-    let aimodel: Model = Model::new(
-        model_metadata.classes,
-        Task::from(model_metadata.task.as_str()),
-        post,
-        session,
-        model_metadata.architecture,
-        config,
-    )?;
-
-    if CURRENT_AI2.get().is_some() {
-        *CURRENT_AI2.get().unwrap().write().unwrap() = Some(aimodel);
-    } else {
-        let _ = CURRENT_AI2.set(RwLock::new(Some(aimodel)));
-    }
-    Ok(())
-}
+pub static CURRENT_AI: RwLock<Option<Model>> = RwLock::new(None);
+pub static CURRENT_AI2: RwLock<Option<Model>> = RwLock::new(None);
 
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-    let mut outputs = CURRENT_AI.get().unwrap().read().ok().unwrap().as_ref().unwrap().run(&AIInput::Image(img));
+    let mut outputs = CURRENT_AI
+        .read()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .run(&AIInput::Image(img));
     process_with_ai2(&mut outputs, img);
     return outputs;
 }
 
 #[inline(always)]
 pub fn process_audio(audio: &AudioData) -> AIOutputs {
-    let outputs = CURRENT_AI.get().unwrap().read().ok().unwrap().as_ref().unwrap().run(&AIInput::Audio(audio));
+    let outputs = CURRENT_AI
+        .read()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .run(&AIInput::Audio(audio));
     return outputs;
 }
 
 fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Option<()> {
-    let ai2 = CURRENT_AI2.get()?.read().ok()?;
+    let ai2 = CURRENT_AI2.read().ok()?;
     let ai2_ref = ai2.as_ref()?;
 
     match outputs {

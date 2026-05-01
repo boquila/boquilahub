@@ -11,7 +11,7 @@ use rest::{
 };
 use std::fs::{self};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use video_file::VideofileProcessor;
 
@@ -86,7 +86,7 @@ macro_rules! ai_config_window {
                     ui.horizontal(|ui| {
                         if ui.button($self.t(Key::ok)).clicked() {
                             $self.$config_field = $self.$temp_config_field.clone();
-                            BQModel::update_config($self.$config_field.clone(), $variant);
+                            $variant.update_config($self.$config_field.clone());
                             $show_field = false;
                         }
                         ui.add_space(8.0);
@@ -393,7 +393,7 @@ impl Gui {
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                match set_model(
+                match GlobalBQ::First.set_model(
                     &model_path,
                     self.ep_selected,
                     Some(self.ai_config.clone()),
@@ -461,7 +461,7 @@ impl Gui {
             });
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
                 let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                match set_model2(
+                match GlobalBQ::Second.set_model(
                     &model_path,
                     self.ep_selected,
                     Some(self.ai_cls_config.clone()),
@@ -505,7 +505,7 @@ impl Gui {
 
     fn set_ai(&mut self) {
         if let Some(ai_index) = self.ai_selected {
-            let _ = set_model(
+            let _ = GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
                 self.ep_selected,
                 Some(self.ai_config.clone()),
@@ -515,7 +515,7 @@ impl Gui {
 
     fn set_ai_cls(&mut self) {
         if let Some(_ai_cls_index) = self.ai_cls_selected {
-            let _ = set_model2(
+            let _ = GlobalBQ::Second.set_model(
                 &self.current_ai_cls().get_path(),
                 self.ep_selected,
                 Some(self.ai_cls_config.clone()),
@@ -839,11 +839,7 @@ impl Gui {
                                     ModelConfig::default(),
                                 ) {
                                     Ok(aimodel) => {
-                                        if CURRENT_AI.get().is_some() {
-                                            *CURRENT_AI.get().unwrap().write().unwrap() = Some(aimodel);
-                                        } else {
-                                            let _ = CURRENT_AI.set(RwLock::new(Some(aimodel)));
-                                        }
+                                        *CURRENT_AI.write().unwrap() = Some(aimodel);
                                     }
                                     Err(_) => {
                                         self.process_error();

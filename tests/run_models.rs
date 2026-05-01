@@ -33,7 +33,7 @@ async fn test_models() -> Result<()> {
         }
 
         // Test inference
-        set_model(&model_path, Ep::Cpu, None)?;
+        GlobalBQ::First.set_model(&model_path, Ep::Cpu, None)?;
         process_imgbuf(&img);
 
         if should_download {

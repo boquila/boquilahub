@@ -9,7 +9,7 @@ use ratatui::Frame;
 
 use super::api::{
     abstractions::AI,
-    bq::{BQModel, set_model, set_model2},
+    bq::{BQModel, GlobalBQ},
     eps::Ep,
     rest::{get_ipv4_address, run_api},
 };
@@ -207,7 +207,7 @@ fn load_ai_model(app: &mut App) {
     if let Some(ai_idx) = app.ai_selected {
         let ep = app.ep_selected.unwrap_or(Ep::Cpu);
         let model_path = app.ais[ai_idx].get_path();
-        match set_model(&model_path, ep, None) {
+        match GlobalBQ::First.set_model(&model_path, ep, None) {
             Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.ais[ai_idx].name)); }
             Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
         }
@@ -218,7 +218,7 @@ fn load_cls_model(app: &mut App) {
     if let Some(cls_idx) = app.cls_selected {
         let ep = app.ep_selected.unwrap_or(Ep::Cpu);
         let model_path = app.cls_ais[cls_idx].get_path();
-        match set_model2(&model_path, ep, None) {
+        match GlobalBQ::Second.set_model(&model_path, ep, None) {
             Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.cls_ais[cls_idx].name)); }
             Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
         }
