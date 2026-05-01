@@ -56,7 +56,7 @@ struct App {
 
 impl App {
     fn new(lang: Lang) -> Self {
-        let ais = BQModel::get_bqs();
+        let ais = BQModel::get_list();
         let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
         let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify").cloned().collect();
         Self {
@@ -171,7 +171,7 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
             if app.side_btn {
                 match app.cur_row() {
                     Row::Ai => { app.cls_active = true; app.side_btn = false; app.row = 1; }
-                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; BQModel::clear_second(); app.side_btn = false; app.clamp(); }
+                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; GlobalBQ::Second.clear(); app.side_btn = false; app.clamp(); }
                     _ => {}
                 }
             } else {

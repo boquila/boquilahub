@@ -180,13 +180,8 @@ impl BQModel {
         return Ok(ai_model);
     }
 
-    pub fn get_bqs() -> Vec<AI> {
+    pub fn get_list() -> Vec<AI> {
         analyze_folder("models/").unwrap()
-    }
-
-    pub fn clear_second() {
-        let mut guard = CURRENT_AI2.write().unwrap();
-        *guard = None;
     }
 
     pub fn from_file_print_shape(model_path: impl AsRef<Path>) -> Result<()> {
@@ -287,8 +282,6 @@ fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
     Ok(ai_models)
 }
 
-pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
-
 pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
     if GEOFENCE_DATA.get().is_some() {
         return Ok(());
@@ -304,6 +297,7 @@ pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
 
 pub static CURRENT_AI: RwLock<Option<Model>> = RwLock::new(None);
 pub static CURRENT_AI2: RwLock<Option<Model>> = RwLock::new(None);
+pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {

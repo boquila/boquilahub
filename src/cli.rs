@@ -87,7 +87,7 @@ pub async fn run_cli(command: Commands) {
             let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
             let model_path = format!("models/{}.bq", model_name_clean);
 
-            let ais: Vec<AI> = BQModel::get_bqs();
+            let ais: Vec<AI> = BQModel::get_list();
 
             if let Some(model_cls_name) = &args.model_cls {
                 let model_cls_name_clean =
@@ -136,7 +136,7 @@ pub async fn run_cli(command: Commands) {
             }
         }
         Commands::List => {
-            let ais: Vec<AI> = BQModel::get_bqs();
+            let ais: Vec<AI> = BQModel::get_list();
             print_ais_table(&ais);
             std::process::exit(0);
         }

@@ -206,7 +206,7 @@ impl Gui {
     }
 
     fn new() -> Self {
-        let ais: Vec<AI> = BQModel::get_bqs();
+        let ais: Vec<AI> = BQModel::get_list();
         let classify_ais: Vec<AI> = ais
             .iter()
             .filter(|ai| ai.task == "classify")
@@ -455,7 +455,7 @@ impl Gui {
                     if ui.button("-").clicked() {
                         self.show_ai_cls = false;
                         self.ai_cls_selected = None;
-                        BQModel::clear_second();
+                        GlobalBQ::Second.clear();
                     }
                 }
             });

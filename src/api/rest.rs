@@ -4,8 +4,6 @@ use axum::{extract::Multipart, http::StatusCode, routing::{get, post}, Router};
 use image::codecs::jpeg::JpegEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};
 use reqwest::Client;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::process::Command;
 
 async fn upload(mut multipart: Multipart) -> Result<String, StatusCode> {
@@ -87,11 +85,11 @@ pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8
     buffer
 }
 
-pub const CREATE_NO_WINDOW: u32 = 0x08000000;
-
 pub fn get_ipv4_address() -> Option<String> {
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         let output = Command::new("ipconfig")
             .creation_flags(CREATE_NO_WINDOW)
             .output()
