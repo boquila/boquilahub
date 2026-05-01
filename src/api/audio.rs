@@ -196,7 +196,7 @@ fn chunks_iterator() {
 
     let mut count = 0;
 
-    let _ = super::bq::GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", super::eps::Ep::Cpu, None);
+    let _ = super::bq::GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", super::ep::Ep::Cpu, None);
     for chunk in audio.chunks(5.0, 1.0) {
         // Each chunk is just another AudioData — pass it by reference
         assert_eq!(chunk.sample_rate, 1000);

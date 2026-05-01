@@ -1,7 +1,7 @@
 use super::{api::*, localization::*};
 use abstractions::*;
 use bq::*;
-use eps::Ep;
+use ep::Ep;
 use image::{open, ImageBuffer, Rgba};
 use models::{Model, Task};
 use processing::post::PostProcessing;

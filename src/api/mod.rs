@@ -1,11 +1,10 @@
 pub mod abstractions;
 pub mod bq;
-pub mod eps;
+pub mod ep;
 pub mod export;
 pub mod import;
 pub mod models;
 pub mod processing;
-pub mod pull;
 pub mod render;
 pub mod rest;
 pub mod stream;

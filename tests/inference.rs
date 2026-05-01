@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boquilahub::api::eps::Ep;
+use boquilahub::api::ep::Ep;
 use boquilahub::api::bq::*;
 
 #[tokio::test]

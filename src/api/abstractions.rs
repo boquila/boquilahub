@@ -296,3 +296,10 @@ impl Default for ModelConfig {
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AvailableModel {
+    pub name: String,
+    pub description: String,
+    pub download_link: String,
+}

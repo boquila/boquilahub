@@ -1,5 +1,5 @@
 use crate::api::abstractions::AIOutputs;
-use crate::api::eps::Ep;
+use crate::api::ep::Ep;
 use crate::api::utils::create_predictions_file_path;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};

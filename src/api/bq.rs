@@ -1,6 +1,6 @@
-use super::abstractions::{AIOutputs, ModelConfig, AI};
+use super::abstractions::*;
 use super::audio::*;
-use super::eps::Ep;
+use super::ep::Ep;
 use super::import::import_model;
 use super::models::{AIInput, Model, Task};
 use super::processing::post::PostProcessing;
@@ -245,6 +245,12 @@ impl BQModel {
 
         println!("New model: {}", output_path);
         Ok(())
+    }
+
+    pub async fn get_list_from_api() -> Result<Vec<AvailableModel>> {
+        let url = "https://boquila.org/api/models.json";
+        let listmodels: Vec<AvailableModel> = reqwest::get(url).await?.json().await?;
+        Ok(listmodels)
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::api::{
     abstractions::AI,
     bq::{BQModel, GlobalBQ},
-    eps::Ep,
+    ep::Ep,
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
@@ -235,7 +235,7 @@ async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Searching for model '{}'...", model_name);
 
     // Fetch the JSON index
-    let models = crate::api::pull::get_list()
+    let models = BQModel::get_list_from_api()
         .await
         .map_err(|e| format!("Failed to fetch model index: {}", e))?;
 

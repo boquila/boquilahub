@@ -1,22 +1,13 @@
 /// Here we run supported models and check that they always work
 /// eg. no index out of bounds, no wrong pre or post-processing.
 use anyhow::Result;
-use boquilahub::api::eps::Ep;
+use boquilahub::api::ep::Ep;
 use boquilahub::api::bq::*;
-use boquilahub::api::pull::*;
-use serde::*;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AvailableModel {
-    pub name: String,
-    pub description: String,
-    pub download_link: String,
-}
 
 #[tokio::test]
 #[ignore]
 async fn test_models() -> Result<()> {
-    let listmodels = get_list().await?;
+    let listmodels = BQModel::get_list_from_api().await?;
     let img = image::open("assets/test/img.jpg")?.to_rgb8();
     let n = listmodels.len();
     
