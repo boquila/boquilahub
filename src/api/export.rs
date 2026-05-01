@@ -1,3 +1,5 @@
+use crate::api::abstractions::AudioProbSugar;
+
 use super::abstractions::{AIOutputs, PredImg};
 use super::utils::create_predictions_file_path;
 use anyhow::Result;
@@ -31,7 +33,7 @@ fn get_main_label(output: &AIOutputs) -> String {
             get_most_frequent_label(segments, |seg| &seg.bbox.label)
         }
         AIOutputs::Classification(prob_space) => prob_space.highest_confidence(),
-        AIOutputs::AudioClassification(audio_prob) => audio_prob.probs.highest_confidence(),
+        AIOutputs::AudioClassification(audio_prob) => audio_prob.highest_confidence(),
     }
 }
 

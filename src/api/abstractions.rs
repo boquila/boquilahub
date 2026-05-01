@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// Probabilities
-/// `classes` is a Vec with the names for each classification
-/// `probs` is a Vec with the probabilities/confidence for each classification
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProbSpace {
     pub classes: Vec<String>,
@@ -223,6 +220,19 @@ impl PredImgSugar for Vec<PredImg> {
     }
 }
 
+pub trait AudioProbSugar {
+    fn highest_confidence(&self) -> String;
+}
+
+impl AudioProbSugar for Vec<AudioProb> {
+    fn highest_confidence(&self) -> String {
+        self.iter()
+            .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|audio| audio.label.clone())
+            .unwrap_or_else(|| String::from("no prediction"))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct XYXYc {
     pub xyxy: XYXY,
@@ -244,7 +254,9 @@ impl XYXYc {
 pub struct AudioProb {
     pub start: f32, // seconds
     pub end: f32, // seconds
-    pub probs: ProbSpace,
+    pub class_id: u32,
+    pub prob: f32,
+    pub label: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -252,7 +264,7 @@ pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),
     Segmentation(Vec<SEGc>),
-    AudioClassification(AudioProb),
+    AudioClassification(Vec<AudioProb>),
 }
 
 impl AIOutputs {
@@ -261,7 +273,7 @@ impl AIOutputs {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
             AIOutputs::Classification(prob_space) => prob_space.classes.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
-            AIOutputs::AudioClassification((audio_probs))=> audio_probs.probs.classes.is_empty()
+            AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
         }
     }
 }
