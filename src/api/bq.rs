@@ -23,6 +23,13 @@ pub enum GlobalBQ {
 }
 
 impl GlobalBQ {
+    fn get_lock(&self) -> &'static RwLock<Option<Model>> {
+        match self {
+            GlobalBQ::First => &CURRENT_AI,
+            GlobalBQ::Second => &CURRENT_AI2,
+        }
+    }
+
     pub fn set_model(
         &self,
         value: impl AsRef<Path>,
@@ -48,29 +55,18 @@ impl GlobalBQ {
             model_metadata.architecture,
             config,
         )?;
-        match self {
-            GlobalBQ::First => {
-                *CURRENT_AI.write().unwrap() = Some(aimodel);
-            }
-            GlobalBQ::Second => {
-                *CURRENT_AI2.write().unwrap() = Some(aimodel);
-            }
-        }
+        *self.get_lock().write().unwrap() = Some(aimodel);
         Ok(())
     }
 
     pub fn update_config(&self, new_config: ModelConfig) {
-        let lock = match self {
-            GlobalBQ::First => &CURRENT_AI,
-            GlobalBQ::Second => &CURRENT_AI2,
-        };
-        if let Some(ref mut model) = lock.write().unwrap().as_mut() {
+        if let Some(ref mut model) = self.get_lock().write().unwrap().as_mut() {
             *model.config_mut() = new_config;
         }
     }
 
     pub fn clear(&self) {
-        let mut guard = CURRENT_AI2.write().unwrap();
+        let mut guard = self.get_lock().write().unwrap();
         *guard = None;
     }
 }
