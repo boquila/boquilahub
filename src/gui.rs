@@ -15,7 +15,56 @@ use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use rodio::{OutputStream, Sink, Source};
 use video_file::VideofileProcessor;
+
+struct AudioBufferSource {
+    samples: std::sync::Arc<Vec<f32>>,
+    sample_rate: u32,
+    channels: u16,
+    pos: usize,
+}
+
+impl AudioBufferSource {
+    fn new_from(audio: &AudioData, start_secs: f64) -> Self {
+        let mut mono = audio.clone();
+        if mono.channels > 1 {
+            mono = mono.to_mono();
+        }
+        let start_sample = (start_secs * mono.sample_rate as f64).round() as usize;
+        let samples = if start_sample < mono.samples.len() {
+            mono.samples[start_sample..].to_vec()
+        } else {
+            vec![]
+        };
+        Self {
+            samples: std::sync::Arc::new(samples),
+            sample_rate: mono.sample_rate,
+            channels: mono.channels.max(1),
+            pos: 0,
+        }
+    }
+}
+
+impl Iterator for AudioBufferSource {
+    type Item = f32;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.samples.len() { return None; }
+        let s = self.samples[self.pos];
+        self.pos += 1;
+        Some(s)
+    }
+}
+
+impl Source for AudioBufferSource {
+    fn current_frame_len(&self) -> Option<usize> { None }
+    fn channels(&self) -> u16 { self.channels }
+    fn sample_rate(&self) -> u32 { self.sample_rate }
+    fn total_duration(&self) -> Option<std::time::Duration> {
+        let frames = self.samples.len() / self.channels.max(1) as usize;
+        Some(std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate as f64))
+    }
+}
 
 pub fn run_gui() {
     let native_options = eframe::NativeOptions {
@@ -115,8 +164,15 @@ struct Gui {
     audio_window_secs: f64,
     audio_spec_width: usize,
     audio_spec_height: usize,
+    
     audio_predictions: Option<Vec<AudioProb>>,
     audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
+    audio_playing: bool,
+    audio_play_start: Option<Instant>,
+    audio_play_offset: f64,
+    audio_playhead: Option<f64>,
+    audio_stream: Option<rodio::OutputStream>,
+    audio_sink: Option<rodio::Sink>,
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
@@ -234,6 +290,7 @@ impl Gui {
             audio_window_secs: 10.0,
             audio_spec_width: 800,
             audio_spec_height: 300,
+            
             process_all_imgs: true,
             ..Default::default()
         }
@@ -1649,9 +1706,61 @@ impl eframe::App for Gui {
 
                     self.feed_handle_results(ui);
                 }
-                Mode::Audio => {
+Mode::Audio => {
                     if let Some(audio) = &self.audio_data {
                         let duration = audio.duration();
+
+                        if self.audio_playing {
+                            if let Some(start) = self.audio_play_start {
+                                let elapsed = start.elapsed().as_secs_f64();
+                                let playhead_time = (self.audio_play_offset + elapsed).min(duration);
+                                if playhead_time >= duration {
+                                    self.audio_playing = false;
+                                    self.audio_play_start = None;
+                                    self.audio_stream = None;
+                                    self.audio_sink = None;
+                                } else if playhead_time > self.audio_position + self.audio_window_secs {
+                                    self.audio_position = playhead_time;
+                                    self.audio_state.texture = None;
+                                }
+                                self.audio_playhead = Some(playhead_time);
+                            }
+                            ui.ctx().request_repaint();
+                        } else {
+                            self.audio_playhead = None;
+                        }
+
+                        ui.horizontal(|ui| {
+                            if self.audio_playing {
+                                if ui.button("⏸").clicked() {
+                                    self.audio_playing = false;
+                                    if let Some(sink) = &self.audio_sink {
+                                        sink.stop();
+                                    }
+                                    self.audio_sink = None;
+                                    self.audio_stream = None;
+                                    self.audio_play_start = None;
+                                    self.audio_playhead = None;
+                                }
+                            } else {
+                                if ui.button("▶").clicked() {
+                                    self.audio_play_offset = self.audio_position;
+                                    self.audio_play_start = Some(Instant::now());
+                                    self.audio_playing = true;
+                                    self.audio_playhead = Some(self.audio_position);
+                                    let start_pos = self.audio_position;
+                                    let audio_clone = audio.clone();
+                                    if let Ok((stream, handle)) = OutputStream::try_default() {
+                                        if let Ok(sink) = Sink::try_new(&handle) {
+                                            let src = AudioBufferSource::new_from(&audio_clone, start_pos);
+                                            sink.append(src);
+                                            self.audio_stream = Some(stream);
+                                            self.audio_sink = Some(sink);
+                                        }
+                                    }
+                                }
+                            }
+                        });
 
                         ui.style_mut().spacing.slider_width = 300.0;
 
@@ -1663,6 +1772,16 @@ impl eframe::App for Gui {
                                     .step_by(0.1),
                             ).changed() {
                                 self.audio_state.texture = None;
+                                if self.audio_playing {
+                                    self.audio_playing = false;
+                                    if let Some(sink) = &self.audio_sink {
+                                        sink.stop();
+                                    }
+                                    self.audio_sink = None;
+                                    self.audio_stream = None;
+                                    self.audio_play_start = None;
+                                    self.audio_playhead = None;
+                                }
                             }
                         }
 
@@ -1712,10 +1831,20 @@ impl eframe::App for Gui {
                         }
 
                         if let Some(texture) = &self.audio_state.texture {
-                            ui.add(
+                            let response = ui.add(
                                 egui::Image::new(texture)
                                     .corner_radius(10.0),
                             );
+                            if let Some(playhead) = self.audio_playhead {
+                                let frac = ((playhead - self.audio_position) / self.audio_window_secs).clamp(0.0, 1.0);
+                                if frac <= 1.0 {
+                                    let playhead_x = response.rect.left() + response.rect.width() * frac as f32;
+                                    ui.painter().line_segment(
+                                        [egui::pos2(playhead_x, response.rect.top()), egui::pos2(playhead_x, response.rect.bottom())],
+                                        egui::Stroke::new(2.0, egui::Color32::WHITE),
+                                    );
+                                }
+                            }
                         }
                     }
 

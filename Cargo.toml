@@ -38,6 +38,7 @@ anyhow = "1.0.102"
 fast_image_resize = { version = "=6.0.0", features = ["image"] }
 ratatui = "0.30.0"
 realfft = "3.4"
+rodio = "0.20"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
