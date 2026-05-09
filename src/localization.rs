@@ -110,6 +110,7 @@ pub enum Key {
     select_hint,
     loaded,
     focus_deploy_to_reveal_ip,
+    audio_file,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -653,6 +654,16 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "▸ デプロイを選択してIPを表示",
             Lang::PT => "▸ foque em Implantar para ver o IP",
             Lang::VI => "▸ chọn Triển khai để xem IP",
+        },
+        Key::audio_file => match lang {
+            Lang::EN => "Audio",
+            Lang::ES => "Audio",
+            Lang::FR => "Audio",
+            Lang::DE => "Audio",
+            Lang::ZH => "音频",
+            Lang::JA => "オーディオ",
+            Lang::PT => "Áudio",
+            Lang::VI => "Âm thanh"
         },
     }
 }

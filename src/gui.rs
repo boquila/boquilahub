@@ -107,6 +107,7 @@ struct Gui {
     ais_cls_only: Vec<AI>,
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
+    audio_file_path: Option<PathBuf>,
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
@@ -694,6 +695,23 @@ impl Gui {
                     self.show_dialog.feed_url = true;
                 }
 
+                ui.end_row();
+
+                // AUDIO FILE SELECTION SECTION
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::audio_file)))
+                    .clicked()
+                {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Audio", &import::AUDIO_FORMATS)
+                        .pick_file()
+                    {
+                        self.audio_file_path = Some(path);
+                        self.mode = Mode::Audio;
+                        self.audio_state.progress_bar = 0.0;
+                    }
+                }
+
                 // Feed url dialog
                 if self.show_dialog.feed_url {
                     self.feed_input_dialog(ui);
@@ -1060,92 +1078,20 @@ impl Gui {
     }
 
     fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+        if self.audio_file_path.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
-                ui.heading(self.t(Key::image));
+                ui.heading(self.t(Key::audio_file));
                 ui.heading(self.t(Key::analysis));
             });
             ui.separator();
 
-            // Analyze button Widget
-            ui.vertical_centered(|ui| {
-                if ui
-                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
-                    .clicked()
-                {
-                    if !self.img_state.is_processing {
-                        if self.selected_files.get_progress() == 0.0 {
-                            self.start_img_analysis();
-                        } else {
-                            self.show_dialog.process_all = true;
-                        }
-                    }
-                }
-
-                // Cancel button widget
-                if self.img_state.is_processing {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
-                        .clicked()
-                    {
-                        if let Some(cancel_tx) = self.img_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.img_state.is_processing = false;
-                        self.image_processing_receiver = None;
-                    }
-                }
-            });
-
-            // Progress Bar: Image
-            if self.selected_files.len() > 0 {
-                ui.add(
-                    egui::ProgressBar::new(self.img_state.progress_bar)
-                        .show_percentage()
-                        .animate(self.img_state.is_processing),
+            if let Some(path) = &self.audio_file_path {
+                ui.label(
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("(unknown)")
                 );
             }
-
-            ui.add_space(8.0);
-
-            // Export button Widget
-            if self.mode == Mode::Image {
-                ui.vertical_centered(|ui| {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
-                        .clicked()
-                    {
-                        self.show_dialog.export = true;
-                    }
-                });
-            }
-
-            // Export dialog logic
-            if self.show_dialog.export {
-                egui::Window::new(self.t(Key::export))
-                    .collapsible(false)
-                    .resizable(false)
-                    .show(ui, |ui| {
-                        // Export option 1
-                        if ui.button(self.t(Key::export_predictions)).clicked() {
-                            for file in self.selected_files.clone() {
-                                tokio::spawn(async move {
-                                    let _ = file.write_pred_img_to_file().await;
-                                });
-                            }
-
-                            self.process_done();
-                            self.show_dialog.export = false;
-                        }
-
-                        // Cancel any export
-                        if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_dialog.export = false;
-                        }
-                    });
-            }
-
-            self.process_all_dialog(ui);
         }
     }
 
@@ -1532,10 +1478,12 @@ impl eframe::App for Gui {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = self.video_file_path.is_some();
             let cond3 = self.feed_url.is_some();
+            let cond4 = self.audio_file_path.is_some();
             // it has a mode AND another
-            let img_mode = cond1 && (cond2 || cond3);
-            let video_mode = cond2 && (cond1 || cond3);
-            let feed_mode = cond3 && (cond1 || cond2);
+            let img_mode = cond1 && (cond2 || cond3 || cond4);
+            let video_mode = cond2 && (cond1 || cond3 || cond4);
+            let feed_mode = cond3 && (cond1 || cond2 || cond4);
+            let audio_mode = cond4 && (cond1 || cond2 || cond3);
             ui.horizontal(|ui| {
                 if img_mode {
                     let text = self.t(Key::image_processing);
@@ -1549,9 +1497,12 @@ impl eframe::App for Gui {
                     let text = self.t(Key::feed_processing);
                     ui.selectable_value(&mut self.mode, Mode::Feed, text);
                 }
+                if audio_mode {
+                    ui.selectable_value(&mut self.mode, Mode::Audio, "Audio");
+                }
             });
 
-            if img_mode || video_mode || feed_mode {
+            if img_mode || video_mode || feed_mode || audio_mode {
                 ui.separator();
             }
             egui::ScrollArea::vertical().show(ui, |ui| match self.mode {
@@ -1604,12 +1555,14 @@ impl eframe::App for Gui {
                     self.feed_handle_results(ui);
                 }
                 Mode::Audio => {
-                    if let Some(texture) = &self.audio_state.texture {
-                        ui.add(
-                            egui::Image::new(texture)
-                                .max_height(800.0)
-                                .corner_radius(10.0),
-                        );
+                    if let Some(path) = &self.audio_file_path {
+                        ui.vertical_centered(|ui| {
+                            ui.heading(
+                                path.file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or("(unknown)"),
+                            );
+                        });
                     }
                 }
             });
