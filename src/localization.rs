@@ -13,8 +13,14 @@ pub enum Lang {
 impl Default for Lang {
     fn default() -> Self {
         let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
-        let lang_code = locale.get(0..2).unwrap_or("en").to_lowercase();
-        match lang_code.as_str() {
+        let lang_code = locale.get(0..2).unwrap_or("en");
+        Self::from_str(lang_code)
+    }
+}
+
+impl Lang {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
             "en" => Lang::EN,
             "es" => Lang::ES,
             "fr" => Lang::FR,
@@ -26,22 +32,10 @@ impl Default for Lang {
             _ => Lang::EN,
         }
     }
-}
 
-impl Lang {
     pub fn from_optional_str(s: Option<&str>) -> Self {
         match s {
-            Some(code) => match code.to_lowercase().as_str() {
-                "en" => Lang::EN,
-                "es" => Lang::ES,
-                "fr" => Lang::FR,
-                "de" => Lang::DE,
-                "zh" => Lang::ZH,
-                "ja" => Lang::JA,
-                "pt" => Lang::PT,
-                "vi" => Lang::VI,
-                _ => Lang::default(),
-            },
+            Some(code) => Self::from_str(code),
             None => Lang::default(),
         }
     }
@@ -116,6 +110,11 @@ pub enum Key {
     select_hint,
     loaded,
     focus_deploy_to_reveal_ip,
+    audio_file,
+    position,
+    window,
+    width_,
+    height_,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -659,6 +658,56 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "▸ デプロイを選択してIPを表示",
             Lang::PT => "▸ foque em Implantar para ver o IP",
             Lang::VI => "▸ chọn Triển khai để xem IP",
+        },
+        Key::audio_file => match lang {
+            Lang::EN => "Audio",
+            Lang::ES => "Audio",
+            Lang::FR => "Audio",
+            Lang::DE => "Audio",
+            Lang::ZH => "音频",
+            Lang::JA => "オーディオ",
+            Lang::PT => "Áudio",
+            Lang::VI => "Âm thanh"
+        },
+        Key::position => match lang {
+            Lang::EN => "position (s)",
+            Lang::ES => "posición (s)",
+            Lang::FR => "position (s)",
+            Lang::DE => "Position (s)",
+            Lang::ZH => "位置 (秒)",
+            Lang::JA => "位置 (秒)",
+            Lang::PT => "posição (s)",
+            Lang::VI => "vị trí (giây)"
+        },
+        Key::window => match lang {
+            Lang::EN => "window (s)",
+            Lang::ES => "ventana (s)",
+            Lang::FR => "fenêtre (s)",
+            Lang::DE => "Fenster (s)",
+            Lang::ZH => "窗口 (秒)",
+            Lang::JA => "ウィンドウ (秒)",
+            Lang::PT => "janela (s)",
+            Lang::VI => "cửa sổ (giây)"
+        },
+        Key::width_ => match lang {
+            Lang::EN => "width",
+            Lang::ES => "ancho",
+            Lang::FR => "largeur",
+            Lang::DE => "Breite",
+            Lang::ZH => "宽度",
+            Lang::JA => "幅",
+            Lang::PT => "largura",
+            Lang::VI => "chiều rộng"
+        },
+        Key::height_ => match lang {
+            Lang::EN => "height",
+            Lang::ES => "alto",
+            Lang::FR => "hauteur",
+            Lang::DE => "Höhe",
+            Lang::ZH => "高度",
+            Lang::JA => "高さ",
+            Lang::PT => "altura",
+            Lang::VI => "chiều cao"
         },
     }
 }

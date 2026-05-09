@@ -1,12 +1,15 @@
 pub mod efficientnet;
+pub mod resnet18;
 pub mod yolo;
+use crate::api::models::resnet18::ResNet18;
+use super::{audio::AudioData, abstractions::*, processing::post::PostProcessing};
 use anyhow::{anyhow, Error, Result};
-use super::{abstractions::*, processing::post::PostProcessing};
 pub use efficientnet::EfficientNetV2;
 use image::{ImageBuffer, Rgb};
 use ort::session::Session;
 pub use yolo::Yolo;
 
+#[derive(Debug)]
 pub enum Task {
     Classify,
     Segment,
@@ -28,6 +31,12 @@ impl From<&str> for Task {
 pub enum Model {
     EfficientNetV2(EfficientNetV2),
     Yolo(Yolo),
+    ResNet18(ResNet18),
+}
+
+pub enum AIInput<'a> {
+    Image(&'a ImageBuffer<Rgb<u8>, Vec<u8>>),
+    Audio(&'a AudioData),
 }
 
 impl Model {
@@ -35,6 +44,7 @@ impl Model {
         match self {
             Model::EfficientNetV2(inner) => &mut inner.config,
             Model::Yolo(inner) => &mut inner.config,
+            Model::ResNet18(inner) => &mut inner.config,
         }
     }
 }
@@ -46,8 +56,10 @@ pub trait ModelTrait {
         post_processing: Vec<PostProcessing>,
         session: Session,
         config: ModelConfig,
-    ) -> Self;
-    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs;
+        audio_config: Option<AudioConfig>,
+    ) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 impl Model {
@@ -58,6 +70,7 @@ impl Model {
         session: Session,
         architecture: Option<String>,
         config: ModelConfig,
+        audio_config: Option<AudioConfig>,
     ) -> Result<Self, Error> {
         let arch = architecture.as_ref().map(|s| s.to_lowercase());
         match arch.as_deref() {
@@ -67,23 +80,33 @@ impl Model {
                 post_processing,
                 session,
                 config,
-            ))),
+            )?)),
             Some("efficientnetv2") => Ok(Model::EfficientNetV2(EfficientNetV2::new(
                 classes,
                 task,
                 post_processing,
                 session,
                 config,
-            ))),
+            )?)),
+            Some("resnet18") => Ok(Model::ResNet18(ResNet18::new(
+                classes,
+                task,
+                post_processing,
+                session,
+                config,
+                audio_config.unwrap(),
+            )?)),
             Some(arch) => Err(anyhow!("Unsupported model architecture: {}", arch)),
             None => Err(anyhow!("No architecture specified")),
         }
     }
 
-    pub fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        match self {
-            Model::EfficientNetV2(model) => model.run(img),
-            Model::Yolo(model) => model.run(img),
+    pub fn run(&self, input: &AIInput<'_>) -> AIOutputs {
+        match (self, input) {
+            (Model::EfficientNetV2(m), AIInput::Image(img)) => m.run_image(img),
+            (Model::Yolo(m), AIInput::Image(img)) => m.run_image(img),
+            (Model::ResNet18(m), AIInput::Audio(audio)) => m.run_audio(audio),
+            _ => panic!("wrong input type for this model architecture"),
         }
     }
 }

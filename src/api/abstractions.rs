@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// Probabilities
-/// `classes` is a Vec with the names for each classification
-/// `probs` is a Vec with the probabilities/confidence for each classification
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProbSpace {
     pub classes: Vec<String>,
@@ -67,22 +64,6 @@ impl ProbSpace {
             .collect();
     }
 
-    pub fn top_n(&self, n: u32) -> ProbSpace {
-        let mut indices: Vec<usize> = (0..self.probs.len()).collect();
-        indices.sort_by(|&a, &b| {
-            self.probs[b]
-                .partial_cmp(&self.probs[a])
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        indices.truncate(n as usize);
-
-        ProbSpace::new(
-            indices.iter().map(|&i| self.classes[i].clone()).collect(),
-            indices.iter().map(|&i| self.probs[i]).collect(),
-            indices.iter().map(|&i| self.classes_ids[i]).collect(),
-        )
-    }
-
     pub fn filter(&self, conf: f32) -> Self {
         let mut filtered = ProbSpace {
             classes: Vec::new(),
@@ -140,14 +121,7 @@ pub struct XYXY {
 
 impl XYXY {
     pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u32) -> Self {
-        Self {
-            x1,
-            y1,
-            x2,
-            y2,
-            prob,
-            class_id,
-        }
+        Self {x1,y1,x2,y2,prob,class_id}
     }
 
     fn area(&self) -> f32 {
@@ -174,16 +148,31 @@ impl XYXY {
     }
 }
 
-// AI model for Image Processing
+// AI complementary data
 #[derive(Deserialize, Clone, Debug)]
 pub struct AI {
     pub task: String,
-    #[serde(default)]
     pub architecture: Option<String>, // yolo, efficientnet, whatever else
     pub post_processing: Vec<String>,
     pub classes: Vec<String>,
     #[serde(skip)]
     pub name: String,
+
+    // input modality so we know how to preprocess (None defaults to "image")
+    pub modality: Option<String>, // "image" or "audio"
+
+    // Audio processing
+    pub audio_config: Option<AudioConfig>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct AudioConfig {
+    pub sample_rate: u32, // e.g. 48000
+    pub window_size: f32, // seconds, e.g. 5.0
+    pub stride: f32,      // seconds, e.g. 1.0
+    pub n_fft: u32,       // e.g. 2048
+    pub hop_length: u32,  // e.g. 512
+    pub top_db: f32,      // e.g. 80.0
 }
 
 impl AI {
@@ -236,6 +225,19 @@ impl PredImgSugar for Vec<PredImg> {
     }
 }
 
+pub trait AudioProbSugar {
+    fn highest_confidence(&self) -> String;
+}
+
+impl AudioProbSugar for Vec<AudioProb> {
+    fn highest_confidence(&self) -> String {
+        self.iter()
+            .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|audio| audio.label.clone())
+            .unwrap_or_else(|| String::from("no prediction"))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct XYXYc {
     pub xyxy: XYXY,
@@ -245,12 +247,18 @@ pub struct XYXYc {
 
 impl XYXYc {
     pub fn new(xyxy: XYXY, label: String) -> Self {
-        XYXYc {
-            xyxy,
-            label,
-            extra_cls: None,
-        }
+        XYXYc {xyxy, label, extra_cls: None,}
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AudioProb {
+    pub start: f32,
+    pub end: f32,
+    pub class_id: u32,
+    pub prob: f32,
+    pub positive: bool,
+    pub label: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -258,6 +266,7 @@ pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
     Classification(ProbSpace),
     Segmentation(Vec<SEGc>),
+    AudioClassification(Vec<AudioProb>),
 }
 
 impl AIOutputs {
@@ -266,11 +275,12 @@ impl AIOutputs {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
             AIOutputs::Classification(prob_space) => prob_space.classes.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
+            AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ModelConfig {
     pub confidence_threshold: f32,
     pub nms_threshold: f32,
@@ -285,4 +295,11 @@ impl Default for ModelConfig {
             geo_fence: "".to_owned(),
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AvailableModel {
+    pub name: String,
+    pub description: String,
+    pub download_link: String,
 }

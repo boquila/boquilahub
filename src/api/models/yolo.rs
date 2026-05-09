@@ -1,13 +1,13 @@
 use super::*;
 use crate::api::{
-    abstractions::XYXY,
-    processing::post::{nms_indices, process_mask},
+    abstractions::{AIOutputs, XYXY},
     processing::{
         inference::inference,
         post::*,
         pre::{imgbuf_to_input_array, TensorFormat},
     },
 };
+use anyhow::{bail, Error, Result};
 use image::{ImageBuffer, Rgb};
 use ndarray::{s, Array, Array2, Axis, IxDyn};
 use ort::{session::Session, value::ValueType};
@@ -240,14 +240,14 @@ impl Yolo {
     }
 }
 
-impl ModelTrait for Yolo {
-    fn new(
+impl Yolo {
+    pub fn new(
         classes: Vec<String>,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
         config: ModelConfig,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let (_batch_size, _input_depth, input_width, input_height) =
             match &session.inputs[0].input_type {
                 ValueType::Tensor { dimensions, .. } => (
@@ -257,7 +257,7 @@ impl ModelTrait for Yolo {
                     dimensions[3] as u32,
                 ),
                 _ => {
-                    panic!("Not supported");
+                    bail!("expected tensor input for Yolo");
                 }
             };
 
@@ -268,7 +268,7 @@ impl ModelTrait for Yolo {
                 dimensions[2] as u32,
             ),
             _ => {
-                panic!("Not supported");
+                bail!("expected tensor output for Yolo");
             }
         };
 
@@ -287,14 +287,14 @@ impl ModelTrait for Yolo {
                     dimensions[3] as u32,
                 ),
                 _ => {
-                    panic!("This shouldn't happen");
+                    bail!("expected secondary tensor output for Yolo");
                 }
             }
         } else {
             (0, 0, 0)
         };
 
-        Yolo {
+        Ok(Yolo {
             classes,
             input_width,
             input_height,
@@ -309,10 +309,12 @@ impl ModelTrait for Yolo {
             config,
             _yolotype,
             detect_processor,
-        }
+        })
     }
+}
 
-    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+impl Yolo {
+    pub fn run_image(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, img_width, img_height) = imgbuf_to_input_array(
             1,
             3,

@@ -1,10 +1,11 @@
 use super::{api::*, localization::*};
 use abstractions::*;
-use bq::{get_bqs, import_bq};
-use eps::{get_ep_version, LIST_EPS};
+use audio::AudioData;
+use bq::*;
+use ep::Ep;
 use image::{open, ImageBuffer, Rgba};
-use inference::*;
 use models::{Model, Task};
+use processing::pre::compute_mel;
 use processing::post::PostProcessing;
 use render::{draw_aioutput, draw_no_predictions};
 use rest::{
@@ -12,9 +13,58 @@ use rest::{
 };
 use std::fs::{self};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use rodio::Source;
 use video_file::VideofileProcessor;
+
+struct AudioBufferSource {
+    samples: std::sync::Arc<Vec<f32>>,
+    sample_rate: u32,
+    channels: u16,
+    pos: usize,
+}
+
+impl AudioBufferSource {
+    fn new_from(audio: &AudioData, start_secs: f64) -> Self {
+        let mut mono = audio.clone();
+        if mono.channels > 1 {
+            mono = mono.to_mono();
+        }
+        let start_sample = (start_secs * mono.sample_rate as f64).round() as usize;
+        let samples = if start_sample < mono.samples.len() {
+            mono.samples[start_sample..].to_vec()
+        } else {
+            vec![]
+        };
+        Self {
+            samples: std::sync::Arc::new(samples),
+            sample_rate: mono.sample_rate,
+            channels: mono.channels.max(1),
+            pos: 0,
+        }
+    }
+}
+
+impl Iterator for AudioBufferSource {
+    type Item = f32;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.samples.len() { return None; }
+        let s = self.samples[self.pos];
+        self.pos += 1;
+        Some(s)
+    }
+}
+
+impl Source for AudioBufferSource {
+    fn current_span_len(&self) -> Option<usize> { None }
+    fn channels(&self) -> rodio::ChannelCount { rodio::ChannelCount::new(self.channels).unwrap_or(rodio::ChannelCount::MIN) }
+    fn sample_rate(&self) -> rodio::SampleRate { rodio::SampleRate::new(self.sample_rate).unwrap_or(rodio::SampleRate::MIN) }
+    fn total_duration(&self) -> Option<std::time::Duration> {
+        let frames = self.samples.len() / self.channels.max(1) as usize;
+        Some(std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate as f64))
+    }
+}
 
 pub fn run_gui() {
     let native_options = eframe::NativeOptions {
@@ -38,7 +88,7 @@ pub fn run_gui() {
 }
 
 macro_rules! ai_config_window {
-    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $update_fn:expr, $current_ai_fn:ident) => {
+    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $variant:expr, $current_ai_fn:ident) => {
         if $show_field {
             egui::Window::new($self.t(Key::configure_ai))
                 .collapsible(false)
@@ -87,7 +137,7 @@ macro_rules! ai_config_window {
                     ui.horizontal(|ui| {
                         if ui.button($self.t(Key::ok)).clicked() {
                             $self.$config_field = $self.$temp_config_field.clone();
-                            $update_fn($self.$config_field.clone());
+                            $variant.update_config($self.$config_field.clone());
                             $show_field = false;
                         }
                         ui.add_space(8.0);
@@ -108,6 +158,21 @@ struct Gui {
     ais_cls_only: Vec<AI>,
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
+    audio_file_path: Option<PathBuf>,
+    audio_data: Option<AudioData>,
+    audio_position: f64,
+    audio_window_secs: f64,
+    audio_spec_width: usize,
+    audio_spec_height: usize,
+    
+    audio_predictions: Option<Vec<AudioProb>>,
+    audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
+    audio_playing: bool,
+    audio_play_start: Option<Instant>,
+    audio_play_offset: f64,
+    audio_playhead: Option<f64>,
+    audio_stream: Option<rodio::MixerDeviceSink>,
+    audio_player: Option<rodio::Player>,
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
@@ -115,7 +180,7 @@ struct Gui {
     temp_api_str: String,
     temp_architecture: String,
     pending_model_path: Option<String>,
-    pending_model_ep: Option<usize>,
+    pending_model_ep: Option<Ep>,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
@@ -137,7 +202,7 @@ struct Gui {
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
     ai_cls_selected: Option<usize>,
-    ep_selected: usize,
+    ep_selected: Ep,
     video_step_frame: usize,
     feed_step_frame: usize,
     current_frame: u64,
@@ -159,6 +224,7 @@ struct Gui {
     img_state: State,
     video_state: State,
     feed_state: State,
+    audio_state: State,
 }
 
 #[derive(Default)]
@@ -207,10 +273,10 @@ impl Gui {
     }
 
     fn new() -> Self {
-        let ais: Vec<AI> = get_bqs();
+        let ais: Vec<AI> = BQModel::get_list();
         let classify_ais: Vec<AI> = ais
             .iter()
-            .filter(|ai| ai.task == "classify")
+            .filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio"))
             .cloned()
             .collect();
 
@@ -218,9 +284,13 @@ impl Gui {
             ais: ais,
             ais_cls_only: classify_ais,
             temp_architecture: "yolo".to_owned(),
-            image_texture_n: 1, // this starts at 1
+            image_texture_n: 1,
             video_step_frame: 3,
             feed_step_frame: 3,
+            audio_window_secs: 10.0,
+            audio_spec_width: 800,
+            audio_spec_height: 300,
+            
             process_all_imgs: true,
             ..Default::default()
         }
@@ -230,10 +300,7 @@ impl Gui {
         self.video_state.is_processing
             || self.img_state.is_processing
             || self.feed_state.is_processing
-    }
-
-    fn is_remote(&self) -> bool {
-        self.ep_selected == 2
+            || self.audio_state.is_processing
     }
 
     fn process_done(&mut self) {
@@ -254,6 +321,32 @@ impl Gui {
 
     fn current_ai_cls(&self) -> &AI {
         return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
+    }
+
+    fn is_audio_model(&self) -> bool {
+        self.ai_selected
+            .map(|i| self.ais[i].modality.as_deref() == Some("audio"))
+            .unwrap_or(false)
+    }
+
+    fn is_image_model(&self) -> bool {
+        self.ai_selected
+            .map(|i| self.ais[i].modality.as_deref() != Some("audio"))
+            .unwrap_or(true)
+    }
+
+    fn audio_mel_params(&self) -> (usize, usize, usize, f32) {
+        if let Some(ai) = self.ai_selected {
+            if let Some(ref ac) = self.ais[ai].audio_config {
+                return (
+                    ac.n_fft as usize,
+                    ac.hop_length as usize,
+                    128,
+                    ac.top_db,
+                );
+            }
+        }
+        (2048, 512, 128, 80.0)
     }
 
     fn paint(&mut self, ui: &egui::Ui, i: usize) {
@@ -311,7 +404,7 @@ impl Gui {
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ai_selected.is_some() && !self.is_remote() {
+        if self.ai_selected.is_some() && self.ep_selected.is_local() && self.is_image_model() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
                 if ui
@@ -354,7 +447,7 @@ impl Gui {
     }
 
     fn ai_widget(&mut self, ui: &mut egui::Ui) {
-        if !self.is_remote() {
+        if self.ep_selected.is_local() {
             let previous_ai = self.ai_selected;
             ui.label(self.t(Key::select_ai));
 
@@ -382,7 +475,7 @@ impl Gui {
                 }
 
                 // '+' button, select a escond AI
-                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
+                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
                 {
                     if &self.ais[self.ai_selected.unwrap()].task != "classify" {
                         if ui
@@ -397,10 +490,20 @@ impl Gui {
             });
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
+                if self.is_audio_model() {
+                    self.show_ai_cls = false;
+                    self.ai_cls_selected = None;
+                    GlobalBQ::Second.clear();
+                    if self.audio_data.is_none() {
+                        self.audio_data = None;
+                        self.audio_file_path = None;
+                        self.audio_predictions = None;
+                    }
+                }
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                match set_model(
+                match GlobalBQ::First.set_model(
                     &model_path,
-                    &LIST_EPS[self.ep_selected],
+                    self.ep_selected,
                     Some(self.ai_config.clone()),
                 ) {
                     Ok(_) => {}
@@ -422,7 +525,7 @@ impl Gui {
                 self.show_config.ai,
                 ai_config,
                 temp_ai_config,
-                update_config,
+                GlobalBQ::First,
                 current_ai
             );
 
@@ -431,7 +534,7 @@ impl Gui {
     }
 
     fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
-        if !self.is_remote() && self.show_ai_cls {
+        if self.ep_selected.is_local() && self.show_ai_cls {
             let previous_ai = self.ai_cls_selected;
             ui.label(self.t(Key::select_2nd_ai));
             ui.horizontal(|ui| {
@@ -460,15 +563,15 @@ impl Gui {
                     if ui.button("-").clicked() {
                         self.show_ai_cls = false;
                         self.ai_cls_selected = None;
-                        clear_current_ai2_simple();
+                        GlobalBQ::Second.clear();
                     }
                 }
             });
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
                 let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                match set_model2(
+                match GlobalBQ::Second.set_model(
                     &model_path,
-                    &LIST_EPS[self.ep_selected],
+                    self.ep_selected,
                     Some(self.ai_cls_config.clone()),
                 ) {
                     Ok(_) => {}
@@ -490,7 +593,7 @@ impl Gui {
                 self.show_config.ai_cls,
                 ai_cls_config,
                 temp_ai_cls_config,
-                update_config2,
+                GlobalBQ::Second,
                 current_ai_cls
             );
 
@@ -499,7 +602,7 @@ impl Gui {
     }
 
     fn get_endpoint(&self) -> Option<String> {
-        if self.is_remote() {
+        if !self.ep_selected.is_local() {
             self.api_server_url
                 .as_ref()
                 .map(|url| format!("{}/upload", url))
@@ -510,9 +613,9 @@ impl Gui {
 
     fn set_ai(&mut self) {
         if let Some(ai_index) = self.ai_selected {
-            let _ = set_model(
+            let _ = GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
-                &LIST_EPS[self.ep_selected],
+                self.ep_selected,
                 Some(self.ai_config.clone()),
             );
         }
@@ -520,9 +623,9 @@ impl Gui {
 
     fn set_ai_cls(&mut self) {
         if let Some(_ai_cls_index) = self.ai_cls_selected {
-            let _ = set_model2(
+            let _ = GlobalBQ::Second.set_model(
                 &self.current_ai_cls().get_path(),
-                &LIST_EPS[self.ep_selected],
+                self.ep_selected,
                 Some(self.ai_cls_config.clone()),
             );
         }
@@ -533,26 +636,26 @@ impl Gui {
         let mut temp_ep_selected = self.ep_selected;
 
         egui::ComboBox::from_id_salt("EP")
-            .selected_text(LIST_EPS[self.ep_selected].name)
+            .selected_text(self.ep_selected.name())
             .show_ui(ui, |ui| {
-                for (i, ep) in LIST_EPS.iter().enumerate() {
-                    ui.selectable_value(&mut temp_ep_selected, i, ep.name)
+                for ep in [Ep::Cpu, Ep::Cuda, Ep::BoquilaHubRemote] {
+                    ui.selectable_value(&mut temp_ep_selected, ep, ep.name())
                         .on_hover_text(format!(
                             "Version: {:.1}, Local: {}, Dependencies: {}",
-                            ep.version, ep.local, ep.dependencies
+                            ep.version().unwrap_or(0.0),
+                            ep.is_local(),
+                            ep.dependencies()
                         ));
                 }
             });
 
         if temp_ep_selected != self.ep_selected {
-            let new_ep: &eps::EP = &LIST_EPS[temp_ep_selected];
-
-            match new_ep.ep_type {
-                eps::EPType::BoquilaHUBRemote => {
+            match temp_ep_selected {
+                Ep::BoquilaHubRemote => {
                     self.show_dialog.api_server = true;
                 }
-                eps::EPType::CUDA => {
-                    let cuda_version = match get_ep_version(new_ep) {
+                Ep::Cuda => {
+                    let cuda_version = match temp_ep_selected.version() {
                         Ok(cuda_v) => cuda_v,
                         Err(error) => {
                             eprintln!("Could not find CUDA version with error: {error}");
@@ -698,6 +801,34 @@ impl Gui {
                     self.show_dialog.feed_url = true;
                 }
 
+                ui.end_row();
+
+                // AUDIO FILE SELECTION SECTION
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::audio_file)))
+                    .clicked()
+                {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Audio", &import::AUDIO_FORMATS)
+                        .pick_file()
+                    {
+                        match audio::AudioData::from_file(&path) {
+                            Ok(audio_data) => {
+                                self.audio_data = Some(audio_data.to_mono());
+                                self.audio_file_path = Some(path);
+                                self.audio_position = 0.0;
+                                self.audio_state.texture = None;
+                                self.audio_predictions = None;
+                                self.mode = Mode::Audio;
+                                self.audio_state.progress_bar = 0.0;
+                            }
+                            Err(_) => {
+                                self.process_error();
+                            }
+                        }
+                    }
+                }
+
                 // Feed url dialog
                 if self.show_dialog.feed_url {
                     self.feed_input_dialog(ui);
@@ -766,7 +897,7 @@ impl Gui {
                             if is_valid_api {
                                 self.show_dialog.api_server = false;
                                 self.api_server_url = Some(url);
-                                self.ep_selected = 2;
+                                self.ep_selected = Ep::BoquilaHubRemote;
                             } else {
                                 self.process_error();
                             }
@@ -808,11 +939,11 @@ impl Gui {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui.button("OK").clicked() {
-                            if let (Some(model_path), Some(ep_index)) =
-                                (&self.pending_model_path, &self.pending_model_ep)
+                            if let (Some(model_path), Some(ep)) =
+                                (&self.pending_model_path, self.pending_model_ep)
                             {
                                 // Load model with selected architecture
-                                let (model_metadata, data) = match import_bq(model_path) {
+                                let (model_metadata, data) = match BQModel::import_data(model_path) {
                                     Ok(result) => result,
                                     Err(_) => {
                                         self.process_error();
@@ -827,7 +958,7 @@ impl Gui {
                                     Some(self.temp_architecture.clone());
 
                                 // Create model
-                                let session = import::import_model(&data, &LIST_EPS[*ep_index]).unwrap();
+                                let session = import::import_model(&data, ep).unwrap();
                                 let post: Vec<PostProcessing> = updated_metadata
                                     .post_processing
                                     .iter()
@@ -842,13 +973,10 @@ impl Gui {
                                     session,
                                     updated_metadata.architecture,
                                     ModelConfig::default(),
+                                    updated_metadata.audio_config,
                                 ) {
                                     Ok(aimodel) => {
-                                        if CURRENT_AI.get().is_some() {
-                                            *CURRENT_AI.get().unwrap().write().unwrap() = aimodel;
-                                        } else {
-                                            let _ = CURRENT_AI.set(RwLock::new(aimodel));
-                                        }
+                                        *CURRENT_AI.write().unwrap() = Some(aimodel);
                                     }
                                     Err(_) => {
                                         self.process_error();
@@ -888,7 +1016,7 @@ impl Gui {
         self.img_state.cancel_sender = Some(cancel_tx);
 
         let api_endpoint = self.get_endpoint();
-        let is_remote = self.is_remote();
+        let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             for (i, predimg) in copy_predigms.iter().enumerate() {
                 if predimg.wasprocessed {
@@ -948,7 +1076,7 @@ impl Gui {
     }
 
     fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || self.is_remote()) {
+        if self.selected_files.len() >= 1 && (self.is_image_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
                 ui.heading(self.t(Key::analysis));
@@ -1066,6 +1194,63 @@ impl Gui {
         }
     }
 
+    fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
+        if self.audio_data.is_some() && (self.is_audio_model() || !self.ep_selected.is_local()) {
+            ui.vertical_centered(|ui| {
+                ui.heading(self.t(Key::audio_file));
+                ui.heading(self.t(Key::analysis));
+            });
+            ui.separator();
+
+            if let Some(path) = &self.audio_file_path {
+                ui.label(
+                    path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("(unknown)")
+                );
+            }
+
+            ui.vertical_centered(|ui| {
+                if !self.audio_state.is_processing {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
+                        .clicked()
+                    {
+                        self.start_audio_analysis();
+                    }
+                } else {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
+                        .clicked()
+                    {
+                        if let Some(cancel_tx) = self.audio_state.cancel_sender.take() {
+                            let _ = cancel_tx.send(());
+                        }
+                        self.audio_state.is_processing = false;
+                    }
+                }
+            });
+        }
+    }
+
+    fn start_audio_analysis(&mut self) {
+        self.audio_state.is_processing = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.audio_result_receiver = Some(rx);
+
+        let audio = self.audio_data.as_ref().unwrap().clone();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.audio_state.cancel_sender = Some(cancel_tx);
+
+        tokio::spawn(async move {
+            if cancel_rx.try_recv().is_ok() {
+                return;
+            }
+            let result = tokio::task::spawn_blocking(move || process_audio(&audio)).await;
+            let _ = tx.send(result);
+        });
+    }
+
     fn start_video_analysis(&mut self) {
         self.video_state.is_processing = true;
         // Async processing: Video
@@ -1079,7 +1264,7 @@ impl Gui {
         let current = self.current_frame;
 
         let api_endpoint = self.get_endpoint();
-        let is_remote = self.is_remote();
+        let is_remote = !self.ep_selected.is_local();
         let step: usize = self.video_step_frame;
         let mut cached_aioutput: Option<AIOutputs> = None;
 
@@ -1148,7 +1333,7 @@ impl Gui {
     }
 
     fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
+        if self.video_file_path.is_some() && (self.is_image_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
                 ui.heading(self.t(Key::analysis));
@@ -1207,7 +1392,7 @@ impl Gui {
         let mut feed = stream::Feed::new(&self.feed_url.clone().unwrap()).unwrap();
 
         let api_endpoint = self.get_endpoint();
-        let is_remote = self.is_remote();
+        let is_remote = !self.ep_selected.is_local();
         let step: usize = self.feed_step_frame;
         tokio::spawn(async move {
             let mut frame_counter = 0;
@@ -1253,7 +1438,7 @@ impl Gui {
     }
 
     fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.feed_url.is_some() && (self.ai_selected.is_some() || self.is_remote()) {
+        if self.feed_url.is_some() && (self.is_image_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
                 ui.heading(self.t(Key::analysis));
@@ -1375,6 +1560,25 @@ impl Gui {
             ui.request_repaint();
         }
     }
+
+    fn audio_handle_results(&mut self) {
+        if let Some(rx) = &self.audio_result_receiver {
+            if let Ok(result) = rx.try_recv() {
+                match result {
+                    Ok(AIOutputs::AudioClassification(preds)) => {
+                        self.audio_predictions = Some(preds);
+                    }
+                    _ => {
+                        self.process_error();
+                    }
+                }
+                self.audio_state.is_processing = false;
+                self.audio_state.texture = None;
+                self.audio_result_receiver = None;
+                self.process_done();
+            }
+        }
+    }
 }
 
 impl eframe::App for Gui {
@@ -1436,6 +1640,9 @@ impl eframe::App for Gui {
                 Mode::Feed => {
                     self.feed_analysis_widget(ui);
                 }
+                Mode::Audio => {
+                    self.audio_analysis_widget(ui);
+                }
             }
 
             self.show_done_message(ui);
@@ -1446,10 +1653,12 @@ impl eframe::App for Gui {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = self.video_file_path.is_some();
             let cond3 = self.feed_url.is_some();
+            let cond4 = self.audio_file_path.is_some();
             // it has a mode AND another
-            let img_mode = cond1 && (cond2 || cond3);
-            let video_mode = cond2 && (cond1 || cond3);
-            let feed_mode = cond3 && (cond1 || cond2);
+            let img_mode = cond1 && (cond2 || cond3 || cond4);
+            let video_mode = cond2 && (cond1 || cond3 || cond4);
+            let feed_mode = cond3 && (cond1 || cond2 || cond4);
+            let audio_mode = cond4 && (cond1 || cond2 || cond3);
             ui.horizontal(|ui| {
                 if img_mode {
                     let text = self.t(Key::image_processing);
@@ -1463,9 +1672,12 @@ impl eframe::App for Gui {
                     let text = self.t(Key::feed_processing);
                     ui.selectable_value(&mut self.mode, Mode::Feed, text);
                 }
+                if audio_mode {
+                    ui.selectable_value(&mut self.mode, Mode::Audio, "Audio");
+                }
             });
 
-            if img_mode || video_mode || feed_mode {
+            if img_mode || video_mode || feed_mode || audio_mode {
                 ui.separator();
             }
             egui::ScrollArea::vertical().show(ui, |ui| match self.mode {
@@ -1517,6 +1729,153 @@ impl eframe::App for Gui {
 
                     self.feed_handle_results(ui);
                 }
+Mode::Audio => {
+                    if let Some(audio) = &self.audio_data {
+                        let duration = audio.duration();
+
+                        if self.audio_playing {
+                            if let Some(start) = self.audio_play_start {
+                                let playhead_time = (self.audio_play_offset + start.elapsed().as_secs_f64()).min(duration);
+                                if playhead_time >= duration {
+                                    self.audio_playing = false;
+                                    self.audio_play_start = None;
+                                    self.audio_player = None;
+                                    self.audio_stream = None;
+                                } else if playhead_time > self.audio_position + self.audio_window_secs {
+                                    self.audio_position = playhead_time;
+                                    self.audio_state.texture = None;
+                                }
+                                self.audio_playhead = Some(playhead_time);
+                            }
+                            ui.ctx().request_repaint();
+                        } else {
+                            self.audio_playhead = None;
+                        }
+
+                        ui.horizontal(|ui| {
+                            if self.audio_playing {
+                                if ui.button("⏸").clicked() {
+                                    self.audio_position = self.audio_play_offset + self.audio_play_start.map_or(0.0, |s| s.elapsed().as_secs_f64());
+                                    self.audio_position = self.audio_position.min(duration);
+                                    if let Some(player) = &self.audio_player {
+                                        player.stop();
+                                    }
+                                    self.audio_player = None;
+                                    self.audio_stream = None;
+                                    self.audio_playing = false;
+                                    self.audio_play_start = None;
+                                    self.audio_state.texture = None;
+                                }
+                            } else {
+                                if ui.button("▶").clicked() {
+                                    self.audio_play_offset = self.audio_position;
+                                    self.audio_play_start = Some(Instant::now());
+                                    self.audio_playing = true;
+                                    self.audio_playhead = Some(self.audio_position);
+                                    let start_pos = self.audio_position;
+                                    let audio_clone = audio.clone();
+                                    if let Ok(mut stream) = rodio::DeviceSinkBuilder::open_default_sink() {
+                                        stream.log_on_drop(false);
+                                        let player = rodio::Player::connect_new(stream.mixer());
+                                        let src = AudioBufferSource::new_from(&audio_clone, start_pos);
+                                        player.append(src);
+                                        self.audio_stream = Some(stream);
+                                        self.audio_player = Some(player);
+                                    }
+                                }
+                            }
+                        });
+
+                        ui.style_mut().spacing.slider_width = 300.0;
+
+                        if duration > self.audio_window_secs {
+                            let max_pos = (duration - self.audio_window_secs).max(0.0);
+                            let pos_text = self.t(Key::position);
+                            if ui.add(
+                                egui::Slider::new(&mut self.audio_position, 0.0..=max_pos)
+                                    .text(pos_text)
+                                    .step_by(0.1),
+                            ).changed() {
+                                self.audio_state.texture = None;
+                                if self.audio_playing || self.audio_player.is_some() {
+                                    if let Some(player) = &self.audio_player {
+                                        player.stop();
+                                    }
+                                    self.audio_player = None;
+                                    self.audio_stream = None;
+                                    self.audio_playing = false;
+                                    self.audio_play_start = None;
+                                    self.audio_playhead = None;
+                                }
+                            }
+                        }
+
+                        let win_text = self.t(Key::window);
+                        if ui.add(
+                            egui::Slider::new(&mut self.audio_window_secs, 1.0..=duration.min(60.0))
+                                .text(win_text)
+                                .step_by(1.0),
+                        ).changed() {
+                            self.audio_position = self.audio_position.min((duration - self.audio_window_secs).max(0.0));
+                            self.audio_state.texture = None;
+                        }
+
+                        let mut w = self.audio_spec_width as f32;
+                        if ui.add(
+                            egui::Slider::new(&mut w, 300.0..=1400.0)
+                                .text(self.t(Key::width_)),
+                        ).changed() {
+                            self.audio_spec_width = w.round() as usize;
+                            self.audio_state.texture = None;
+                        }
+
+                        let mut h = self.audio_spec_height as f32;
+                        if ui.add(
+                            egui::Slider::new(&mut h, 100.0..=700.0)
+                                .text(self.t(Key::height_)),
+                        ).changed() {
+                            self.audio_spec_height = h.round() as usize;
+                            self.audio_state.texture = None;
+                        }
+
+                        if self.audio_state.texture.is_none() {
+                            let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
+                            let window = audio.slice(self.audio_position, self.audio_window_secs)
+                                .resample(22050);
+                            let spec = compute_mel(&window, n_fft, hop_length, n_mels, top_db);
+                            let window_preds: Option<Vec<AudioProb>> = self.audio_predictions.as_ref().map(|preds| {
+                                preds.iter()
+                                    .filter(|p| p.end as f64 > self.audio_position && (p.start as f64) < self.audio_position + self.audio_window_secs)
+                                    .cloned()
+                                    .collect()
+                            });
+                            let img = mel_to_imgbuf(
+                                &spec, top_db, self.audio_spec_width, self.audio_spec_height,
+                                window_preds.as_deref(), self.audio_position, self.audio_window_secs,
+                            );
+                            self.audio_state.texture = imgbuf_to_texture(&img, ui);
+                        }
+
+                        if let Some(texture) = &self.audio_state.texture {
+                            let response = ui.add(
+                                egui::Image::new(texture)
+                                    .corner_radius(10.0),
+                            );
+                            if let Some(playhead) = self.audio_playhead {
+                                let frac = ((playhead - self.audio_position) / self.audio_window_secs).clamp(0.0, 1.0);
+                                if frac <= 1.0 {
+                                    let playhead_x = response.rect.left() + response.rect.width() * frac as f32;
+                                    ui.painter().line_segment(
+                                        [egui::pos2(playhead_x, response.rect.top()), egui::pos2(playhead_x, response.rect.bottom())],
+                                        egui::Stroke::new(2.0, egui::Color32::WHITE),
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    self.audio_handle_results();
+                }
             });
         });
     }
@@ -1533,10 +1892,119 @@ fn imgbuf_to_texture(
     Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 
+fn mel_to_imgbuf(
+    spec: &ndarray::Array2<f32>,
+    top_db: f32,
+    target_width: usize,
+    target_height: usize,
+    predictions: Option<&[AudioProb]>,
+    window_start: f64,
+    window_duration: f64,
+) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+    let (n_mels, n_time) = spec.dim();
+    let sx = target_width as f32 / n_time as f32;
+    let sy = target_height as f32 / n_mels as f32;
+    let mut pixels = Vec::with_capacity(target_width * target_height * 4);
+    for row in 0..target_height {
+        for col in 0..target_width {
+            let src_col = (col as f32 / sx).min(n_time as f32 - 1.0);
+            let src_row = (row as f32 / sy).min(n_mels as f32 - 1.0);
+            let col_lo = src_col.floor() as usize;
+            let col_hi = (col_lo + 1).min(n_time - 1);
+            let fc = src_col - col_lo as f32;
+            let row_lo = src_row.floor() as usize;
+            let row_hi = (row_lo + 1).min(n_mels - 1);
+            let fr = src_row - row_lo as f32;
+            let v = spec[[row_lo, col_lo]] * (1.0 - fc) * (1.0 - fr)
+                  + spec[[row_lo, col_hi]] * fc * (1.0 - fr)
+                  + spec[[row_hi, col_lo]] * (1.0 - fc) * fr
+                  + spec[[row_hi, col_hi]] * fc * fr;
+            let t = ((v + top_db) / top_db).clamp(0.0, 1.0);
+            let time = window_start + (col as f64 / target_width as f64) * window_duration;
+            let pred = predictions.map(|preds| {
+                preds.iter()
+                    .filter(|p| time >= p.start as f64 && time < p.end as f64)
+                    .max_by(|a, b| {
+                        let a_prio = if a.positive { 1 } else { 0 };
+                        let b_prio = if b.positive { 1 } else { 0 };
+                        a_prio.cmp(&b_prio).then(a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
+                    })
+            });
+            match pred {
+                None => {
+                    let g = (t * 255.0) as u8;
+                    pixels.extend_from_slice(&[g, g, g, 255]);
+                }
+                Some(Some(p)) => {
+                    if p.positive {
+                        let [r, g, b] = magma(t);
+                        pixels.extend_from_slice(&[r, g, b, 255]);
+                    } else {
+                        let [r, g, b] = viridis(t);
+                        pixels.extend_from_slice(&[r, g, b, 255]);
+                    }
+                }
+                Some(None) => {
+                    let g = (t * 255.0) as u8;
+                    pixels.extend_from_slice(&[g, g, g, 255]);
+                }
+            }
+        }
+    }
+    ImageBuffer::from_raw(target_width as u32, target_height as u32, pixels).unwrap()
+}
+
+
+
+
+fn magma(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [0, 0, 4],
+        [20, 14, 59],
+        [65, 22, 107],
+        [120, 28, 129],
+        [175, 49, 120],
+        [216, 87, 72],
+        [237, 149, 27],
+        [249, 213, 70],
+        [252, 253, 191],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+fn viridis(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [12, 0, 36],
+        [28, 16, 68],
+        [24, 58, 100],
+        [18, 90, 105],
+        [14, 115, 98],
+        [32, 135, 85],
+        [72, 155, 60],
+        [130, 170, 48],
+        [200, 180, 24],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+fn colormap_lerp(stops: &[[u8; 3]; 9], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let idx = t * (stops.len() - 1) as f32;
+    let lo = idx.floor() as usize;
+    let hi = (lo + 1).min(stops.len() - 1);
+    let frac = idx - lo as f32;
+    [
+        (stops[lo][0] as f32 + (stops[hi][0] as f32 - stops[lo][0] as f32) * frac) as u8,
+        (stops[lo][1] as f32 + (stops[hi][1] as f32 - stops[lo][1] as f32) * frac) as u8,
+        (stops[lo][2] as f32 + (stops[hi][2] as f32 - stops[lo][2] as f32) * frac) as u8,
+    ]
+}
+
 #[derive(Default, PartialEq)]
 enum Mode {
     #[default]
     Image,
     Video,
     Feed,
+    Audio,
 }

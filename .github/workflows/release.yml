@@ -41,6 +41,7 @@ jobs:
             libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libxkbcommon-dev \
             libwayland-dev \
+            libasound2-dev \
             ffmpeg libavutil-dev libavcodec-dev libavformat-dev \
             libswscale-dev libavdevice-dev libavfilter-dev libswresample-dev \
             p7zip-full
@@ -132,6 +133,7 @@ jobs:
           cp -a /usr/lib/x86_64-linux-gnu/libavfilter.so* full/
           cp -a /usr/lib/x86_64-linux-gnu/libswscale.so* full/
           cp -a /usr/lib/x86_64-linux-gnu/libswresample.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* full/
           find onnxruntime-linux-x64-gpu-1.24.4/lib -maxdepth 1 \( -type f -o -type l \) -name '*.so*' -exec cp -a {} full/ \;
           cp -r models full/models
           tar czf ${{ matrix.full_name }} -C full .

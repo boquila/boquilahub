@@ -1,8 +1,7 @@
 use crate::api::{
     abstractions::AI,
-    bq::get_bqs,
-    eps::LIST_EPS,
-    inference::{set_model, set_model2},
+    bq::{BQModel, GlobalBQ},
+    ep::Ep,
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
@@ -88,7 +87,7 @@ pub async fn run_cli(command: Commands) {
             let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
             let model_path = format!("models/{}.bq", model_name_clean);
 
-            let ais: Vec<AI> = get_bqs();
+            let ais: Vec<AI> = BQModel::get_list();
 
             if let Some(model_cls_name) = &args.model_cls {
                 let model_cls_name_clean =
@@ -104,21 +103,27 @@ pub async fn run_cli(command: Commands) {
                     );
                 }
 
-                let _ = set_model2(&model_cls_path, &LIST_EPS[1], None);
+                let _ = GlobalBQ::Second.set_model(&model_cls_path, Ep::Cuda, None);
             }
 
             let port = args.port;
 
-            let found = ais.iter().any(|ai| ai.get_path().contains(&model_path));
-            if !found {
+            let model_ai = ais.iter().find(|ai| ai.get_path().contains(&model_path));
+            if model_ai.is_none() {
                 panic!(
                     "Model path '{}' was not found in any of the registered AI paths.\n\
         Make sure that the model '{}' (or '{}.bq') exists in the 'models/' directory",
                     model_path, model_name_clean, model_name_clean
                 );
             }
+            if model_ai.unwrap().modality.as_deref() == Some("audio") {
+                panic!(
+                    "Audio models cannot be deployed as API. Model '{}' is an audio model.",
+                    model_name_clean
+                );
+            }
 
-            let _ = set_model(&model_path, &LIST_EPS[1], None);
+            let _ = GlobalBQ::First.set_model(&model_path, Ep::Cuda, None);
 
             let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
             println!("{}", ASCII_ART);
@@ -137,7 +142,7 @@ pub async fn run_cli(command: Commands) {
             }
         }
         Commands::List => {
-            let ais: Vec<AI> = get_bqs();
+            let ais: Vec<AI> = BQModel::get_list();
             print_ais_table(&ais);
             std::process::exit(0);
         }
@@ -153,11 +158,11 @@ pub async fn run_cli(command: Commands) {
             let _ = crate::tui::run_tui(language);
         }
         Commands::Bq { command } => match command {
-            BqCommands::Shape { name } => match crate::api::bq::print_shape(&name) {
+            BqCommands::Shape { name } => match BQModel::from_file_print_shape(&name) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             },
-            BqCommands::New { name } => match crate::api::bq::create_bq_file(name) {
+            BqCommands::New { name } => match BQModel::create_bq_file(name) {
                 Ok(_) => {}
                 Err(e) => eprintln!("{}", e),
             }
@@ -236,7 +241,7 @@ async fn pull(model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Searching for model '{}'...", model_name);
 
     // Fetch the JSON index
-    let models = crate::api::pull::get_list()
+    let models = BQModel::get_list_from_api()
         .await
         .map_err(|e| format!("Failed to fetch model index: {}", e))?;
 

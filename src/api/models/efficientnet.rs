@@ -1,7 +1,7 @@
 use crate::api::{
     abstractions::{AIOutputs, ModelConfig, ProbSpace},
-    inference::init_geofence_data,
-    models::{ModelTrait, Task},
+    bq::init_geofence_data,
+    models::Task,
     processing::{
         inference::inference,
         post::{
@@ -11,6 +11,7 @@ use crate::api::{
         pre::{imgbuf_to_input_array, TensorFormat},
     },
 };
+use anyhow::{bail, Error, Result};
 use image::{ImageBuffer, Rgb};
 use ort::{session::Session, value::ValueType};
 
@@ -31,14 +32,14 @@ pub struct EfficientNetV2 {
     pub input_format: TensorFormat,
 }
 
-impl ModelTrait for EfficientNetV2 {
-    fn new(
+impl EfficientNetV2 {
+    pub fn new(
         classes: Vec<String>,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
         config: ModelConfig,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let (batch_size, input_width, input_height, channel, input_format) =
             match &session.inputs[0].input_type {
                 ValueType::Tensor { dimensions, .. } => {
@@ -61,7 +62,7 @@ impl ModelTrait for EfficientNetV2 {
                     }
                 }
                 _ => {
-                    panic!("Not supported");
+                    bail!("expected tensor input for EfficientNetV2");
                 }
             };
 
@@ -70,7 +71,7 @@ impl ModelTrait for EfficientNetV2 {
         let (output_width, output_height) = match &session.outputs[0].output_type {
             ValueType::Tensor { dimensions, .. } => (dimensions[0] as u32, dimensions[1] as u32),
             _ => {
-                panic!("Not supported");
+                bail!("expected tensor output for EfficientNetV2");
             }
         };
 
@@ -80,7 +81,7 @@ impl ModelTrait for EfficientNetV2 {
             let _ = init_geofence_data();
         }
 
-        EfficientNetV2 {
+        Ok(EfficientNetV2 {
             classes,
             batch_size,
             channel,
@@ -95,9 +96,12 @@ impl ModelTrait for EfficientNetV2 {
             session,
             config,
             input_format,
-        }
+        })
     }
-    fn run(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
+}
+
+impl EfficientNetV2 {
+    pub fn run_image(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
         let (input, _img_width, _img_height) = imgbuf_to_input_array(
             1,
             3,
@@ -114,7 +118,7 @@ impl ModelTrait for EfficientNetV2 {
             let mut probs: ProbSpace = process_class_output_no_filt(&self.classes, &output);
             apply_geofence_filter(
                 &mut probs,
-                &crate::api::inference::GEOFENCE_DATA.get().unwrap(),
+                &crate::api::bq::GEOFENCE_DATA.get().unwrap(),
                 &self.config.geo_fence,
             );
             probs.logits_to_probs();

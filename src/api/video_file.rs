@@ -131,6 +131,7 @@ pub struct VideofileProcessor {
 impl VideofileProcessor {
     pub fn new(file_path: &str) -> Self {
         ffmpeg::init().unwrap();
+        ffmpeg::util::log::set_level(ffmpeg::util::log::Level::Quiet);
 
         let input_ctx = ffmpeg::format::input(&Path::new(file_path)).unwrap();
 
