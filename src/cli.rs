@@ -108,12 +108,18 @@ pub async fn run_cli(command: Commands) {
 
             let port = args.port;
 
-            let found = ais.iter().any(|ai| ai.get_path().contains(&model_path));
-            if !found {
+            let model_ai = ais.iter().find(|ai| ai.get_path().contains(&model_path));
+            if model_ai.is_none() {
                 panic!(
                     "Model path '{}' was not found in any of the registered AI paths.\n\
         Make sure that the model '{}' (or '{}.bq') exists in the 'models/' directory",
                     model_path, model_name_clean, model_name_clean
+                );
+            }
+            if model_ai.unwrap().modality.as_deref() == Some("audio") {
+                panic!(
+                    "Audio models cannot be deployed as API. Model '{}' is an audio model.",
+                    model_name_clean
                 );
             }
 
