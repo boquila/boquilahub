@@ -802,7 +802,9 @@ impl Gui {
                 }
 
                 ui.end_row();
+            });
 
+        ui.vertical_centered(|ui| {
                 // AUDIO FILE SELECTION SECTION
                 if ui
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::audio_file)))
@@ -828,12 +830,12 @@ impl Gui {
                         }
                     }
                 }
-
-                // Feed url dialog
-                if self.show_dialog.feed_url {
-                    self.feed_input_dialog(ui);
-                }
             });
+
+        // Feed url dialog
+        if self.show_dialog.feed_url {
+            self.feed_input_dialog(ui);
+        }
     }
 
     fn feed_input_dialog(&mut self, ui: &egui::Ui) {
