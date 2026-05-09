@@ -58,7 +58,7 @@ impl App {
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
         let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
-        let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify").cloned().collect();
+        let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio")).cloned().collect();
         Self {
             lang,
             row: 0, side_btn: false,

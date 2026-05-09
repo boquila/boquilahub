@@ -276,7 +276,7 @@ impl Gui {
         let ais: Vec<AI> = BQModel::get_list();
         let classify_ais: Vec<AI> = ais
             .iter()
-            .filter(|ai| ai.task == "classify")
+            .filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio"))
             .cloned()
             .collect();
 
@@ -321,6 +321,18 @@ impl Gui {
 
     fn current_ai_cls(&self) -> &AI {
         return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
+    }
+
+    fn is_audio_model(&self) -> bool {
+        self.ai_selected
+            .map(|i| self.ais[i].modality.as_deref() == Some("audio"))
+            .unwrap_or(false)
+    }
+
+    fn is_image_model(&self) -> bool {
+        self.ai_selected
+            .map(|i| self.ais[i].modality.as_deref() != Some("audio"))
+            .unwrap_or(true)
     }
 
     fn audio_mel_params(&self) -> (usize, usize, usize, f32) {
@@ -392,7 +404,7 @@ impl Gui {
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ai_selected.is_some() && self.ep_selected.is_local() {
+        if self.ai_selected.is_some() && self.ep_selected.is_local() && self.is_image_model() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
                 if ui
@@ -463,7 +475,7 @@ impl Gui {
                 }
 
                 // '+' button, select a escond AI
-                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
+                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
                 {
                     if &self.ais[self.ai_selected.unwrap()].task != "classify" {
                         if ui
@@ -478,6 +490,16 @@ impl Gui {
             });
 
             if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
+                if self.is_audio_model() {
+                    self.show_ai_cls = false;
+                    self.ai_cls_selected = None;
+                    GlobalBQ::Second.clear();
+                    if self.audio_data.is_none() {
+                        self.audio_data = None;
+                        self.audio_file_path = None;
+                        self.audio_predictions = None;
+                    }
+                }
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
                 match GlobalBQ::First.set_model(
                     &model_path,
@@ -1054,7 +1076,7 @@ impl Gui {
     }
 
     fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+        if self.selected_files.len() >= 1 && (self.is_image_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::image));
                 ui.heading(self.t(Key::analysis));
@@ -1173,7 +1195,7 @@ impl Gui {
     }
 
     fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.audio_data.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+        if self.audio_data.is_some() && (self.is_audio_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::audio_file));
                 ui.heading(self.t(Key::analysis));
@@ -1311,7 +1333,7 @@ impl Gui {
     }
 
     fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+        if self.video_file_path.is_some() && (self.is_image_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::video_file));
                 ui.heading(self.t(Key::analysis));
@@ -1416,7 +1438,7 @@ impl Gui {
     }
 
     fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.feed_url.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+        if self.feed_url.is_some() && (self.is_image_model() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::camera_feed));
                 ui.heading(self.t(Key::analysis));
