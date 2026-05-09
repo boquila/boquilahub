@@ -56,6 +56,7 @@ pub trait ModelTrait {
         post_processing: Vec<PostProcessing>,
         session: Session,
         config: ModelConfig,
+        audio_config: Option<AudioConfig>,
     ) -> Result<Self, Error>
     where
         Self: Sized;
@@ -69,6 +70,7 @@ impl Model {
         session: Session,
         architecture: Option<String>,
         config: ModelConfig,
+        audio_config: Option<AudioConfig>,
     ) -> Result<Self, Error> {
         let arch = architecture.as_ref().map(|s| s.to_lowercase());
         match arch.as_deref() {
@@ -92,6 +94,7 @@ impl Model {
                 post_processing,
                 session,
                 config,
+                audio_config.unwrap(),
             )?)),
             Some(arch) => Err(anyhow!("Unsupported model architecture: {}", arch)),
             None => Err(anyhow!("No architecture specified")),

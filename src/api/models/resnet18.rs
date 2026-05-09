@@ -13,7 +13,7 @@ use ort::{session::Session, value::ValueType};
 
 pub struct ResNet18 {
     pub classes: Vec<String>,
-
+    
     // Input Tensor
     pub batch_size: i32,   // number of windows/clips
     pub channel: u32,      //  number of channel, 1 for single channel mel spectrogram
@@ -24,19 +24,22 @@ pub struct ResNet18 {
     pub output_width: i32,
     pub output_height: u32,
     pub output_name: String,
+    
     pub task: Task,
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
     pub config: ModelConfig,
+    pub audio_config: AudioConfig
 }
 
-impl ModelTrait for ResNet18 {
-    fn new(
+impl ResNet18 {
+    pub fn new(
         classes: Vec<String>,
         task: Task,
         post_processing: Vec<PostProcessing>,
         session: Session,
         config: ModelConfig,
+        audio_config: AudioConfig
     ) -> Result<Self, Error> {
         let (batch_size, channel, input_height, input_width) = match &session.inputs[0].input_type {
             ValueType::Tensor { dimensions, .. } => (
@@ -75,6 +78,7 @@ impl ModelTrait for ResNet18 {
             post_processing,
             session,
             config,
+            audio_config
         })
     }
 }

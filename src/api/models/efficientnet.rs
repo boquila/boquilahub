@@ -1,7 +1,7 @@
 use crate::api::{
     abstractions::{AIOutputs, ModelConfig, ProbSpace},
     bq::init_geofence_data,
-    models::{ModelTrait, Task},
+    models::Task,
     processing::{
         inference::inference,
         post::{
@@ -32,8 +32,8 @@ pub struct EfficientNetV2 {
     pub input_format: TensorFormat,
 }
 
-impl ModelTrait for EfficientNetV2 {
-    fn new(
+impl EfficientNetV2 {
+    pub fn new(
         classes: Vec<String>,
         task: Task,
         post_processing: Vec<PostProcessing>,

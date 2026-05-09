@@ -54,6 +54,7 @@ impl GlobalBQ {
             session,
             model_metadata.architecture,
             config,
+            model_metadata.audio_config
         )?;
         *self.get_lock().write().unwrap() = Some(aimodel);
         Ok(())

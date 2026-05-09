@@ -162,12 +162,17 @@ pub struct AI {
     pub modality: Option<String>, // "image" or "audio"
 
     // Audio processing
-    pub sample_rate: Option<u32>, // e.g. 48000
-    pub window_size: Option<f32>, // seconds, e.g. 5.0
-    pub stride: Option<f32>,      // seconds, e.g. 1.0
-    pub n_fft: Option<u32>,       // e.g. 2048
-    pub hop_length: Option<u32>,  // e.g. 512
-    pub top_db: Option<f32>,      // e.g. 80.0
+    pub audio_config: Option<AudioConfig>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct AudioConfig {
+    pub sample_rate: u32, // e.g. 48000
+    pub window_size: f32, // seconds, e.g. 5.0
+    pub stride: f32,      // seconds, e.g. 1.0
+    pub n_fft: u32,       // e.g. 2048
+    pub hop_length: u32,  // e.g. 512
+    pub top_db: f32,      // e.g. 80.0
 }
 
 impl AI {
@@ -242,11 +247,7 @@ pub struct XYXYc {
 
 impl XYXYc {
     pub fn new(xyxy: XYXY, label: String) -> Self {
-        XYXYc {
-            xyxy,
-            label,
-            extra_cls: None,
-        }
+        XYXYc {xyxy, label, extra_cls: None,}
     }
 }
 

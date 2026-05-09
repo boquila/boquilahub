@@ -240,8 +240,8 @@ impl Yolo {
     }
 }
 
-impl ModelTrait for Yolo {
-    fn new(
+impl Yolo {
+    pub fn new(
         classes: Vec<String>,
         task: Task,
         post_processing: Vec<PostProcessing>,
