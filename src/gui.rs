@@ -15,7 +15,7 @@ use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use rodio::{OutputStream, Sink, Source};
+use rodio::Source;
 use video_file::VideofileProcessor;
 
 struct AudioBufferSource {
@@ -57,9 +57,9 @@ impl Iterator for AudioBufferSource {
 }
 
 impl Source for AudioBufferSource {
-    fn current_frame_len(&self) -> Option<usize> { None }
-    fn channels(&self) -> u16 { self.channels }
-    fn sample_rate(&self) -> u32 { self.sample_rate }
+    fn current_span_len(&self) -> Option<usize> { None }
+    fn channels(&self) -> rodio::ChannelCount { rodio::ChannelCount::new(self.channels).unwrap_or(rodio::ChannelCount::MIN) }
+    fn sample_rate(&self) -> rodio::SampleRate { rodio::SampleRate::new(self.sample_rate).unwrap_or(rodio::SampleRate::MIN) }
     fn total_duration(&self) -> Option<std::time::Duration> {
         let frames = self.samples.len() / self.channels.max(1) as usize;
         Some(std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate as f64))
@@ -171,8 +171,8 @@ struct Gui {
     audio_play_start: Option<Instant>,
     audio_play_offset: f64,
     audio_playhead: Option<f64>,
-    audio_stream: Option<rodio::OutputStream>,
-    audio_sink: Option<rodio::Sink>,
+    audio_stream: Option<rodio::MixerDeviceSink>,
+    audio_player: Option<rodio::Player>,
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
@@ -1717,15 +1717,14 @@ Mode::Audio => {
                                 if playhead_time >= duration {
                                     self.audio_playing = false;
                                     self.audio_play_start = None;
+                                    self.audio_player = None;
                                     self.audio_stream = None;
-                                    self.audio_sink = None;
-                                } else if playhead_time > self.audio_position + self.audio_window_secs {
-                                    self.audio_position = playhead_time;
-                                    self.audio_state.texture = None;
                                 }
                                 self.audio_playhead = Some(playhead_time);
                             }
                             ui.ctx().request_repaint();
+                        } else if self.audio_player.is_some() {
+                            self.audio_playhead = Some(self.audio_play_offset);
                         } else {
                             self.audio_playhead = None;
                         }
@@ -1733,14 +1732,22 @@ Mode::Audio => {
                         ui.horizontal(|ui| {
                             if self.audio_playing {
                                 if ui.button("⏸").clicked() {
-                                    self.audio_playing = false;
-                                    if let Some(sink) = &self.audio_sink {
-                                        sink.stop();
+                                    if let Some(player) = &self.audio_player {
+                                        player.pause();
                                     }
-                                    self.audio_sink = None;
-                                    self.audio_stream = None;
+                                    let elapsed = self.audio_play_start.map_or(0.0, |s| s.elapsed().as_secs_f64());
+                                    self.audio_play_offset = self.audio_play_offset + elapsed;
                                     self.audio_play_start = None;
-                                    self.audio_playhead = None;
+                                    self.audio_playing = false;
+                                }
+                            } else if self.audio_player.is_some() {
+                                if ui.button("▶").clicked() {
+                                    self.audio_play_offset = self.audio_position;
+                                    self.audio_play_start = Some(Instant::now());
+                                    self.audio_playing = true;
+                                    if let Some(player) = &self.audio_player {
+                                        player.play();
+                                    }
                                 }
                             } else {
                                 if ui.button("▶").clicked() {
@@ -1750,13 +1757,13 @@ Mode::Audio => {
                                     self.audio_playhead = Some(self.audio_position);
                                     let start_pos = self.audio_position;
                                     let audio_clone = audio.clone();
-                                    if let Ok((stream, handle)) = OutputStream::try_default() {
-                                        if let Ok(sink) = Sink::try_new(&handle) {
-                                            let src = AudioBufferSource::new_from(&audio_clone, start_pos);
-                                            sink.append(src);
-                                            self.audio_stream = Some(stream);
-                                            self.audio_sink = Some(sink);
-                                        }
+                                    if let Ok(mut stream) = rodio::DeviceSinkBuilder::open_default_sink() {
+                                        stream.log_on_drop(false);
+                                        let player = rodio::Player::connect_new(stream.mixer());
+                                        let src = AudioBufferSource::new_from(&audio_clone, start_pos);
+                                        player.append(src);
+                                        self.audio_stream = Some(stream);
+                                        self.audio_player = Some(player);
                                     }
                                 }
                             }
@@ -1772,13 +1779,13 @@ Mode::Audio => {
                                     .step_by(0.1),
                             ).changed() {
                                 self.audio_state.texture = None;
-                                if self.audio_playing {
-                                    self.audio_playing = false;
-                                    if let Some(sink) = &self.audio_sink {
-                                        sink.stop();
+                                if self.audio_player.is_some() {
+                                    if let Some(player) = &self.audio_player {
+                                        player.stop();
                                     }
-                                    self.audio_sink = None;
+                                    self.audio_player = None;
                                     self.audio_stream = None;
+                                    self.audio_playing = false;
                                     self.audio_play_start = None;
                                     self.audio_playhead = None;
                                 }
@@ -1895,8 +1902,15 @@ fn mel_to_imgbuf(
                   + spec[[row_hi, col_hi]] * fc * fr;
             let t = ((v + top_db) / top_db).clamp(0.0, 1.0);
             let time = window_start + (col as f64 / target_width as f64) * window_duration;
-            let pred = predictions
-                .map(|preds| preds.iter().find(|p| time >= p.start as f64 && time < p.end as f64));
+            let pred = predictions.map(|preds| {
+                preds.iter()
+                    .filter(|p| time >= p.start as f64 && time < p.end as f64)
+                    .max_by(|a, b| {
+                        let a_prio = if a.positive { 1 } else { 0 };
+                        let b_prio = if b.positive { 1 } else { 0 };
+                        a_prio.cmp(&b_prio).then(a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
+                    })
+            });
             match pred {
                 None => {
                     let g = (t * 255.0) as u8;
@@ -1941,15 +1955,15 @@ fn magma(t: f32) -> [u8; 3] {
 
 fn viridis(t: f32) -> [u8; 3] {
     let stops: [[u8; 3]; 9] = [
-        [68, 1, 84],
-        [72, 36, 117],
-        [56, 88, 140],
-        [39, 130, 142],
-        [31, 158, 137],
-        [53, 183, 121],
-        [110, 206, 88],
-        [181, 222, 76],
-        [253, 231, 37],
+        [12, 0, 36],
+        [28, 16, 68],
+        [24, 58, 100],
+        [18, 90, 105],
+        [14, 115, 98],
+        [32, 135, 85],
+        [72, 155, 60],
+        [130, 170, 48],
+        [200, 180, 24],
     ];
     colormap_lerp(&stops, t)
 }
