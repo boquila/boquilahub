@@ -837,6 +837,7 @@ impl Gui {
                                     session,
                                     updated_metadata.architecture,
                                     ModelConfig::default(),
+                                    updated_metadata.audio_config,
                                 ) {
                                     Ok(aimodel) => {
                                         *CURRENT_AI.write().unwrap() = Some(aimodel);

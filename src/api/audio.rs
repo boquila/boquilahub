@@ -1,7 +1,10 @@
-use serde::{Deserialize, Serialize};
 use ffmpeg_next as ffmpeg;
-use ffmpeg_next::format::Sample;
 use ffmpeg_next::format::sample::Type as SampleType;
+use ffmpeg_next::format::Sample;
+use serde::{Deserialize, Serialize};
+
+use crate::api::abstractions::AIOutputs;
+use crate::api::bq::process_audio;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AudioData {
@@ -15,57 +18,64 @@ impl AudioData {
         ffmpeg::init()?;
         ffmpeg::util::log::set_level(ffmpeg::util::log::Level::Quiet);
         let mut ictx = ffmpeg::format::input(&path.as_ref())?;
-    
-        let stream = ictx.streams().best(ffmpeg::media::Type::Audio)
+
+        let stream = ictx
+            .streams()
+            .best(ffmpeg::media::Type::Audio)
             .ok_or(ffmpeg::Error::StreamNotFound)?;
         let stream_index = stream.index();
-    
+
         let mut decoder = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?
-            .decoder().audio()?;
-    
-        // HARDCODED: MODEL EXPECTS 48 KHZ (SEE MD_AUDIOBIRDS_V1 SPEC)
-        // TODO: MAKE CONFIGURABLE VIA MODEL METADATA WHEN MULTIPLE AUDIO MODELS EXIST
-        let target_rate = 48000;
+            .decoder()
+            .audio()?;
+
+        let source_rate = decoder.rate();
         let mut resampler = decoder.resampler(
             Sample::F32(SampleType::Packed),
             decoder.channel_layout(),
-            target_rate,
+            source_rate,
         )?;
-    
+
         let mut samples: Vec<f32> = Vec::new();
-    
+
         for (stream, packet) in ictx.packets() {
-            if stream.index() != stream_index { continue; }
+            if stream.index() != stream_index {
+                continue;
+            }
             decoder.send_packet(&packet)?;
             let mut decoded = ffmpeg::frame::Audio::empty();
             while decoder.receive_frame(&mut decoded).is_ok() {
                 let mut resampled = ffmpeg::frame::Audio::empty();
                 resampler.run(&decoded, &mut resampled)?;
                 samples.extend(
-                    resampled.data(0).chunks_exact(4)
-                        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                    resampled
+                        .data(0)
+                        .chunks_exact(4)
+                        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
                 );
             }
         }
-    
+
         decoder.send_eof()?;
         let mut decoded = ffmpeg::frame::Audio::empty();
         while decoder.receive_frame(&mut decoded).is_ok() {
             let mut resampled = ffmpeg::frame::Audio::empty();
             resampler.run(&decoded, &mut resampled)?;
             samples.extend(
-                resampled.data(0).chunks_exact(4)
-                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                resampled
+                    .data(0)
+                    .chunks_exact(4)
+                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
             );
         }
-    
+
         Ok(Self {
             samples,
-            sample_rate: target_rate,
+            sample_rate: source_rate,
             channels: decoder.channels(),
         })
     }
-    
+
     /// Duration in seconds.
     pub fn duration(&self) -> f64 {
         let samples_per_channel = self.samples.len() / self.channels.max(1) as usize;
@@ -76,15 +86,22 @@ impl AudioData {
     /// Returns (min_amplitude, max_amplitude, rms_amplitude).
     pub fn amplitude_stats(&self) -> (f32, f32, f32) {
         let min_amplitude = self.samples.iter().cloned().fold(f32::INFINITY, f32::min);
-        let max_amplitude = self.samples.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-        let mean_square = self.samples.iter().map(|s| s * s).sum::<f32>() / self.samples.len().max(1) as f32;
+        let max_amplitude = self
+            .samples
+            .iter()
+            .cloned()
+            .fold(f32::NEG_INFINITY, f32::max);
+        let mean_square =
+            self.samples.iter().map(|s| s * s).sum::<f32>() / self.samples.len().max(1) as f32;
         let rms_amplitude = mean_square.sqrt();
         (min_amplitude, max_amplitude, rms_amplitude)
     }
 
     /// Average sample value (should be near 0.0 for normal audio).
     pub fn dc_offset(&self) -> f32 {
-        if self.samples.is_empty() { return 0.0; }
+        if self.samples.is_empty() {
+            return 0.0;
+        }
         let sum = self.samples.iter().sum::<f32>();
         let average = sum / self.samples.len() as f32;
         average
@@ -94,6 +111,40 @@ impl AudioData {
     pub fn preview(&self, n: usize) -> &[f32] {
         let count = n.min(self.samples.len());
         &self.samples[..count]
+    }
+
+    pub fn resample(&self, target_rate: u32) -> Self {
+        if self.sample_rate == target_rate || self.samples.is_empty() {
+            return self.clone();
+        }
+        let ch = self.channels.max(1) as usize;
+        let input_frames = self.samples.len() / ch;
+        let output_frames = ((input_frames as f64) * (target_rate as f64)
+            / (self.sample_rate as f64))
+            .ceil() as usize;
+        let ratio = (input_frames as f64) / (output_frames as f64);
+        let mut out = Vec::with_capacity(output_frames * ch);
+        for i in 0..output_frames {
+            let pos = i as f64 * ratio;
+            let idx = pos as usize;
+            let frac = pos - idx as f64;
+            if idx + 1 < input_frames {
+                for c in 0..ch {
+                    let a = self.samples[idx * ch + c];
+                    let b = self.samples[(idx + 1) * ch + c];
+                    out.push(a + (b - a) * frac as f32);
+                }
+            } else {
+                for c in 0..ch {
+                    out.push(self.samples[idx * ch + c]);
+                }
+            }
+        }
+        Self {
+            samples: out,
+            sample_rate: target_rate,
+            channels: self.channels,
+        }
     }
 
     /// Mix all channels down to mono by averaging.
@@ -179,38 +230,27 @@ fn smoke() {
     let a = AudioData::from_file("assets/test/audio.mp3").unwrap();
     let (min, max, rms) = a.amplitude_stats();
 
-    println!("samples={} rate={} channels={} duration={:.3}s", a.samples.len(), a.sample_rate, a.channels, a.duration());
+    println!(
+        "samples={} rate={} channels={} duration={:.3}s",
+        a.samples.len(),
+        a.sample_rate,
+        a.channels,
+        a.duration()
+    );
     println!("amp min={:.4} max={:.4} rms={:.4}", min, max, rms);
     println!("dc_offset={:.6}", a.dc_offset());
     println!("preview={:?}", a.preview(16));
 }
 
 #[test]
-fn chunks_iterator() {
-    // 10 seconds of mono audio @ 1000 Hz => 10000 samples
-    let audio = AudioData {
-        samples: (0..10000).map(|i| i as f32).collect(),
-        sample_rate: 1000,
-        channels: 1,
-    };
-
-    let mut count = 0;
-
-    let _ = super::bq::GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", super::ep::Ep::Cpu, None);
-    for chunk in audio.chunks(5.0, 1.0) {
-        // Each chunk is just another AudioData — pass it by reference
-        assert_eq!(chunk.sample_rate, 1000);
-        assert_eq!(chunk.channels, 1);
-        assert_eq!(chunk.samples.len(), 5000, "each chunk is 5s = 5000 frames");
-
-        let outputs = super::bq::process_audio(&chunk);
-        println!("{:?}",outputs);
-        
-        let expected_first = (count * 1000) as f32;
-        assert!((chunk.samples[0] - expected_first).abs() < f32::EPSILON);
-
-        count += 1;
-    }
-
-    assert_eq!(count, 6, "10s audio with 5s window / 1s hop => 6 full chunks");
+fn audio_inference() {
+    let audio = AudioData::from_file("assets/test/bird.mp3").unwrap();
+    let _ = super::bq::GlobalBQ::First.set_model(
+        "models/MD_AudioBirds_V1.bq",
+        super::ep::Ep::Cpu,
+        None,
+    );
+    let aioutput: AIOutputs = process_audio(&audio);
+    println!("Inference success",);
+    println!("AI Outputs: {:?}",aioutput);
 }

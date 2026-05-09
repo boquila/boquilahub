@@ -279,7 +279,7 @@ impl AIOutputs {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ModelConfig {
     pub confidence_threshold: f32,
     pub nms_threshold: f32,

@@ -2,7 +2,6 @@ pub mod efficientnet;
 pub mod resnet18;
 pub mod yolo;
 use crate::api::models::resnet18::ResNet18;
-
 use super::{audio::AudioData, abstractions::*, processing::post::PostProcessing};
 use anyhow::{anyhow, Error, Result};
 pub use efficientnet::EfficientNetV2;
@@ -10,6 +9,7 @@ use image::{ImageBuffer, Rgb};
 use ort::session::Session;
 pub use yolo::Yolo;
 
+#[derive(Debug)]
 pub enum Task {
     Classify,
     Segment,
