@@ -224,6 +224,30 @@ fn mel_spectrogram(
     power_to_db(&mel_spec, top_db)
 }
 
+/// Compute a mel spectrogram for a single `AudioData` window.
+pub fn compute_mel(
+    audio: &AudioData,
+    n_fft: usize,
+    hop_length: usize,
+    n_mels: usize,
+    top_db: f32,
+) -> Array2<f32> {
+    mel_spectrogram(&audio.samples, audio.sample_rate, n_fft, hop_length, n_mels, top_db)
+}
+
+/// Stack a batch of mel spectrograms into an NCHW tensor `[batch, 1, n_mels, max_time]`.
+/// Shorter spectrograms are zero-padded on the time axis to match the longest.
+pub fn mels_to_batch(specs: &[Array2<f32>], n_mels: usize) -> Array<f32, Ix4> {
+    let batch = specs.len();
+    let max_time = specs.iter().map(|s| s.ncols()).max().unwrap_or(0);
+    let mut input = Array::zeros((batch, 1, n_mels, max_time));
+    for (i, spec) in specs.iter().enumerate() {
+        let n_times = spec.ncols();
+        input.slice_mut(s![i, 0, .., ..n_times]).assign(spec);
+    }
+    input
+}
+
 /// Transform `AudioData` into a batched NCHW tensor for audio models.
 ///
 /// - Slices audio into `window_secs` chunks with `hop_secs` stride.
@@ -248,21 +272,12 @@ pub fn audio_to_input_array(
         mono.chunks(window_secs, hop_secs).collect()
     };
 
-    let batch = windows.len();
     let specs: Vec<Array2<f32>> = windows
         .iter()
         .map(|w| mel_spectrogram(&w.samples, w.sample_rate, n_fft, hop_length, n_mels, top_db))
         .collect();
 
-    let max_time = specs.iter().map(|s| s.ncols()).max().unwrap_or(0);
-
-    let mut input = Array::zeros((batch, 1, n_mels, max_time));
-    for (i, spec) in specs.iter().enumerate() {
-        let n_times = spec.ncols();
-        input.slice_mut(s![i, 0, .., ..n_times]).assign(spec);
-    }
-
-    input
+    mels_to_batch(&specs, n_mels)
 }
 
 #[test]

@@ -3,9 +3,6 @@ use ffmpeg_next::format::sample::Type as SampleType;
 use ffmpeg_next::format::Sample;
 use serde::{Deserialize, Serialize};
 
-use crate::api::abstractions::AIOutputs;
-use crate::api::bq::process_audio;
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AudioData {
     pub samples: Vec<f32>,
@@ -250,7 +247,8 @@ fn audio_inference() {
         super::ep::Ep::Cpu,
         None,
     );
-    let aioutput: AIOutputs = process_audio(&audio);
+    
+    let aioutput = crate::api::bq::process_audio(&audio);
     println!("Inference success",);
     println!("AI Outputs: {:?}",aioutput);
 }
