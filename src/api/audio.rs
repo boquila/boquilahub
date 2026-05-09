@@ -218,9 +218,11 @@ impl AudioData {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```
+    /// use boquilahub::api::audio::AudioData;
+    /// let audio = AudioData { samples: vec![0.0; 48000], sample_rate: 16000, channels: 1 };
     /// for chunk in audio.chunks(5.0, 1.0) {
-    ///     model.process(&chunk);
+    ///     let (min, max, rms) = chunk.amplitude_stats();
     /// }
     /// ```
     ///
