@@ -111,6 +111,10 @@ pub enum Key {
     loaded,
     focus_deploy_to_reveal_ip,
     audio_file,
+    position,
+    window,
+    width_,
+    height_,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -664,6 +668,46 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "オーディオ",
             Lang::PT => "Áudio",
             Lang::VI => "Âm thanh"
+        },
+        Key::position => match lang {
+            Lang::EN => "position (s)",
+            Lang::ES => "posición (s)",
+            Lang::FR => "position (s)",
+            Lang::DE => "Position (s)",
+            Lang::ZH => "位置 (秒)",
+            Lang::JA => "位置 (秒)",
+            Lang::PT => "posição (s)",
+            Lang::VI => "vị trí (giây)"
+        },
+        Key::window => match lang {
+            Lang::EN => "window (s)",
+            Lang::ES => "ventana (s)",
+            Lang::FR => "fenêtre (s)",
+            Lang::DE => "Fenster (s)",
+            Lang::ZH => "窗口 (秒)",
+            Lang::JA => "ウィンドウ (秒)",
+            Lang::PT => "janela (s)",
+            Lang::VI => "cửa sổ (giây)"
+        },
+        Key::width_ => match lang {
+            Lang::EN => "width",
+            Lang::ES => "ancho",
+            Lang::FR => "largeur",
+            Lang::DE => "Breite",
+            Lang::ZH => "宽度",
+            Lang::JA => "幅",
+            Lang::PT => "largura",
+            Lang::VI => "chiều rộng"
+        },
+        Key::height_ => match lang {
+            Lang::EN => "height",
+            Lang::ES => "alto",
+            Lang::FR => "hauteur",
+            Lang::DE => "Höhe",
+            Lang::ZH => "高度",
+            Lang::JA => "高さ",
+            Lang::PT => "altura",
+            Lang::VI => "chiều cao"
         },
     }
 }

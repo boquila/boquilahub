@@ -300,6 +300,7 @@ impl Gui {
         self.video_state.is_processing
             || self.img_state.is_processing
             || self.feed_state.is_processing
+            || self.audio_state.is_processing
     }
 
     fn process_done(&mut self) {
@@ -1767,9 +1768,10 @@ Mode::Audio => {
 
                         if duration > self.audio_window_secs {
                             let max_pos = (duration - self.audio_window_secs).max(0.0);
+                            let pos_text = self.t(Key::position);
                             if ui.add(
                                 egui::Slider::new(&mut self.audio_position, 0.0..=max_pos)
-                                    .text("position (s)")
+                                    .text(pos_text)
                                     .step_by(0.1),
                             ).changed() {
                                 self.audio_state.texture = None;
@@ -1786,9 +1788,10 @@ Mode::Audio => {
                             }
                         }
 
+                        let win_text = self.t(Key::window);
                         if ui.add(
                             egui::Slider::new(&mut self.audio_window_secs, 1.0..=duration.min(60.0))
-                                .text("window (s)")
+                                .text(win_text)
                                 .step_by(1.0),
                         ).changed() {
                             self.audio_position = self.audio_position.min((duration - self.audio_window_secs).max(0.0));
@@ -1798,7 +1801,7 @@ Mode::Audio => {
                         let mut w = self.audio_spec_width as f32;
                         if ui.add(
                             egui::Slider::new(&mut w, 300.0..=1400.0)
-                                .text("width"),
+                                .text(self.t(Key::width_)),
                         ).changed() {
                             self.audio_spec_width = w.round() as usize;
                             self.audio_state.texture = None;
@@ -1807,7 +1810,7 @@ Mode::Audio => {
                         let mut h = self.audio_spec_height as f32;
                         if ui.add(
                             egui::Slider::new(&mut h, 100.0..=700.0)
-                                .text("height"),
+                                .text(self.t(Key::height_)),
                         ).changed() {
                             self.audio_spec_height = h.round() as usize;
                             self.audio_state.texture = None;
