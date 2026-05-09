@@ -158,6 +158,7 @@ struct Gui {
     img_state: State,
     video_state: State,
     feed_state: State,
+    audio_state: State,
 }
 
 #[derive(Default)]
@@ -1058,6 +1059,96 @@ impl Gui {
         }
     }
 
+    fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
+        if self.selected_files.len() >= 1 && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+            ui.vertical_centered(|ui| {
+                ui.heading(self.t(Key::image));
+                ui.heading(self.t(Key::analysis));
+            });
+            ui.separator();
+
+            // Analyze button Widget
+            ui.vertical_centered(|ui| {
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
+                    .clicked()
+                {
+                    if !self.img_state.is_processing {
+                        if self.selected_files.get_progress() == 0.0 {
+                            self.start_img_analysis();
+                        } else {
+                            self.show_dialog.process_all = true;
+                        }
+                    }
+                }
+
+                // Cancel button widget
+                if self.img_state.is_processing {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
+                        .clicked()
+                    {
+                        if let Some(cancel_tx) = self.img_state.cancel_sender.take() {
+                            let _ = cancel_tx.send(());
+                        }
+                        self.img_state.is_processing = false;
+                        self.image_processing_receiver = None;
+                    }
+                }
+            });
+
+            // Progress Bar: Image
+            if self.selected_files.len() > 0 {
+                ui.add(
+                    egui::ProgressBar::new(self.img_state.progress_bar)
+                        .show_percentage()
+                        .animate(self.img_state.is_processing),
+                );
+            }
+
+            ui.add_space(8.0);
+
+            // Export button Widget
+            if self.mode == Mode::Image {
+                ui.vertical_centered(|ui| {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
+                        .clicked()
+                    {
+                        self.show_dialog.export = true;
+                    }
+                });
+            }
+
+            // Export dialog logic
+            if self.show_dialog.export {
+                egui::Window::new(self.t(Key::export))
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ui, |ui| {
+                        // Export option 1
+                        if ui.button(self.t(Key::export_predictions)).clicked() {
+                            for file in self.selected_files.clone() {
+                                tokio::spawn(async move {
+                                    let _ = file.write_pred_img_to_file().await;
+                                });
+                            }
+
+                            self.process_done();
+                            self.show_dialog.export = false;
+                        }
+
+                        // Cancel any export
+                        if ui.button(self.t(Key::cancel)).clicked() {
+                            self.show_dialog.export = false;
+                        }
+                    });
+            }
+
+            self.process_all_dialog(ui);
+        }
+    }
+
     fn start_video_analysis(&mut self) {
         self.video_state.is_processing = true;
         // Async processing: Video
@@ -1428,6 +1519,9 @@ impl eframe::App for Gui {
                 Mode::Feed => {
                     self.feed_analysis_widget(ui);
                 }
+                Mode::Audio => {
+                    self.audio_analysis_widget(ui);
+                }
             }
 
             self.show_done_message(ui);
@@ -1509,6 +1603,15 @@ impl eframe::App for Gui {
 
                     self.feed_handle_results(ui);
                 }
+                Mode::Audio => {
+                    if let Some(texture) = &self.audio_state.texture {
+                        ui.add(
+                            egui::Image::new(texture)
+                                .max_height(800.0)
+                                .corner_radius(10.0),
+                        );
+                    }
+                }
             });
         });
     }
@@ -1531,4 +1634,5 @@ enum Mode {
     Image,
     Video,
     Feed,
+    Audio,
 }

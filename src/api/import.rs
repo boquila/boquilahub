@@ -73,6 +73,34 @@ pub const VIDEO_FORMATS: [&'static str; 35] = [
     "h264",   // H.264 Video
 ];
 
+pub const AUDIO_FORMATS: [&'static str; 18] = [
+    "mp3",  // MPEG-1 Audio Layer III
+    "wav",  // Waveform Audio
+    "flac", // Free Lossless Audio Codec
+    "ogg",  // Ogg Vorbis
+    "opus", // Opus Audio
+    "aac",  // Advanced Audio Coding
+    "m4a",  // MPEG-4 Audio
+    "wma",  // Windows Media Audio
+    "aiff", // Audio Interchange File Format
+    "aif",  // AIFF alternative extension
+    "au",   // Sun/NeXT Audio
+    "snd",  // Sun/NeXT Audio alternative extension
+    "amr",  // Adaptive Multi-Rate Audio
+    "ac3",  // Dolby Digital Audio
+    "mid",  // MIDI
+    "midi", // MIDI alternative extension
+    "wv",   // WavPack
+    "ape",  // Monkey's Audio
+];
+
+pub fn is_supported_audio(file_path: &str) -> bool {
+    if let Some(extension) = file_path.rsplit('.').next() {
+        return AUDIO_FORMATS.contains(&extension.to_lowercase().as_str());
+    }
+    false
+}
+
 pub fn is_supported_img(file_path: &str) -> bool {
     if let Some(extension) = file_path.rsplit('.').next() {
         return IMAGE_FORMATS.contains(&extension.to_lowercase().as_str());
