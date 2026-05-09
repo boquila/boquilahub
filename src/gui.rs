@@ -1712,19 +1712,19 @@ Mode::Audio => {
 
                         if self.audio_playing {
                             if let Some(start) = self.audio_play_start {
-                                let elapsed = start.elapsed().as_secs_f64();
-                                let playhead_time = (self.audio_play_offset + elapsed).min(duration);
+                                let playhead_time = (self.audio_play_offset + start.elapsed().as_secs_f64()).min(duration);
                                 if playhead_time >= duration {
                                     self.audio_playing = false;
                                     self.audio_play_start = None;
                                     self.audio_player = None;
                                     self.audio_stream = None;
+                                } else if playhead_time > self.audio_position + self.audio_window_secs {
+                                    self.audio_position = playhead_time;
+                                    self.audio_state.texture = None;
                                 }
                                 self.audio_playhead = Some(playhead_time);
                             }
                             ui.ctx().request_repaint();
-                        } else if self.audio_player.is_some() {
-                            self.audio_playhead = Some(self.audio_play_offset);
                         } else {
                             self.audio_playhead = None;
                         }
@@ -1732,22 +1732,16 @@ Mode::Audio => {
                         ui.horizontal(|ui| {
                             if self.audio_playing {
                                 if ui.button("⏸").clicked() {
+                                    self.audio_position = self.audio_play_offset + self.audio_play_start.map_or(0.0, |s| s.elapsed().as_secs_f64());
+                                    self.audio_position = self.audio_position.min(duration);
                                     if let Some(player) = &self.audio_player {
-                                        player.pause();
+                                        player.stop();
                                     }
-                                    let elapsed = self.audio_play_start.map_or(0.0, |s| s.elapsed().as_secs_f64());
-                                    self.audio_play_offset = self.audio_play_offset + elapsed;
-                                    self.audio_play_start = None;
+                                    self.audio_player = None;
+                                    self.audio_stream = None;
                                     self.audio_playing = false;
-                                }
-                            } else if self.audio_player.is_some() {
-                                if ui.button("▶").clicked() {
-                                    self.audio_play_offset = self.audio_position;
-                                    self.audio_play_start = Some(Instant::now());
-                                    self.audio_playing = true;
-                                    if let Some(player) = &self.audio_player {
-                                        player.play();
-                                    }
+                                    self.audio_play_start = None;
+                                    self.audio_state.texture = None;
                                 }
                             } else {
                                 if ui.button("▶").clicked() {
@@ -1779,7 +1773,7 @@ Mode::Audio => {
                                     .step_by(0.1),
                             ).changed() {
                                 self.audio_state.texture = None;
-                                if self.audio_player.is_some() {
+                                if self.audio_playing || self.audio_player.is_some() {
                                     if let Some(player) = &self.audio_player {
                                         player.stop();
                                     }
