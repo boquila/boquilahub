@@ -1,9 +1,11 @@
 use super::{api::*, localization::*};
 use abstractions::*;
+use audio::AudioData;
 use bq::*;
 use ep::Ep;
 use image::{open, ImageBuffer, Rgba};
 use models::{Model, Task};
+use processing::pre::compute_mel;
 use processing::post::PostProcessing;
 use render::{draw_aioutput, draw_no_predictions};
 use rest::{
@@ -108,6 +110,13 @@ struct Gui {
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
     audio_file_path: Option<PathBuf>,
+    audio_data: Option<AudioData>,
+    audio_position: f64,
+    audio_window_secs: f64,
+    audio_spec_width: usize,
+    audio_spec_height: usize,
+    audio_predictions: Option<Vec<AudioProb>>,
+    audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
@@ -219,9 +228,12 @@ impl Gui {
             ais: ais,
             ais_cls_only: classify_ais,
             temp_architecture: "yolo".to_owned(),
-            image_texture_n: 1, // this starts at 1
+            image_texture_n: 1,
             video_step_frame: 3,
             feed_step_frame: 3,
+            audio_window_secs: 10.0,
+            audio_spec_width: 800,
+            audio_spec_height: 300,
             process_all_imgs: true,
             ..Default::default()
         }
@@ -251,6 +263,20 @@ impl Gui {
 
     fn current_ai_cls(&self) -> &AI {
         return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
+    }
+
+    fn audio_mel_params(&self) -> (usize, usize, usize, f32) {
+        if let Some(ai) = self.ai_selected {
+            if let Some(ref ac) = self.ais[ai].audio_config {
+                return (
+                    ac.n_fft as usize,
+                    ac.hop_length as usize,
+                    128,
+                    ac.top_db,
+                );
+            }
+        }
+        (2048, 512, 128, 80.0)
     }
 
     fn paint(&mut self, ui: &egui::Ui, i: usize) {
@@ -706,9 +732,20 @@ impl Gui {
                         .add_filter("Audio", &import::AUDIO_FORMATS)
                         .pick_file()
                     {
-                        self.audio_file_path = Some(path);
-                        self.mode = Mode::Audio;
-                        self.audio_state.progress_bar = 0.0;
+                        match audio::AudioData::from_file(&path) {
+                            Ok(audio_data) => {
+                                self.audio_data = Some(audio_data.to_mono());
+                                self.audio_file_path = Some(path);
+                                self.audio_position = 0.0;
+                                self.audio_state.texture = None;
+                                self.audio_predictions = None;
+                                self.mode = Mode::Audio;
+                                self.audio_state.progress_bar = 0.0;
+                            }
+                            Err(_) => {
+                                self.process_error();
+                            }
+                        }
                     }
                 }
 
@@ -1078,7 +1115,7 @@ impl Gui {
     }
 
     fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.audio_file_path.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
+        if self.audio_data.is_some() && (self.ai_selected.is_some() || !self.ep_selected.is_local()) {
             ui.vertical_centered(|ui| {
                 ui.heading(self.t(Key::audio_file));
                 ui.heading(self.t(Key::analysis));
@@ -1092,7 +1129,46 @@ impl Gui {
                         .unwrap_or("(unknown)")
                 );
             }
+
+            ui.vertical_centered(|ui| {
+                if !self.audio_state.is_processing {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
+                        .clicked()
+                    {
+                        self.start_audio_analysis();
+                    }
+                } else {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
+                        .clicked()
+                    {
+                        if let Some(cancel_tx) = self.audio_state.cancel_sender.take() {
+                            let _ = cancel_tx.send(());
+                        }
+                        self.audio_state.is_processing = false;
+                    }
+                }
+            });
         }
+    }
+
+    fn start_audio_analysis(&mut self) {
+        self.audio_state.is_processing = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.audio_result_receiver = Some(rx);
+
+        let audio = self.audio_data.as_ref().unwrap().clone();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.audio_state.cancel_sender = Some(cancel_tx);
+
+        tokio::spawn(async move {
+            if cancel_rx.try_recv().is_ok() {
+                return;
+            }
+            let result = tokio::task::spawn_blocking(move || process_audio(&audio)).await;
+            let _ = tx.send(result);
+        });
     }
 
     fn start_video_analysis(&mut self) {
@@ -1404,6 +1480,25 @@ impl Gui {
             ui.request_repaint();
         }
     }
+
+    fn audio_handle_results(&mut self) {
+        if let Some(rx) = &self.audio_result_receiver {
+            if let Ok(result) = rx.try_recv() {
+                match result {
+                    Ok(AIOutputs::AudioClassification(preds)) => {
+                        self.audio_predictions = Some(preds);
+                    }
+                    _ => {
+                        self.process_error();
+                    }
+                }
+                self.audio_state.is_processing = false;
+                self.audio_state.texture = None;
+                self.audio_result_receiver = None;
+                self.process_done();
+            }
+        }
+    }
 }
 
 impl eframe::App for Gui {
@@ -1555,15 +1650,76 @@ impl eframe::App for Gui {
                     self.feed_handle_results(ui);
                 }
                 Mode::Audio => {
-                    if let Some(path) = &self.audio_file_path {
-                        ui.vertical_centered(|ui| {
-                            ui.heading(
-                                path.file_name()
-                                    .and_then(|n| n.to_str())
-                                    .unwrap_or("(unknown)"),
+                    if let Some(audio) = &self.audio_data {
+                        let duration = audio.duration();
+
+                        ui.style_mut().spacing.slider_width = 300.0;
+
+                        if duration > self.audio_window_secs {
+                            let max_pos = (duration - self.audio_window_secs).max(0.0);
+                            if ui.add(
+                                egui::Slider::new(&mut self.audio_position, 0.0..=max_pos)
+                                    .text("position (s)")
+                                    .step_by(0.1),
+                            ).changed() {
+                                self.audio_state.texture = None;
+                            }
+                        }
+
+                        if ui.add(
+                            egui::Slider::new(&mut self.audio_window_secs, 1.0..=duration.min(60.0))
+                                .text("window (s)")
+                                .step_by(1.0),
+                        ).changed() {
+                            self.audio_position = self.audio_position.min((duration - self.audio_window_secs).max(0.0));
+                            self.audio_state.texture = None;
+                        }
+
+                        let mut w = self.audio_spec_width as f32;
+                        if ui.add(
+                            egui::Slider::new(&mut w, 300.0..=1400.0)
+                                .text("width"),
+                        ).changed() {
+                            self.audio_spec_width = w.round() as usize;
+                            self.audio_state.texture = None;
+                        }
+
+                        let mut h = self.audio_spec_height as f32;
+                        if ui.add(
+                            egui::Slider::new(&mut h, 100.0..=700.0)
+                                .text("height"),
+                        ).changed() {
+                            self.audio_spec_height = h.round() as usize;
+                            self.audio_state.texture = None;
+                        }
+
+                        if self.audio_state.texture.is_none() {
+                            let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
+                            let window = audio.slice(self.audio_position, self.audio_window_secs)
+                                .resample(22050);
+                            let spec = compute_mel(&window, n_fft, hop_length, n_mels, top_db);
+                            let window_preds: Option<Vec<AudioProb>> = self.audio_predictions.as_ref().map(|preds| {
+                                preds.iter()
+                                    .filter(|p| p.end as f64 > self.audio_position && (p.start as f64) < self.audio_position + self.audio_window_secs)
+                                    .cloned()
+                                    .collect()
+                            });
+                            let img = mel_to_imgbuf(
+                                &spec, top_db, self.audio_spec_width, self.audio_spec_height,
+                                window_preds.as_deref(), self.audio_position, self.audio_window_secs,
                             );
-                        });
+                            self.audio_state.texture = imgbuf_to_texture(&img, ui);
+                        }
+
+                        if let Some(texture) = &self.audio_state.texture {
+                            ui.add(
+                                egui::Image::new(texture)
+                                    .corner_radius(10.0),
+                            );
+                        }
                     }
+
+                    self.audio_handle_results();
                 }
             });
         });
@@ -1579,6 +1735,107 @@ fn imgbuf_to_texture(
     let color_img =
         egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
     Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
+}
+
+fn mel_to_imgbuf(
+    spec: &ndarray::Array2<f32>,
+    top_db: f32,
+    target_width: usize,
+    target_height: usize,
+    predictions: Option<&[AudioProb]>,
+    window_start: f64,
+    window_duration: f64,
+) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+    let (n_mels, n_time) = spec.dim();
+    let sx = target_width as f32 / n_time as f32;
+    let sy = target_height as f32 / n_mels as f32;
+    let mut pixels = Vec::with_capacity(target_width * target_height * 4);
+    for row in 0..target_height {
+        for col in 0..target_width {
+            let src_col = (col as f32 / sx).min(n_time as f32 - 1.0);
+            let src_row = (row as f32 / sy).min(n_mels as f32 - 1.0);
+            let col_lo = src_col.floor() as usize;
+            let col_hi = (col_lo + 1).min(n_time - 1);
+            let fc = src_col - col_lo as f32;
+            let row_lo = src_row.floor() as usize;
+            let row_hi = (row_lo + 1).min(n_mels - 1);
+            let fr = src_row - row_lo as f32;
+            let v = spec[[row_lo, col_lo]] * (1.0 - fc) * (1.0 - fr)
+                  + spec[[row_lo, col_hi]] * fc * (1.0 - fr)
+                  + spec[[row_hi, col_lo]] * (1.0 - fc) * fr
+                  + spec[[row_hi, col_hi]] * fc * fr;
+            let t = ((v + top_db) / top_db).clamp(0.0, 1.0);
+            let time = window_start + (col as f64 / target_width as f64) * window_duration;
+            let pred = predictions
+                .map(|preds| preds.iter().find(|p| time >= p.start as f64 && time < p.end as f64));
+            match pred {
+                None => {
+                    let g = (t * 255.0) as u8;
+                    pixels.extend_from_slice(&[g, g, g, 255]);
+                }
+                Some(Some(p)) => {
+                    if p.positive {
+                        let [r, g, b] = magma(t);
+                        pixels.extend_from_slice(&[r, g, b, 255]);
+                    } else {
+                        let [r, g, b] = viridis(t);
+                        pixels.extend_from_slice(&[r, g, b, 255]);
+                    }
+                }
+                Some(None) => {
+                    let g = (t * 255.0) as u8;
+                    pixels.extend_from_slice(&[g, g, g, 255]);
+                }
+            }
+        }
+    }
+    ImageBuffer::from_raw(target_width as u32, target_height as u32, pixels).unwrap()
+}
+
+
+
+
+fn magma(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [0, 0, 4],
+        [20, 14, 59],
+        [65, 22, 107],
+        [120, 28, 129],
+        [175, 49, 120],
+        [216, 87, 72],
+        [237, 149, 27],
+        [249, 213, 70],
+        [252, 253, 191],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+fn viridis(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [68, 1, 84],
+        [72, 36, 117],
+        [56, 88, 140],
+        [39, 130, 142],
+        [31, 158, 137],
+        [53, 183, 121],
+        [110, 206, 88],
+        [181, 222, 76],
+        [253, 231, 37],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+fn colormap_lerp(stops: &[[u8; 3]; 9], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let idx = t * (stops.len() - 1) as f32;
+    let lo = idx.floor() as usize;
+    let hi = (lo + 1).min(stops.len() - 1);
+    let frac = idx - lo as f32;
+    [
+        (stops[lo][0] as f32 + (stops[hi][0] as f32 - stops[lo][0] as f32) * frac) as u8,
+        (stops[lo][1] as f32 + (stops[hi][1] as f32 - stops[lo][1] as f32) * frac) as u8,
+        (stops[lo][2] as f32 + (stops[hi][2] as f32 - stops[lo][2] as f32) * frac) as u8,
+    ]
 }
 
 #[derive(Default, PartialEq)]

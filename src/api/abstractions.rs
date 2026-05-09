@@ -253,10 +253,11 @@ impl XYXYc {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AudioProb {
-    pub start: f32, // seconds
-    pub end: f32, // seconds
+    pub start: f32,
+    pub end: f32,
     pub class_id: u32,
     pub prob: f32,
+    pub positive: bool,
     pub label: String,
 }
 

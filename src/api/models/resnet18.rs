@@ -158,6 +158,7 @@ impl ResNet18 {
                 end,
                 class_id,
                 prob,
+                positive: class_id == 1,
                 label: self.classes[class_id as usize].clone(),
             });
         }
