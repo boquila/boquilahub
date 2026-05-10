@@ -50,12 +50,10 @@ pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) -> Result<
                 std::fs::create_dir_all(&folder_path)?;
             }
 
-            // Extract the image name from path
             let image_name = std::path::Path::new(image_file_path)
                 .file_name()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default();
+                .and_then(|f| f.to_str())
+                .ok_or_else(|| anyhow::anyhow!("Invalid image file path: {}", image_file_path.display()))?;
 
             let new_image_path = format!("{}/{}", folder_path, image_name);
 
