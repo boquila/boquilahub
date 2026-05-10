@@ -1,9 +1,5 @@
 use crate::api::abstractions::AIOutputs;
-use crate::api::ep::Ep;
 use crate::api::utils::create_predictions_file_path;
-use anyhow::Result;
-use ort::session::builder::GraphOptimizationLevel;
-use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::path::Path;
 use std::{fs, io};
 
@@ -42,17 +38,6 @@ pub fn is_supported_videofile(file_path: &str) -> bool {
         return VIDEO_FORMATS.contains(&extension.to_lowercase().as_str());
     }
     false
-}
-
-pub fn import_model(model_data: &[u8], ep: Ep) -> Result<Session, ort::Error> {
-    let mut builder =
-        Session::builder()?.with_optimization_level(GraphOptimizationLevel::Level3)?;
-
-    if ep == Ep::Cuda {
-        builder = builder.with_execution_providers([CUDAExecutionProvider::default().build()])?;
-    }
-
-    builder.commit_from_memory(model_data)
 }
 
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {

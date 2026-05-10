@@ -912,7 +912,7 @@ impl Gui {
                                     Some(self.temp_architecture.clone());
 
                                 // Create model
-                                let session = import::import_model(&data, ep).unwrap();
+                                let session = BQModel::session_from_memory(&data, ep).unwrap();
                                 let post: Vec<PostProcessing> = updated_metadata
                                     .post_processing
                                     .iter()

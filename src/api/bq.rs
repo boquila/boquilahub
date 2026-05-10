@@ -1,7 +1,8 @@
 use super::abstractions::*;
 use super::audio::*;
 use super::ep::Ep;
-use super::import::import_model;
+use ort::session::builder::GraphOptimizationLevel;
+use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use super::models::{AIInput, Model, Task};
 use super::processing::post::PostProcessing;
 use super::processing::pre::slice_image;
@@ -16,7 +17,7 @@ use std::sync::{OnceLock, RwLock};
 // Just an interface for interacting with .bq models
 pub struct BQModel;
 
-// An interface for interacting with .bq models In Memory
+// An interface for interacting the global .bq models In Memory
 pub enum GlobalBQ {
     First,
     Second,
@@ -38,9 +39,9 @@ impl GlobalBQ {
     ) -> Result<()> {
         let config = config.unwrap_or_default();
 
-        let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value).unwrap();
+        let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value)?;
         debug_assert!(model_metadata.architecture.is_some());
-        let session = import_model(&data, ep).unwrap();
+        let session = BQModel::session_from_memory(&data, ep)?;
         let post: Vec<PostProcessing> = model_metadata
             .post_processing
             .iter()
@@ -73,6 +74,17 @@ impl GlobalBQ {
 }
 
 impl BQModel {
+    pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session, ort::Error> {
+        let mut builder =
+            Session::builder()?.with_optimization_level(GraphOptimizationLevel::Level3)?;
+    
+        if ep == Ep::Cuda {
+            builder = builder.with_execution_providers([CUDAExecutionProvider::default().build()])?;
+        }
+    
+        builder.commit_from_memory(model_data)
+    }
+    
     pub fn import_data(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
         // Open the .bq file
         let mut file = File::open(&file_path)?;
