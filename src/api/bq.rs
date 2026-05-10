@@ -10,6 +10,8 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
 
@@ -133,14 +135,26 @@ impl BQModel {
     }
 
     pub fn from_file_to_metadata(file_path: impl AsRef<Path>) -> Result<AI> {
-        let content = fs::read(&file_path)
-            .with_context(|| format!("Failed to read .bq file: {}", file_path.as_ref().display()))?;
-        let name = file_path
-            .as_ref()
+        let path = file_path.as_ref();
+        let name = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
-        let (ai_model, _) = parse_bq_header(&content, name)?;
+
+        let mut file = File::open(path)
+            .with_context(|| format!("Failed to open .bq file: {}", path.display()))?;
+
+        let mut header = [0u8; 12];
+        file.read_exact(&mut header)
+            .with_context(|| format!("Failed to read .bq header: {}", path.display()))?;
+
+        let json_length = u32::from_le_bytes(header[8..12].try_into().context("Failed to read JSON length")?) as usize;
+        let mut buf = vec![0u8; 12 + json_length];
+        buf[..12].copy_from_slice(&header);
+        file.read_exact(&mut buf[12..])
+            .with_context(|| format!("Failed to read JSON section from .bq file: {}", path.display()))?;
+
+        let (ai_model, _) = parse_bq_header(&buf, name)?;
         Ok(ai_model)
     }
 
