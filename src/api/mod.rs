@@ -11,3 +11,6 @@ pub mod stream;
 pub mod utils;
 pub mod video_file;
 pub mod audio;
+
+#[cfg(feature = "grpc")]
+pub mod grpc;

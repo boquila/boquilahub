@@ -6,6 +6,10 @@ build = "src/build.rs"
 authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
+[features]
+default = ["grpc"]
+grpc = ["dep:tonic", "dep:prost"]
+
 [dependencies]
 egui = "0.34.2"
 eframe = { version = "0.34.2", default-features = false, features = [
@@ -38,6 +42,8 @@ fast_image_resize = "=6.0.0"
 ratatui = "0.30.0"
 realfft = "3.4"
 rodio = { version = "0.22", default-features = false, features = ["playback"] }
+tonic = { version = "0.12", optional = true }
+prost = { version = "0.13", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "wincon"] }
@@ -57,3 +63,4 @@ incremental = true
 
 [build-dependencies]
 embed-resource = "3.0"
+tonic-build = "0.12"

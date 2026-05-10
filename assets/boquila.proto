@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package boquila;
+
+service BoquilaHub {
+  rpc Detect(DetectRequest) returns (DetectResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message DetectRequest {
+  bytes image = 1;
+}
+
+message DetectResponse {
+  oneof output {
+    ObjectDetectionResult object_detection = 1;
+    ClassificationResult classification = 2;
+    SegmentationResult segmentation = 3;
+    AudioClassificationResult audio_classification = 4;
+  }
+}
+
+message ObjectDetectionResult {
+  repeated DetectedObject detections = 1;
+}
+
+message ClassificationResult {
+  Probabilities probabilities = 1;
+}
+
+message SegmentationResult {
+  repeated SegmentedObject segments = 1;
+}
+
+message AudioClassificationResult {
+  repeated AudioPrediction predictions = 1;
+}
+
+message BBox {
+  float x1 = 1;
+  float y1 = 2;
+  float x2 = 3;
+  float y2 = 4;
+  float prob = 5;
+  uint32 class_id = 6;
+}
+
+message Probabilities {
+  repeated string classes = 1;
+  repeated float probs = 2;
+  repeated uint32 class_ids = 3;
+}
+
+message DetectedObject {
+  BBox bbox = 1;
+  string label = 2;
+  Probabilities extra_cls = 3;
+}
+
+message BitMatrix {
+  bytes data = 1;
+  uint32 width = 2;
+  uint32 height = 3;
+  uint32 num_bits = 4;
+}
+
+message SegmentedObject {
+  BitMatrix mask = 1;
+  DetectedObject bbox = 2;
+}
+
+message AudioPrediction {
+  float start = 1;
+  float end = 2;
+  uint32 class_id = 3;
+  float prob = 4;
+  bool positive = 5;
+  string label = 6;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string message = 1;
+}

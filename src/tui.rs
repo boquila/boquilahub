@@ -11,8 +11,10 @@ use super::api::{
     abstractions::AI,
     bq::{BQModel, GlobalBQ},
     ep::Ep,
-    rest::{get_ipv4_address, run_api},
+    rest::{get_ipv4_address, run_rest},
 };
+#[cfg(feature = "grpc")]
+use super::api::grpc::run_grpc;
 use super::localization::{translate, Key, Lang};
 
 // ── palette ──────────────────────────────────────────────────────────
@@ -227,12 +229,33 @@ fn load_cls_model(app: &mut App) {
 
 fn deploy_api(app: &mut App) {
     let port = 8791u16;
+    #[cfg(feature = "grpc")]
+    let grpc_port = 8792u16;
+
+    #[cfg(feature = "grpc")]
     tokio::spawn(async move {
-        if let Err(e) = run_api(port).await {
+        if let Err(e) = run_grpc(grpc_port).await {
+            eprintln!("gRPC error: {}", e);
+        }
+    });
+
+    tokio::spawn(async move {
+        if let Err(e) = run_rest(port).await {
             eprintln!("API error: {}", e);
         }
     });
-    app.host_url = get_ipv4_address().map(|ip| format!("http://{}:{}", ip, port));
+
+    #[cfg(feature = "grpc")]
+    {
+        let ip = get_ipv4_address().unwrap();
+        app.host_url = Some(format!("REST: http://{}:{}\n\ngRPC: http://{}:{}", ip, port, ip, grpc_port));
+    }
+
+    #[cfg(not(feature = "grpc"))]
+    {
+        app.host_url = get_ipv4_address().map(|ip| format!("http://{}:{}", ip, port));
+    }
+
     app.api_deployed = true;
     app.status_msg = Some(app.t(Key::deployed_api).to_string());
 }
@@ -359,7 +382,9 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
         if let Some(url) = &app.host_url {
             let focused = app.cur_row() == Row::Deploy;
             if focused {
-                frame.render_widget(centered(Span::styled(url.as_str(), Style::default().fg(FG_BRIGHT))), at(area, cy + 3));
+                for (i, line) in url.lines().enumerate() {
+                    frame.render_widget(centered(Span::styled(line, Style::default().fg(FG_BRIGHT))), at(area, cy + 3 + i as u16));
+                }
             } else {
                 frame.render_widget(centered(Span::styled(app.t(Key::focus_deploy_to_reveal_ip), Style::default().fg(FG_DIM))), at(area, cy + 3));
             }

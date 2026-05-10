@@ -24,7 +24,7 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_rest(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
         .route("/", get(root))
         .route("/upload", post(upload))
@@ -113,7 +113,16 @@ pub fn get_ipv4_address() -> Option<String> {
 }
 
 pub async fn check_boquila_hub_api(url: &str) -> bool {
-    let Ok(response) = reqwest::get(url).await else {
+    let Ok(response) = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        reqwest::get(url),
+    )
+    .await
+    else {
+        return false;
+    };
+
+    let Ok(response) = response else {
         return false;
     };
 

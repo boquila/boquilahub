@@ -9,8 +9,10 @@ use processing::pre::compute_mel;
 use processing::post::PostProcessing;
 use render::*;
 use rest::{
-    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
+    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_rest,
 };
+#[cfg(feature = "grpc")]
+use crate::api::grpc::{check_boquila_hub_grpc, detect_remotely_grpc, run_grpc};
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -128,6 +130,7 @@ struct Gui {
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
+    remote_use_grpc: bool,
     temp_str: String,
     temp_api_str: String,
     temp_architecture: String,
@@ -372,14 +375,30 @@ impl Gui {
                     .clicked()
                 {
                     let (tx, rx) = std::sync::mpsc::channel();
+                    
+                    #[cfg(feature = "grpc")]
+                    {
+                        tokio::spawn(async move {
+                            let result = run_grpc(8792).await;
+                            let _ = result.is_ok();
+                        });
+                    }
+
                     tokio::spawn(async move {
-                        let result = run_api(8791).await;
+                        let result = run_rest(8791).await;
                         let _ = tx.send(result.is_ok());
                     });
 
                     self.api_result_receiver = Some(rx);
-                    self.host_server_url =
-                        Some(format!("http://{}:8791", get_ipv4_address().unwrap()));
+                    #[cfg(feature = "grpc")]
+                    {
+                        let ip = get_ipv4_address().unwrap();
+                        self.host_server_url = Some(format!("http://{}:8791  http://{}:8792", ip, ip));
+                    }
+                    #[cfg(not(feature = "grpc"))]
+                    {
+                        self.host_server_url = Some(format!("http://{}:8791", get_ipv4_address().unwrap()));
+                    }
                     self.isapi_deployed = true;
                 }
             }
@@ -561,10 +580,17 @@ impl Gui {
     }
 
     fn get_endpoint(&self) -> Option<String> {
-        if !self.ep_selected.is_local() {
-            self.api_server_url
-                .as_ref()
-                .map(|url| format!("{}/upload", url))
+        if !self.ep_selected.is_local() && !self.remote_use_grpc {
+            self.api_server_url.as_ref().map(|url| format!("{}/upload", url))
+        } else {
+            None
+        }
+    }
+
+    #[cfg(feature = "grpc")]
+    fn get_grpc_endpoint(&self) -> Option<String> {
+        if !self.ep_selected.is_local() && self.remote_use_grpc {
+            self.api_server_url.clone()
         } else {
             None
         }
@@ -849,15 +875,27 @@ impl Gui {
                         if ui.button(self.t(Key::ok)).clicked() {
                             let url = self.temp_api_str.clone();
 
-                            // This tells tokio to move this blocking operation to another thread
-                            let is_valid_api = tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current()
-                                    .block_on(check_boquila_hub_api(&url))
+                            let (is_valid, use_grpc) = tokio::task::block_in_place(|| {
+                                tokio::runtime::Handle::current().block_on(async {
+                                    #[cfg(feature = "grpc")]
+                                    if check_boquila_hub_grpc(url.clone()).await {
+                                        (true, true)
+                                    } else if check_boquila_hub_api(&url).await {
+                                        (true, false)
+                                    } else {
+                                        (false, false)
+                                    }
+                                    #[cfg(not(feature = "grpc"))]
+                                    {
+                                        (check_boquila_hub_api(&url).await, false)
+                                    }
+                                })
                             });
 
-                            if is_valid_api {
+                            if is_valid {
                                 self.show_dialog.api_server = false;
                                 self.api_server_url = Some(url);
+                                self.remote_use_grpc = use_grpc;
                                 self.ep_selected = Ep::BoquilaHubRemote;
                             } else {
                                 self.process_error();
@@ -977,6 +1015,8 @@ impl Gui {
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
+        #[cfg(feature = "grpc")]
+        let grpc_endpoint = self.get_grpc_endpoint();
         tokio::spawn(async move {
             for (i, predimg) in copy_predigms.iter().enumerate() {
                 if predimg.wasprocessed {
@@ -988,10 +1028,23 @@ impl Gui {
                 }
                 let bbox = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
-                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
-                        Ok(result) => result,
-                        Err(_) => {
-                            break;
+                    #[cfg(feature = "grpc")]
+                    if let Some(ref grpc_url) = grpc_endpoint {
+                        match detect_remotely_grpc(grpc_url.clone(), buffer).await {
+                            Ok(result) => result,
+                            Err(_) => break,
+                        }
+                    } else {
+                        match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                            Ok(result) => result,
+                            Err(_) => break,
+                        }
+                    }
+                    #[cfg(not(feature = "grpc"))]
+                    {
+                        match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                            Ok(result) => result,
+                            Err(_) => break,
                         }
                     }
                 } else {
@@ -1219,6 +1272,8 @@ impl Gui {
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
+        #[cfg(feature = "grpc")]
+        let grpc_endpoint = self.get_grpc_endpoint();
         let step: usize = self.video_step_frame;
         let mut cached_aioutput: Option<AIOutputs> = None;
 
@@ -1237,8 +1292,20 @@ impl Gui {
                             let aioutput;
                             if is_remote {
                                 let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await
-                                {
+                                #[cfg(feature = "grpc")]
+                                if let Some(ref grpc_url) = grpc_endpoint {
+                                    match detect_remotely_grpc(grpc_url.clone(), buffer).await {
+                                        Ok(result) => aioutput = result,
+                                        Err(_) => break,
+                                    }
+                                } else {
+                                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                                        Ok(result) => aioutput = result,
+                                        Err(_) => break,
+                                    }
+                                }
+                                #[cfg(not(feature = "grpc"))]
+                                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
                                     Ok(result) => aioutput = result,
                                     Err(_) => break,
                                 }
@@ -1344,6 +1411,8 @@ impl Gui {
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
+        #[cfg(feature = "grpc")]
+        let grpc_endpoint = self.get_grpc_endpoint();
         let step: usize = self.feed_step_frame;
         tokio::spawn(async move {
             let mut frame_counter = 0;
@@ -1358,6 +1427,19 @@ impl Gui {
                     if frame_counter % step == 0 {
                         let aioutput: AIOutputs = if is_remote {
                             let buffer = rgb_image_to_jpeg_buffer(&img, 95);
+                            #[cfg(feature = "grpc")]
+                            if let Some(ref grpc_url) = grpc_endpoint {
+                                match detect_remotely_grpc(grpc_url.clone(), buffer).await {
+                                    Ok(result) => result,
+                                    Err(_) => break,
+                                }
+                            } else {
+                                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                                    Ok(result) => result,
+                                    Err(_) => break,
+                                }
+                            }
+                            #[cfg(not(feature = "grpc"))]
                             match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
                                 Ok(result) => result,
                                 Err(_) => break,

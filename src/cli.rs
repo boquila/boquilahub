@@ -2,8 +2,10 @@ use crate::api::{
     abstractions::AI,
     bq::{BQModel, GlobalBQ},
     ep::Ep,
-    rest::{get_ipv4_address, run_api},
+    rest::{get_ipv4_address, run_rest},
 };
+#[cfg(feature = "grpc")]
+use crate::api::grpc::run_grpc;
 use clap::{Args, Parser, Subcommand};
 use std::path::Path;
 use tokio::fs as tokio_fs;
@@ -19,9 +21,24 @@ pub struct ServeArgs {
     #[arg(long, value_name = "MODEL_CLS_PATH", required = false)]
     pub model_cls: Option<String>,
 
-    /// Port number for the server
+    /// Port number for the REST server
     #[arg(long, value_name = "PORT", default_value = "8791")]
     pub port: u16,
+
+    /// Only deploy REST (no gRPC)
+    #[cfg(feature = "grpc")]
+    #[arg(long)]
+    pub rest_only: bool,
+
+    /// Only deploy gRPC (no REST)
+    #[cfg(feature = "grpc")]
+    #[arg(long)]
+    pub grpc_only: bool,
+
+    /// Port number for the gRPC server
+    #[cfg(feature = "grpc")]
+    #[arg(long, value_name = "GRPC_PORT", default_value = "8792")]
+    pub grpc_port: u16,
 }
 
 #[derive(Args)]
@@ -125,7 +142,7 @@ pub async fn run_cli(command: Commands) {
 
             let _ = GlobalBQ::First.set_model(&model_path, Ep::Cuda, None);
 
-            let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
+            let ip_text = format!("http://{}:{}", get_ipv4_address().unwrap(), port);
             println!("{}", ASCII_ART);
 
             if let Some(model_cls_name) = &args.model_cls {
@@ -134,11 +151,42 @@ pub async fn run_cli(command: Commands) {
                 println!("Model deployed: {}", model_name_clean);
             }
 
-            println!("IP Address: {}", ip_text);
+            #[cfg(feature = "grpc")]
+            {
+                let deploy_rest = !args.grpc_only;
+                let deploy_grpc = !args.rest_only;
 
-            let result = run_api(port).await;
-            if let Err(e) = result {
-                eprintln!("Error running API: {}", e);
+                if deploy_rest {
+                    println!("REST API: {}", ip_text);
+                }
+                if deploy_grpc {
+                    let grpc_port = args.grpc_port;
+                    let grpc_ip_text = format!("http://{}:{}", get_ipv4_address().unwrap(), grpc_port);
+                    println!("gRPC API: {}", grpc_ip_text);
+                    tokio::spawn(async move {
+                        if let Err(e) = run_grpc(grpc_port).await {
+                            eprintln!("Error running gRPC API: {}", e);
+                        }
+                    });
+                }
+
+                if deploy_rest {
+                    let result = run_rest(port).await;
+                    if let Err(e) = result {
+                        eprintln!("Error running REST API: {}", e);
+                    }
+                } else if deploy_grpc {
+                    std::future::pending::<()>().await;
+                }
+            }
+
+            #[cfg(not(feature = "grpc"))]
+            {
+                println!("REST API: {}", ip_text);
+                let result = run_rest(port).await;
+                if let Err(e) = result {
+                    eprintln!("Error running REST API: {}", e);
+                }
             }
         }
         Commands::List => {
