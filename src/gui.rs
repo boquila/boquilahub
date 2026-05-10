@@ -896,7 +896,6 @@ impl Gui {
                             if let (Some(model_path), Some(ep)) =
                                 (&self.pending_model_path, self.pending_model_ep)
                             {
-                                // Load model with selected architecture
                                 let (model_metadata, data) = match BQModel::import_data(model_path) {
                                     Ok(result) => result,
                                     Err(_) => {

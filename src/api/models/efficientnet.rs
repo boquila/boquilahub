@@ -78,7 +78,7 @@ impl EfficientNetV2 {
         let output_name: String = session.outputs[0].name.clone();
 
         if post_processing.contains(&PostProcessing::GeoFence) {
-            let _ = init_geofence_data();
+            init_geofence_data()?;
         }
 
         Ok(EfficientNetV2 {

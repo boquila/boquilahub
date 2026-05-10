@@ -1,23 +1,20 @@
 use super::abstractions::*;
 use super::audio::*;
 use super::ep::Ep;
-use ort::session::builder::GraphOptimizationLevel;
-use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use super::models::{AIInput, Model, Task};
 use super::processing::post::PostProcessing;
 use super::processing::pre::slice_image;
-use anyhow::{Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use image::{ImageBuffer, Rgb};
+use ort::session::builder::GraphOptimizationLevel;
+use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::fs;
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
 
-// Just an interface for interacting with .bq models
 pub struct BQModel;
 
-// An interface for interacting the global .bq models In Memory
 pub enum GlobalBQ {
     First,
     Second,
@@ -39,8 +36,8 @@ impl GlobalBQ {
     ) -> Result<()> {
         let config = config.unwrap_or_default();
 
-        let (model_metadata, data): (AI, Vec<u8>) = BQModel::import_data(value)?;
-        debug_assert!(model_metadata.architecture.is_some());
+        let (model_metadata, data) = BQModel::import_data(value)?;
+        ensure!(model_metadata.architecture.is_some(), "Model architecture must be specified");
         let session = BQModel::session_from_memory(&data, ep)?;
         let post: Vec<PostProcessing> = model_metadata
             .post_processing
@@ -55,7 +52,7 @@ impl GlobalBQ {
             session,
             model_metadata.architecture,
             config,
-            model_metadata.audio_config
+            model_metadata.audio_config,
         )?;
         *self.get_lock().write().unwrap() = Some(aimodel);
         Ok(())
@@ -73,128 +70,78 @@ impl GlobalBQ {
     }
 }
 
+fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AI, usize)> {
+    ensure!(content.len() >= 7, "File too short to be a valid .bq file");
+    ensure!(&content[..7] == b"BQMODEL", "Invalid file format: missing BQMODEL magic string");
+    ensure!(content[7] == 1, "Unsupported .bq version: {}", content[7]);
+    ensure!(content.len() >= 12, "File too short: missing JSON length");
+
+    let json_length = u32::from_le_bytes(content[8..12].try_into().context("Failed to read JSON length")?) as usize;
+    let json_end = 12 + json_length;
+    ensure!(content.len() >= json_end, "File truncated: JSON section extends beyond file end");
+
+    let json_str = String::from_utf8(content[12..json_end].to_vec())
+        .context("Failed to parse JSON content in .bq file")?;
+    let mut ai_model: AI = serde_json::from_str(&json_str)
+        .context("Failed to deserialize JSON into AI metadata")?;
+    ai_model.name = file_stem.to_string();
+
+    Ok((ai_model, json_end))
+}
+
 impl BQModel {
-    pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session, ort::Error> {
-        let mut builder =
-            Session::builder()?.with_optimization_level(GraphOptimizationLevel::Level3)?;
-    
+    pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session> {
+        let mut builder = Session::builder()?
+            .with_optimization_level(GraphOptimizationLevel::Level3)?;
         if ep == Ep::Cuda {
             builder = builder.with_execution_providers([CUDAExecutionProvider::default().build()])?;
         }
-    
-        builder.commit_from_memory(model_data)
+        Ok(builder.commit_from_memory(model_data)?)
     }
-    
-    pub fn import_data(file_path: impl AsRef<Path>) -> io::Result<(AI, Vec<u8>)> {
-        // Open the .bq file
-        let mut file = File::open(&file_path)?;
-        let mut file_content = Vec::new();
-        file.read_to_end(&mut file_content)?;
 
-        // Validate magic string
-        if &file_content[..7] != b"BQMODEL" {
-            panic!("Invalid file format: missing BQMODEL magic string");
-        }
-
-        // Read version (1 byte)
-        let version = file_content[7];
-        if version != 1 {
-            panic!("Unsupported version: {}", version);
-        }
-
-        // Read JSON section length (4 bytes, little-endian)
-        let json_length = u32::from_le_bytes(file_content[8..12].try_into().unwrap()) as usize;
-
-        // Extract JSON section
-        let json_start = 12;
-        let json_end = json_start + json_length;
-        let json_data = &file_content[json_start..json_end];
-        let json_str = String::from_utf8(json_data.to_vec())
-            .unwrap_or_else(|_| panic!("Failed to parse JSON content"));
-
-        // Deserialize JSON into AImodel
-        let mut ai_model: AI = serde_json::from_str(&json_str)
-            .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
-
-        // Extract the name from the file path
+    pub fn import_data(file_path: impl AsRef<Path>) -> Result<(AI, Vec<u8>)> {
+        let content = fs::read(&file_path)
+            .with_context(|| format!("Failed to read .bq file: {}", file_path.as_ref().display()))?;
         let name = file_path
             .as_ref()
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap()
-            .to_string();
+            .unwrap_or("unknown");
+        let (ai_model, json_end) = parse_bq_header(&content, name)?;
 
-        // Set the name field
-        ai_model.name = name;
-
-        // Read ONNX section length (4 bytes, little-endian)
         let onnx_length_start = json_end;
+        ensure!(
+            content.len() >= onnx_length_start + 4,
+            "File truncated: missing ONNX length"
+        );
         let onnx_length = u32::from_le_bytes(
-            file_content[onnx_length_start..onnx_length_start + 4]
-                .try_into()
-                .unwrap(),
+            content[onnx_length_start..onnx_length_start + 4].try_into()?,
         ) as usize;
-
-        // Extract ONNX section
         let onnx_start = onnx_length_start + 4;
         let onnx_end = onnx_start + onnx_length;
-        let onnx_data = file_content[onnx_start..onnx_end].to_vec();
+        ensure!(
+            content.len() >= onnx_end,
+            "File truncated: ONNX section extends beyond file end"
+        );
+        let onnx_data = content[onnx_start..onnx_end].to_vec();
+
         Ok((ai_model, onnx_data))
     }
 
-    pub fn form_file_to_metadata(file_path: &str) -> io::Result<AI> {
-        let mut file = File::open(file_path)?;
-
-        // Read header (magic + version + length)
-        let mut header = [0u8; 12];
-        file.read_exact(&mut header)?;
-
-        // Validate magic string
-        if &header[..7] != b"BQMODEL" {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Invalid file format",
-            ));
-        }
-
-        // Check version
-        if header[7] != 1 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Unsupported version",
-            ));
-        }
-
-        // Get JSON length
-        let json_length = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
-
-        // Read only the JSON section
-        let mut json_data = vec![0u8; json_length];
-        file.read_exact(&mut json_data)?;
-
-        let json_str = String::from_utf8(json_data)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Failed to parse JSON"))?;
-
-        // Deserialize JSON into AImodel
-        let mut ai_model: AI = serde_json::from_str(&json_str)
-            .unwrap_or_else(|_| panic!("Failed to deserialize JSON into AImodel"));
-
-        // Extract the name from the file path
-        let path = std::path::Path::new(file_path);
-        let name = path
+    pub fn form_file_to_metadata(file_path: impl AsRef<Path>) -> Result<AI> {
+        let content = fs::read(&file_path)
+            .with_context(|| format!("Failed to read .bq file: {}", file_path.as_ref().display()))?;
+        let name = file_path
+            .as_ref()
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap()
-            .to_string();
-
-        // Set the name field
-        ai_model.name = name;
-
-        return Ok(ai_model);
+            .unwrap_or("unknown");
+        let (ai_model, _) = parse_bq_header(&content, name)?;
+        Ok(ai_model)
     }
 
     pub fn get_list() -> Vec<AI> {
-        analyze_folder("models/").unwrap()
+        analyze_folder("models/").unwrap_or_default()
     }
 
     pub fn from_file_print_shape(model_path: impl AsRef<Path>) -> Result<()> {
@@ -206,11 +153,11 @@ impl BQModel {
                 let (_metadata, data) = BQModel::import_data(path)?;
                 data
             }
-            Some(ext) => return Err(anyhow::anyhow!("Unsupported extension: .{}", ext)),
-            None => return Err(anyhow::anyhow!("No file extension found")),
+            Some(ext) => bail!("Unsupported extension: .{}", ext),
+            None => bail!("No file extension found"),
         };
 
-        let session = ort::session::Session::builder()?.commit_from_memory(&model_data)?;
+        let session = Session::builder()?.commit_from_memory(&model_data)?;
 
         println!("Inputs:\n{:?}", session.inputs);
         println!("Outputs:\n{:?}", session.outputs);
@@ -223,33 +170,29 @@ impl BQModel {
         let onnx_path = format!("{}.onnx", name);
         let output_path = format!("{}.bq", name);
 
-        let json_content = fs::read(&json_path).context(format!("Failed to open {}", json_path))?;
-        let _ai: AI = serde_json::from_slice(&json_content).context(format!(
-            "Failed to deserialize {} into required AI metadata",
-            json_path
-        ))?;
-        let onnx_content = fs::read(&onnx_path).context(format!("Failed to open {}", onnx_path))?;
+        let json_content = fs::read(&json_path).with_context(|| format!("Failed to open {}", json_path))?;
+        let _ai: AI = serde_json::from_slice(&json_content)
+            .with_context(|| format!("Failed to deserialize {} into required AI metadata", json_path))?;
+        let onnx_content = fs::read(&onnx_path).with_context(|| format!("Failed to open {}", onnx_path))?;
 
         if !matches!(onnx_content.get(0..2), Some(&[0x08, ir_ver]) if ir_ver > 0) {
-            anyhow::bail!(
-                "File {} does not appear to be a valid ONNX model",
-                onnx_path
-            );
+            bail!("File {} does not appear to be a valid ONNX model", onnx_path);
         }
 
-        let mut output_file = File::create(&output_path)
-            .unwrap_or_else(|_| panic!("Failed to create output file: {}", output_path));
-
-        output_file.write_all(b"BQMODEL")?; // Magic string
-        output_file.write_all(&[1])?; // Version
+        let mut output = Vec::new();
+        output.extend_from_slice(b"BQMODEL");
+        output.push(1);
 
         let json_length = json_content.len() as u32;
-        output_file.write_all(&json_length.to_le_bytes())?;
-        output_file.write_all(&json_content)?;
+        output.extend_from_slice(&json_length.to_le_bytes());
+        output.extend_from_slice(&json_content);
 
         let onnx_length = onnx_content.len() as u32;
-        output_file.write_all(&onnx_length.to_le_bytes())?;
-        output_file.write_all(&onnx_content)?;
+        output.extend_from_slice(&onnx_length.to_le_bytes());
+        output.extend_from_slice(&onnx_content);
+
+        fs::write(&output_path, output)
+            .with_context(|| format!("Failed to create output file: {}", output_path))?;
 
         println!("New model: {}", output_path);
         Ok(())
@@ -262,29 +205,21 @@ impl BQModel {
     }
 }
 
-fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
-    // Validate the folder path
+fn analyze_folder(folder_path: &str) -> Result<Vec<AI>> {
     let path = Path::new(folder_path);
     if !path.is_dir() || !path.exists() {
-        if let Err(error) = fs::create_dir(folder_path) {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Could not create {folder_path} with error: {error}"),
-            ));
-        }
+        fs::create_dir(folder_path).context("Failed to create models directory")?;
     }
 
-    // Collect BQ files and process them
     let mut ai_models = Vec::new();
 
     for entry in fs::read_dir(path)? {
         let entry = entry?;
         let file_path = entry.path();
 
-        // Check if the file has a .bq extension
         if let Some(extension) = file_path.extension() {
             if extension == "bq" {
-                match BQModel::form_file_to_metadata(file_path.to_str().unwrap()) {
+                match BQModel::form_file_to_metadata(&file_path) {
                     Ok(model) => ai_models.push(model),
                     Err(e) => eprintln!("Error processing file {:?}: {}", file_path, e),
                 }
@@ -295,16 +230,18 @@ fn analyze_folder(folder_path: &str) -> io::Result<Vec<AI>> {
     Ok(ai_models)
 }
 
-pub fn init_geofence_data() -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_geofence_data() -> Result<()> {
     if GEOFENCE_DATA.get().is_some() {
         return Ok(());
     }
 
-    let json_content = std::fs::read_to_string("assets/geofence.json")?;
-    let geofence_map: HashMap<String, Vec<String>> = serde_json::from_str(&json_content)?;
+    let json_content = fs::read_to_string("assets/geofence.json")
+        .context("Failed to read geofence data")?;
+    let geofence_map: HashMap<String, Vec<String>> = serde_json::from_str(&json_content)
+        .context("Failed to parse geofence data")?;
     GEOFENCE_DATA
         .set(geofence_map)
-        .map_err(|_| "Failed to initialize")?;
+        .map_err(|_| anyhow::anyhow!("Failed to initialize geofence data"))?;
     Ok(())
 }
 
