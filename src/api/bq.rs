@@ -132,7 +132,7 @@ impl BQModel {
         Ok((ai_model, onnx_data))
     }
 
-    pub fn form_file_to_metadata(file_path: impl AsRef<Path>) -> Result<AI> {
+    pub fn from_file_to_metadata(file_path: impl AsRef<Path>) -> Result<AI> {
         let content = fs::read(&file_path)
             .with_context(|| format!("Failed to read .bq file: {}", file_path.as_ref().display()))?;
         let name = file_path
@@ -223,7 +223,7 @@ fn analyze_folder(folder_path: &str) -> Result<Vec<AI>> {
 
         if let Some(extension) = file_path.extension() {
             if extension == "bq" {
-                match BQModel::form_file_to_metadata(&file_path) {
+                match BQModel::from_file_to_metadata(&file_path) {
                     Ok(model) => ai_models.push(model),
                     Err(e) => eprintln!("Error processing file {:?}: {}", file_path, e),
                 }

@@ -1,24 +1,8 @@
-use crate::api::utils::rgb_frame_to_imgbuf;
+use crate::api::utils::{rgb_frame_to_imgbuf, SendScaler};
 use chrono::Local;
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::iter::Iterator;
-
-struct SendScaler(ffmpeg::software::scaling::Context);
-unsafe impl Send for SendScaler {}
-
-impl std::ops::Deref for SendScaler {
-    type Target = ffmpeg::software::scaling::Context;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for SendScaler {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 pub struct Feed {
     input_ctx: ffmpeg::format::context::Input,

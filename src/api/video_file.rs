@@ -1,4 +1,4 @@
-use super::utils::rgb_frame_to_imgbuf;
+use super::utils::{rgb_frame_to_imgbuf, SendScaler};
 use ffmpeg_next as ffmpeg;
 use ffmpeg_next::Rescale;
 use image::{ImageBuffer, Rgb};
@@ -8,22 +8,6 @@ use std::{
 };
 
 pub type Time = i64;
-
-struct SendScaler(ffmpeg::software::scaling::Context);
-unsafe impl Send for SendScaler {}
-
-impl std::ops::Deref for SendScaler {
-    type Target = ffmpeg::software::scaling::Context;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for SendScaler {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
 
 pub fn get_output_path(file_path: &str) -> PathBuf {
     let path = Path::new(file_path);

@@ -14,7 +14,7 @@ fn blend_pixel(base: Rgb<u8>, overlay: Rgb<u8>, alpha: f32) -> Rgb<u8> {
     Rgb([r as u8, g as u8, b as u8])
 }
 
-const BBOX_COLORS: [Rgb<u8>; 90] = [
+const BBOX_COLORS: [Rgb<u8>; 88] = [
     Rgb([220, 20, 60]),   // Rich crimson
     Rgb([103, 58, 183]),  // Deep Purple
     Rgb([3, 169, 244]),   // Light Blue Accent
@@ -49,7 +49,6 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([70, 130, 180]),  // Steel Blue
     Rgb([255, 182, 193]), // Light Pink
     Rgb([205, 133, 63]),  // Peru
-    Rgb([107, 142, 35]),  // Olive Drab
     Rgb([143, 188, 143]), // Dark Sea Green
     Rgb([255, 20, 147]),  // Deep Pink
     Rgb([255, 105, 180]), // Hot Pink
@@ -96,7 +95,6 @@ const BBOX_COLORS: [Rgb<u8>; 90] = [
     Rgb([0, 180, 120]),   // Medium Spring Green
     Rgb([255, 99, 71]),   // Tomato
     Rgb([186, 85, 211]),  // Medium Orchid
-    Rgb([100, 180, 100]), // Pale Green
     Rgb([219, 112, 147]), // Pale Violet Red
     Rgb([244, 164, 96]),  // Sandy Brown
     Rgb([176, 196, 222]), // Light Steel Blue
@@ -252,7 +250,6 @@ pub fn draw_no_predictions(
 
     // Draw fallback text
     draw_text_mut(img, WHITE, start_x, start_y, FONT_SCALE, &font, text);
-    return;
 }
 
 fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prob_space: &ProbSpace) {
@@ -364,7 +361,7 @@ impl PredImg {
         if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
             super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
         }
-        return DynamicImage::ImageRgb8(img).to_rgba8();
+        DynamicImage::ImageRgb8(img).to_rgba8()
     }
 }
 

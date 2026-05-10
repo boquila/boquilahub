@@ -187,6 +187,15 @@ struct State {
     progress_bar: f32,
 }
 
+impl State {
+    fn cancel(&mut self) {
+        if let Some(cancel_tx) = self.cancel_sender.take() {
+            let _ = cancel_tx.send(());
+        }
+        self.is_processing = false;
+    }
+}
+
 #[derive(Default)]
 struct ShowConfig {
     ai: bool,
@@ -282,9 +291,7 @@ impl Gui {
     }
 
     fn is_image_model(&self) -> bool {
-        self.ai_selected
-            .map(|i| self.ais[i].modality.as_deref() != Some("audio"))
-            .unwrap_or(true)
+        !self.is_audio_model()
     }
 
     fn audio_mel_params(&self) -> (usize, usize, usize, f32) {
@@ -315,9 +322,9 @@ impl Gui {
             } else {
                 draw_aioutput(&mut img, &predimg.aioutput.as_ref().unwrap());
             }
-        }
+}
 
-        return image::DynamicImage::ImageRgb8(img).to_rgba8();
+        image::DynamicImage::ImageRgb8(img).to_rgba8()
     }
 
     fn save_gui(&self, predimg: &PredImg) {
@@ -1057,10 +1064,7 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
                     {
-                        if let Some(cancel_tx) = self.img_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.img_state.is_processing = false;
+                        self.img_state.cancel();
                         self.image_processing_receiver = None;
                     }
                 }
@@ -1176,10 +1180,7 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
                     {
-                        if let Some(cancel_tx) = self.audio_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.audio_state.is_processing = false;
+                        self.audio_state.cancel();
                     }
                 }
             });
@@ -1327,10 +1328,7 @@ impl Gui {
     }
 
     fn cancel_video_processing(&mut self) {
-        if let Some(cancel_tx) = self.video_state.cancel_sender.take() {
-            let _ = cancel_tx.send(());
-        }
-        self.video_state.is_processing = false;
+        self.video_state.cancel();
         self.video_processing_receiver = None;
     }
 
@@ -1420,10 +1418,7 @@ impl Gui {
                     }
                 } else {
                     if ui.button("⏸").clicked() {
-                        if let Some(cancel_tx) = self.feed_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.feed_state.is_processing = false;
+                        self.feed_state.cancel();
                     }
                 }
             });

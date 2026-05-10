@@ -77,7 +77,7 @@ impl Yolo {
 
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
-                let indices = nms_indices(&boxes, self.config.nms_threshold);
+                let indices = nms_indices(&boxes, self.config.nms_threshold, true);
                 boxes = indices.iter().map(|&idx| boxes[idx]).collect();
             }
         }
@@ -127,7 +127,7 @@ impl Yolo {
 
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
-                let indices = nms_indices_all_cls(&boxes, self.config.nms_threshold);
+                let indices = nms_indices(&boxes, self.config.nms_threshold, false);
                 boxes = indices.iter().map(|&idx| boxes[idx]).collect();
             }
         }
@@ -228,7 +228,7 @@ impl Yolo {
         for technique in &self.post_processing {
             if matches!(technique, PostProcessing::NMS) {
                 let keep_indices: Vec<usize> =
-                    nms_indices(&bounding_boxes, self.config.nms_threshold);
+                    nms_indices(&bounding_boxes, self.config.nms_threshold, true);
                 segmentations = keep_indices
                     .iter()
                     .map(|&i| segmentations[i].clone()) // use `.clone()` if needed, depending on the type
@@ -333,7 +333,7 @@ impl Yolo {
             Task::Classify => {
                 let output = extract_output(&outputs, "output0");
                 let probs =
-                    process_class_output(self.config.confidence_threshold, &self.classes, &output);
+                    process_class_output(Some(self.config.confidence_threshold), &self.classes, &output);
                 return AIOutputs::Classification(probs);
             }
             Task::Segment => {

@@ -16,27 +16,29 @@ impl ProbSpace {
         }
     }
 
-    pub fn highest_confidence(&self) -> String {
+    fn max_index(&self) -> Option<usize> {
         self.probs
             .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, _)| self.classes[index].clone())
+            .map(|(index, _)| index)
+    }
+
+    pub fn highest_confidence(&self) -> String {
+        self.max_index()
+            .map(|index| self.classes[index].clone())
             .unwrap_or_else(|| String::from("no prediction"))
     }
 
     pub fn highest_confidence_full(&self) -> (String, f32, u32) {
-        self.probs
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, &prob)| {
+        self.max_index()
+            .map(|index| {
                 (
                     self.classes
                         .get(index)
                         .cloned()
                         .unwrap_or_else(|| "unknown".to_string()),
-                    prob,
+                    self.probs[index],
                     *self.classes_ids.get(index).unwrap_or(&0),
                 )
             })
@@ -134,7 +136,7 @@ impl XYXY {
         let x_right = self.x2.min(other.x2);
         let y_bottom = self.y2.min(other.y2);
 
-        (x_right - x_left) * (y_bottom - y_top)
+        (x_right - x_left).max(0.0) * (y_bottom - y_top).max(0.0)
     }
 
     pub fn iou(&self, other: &XYXY) -> f32 {
@@ -177,7 +179,7 @@ pub struct AudioConfig {
 
 impl AI {
     pub fn get_path(&self) -> String {
-        return format!("models/{}.bq", self.name);
+        format!("models/{}.bq", self.name)
     }
 }
 

@@ -19,25 +19,20 @@ pub const AUDIO_FORMATS: [&'static str; 18] = [
     "ac3", "mid", "midi", "wv", "ape",
 ];
 
+fn is_supported(file_path: &str, formats: &[&str]) -> bool {
+    file_path.rsplit('.').next().map_or(false, |ext| formats.contains(&ext.to_lowercase().as_str()))
+}
+
 pub fn is_supported_audio(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return AUDIO_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
+    is_supported(file_path, &AUDIO_FORMATS)
 }
 
 pub fn is_supported_img(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return IMAGE_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
+    is_supported(file_path, &IMAGE_FORMATS)
 }
 
 pub fn is_supported_videofile(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return VIDEO_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
+    is_supported(file_path, &VIDEO_FORMATS)
 }
 
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {
