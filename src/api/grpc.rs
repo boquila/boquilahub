@@ -205,7 +205,10 @@ impl pb::boquila_hub_server::BoquilaHub for BoquilaHubService {
             .map_err(|e| tonic::Status::invalid_argument(format!("Invalid image: {}", e)))?
             .into_rgb8();
 
-        let result = process_imgbuf(&imgbuf);
+        let result = tokio::task::spawn_blocking(move || process_imgbuf(&imgbuf))
+            .await
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
+
         let response = ai_outputs_to_response(result);
 
         Ok(tonic::Response::new(response))
@@ -221,10 +224,9 @@ impl pb::boquila_hub_server::BoquilaHub for BoquilaHubService {
     }
 }
 
-pub async fn run_grpc(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_grpc(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("0.0.0.0:{}", port).parse()?;
     let service = BoquilaHubService;
-    let _ = addr;
     tonic::transport::Server::builder()
         .add_service(pb::boquila_hub_server::BoquilaHubServer::new(service))
         .serve(addr)
@@ -233,27 +235,31 @@ pub async fn run_grpc(port: u16) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub async fn detect_remotely_grpc(
-    url: String,
+    url: &str,
     buffer: Vec<u8>,
 ) -> Result<AIOutputs, Box<dyn std::error::Error + Send + Sync>> {
-    let result = tokio::time::timeout(
+    let url = url.to_owned();
+    let detect_future = async {
+        let mut client = pb::boquila_hub_client::BoquilaHubClient::connect(url).await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        let request = tonic::Request::new(pb::DetectRequest { image: buffer });
+        let response = client.detect(request).await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(response.into_inner())
+    };
+
+    let response = tokio::time::timeout(
         std::time::Duration::from_secs(5),
-        async {
-            let mut client = pb::boquila_hub_client::BoquilaHubClient::connect(url).await
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            let request = tonic::Request::new(pb::DetectRequest { image: buffer });
-            let response = client.detect(request).await
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(response.into_inner())
-        },
+        detect_future,
     )
     .await
-    .map_err(|_| Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "gRPC connection timed out")) as Box<dyn std::error::Error + Send + Sync>)??;
-    let result = response_to_ai_outputs(result);
-    Ok(result)
+    .map_err(|_| Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "gRPC detect timed out")) as Box<dyn std::error::Error + Send + Sync>)??;
+
+    Ok(response_to_ai_outputs(response))
 }
 
-pub async fn check_boquila_hub_grpc(url: String) -> bool {
+pub async fn check_boquila_hub_grpc(url: &str) -> bool {
+    let url = url.to_owned();
     let Ok(client) = tokio::time::timeout(
         std::time::Duration::from_secs(3),
         pb::boquila_hub_client::BoquilaHubClient::connect(url),

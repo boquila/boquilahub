@@ -878,7 +878,7 @@ impl Gui {
                             let (is_valid, use_grpc) = tokio::task::block_in_place(|| {
                                 tokio::runtime::Handle::current().block_on(async {
                                     #[cfg(feature = "grpc")]
-                                    if check_boquila_hub_grpc(url.clone()).await {
+                                    if check_boquila_hub_grpc(&url).await {
                                         (true, true)
                                     } else if check_boquila_hub_api(&url).await {
                                         (true, false)
@@ -1030,7 +1030,7 @@ impl Gui {
                     let buffer = fs::read(&predimg.file_path).unwrap();
                     #[cfg(feature = "grpc")]
                     if let Some(ref grpc_url) = grpc_endpoint {
-                        match detect_remotely_grpc(grpc_url.clone(), buffer).await {
+                        match detect_remotely_grpc(grpc_url, buffer).await {
                             Ok(result) => result,
                             Err(_) => break,
                         }
@@ -1294,7 +1294,7 @@ impl Gui {
                                 let buffer = rgb_image_to_jpeg_buffer(&img, 95);
                                 #[cfg(feature = "grpc")]
                                 if let Some(ref grpc_url) = grpc_endpoint {
-                                    match detect_remotely_grpc(grpc_url.clone(), buffer).await {
+                                    match detect_remotely_grpc(grpc_url, buffer).await {
                                         Ok(result) => aioutput = result,
                                         Err(_) => break,
                                     }
@@ -1429,7 +1429,7 @@ impl Gui {
                             let buffer = rgb_image_to_jpeg_buffer(&img, 95);
                             #[cfg(feature = "grpc")]
                             if let Some(ref grpc_url) = grpc_endpoint {
-                                match detect_remotely_grpc(grpc_url.clone(), buffer).await {
+                                match detect_remotely_grpc(grpc_url, buffer).await {
                                     Ok(result) => result,
                                     Err(_) => break,
                                 }
