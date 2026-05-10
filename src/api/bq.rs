@@ -68,6 +68,10 @@ impl GlobalBQ {
         let mut guard = self.get_lock().write().unwrap();
         *guard = None;
     }
+
+    pub fn run(&self, input: &AIInput) -> AIOutputs {
+        self.get_lock().read().unwrap().as_ref().unwrap().run(input)
+    }
 }
 
 fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AI, usize)> {
@@ -251,25 +255,14 @@ pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new
 
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-    let mut outputs = CURRENT_AI
-        .read()
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .run(&AIInput::Image(img));
+    let mut outputs = GlobalBQ::First.run(&AIInput::Image(img));
     process_with_ai2(&mut outputs, img);
-    return outputs;
+    outputs
 }
 
 #[inline(always)]
 pub fn process_audio(audio: &AudioData) -> AIOutputs {
-    let outputs = CURRENT_AI
-        .read()
-        .unwrap()
-        .as_ref()
-        .unwrap()
-        .run(&AIInput::Audio(audio));
-    return outputs;
+    GlobalBQ::First.run(&AIInput::Audio(audio))
 }
 
 fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Option<()> {
