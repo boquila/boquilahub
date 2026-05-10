@@ -24,7 +24,7 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-pub async fn run_rest(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_rest(port: u16, shutdown_rx: tokio::sync::oneshot::Receiver<()>) -> Result<(), Box<dyn std::error::Error>> {
     let app: Router = Router::new()
         .route("/", get(root))
         .route("/upload", post(upload))
@@ -32,7 +32,9 @@ pub async fn run_rest(port: u16) -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async { let _ = shutdown_rx.await; })
+        .await?;
     Ok(())
 }
 

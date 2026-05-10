@@ -163,15 +163,17 @@ pub async fn run_cli(command: Commands) {
                     let grpc_port = args.grpc_port;
                     let grpc_ip_text = format!("http://{}:{}", get_ipv4_address().unwrap(), grpc_port);
                     println!("gRPC API: {}", grpc_ip_text);
+                    let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
                     tokio::spawn(async move {
-                        if let Err(e) = run_grpc(grpc_port).await {
+                        if let Err(e) = run_grpc(grpc_port, rx).await {
                             eprintln!("Error running gRPC API: {}", e);
                         }
                     });
                 }
 
                 if deploy_rest {
-                    let result = run_rest(port).await;
+                    let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
+                    let result = run_rest(port, rx).await;
                     if let Err(e) = result {
                         eprintln!("Error running REST API: {}", e);
                     }
@@ -183,7 +185,8 @@ pub async fn run_cli(command: Commands) {
             #[cfg(not(feature = "grpc"))]
             {
                 println!("REST API: {}", ip_text);
-                let result = run_rest(port).await;
+                let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
+                let result = run_rest(port, rx).await;
                 if let Err(e) = result {
                     eprintln!("Error running REST API: {}", e);
                 }

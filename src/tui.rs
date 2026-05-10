@@ -233,17 +233,23 @@ fn deploy_api(app: &mut App) {
     let grpc_port = 8792u16;
 
     #[cfg(feature = "grpc")]
-    tokio::spawn(async move {
-        if let Err(e) = run_grpc(grpc_port).await {
-            eprintln!("gRPC error: {}", e);
-        }
-    });
+    {
+        let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
+        tokio::spawn(async move {
+            if let Err(e) = run_grpc(grpc_port, rx).await {
+                eprintln!("gRPC error: {}", e);
+            }
+        });
+    }
 
-    tokio::spawn(async move {
-        if let Err(e) = run_rest(port).await {
-            eprintln!("API error: {}", e);
-        }
-    });
+    {
+        let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
+        tokio::spawn(async move {
+            if let Err(e) = run_rest(port, rx).await {
+                eprintln!("API error: {}", e);
+            }
+        });
+    }
 
     #[cfg(feature = "grpc")]
     {

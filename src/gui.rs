@@ -137,6 +137,9 @@ struct Gui {
     pending_model_path: Option<String>,
     pending_model_ep: Option<Ep>,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
+    api_shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    #[cfg(feature = "grpc")]
+    grpc_shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(AIOutputs, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
@@ -375,17 +378,20 @@ impl Gui {
                     .clicked()
                 {
                     let (tx, rx) = std::sync::mpsc::channel();
+                    let (rest_shutdown_tx, rest_shutdown_rx) = tokio::sync::oneshot::channel();
                     
                     #[cfg(feature = "grpc")]
                     {
+                        let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
+                        self.grpc_shutdown_tx = Some(grpc_shutdown_tx);
                         tokio::spawn(async move {
-                            let result = run_grpc(8792).await;
-                            let _ = result.is_ok();
+                            let _ = run_grpc(8792, grpc_shutdown_rx).await;
                         });
                     }
 
+                    self.api_shutdown_tx = Some(rest_shutdown_tx);
                     tokio::spawn(async move {
-                        let result = run_rest(8791).await;
+                        let result = run_rest(8791, rest_shutdown_rx).await;
                         let _ = tx.send(result.is_ok());
                     });
 
@@ -393,7 +399,7 @@ impl Gui {
                     #[cfg(feature = "grpc")]
                     {
                         let ip = get_ipv4_address().unwrap();
-                        self.host_server_url = Some(format!("http://{}:8791  http://{}:8792", ip, ip));
+                        self.host_server_url = Some(format!("REST: {}:8791\ngRPC: {}:8792", ip, ip));
                     }
                     #[cfg(not(feature = "grpc"))]
                     {
@@ -401,10 +407,25 @@ impl Gui {
                     }
                     self.isapi_deployed = true;
                 }
+            } else {
+                if ui.button(self.t(Key::cancel)).clicked() {
+                    if let Some(tx) = self.api_shutdown_tx.take() {
+                        let _ = tx.send(());
+                    }
+                    #[cfg(feature = "grpc")]
+                    if let Some(tx) = self.grpc_shutdown_tx.take() {
+                        let _ = tx.send(());
+                    }
+                    self.isapi_deployed = false;
+                    self.host_server_url = None;
+                    self.api_result_receiver = None;
+                }
             }
 
             if let Some(url) = &self.host_server_url {
-                ui.label(url);
+                for line in url.lines() {
+                    ui.label(line);
+                }
             }
 
             if let Some(rx) = &self.api_result_receiver {
@@ -415,6 +436,9 @@ impl Gui {
                         self.process_error();
                     }
                     self.api_result_receiver = None;
+                    self.api_shutdown_tx = None;
+                    #[cfg(feature = "grpc")]
+                    { self.grpc_shutdown_tx = None; }
                 }
             }
 

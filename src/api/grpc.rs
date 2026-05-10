@@ -224,12 +224,12 @@ impl pb::boquila_hub_server::BoquilaHub for BoquilaHubService {
     }
 }
 
-pub async fn run_grpc(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn run_grpc(port: u16, shutdown_rx: tokio::sync::oneshot::Receiver<()>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = format!("0.0.0.0:{}", port).parse()?;
     let service = BoquilaHubService;
     tonic::transport::Server::builder()
         .add_service(pb::boquila_hub_server::BoquilaHubServer::new(service))
-        .serve(addr)
+        .serve_with_shutdown(addr, async { let _ = shutdown_rx.await; })
         .await?;
     Ok(())
 }
