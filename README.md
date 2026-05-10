@@ -92,6 +92,7 @@ set PATH=%FFMPEG_DIR%\bin;%PATH%
 sudo apt-get update
 sudo apt-get install -y \
   ffmpeg \
+  libasound2-dev \
   libavutil-dev \
   libavcodec-dev \
   libavformat-dev \
