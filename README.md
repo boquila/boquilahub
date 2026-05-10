@@ -6,10 +6,10 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 
 ## Features
 
-- Cross-platform.
+- Cross-platform
 - GUI, TUI and CLI tool
-- Run AIs for computer vision, locally
-- Process image, video and live feed
+- Run AIs for computer vision and audio, locally
+- Process image, video, live feed or audio files
 - Deploy and consume REST APIs, with maximum efficiency. Powered by [axum](https://github.com/tokio-rs/axum)
 
 ## Installation

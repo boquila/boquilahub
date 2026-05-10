@@ -367,3 +367,46 @@ impl PredImg {
         return DynamicImage::ImageRgb8(img).to_rgba8();
     }
 }
+
+pub fn magma(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [0, 0, 4],
+        [20, 14, 59],
+        [65, 22, 107],
+        [120, 28, 129],
+        [175, 49, 120],
+        [216, 87, 72],
+        [237, 149, 27],
+        [249, 213, 70],
+        [252, 253, 191],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn viridis(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [12, 0, 36],
+        [28, 16, 68],
+        [24, 58, 100],
+        [18, 90, 105],
+        [14, 115, 98],
+        [32, 135, 85],
+        [72, 155, 60],
+        [130, 170, 48],
+        [200, 180, 24],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+fn colormap_lerp(stops: &[[u8; 3]; 9], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let idx = t * (stops.len() - 1) as f32;
+    let lo = idx.floor() as usize;
+    let hi = (lo + 1).min(stops.len() - 1);
+    let frac = idx - lo as f32;
+    [
+        (stops[lo][0] as f32 + (stops[hi][0] as f32 - stops[lo][0] as f32) * frac) as u8,
+        (stops[lo][1] as f32 + (stops[hi][1] as f32 - stops[lo][1] as f32) * frac) as u8,
+        (stops[lo][2] as f32 + (stops[hi][2] as f32 - stops[lo][2] as f32) * frac) as u8,
+    ]
+}

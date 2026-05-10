@@ -323,7 +323,7 @@ impl Yolo {
             img,
             &TensorFormat::NCHW,
         );
-        let outputs = inference(&self.session, &input, "images");
+        let outputs = inference(&self.session, &input, "images").unwrap();
         match self.task {
             Task::Detect => {
                 let output = extract_output(&outputs, "output0");

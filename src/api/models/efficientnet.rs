@@ -110,7 +110,7 @@ impl EfficientNetV2 {
             img,
             &self.input_format,
         );
-        let outputs = inference(&self.session, &input, &self.input_name);
+        let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
         // Usage in your original code:
