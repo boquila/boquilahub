@@ -40,20 +40,24 @@ impl AudioData {
                 continue;
             }
             decoder.send_packet(&packet)?;
-            let mut decoded = ffmpeg::frame::Audio::empty();
-            while decoder.receive_frame(&mut decoded).is_ok() {
-                let mut resampled = ffmpeg::frame::Audio::empty();
-                resampler.run(&decoded, &mut resampled)?;
-                samples.extend(
-                    resampled
-                        .data(0)
-                        .chunks_exact(4)
-                        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
-                );
-            }
+            Self::collect_decoded(&mut decoder, &mut resampler, &mut samples)?;
         }
 
         decoder.send_eof()?;
+        Self::collect_decoded(&mut decoder, &mut resampler, &mut samples)?;
+
+        Ok(Self {
+            samples,
+            sample_rate: source_rate,
+            channels: decoder.channels(),
+        })
+    }
+
+    fn collect_decoded(
+        decoder: &mut ffmpeg::decoder::Audio,
+        resampler: &mut ffmpeg::software::resampling::Context,
+        samples: &mut Vec<f32>,
+    ) -> Result<(), ffmpeg::Error> {
         let mut decoded = ffmpeg::frame::Audio::empty();
         while decoder.receive_frame(&mut decoded).is_ok() {
             let mut resampled = ffmpeg::frame::Audio::empty();
@@ -65,12 +69,7 @@ impl AudioData {
                     .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
             );
         }
-
-        Ok(Self {
-            samples,
-            sample_rate: source_rate,
-            channels: decoder.channels(),
-        })
+        Ok(())
     }
 
     /// Duration in seconds.

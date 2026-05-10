@@ -144,7 +144,7 @@ impl ResNet18 {
     ) {
         let n_mels = self.input_height as usize;
         let input = mels_to_batch(batch_mels, n_mels);
-        let outputs = inference(&self.session, &input, &self.input_name);
+        let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
         for (j, &logit) in output.iter().take(batch_indices.len()).enumerate() {

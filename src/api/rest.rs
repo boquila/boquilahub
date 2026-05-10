@@ -2,7 +2,7 @@ use super::abstractions::AIOutputs;
 use super::bq::*;
 use axum::{extract::Multipart, http::StatusCode, routing::{get, post}, Router};
 use image::codecs::jpeg::JpegEncoder;
-use image::{ColorType, ImageBuffer, ImageEncoder, Rgb, Rgba};
+use image::{ColorType, ImageBuffer, ImageEncoder, Rgb};
 use reqwest::Client;
 use std::process::Command;
 
@@ -57,32 +57,17 @@ pub async fn detect_remotely(
     Ok(deserialized)
 }
 
-pub fn rgba_image_to_jpeg_buffer(img: &ImageBuffer<Rgba<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
+fn encode_jpeg(raw: &[u8], width: u32, height: u32, color_type: ColorType, quality: u8) -> Vec<u8> {
     let mut buffer = Vec::new();
     let encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
     encoder
-        .write_image(
-            img.as_raw(),
-            img.width(),
-            img.height(),
-            ColorType::Rgba8.into(),
-        )
+        .write_image(raw, width, height, color_type.into())
         .expect("Failed to encode image");
     buffer
 }
 
 pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
-    let mut buffer = Vec::new();
-    let encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
-    encoder
-        .write_image(
-            img.as_raw(),
-            img.width(),
-            img.height(),
-            ColorType::Rgb8.into(),
-        )
-        .expect("Failed to encode image");
-    buffer
+    encode_jpeg(img.as_raw(), img.width(), img.height(), ColorType::Rgb8, quality)
 }
 
 pub fn get_ipv4_address() -> Option<String> {

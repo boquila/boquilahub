@@ -55,12 +55,10 @@ fn get_cuda_version() -> Result<f32, Error> {
         Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
     };
 
-    let version_regex = regex::Regex::new(r"release (\d+\.\d+),")?;
+    let version = output_text
+        .split_once("release ")
+        .and_then(|(_, rest)| rest.split_once(','))
+        .and_then(|(v, _)| v.parse::<f32>().ok());
 
-    if let Some(captures) = version_regex.captures(output_text) {
-        if let Some(version_str) = captures.get(1) {
-            return Ok(version_str.as_str().parse::<f32>().unwrap_or(0.0));
-        }
-    }
-    Ok(0.0)
+    Ok(version.unwrap_or(0.0))
 }

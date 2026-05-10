@@ -26,8 +26,7 @@ impl From<&str> for PostProcessing {
     }
 }
 
-pub fn nms_indices(boxes: &[XYXY], iou_threshold: f32) -> Vec<usize> {
-    // Create indices and sort them by probability (descending)
+pub fn nms_indices(boxes: &[XYXY], iou_threshold: f32, per_class: bool) -> Vec<usize> {
     let mut indices: Vec<usize> = (0..boxes.len()).collect();
     indices.sort_by(|&a, &b| {
         boxes[b]
@@ -39,46 +38,16 @@ pub fn nms_indices(boxes: &[XYXY], iou_threshold: f32) -> Vec<usize> {
     let mut keep = Vec::new();
 
     while !indices.is_empty() {
-        // Keep the highest scoring box
         let current_idx = indices[0];
         keep.push(current_idx);
 
-        // Filter remaining indices
         indices = indices
             .into_iter()
             .skip(1)
             .filter(|&idx| {
-                boxes[idx].class_id != boxes[current_idx].class_id
+                (per_class && boxes[idx].class_id != boxes[current_idx].class_id)
                     || boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
             })
-            .collect();
-    }
-
-    keep
-}
-
-pub fn nms_indices_all_cls(boxes: &[XYXY], iou_threshold: f32) -> Vec<usize> {
-    // Create indices and sort them by probability (descending)
-    let mut indices: Vec<usize> = (0..boxes.len()).collect();
-    indices.sort_by(|&a, &b| {
-        boxes[b]
-            .prob
-            .partial_cmp(&boxes[a].prob)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    let mut keep = Vec::new();
-
-    while !indices.is_empty() {
-        // Keep the highest scoring box
-        let current_idx = indices[0];
-        keep.push(current_idx);
-
-        // Filter remaining indices - remove class_id check
-        indices = indices
-            .into_iter()
-            .skip(1)
-            .filter(|&idx| boxes[idx].iou(&boxes[current_idx]) <= iou_threshold)
             .collect();
     }
 
@@ -134,22 +103,22 @@ pub fn extract_output(
     outputs: &SessionOutputs<'_, '_>,
     output_name: &str,
 ) -> ArrayBase<OwnedRepr<f32>, Dim<IxDynImpl>> {
-    return outputs[output_name]
+    outputs[output_name]
         .try_extract_tensor::<f32>()
         .unwrap()
         .t()
-        .into_owned();
+        .into_owned()
 }
 
 pub fn process_class_output(
-    conf: f32,
+    conf: Option<f32>,
     classes: &[String],
     output: &Array<f32, IxDyn>,
 ) -> ProbSpace {
     let mut indexed_scores: Vec<(usize, f32)> = output
         .iter()
         .enumerate()
-        .filter(|(_, &score)| score >= conf)
+        .filter(|(_, &score)| conf.map_or(true, |c| score >= c))
         .map(|(i, &score)| (i, score))
         .collect();
 
@@ -157,31 +126,12 @@ pub fn process_class_output(
 
     let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
     let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
-    let classes: Vec<String> = classes_ids
+    let classes_out: Vec<String> = classes_ids
         .iter()
         .map(|&idx| classes[idx as usize].clone())
         .collect();
 
-    return ProbSpace::new(classes, probs, classes_ids);
-}
-
-pub fn process_class_output_no_filt(classes: &[String], output: &Array<f32, IxDyn>) -> ProbSpace {
-    let mut indexed_scores: Vec<(usize, f32)> = output
-        .iter()
-        .enumerate()
-        .map(|(i, &score)| (i, score))
-        .collect();
-
-    indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-    let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
-    let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
-    let classes: Vec<String> = classes_ids
-        .iter()
-        .map(|&idx| classes[idx as usize].clone())
-        .collect();
-
-    return ProbSpace::new(classes, probs, classes_ids);
+    ProbSpace::new(classes_out, probs, classes_ids)
 }
 
 #[derive(Debug)]

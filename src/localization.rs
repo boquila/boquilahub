@@ -72,7 +72,6 @@ pub enum Key {
     export,
     analysis,
     cancel,
-    process_completed,
     done,
     error_ocurred,
     model_hub,
@@ -425,18 +424,9 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "确定",
             Lang::JA => "OK",
             Lang::PT => "OK",
-            Lang::VI => "Hủy bỏ"
+            Lang::VI => "OK"
         },
-        Key::process_completed => match lang {
-            Lang::EN => "Process completed",
-            Lang::ES => "Proceso completado",
-            Lang::FR => "Processus terminé",
-            Lang::DE => "Prozess abgeschlossen",
-            Lang::ZH => "处理完成",
-            Lang::JA => "処理完了",
-            Lang::PT => "Processo concluído",
-            Lang::VI => "Tiến trình đã hoàn tất"
-        },
+        
         Key::done => match lang {
             Lang::EN => "✅ Done",
             Lang::ES => "✅ Listo",

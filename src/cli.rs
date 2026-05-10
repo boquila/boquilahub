@@ -129,9 +129,9 @@ pub async fn run_cli(command: Commands) {
             println!("{}", ASCII_ART);
 
             if let Some(model_cls_name) = &args.model_cls {
-                println!("Model deployed: {} with {}", model_name, model_cls_name);
+                println!("Model deployed: {} with {}", model_name_clean, model_cls_name);
             } else {
-                println!("Model deployed: {}", model_name);
+                println!("Model deployed: {}", model_name_clean);
             }
 
             println!("IP Address: {}", ip_text);
@@ -186,7 +186,7 @@ const ASCII_ART: &'static str = r#"
 
 "#;
 
-pub fn print_ais_table(ais: &Vec<AI>) {
+pub fn print_ais_table(ais: &[AI]) {
     if ais.is_empty() {
         println!("No AI models found.");
         return;

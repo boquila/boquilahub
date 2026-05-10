@@ -1,8 +1,24 @@
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array3, ArrayBase, Dim, OwnedRepr};
-use std::io::{self};
+use std::io;
 use std::path::{Path, PathBuf};
+
+pub struct SendScaler(pub ffmpeg::software::scaling::Context);
+unsafe impl Send for SendScaler {}
+
+impl std::ops::Deref for SendScaler {
+    type Target = ffmpeg::software::scaling::Context;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for SendScaler {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// Creates the predictions file path based on the input file path
 /// For file 'img.jpg', creates path 'img_predictions.json'
@@ -52,7 +68,7 @@ pub fn ndarray_to_image_buffer(
             img.put_pixel(x as u32, y as u32, Rgb([r, g, b]));
         }
     }
-    return img;
+    img
 }
 
 pub const COUNTRY_CODES: [&str; 250] = [

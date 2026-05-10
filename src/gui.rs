@@ -7,7 +7,7 @@ use image::{open, ImageBuffer, Rgba};
 use models::{Model, Task};
 use processing::pre::compute_mel;
 use processing::post::PostProcessing;
-use render::{draw_aioutput, draw_no_predictions};
+use render::*;
 use rest::{
     check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
 };
@@ -17,54 +17,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use rodio::Source;
 use video_file::VideofileProcessor;
-
-struct AudioBufferSource {
-    samples: std::sync::Arc<Vec<f32>>,
-    sample_rate: u32,
-    channels: u16,
-    pos: usize,
-}
-
-impl AudioBufferSource {
-    fn new_from(audio: &AudioData, start_secs: f64) -> Self {
-        let mut mono = audio.clone();
-        if mono.channels > 1 {
-            mono = mono.to_mono();
-        }
-        let start_sample = (start_secs * mono.sample_rate as f64).round() as usize;
-        let samples = if start_sample < mono.samples.len() {
-            mono.samples[start_sample..].to_vec()
-        } else {
-            vec![]
-        };
-        Self {
-            samples: std::sync::Arc::new(samples),
-            sample_rate: mono.sample_rate,
-            channels: mono.channels.max(1),
-            pos: 0,
-        }
-    }
-}
-
-impl Iterator for AudioBufferSource {
-    type Item = f32;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.samples.len() { return None; }
-        let s = self.samples[self.pos];
-        self.pos += 1;
-        Some(s)
-    }
-}
-
-impl Source for AudioBufferSource {
-    fn current_span_len(&self) -> Option<usize> { None }
-    fn channels(&self) -> rodio::ChannelCount { rodio::ChannelCount::new(self.channels).unwrap_or(rodio::ChannelCount::MIN) }
-    fn sample_rate(&self) -> rodio::SampleRate { rodio::SampleRate::new(self.sample_rate).unwrap_or(rodio::SampleRate::MIN) }
-    fn total_duration(&self) -> Option<std::time::Duration> {
-        let frames = self.samples.len() / self.channels.max(1) as usize;
-        Some(std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate as f64))
-    }
-}
 
 pub fn run_gui() {
     let native_options = eframe::NativeOptions {
@@ -235,6 +187,15 @@ struct State {
     progress_bar: f32,
 }
 
+impl State {
+    fn cancel(&mut self) {
+        if let Some(cancel_tx) = self.cancel_sender.take() {
+            let _ = cancel_tx.send(());
+        }
+        self.is_processing = false;
+    }
+}
+
 #[derive(Default)]
 struct ShowConfig {
     ai: bool,
@@ -330,9 +291,7 @@ impl Gui {
     }
 
     fn is_image_model(&self) -> bool {
-        self.ai_selected
-            .map(|i| self.ais[i].modality.as_deref() != Some("audio"))
-            .unwrap_or(true)
+        !self.is_audio_model()
     }
 
     fn audio_mel_params(&self) -> (usize, usize, usize, f32) {
@@ -363,9 +322,9 @@ impl Gui {
             } else {
                 draw_aioutput(&mut img, &predimg.aioutput.as_ref().unwrap());
             }
-        }
+}
 
-        return image::DynamicImage::ImageRgb8(img).to_rgba8();
+        image::DynamicImage::ImageRgb8(img).to_rgba8()
     }
 
     fn save_gui(&self, predimg: &PredImg) {
@@ -802,7 +761,9 @@ impl Gui {
                 }
 
                 ui.end_row();
+            });
 
+        ui.vertical_centered(|ui| {
                 // AUDIO FILE SELECTION SECTION
                 if ui
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::audio_file)))
@@ -828,12 +789,12 @@ impl Gui {
                         }
                     }
                 }
-
-                // Feed url dialog
-                if self.show_dialog.feed_url {
-                    self.feed_input_dialog(ui);
-                }
             });
+
+        // Feed url dialog
+        if self.show_dialog.feed_url {
+            self.feed_input_dialog(ui);
+        }
     }
 
     fn feed_input_dialog(&mut self, ui: &egui::Ui) {
@@ -942,7 +903,6 @@ impl Gui {
                             if let (Some(model_path), Some(ep)) =
                                 (&self.pending_model_path, self.pending_model_ep)
                             {
-                                // Load model with selected architecture
                                 let (model_metadata, data) = match BQModel::import_data(model_path) {
                                     Ok(result) => result,
                                     Err(_) => {
@@ -958,7 +918,7 @@ impl Gui {
                                     Some(self.temp_architecture.clone());
 
                                 // Create model
-                                let session = import::import_model(&data, ep).unwrap();
+                                let session = BQModel::session_from_memory(&data, ep).unwrap();
                                 let post: Vec<PostProcessing> = updated_metadata
                                     .post_processing
                                     .iter()
@@ -1104,10 +1064,7 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
                     {
-                        if let Some(cancel_tx) = self.img_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.img_state.is_processing = false;
+                        self.img_state.cancel();
                         self.image_processing_receiver = None;
                     }
                 }
@@ -1223,10 +1180,7 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
                         .clicked()
                     {
-                        if let Some(cancel_tx) = self.audio_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.audio_state.is_processing = false;
+                        self.audio_state.cancel();
                     }
                 }
             });
@@ -1374,10 +1328,7 @@ impl Gui {
     }
 
     fn cancel_video_processing(&mut self) {
-        if let Some(cancel_tx) = self.video_state.cancel_sender.take() {
-            let _ = cancel_tx.send(());
-        }
-        self.video_state.is_processing = false;
+        self.video_state.cancel();
         self.video_processing_receiver = None;
     }
 
@@ -1467,10 +1418,7 @@ impl Gui {
                     }
                 } else {
                     if ui.button("⏸").clicked() {
-                        if let Some(cancel_tx) = self.feed_state.cancel_sender.take() {
-                            let _ = cancel_tx.send(());
-                        }
-                        self.feed_state.is_processing = false;
+                        self.feed_state.cancel();
                     }
                 }
             });
@@ -1954,52 +1902,6 @@ fn mel_to_imgbuf(
     ImageBuffer::from_raw(target_width as u32, target_height as u32, pixels).unwrap()
 }
 
-
-
-
-fn magma(t: f32) -> [u8; 3] {
-    let stops: [[u8; 3]; 9] = [
-        [0, 0, 4],
-        [20, 14, 59],
-        [65, 22, 107],
-        [120, 28, 129],
-        [175, 49, 120],
-        [216, 87, 72],
-        [237, 149, 27],
-        [249, 213, 70],
-        [252, 253, 191],
-    ];
-    colormap_lerp(&stops, t)
-}
-
-fn viridis(t: f32) -> [u8; 3] {
-    let stops: [[u8; 3]; 9] = [
-        [12, 0, 36],
-        [28, 16, 68],
-        [24, 58, 100],
-        [18, 90, 105],
-        [14, 115, 98],
-        [32, 135, 85],
-        [72, 155, 60],
-        [130, 170, 48],
-        [200, 180, 24],
-    ];
-    colormap_lerp(&stops, t)
-}
-
-fn colormap_lerp(stops: &[[u8; 3]; 9], t: f32) -> [u8; 3] {
-    let t = t.clamp(0.0, 1.0);
-    let idx = t * (stops.len() - 1) as f32;
-    let lo = idx.floor() as usize;
-    let hi = (lo + 1).min(stops.len() - 1);
-    let frac = idx - lo as f32;
-    [
-        (stops[lo][0] as f32 + (stops[hi][0] as f32 - stops[lo][0] as f32) * frac) as u8,
-        (stops[lo][1] as f32 + (stops[hi][1] as f32 - stops[lo][1] as f32) * frac) as u8,
-        (stops[lo][2] as f32 + (stops[hi][2] as f32 - stops[lo][2] as f32) * frac) as u8,
-    ]
-}
-
 #[derive(Default, PartialEq)]
 enum Mode {
     #[default]
@@ -2007,4 +1909,52 @@ enum Mode {
     Video,
     Feed,
     Audio,
+}
+
+struct AudioBufferSource {
+    samples: std::sync::Arc<Vec<f32>>,
+    sample_rate: u32,
+    channels: u16,
+    pos: usize,
+}
+
+impl AudioBufferSource {
+    fn new_from(audio: &AudioData, start_secs: f64) -> Self {
+        let mut mono = audio.clone();
+        if mono.channels > 1 {
+            mono = mono.to_mono();
+        }
+        let start_sample = (start_secs * mono.sample_rate as f64).round() as usize;
+        let samples = if start_sample < mono.samples.len() {
+            mono.samples[start_sample..].to_vec()
+        } else {
+            vec![]
+        };
+        Self {
+            samples: std::sync::Arc::new(samples),
+            sample_rate: mono.sample_rate,
+            channels: mono.channels.max(1),
+            pos: 0,
+        }
+    }
+}
+
+impl Iterator for AudioBufferSource {
+    type Item = f32;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.samples.len() { return None; }
+        let s = self.samples[self.pos];
+        self.pos += 1;
+        Some(s)
+    }
+}
+
+impl Source for AudioBufferSource {
+    fn current_span_len(&self) -> Option<usize> { None }
+    fn channels(&self) -> rodio::ChannelCount { rodio::ChannelCount::new(self.channels).unwrap_or(rodio::ChannelCount::MIN) }
+    fn sample_rate(&self) -> rodio::SampleRate { rodio::SampleRate::new(self.sample_rate).unwrap_or(rodio::SampleRate::MIN) }
+    fn total_duration(&self) -> Option<std::time::Duration> {
+        let frames = self.samples.len() / self.channels.max(1) as usize;
+        Some(std::time::Duration::from_secs_f64(frames as f64 / self.sample_rate as f64))
+    }
 }

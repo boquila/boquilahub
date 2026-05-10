@@ -6,7 +6,7 @@ use crate::api::{
         inference::inference,
         post::{
             apply_geofence_filter, apply_label_rollup, extract_output,
-            process_class_output_no_filt, PostProcessing,
+            process_class_output, PostProcessing,
         },
         pre::{imgbuf_to_input_array, TensorFormat},
     },
@@ -78,7 +78,7 @@ impl EfficientNetV2 {
         let output_name: String = session.outputs[0].name.clone();
 
         if post_processing.contains(&PostProcessing::GeoFence) {
-            let _ = init_geofence_data();
+            init_geofence_data()?;
         }
 
         Ok(EfficientNetV2 {
@@ -110,26 +110,23 @@ impl EfficientNetV2 {
             img,
             &self.input_format,
         );
-        let outputs = inference(&self.session, &input, &self.input_name);
+        let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
-        // Usage in your original code:
-        let probs = if self.post_processing.contains(&PostProcessing::GeoFence) {
-            let mut probs: ProbSpace = process_class_output_no_filt(&self.classes, &output);
+        let mut probs: ProbSpace = process_class_output(None, &self.classes, &output);
+        probs.logits_to_probs();
+
+        if self.post_processing.contains(&PostProcessing::GeoFence) {
             apply_geofence_filter(
                 &mut probs,
                 &crate::api::bq::GEOFENCE_DATA.get().unwrap(),
                 &self.config.geo_fence,
             );
-            probs.logits_to_probs();
             apply_label_rollup(&mut probs, self.config.confidence_threshold);
-            probs
         } else {
-            let mut probs: ProbSpace = process_class_output_no_filt(&self.classes, &output);
-            probs.logits_to_probs();
-            probs.filter(self.config.confidence_threshold)
-        };
+            probs = probs.filter(self.config.confidence_threshold);
+        }
 
-        return AIOutputs::Classification(probs);
+        AIOutputs::Classification(probs)
     }
 }

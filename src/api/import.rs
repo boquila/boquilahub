@@ -1,130 +1,38 @@
 use crate::api::abstractions::AIOutputs;
-use crate::api::ep::Ep;
 use crate::api::utils::create_predictions_file_path;
-use ort::session::builder::GraphOptimizationLevel;
-use ort::{execution_providers::CUDAExecutionProvider, session::Session};
 use std::path::Path;
 use std::{fs, io};
-use anyhow::Result;
 
-// First formats
-// then, some logic and checks
 pub const IMAGE_FORMATS: [&'static str; 23] = [
-    "bmp",  // Bitmap Image File
-    "dib",  // Device Independent Bitmap (BMP alternative)
-    "dds",  // DirectDraw Surface
-    "ff",   // Farbfeld
-    "gif",  // Graphics Interchange Format
-    "hdr",  // High Dynamic Range
-    "ico",  // Icon
-    "cur",  // Cursor (similar to ICO)
-    "jpg",  // JPEG
-    "jpeg", // JPEG alternative extension
-    "jpe",  // JPEG alternative extension
-    "jfif", // JPEG File Interchange Format
-    "exr",  // OpenEXR HDR
-    "png",  // Portable Network Graphics
-    "pnm",  // Portable Anymap
-    "pbm",  // Portable Bitmap (PNM subset)
-    "pgm",  // Portable Graymap (PNM subset)
-    "ppm",  // Portable Pixmap (PNM subset)
-    "qoi",  // Quite OK Image format
-    "tga",  // Truevision Graphics Adapter
-    "tiff", // Tagged Image File Format
-    "tif",  // TIFF alternative extension
-    "webp", // WebP
+    "bmp", "dib", "dds", "ff", "gif", "hdr", "ico", "cur", "jpg", "jpeg", "jpe", "jfif", "exr",
+    "png", "pnm", "pbm", "pgm", "ppm", "qoi", "tga", "tiff", "tif", "webp",
 ];
 
 pub const VIDEO_FORMATS: [&'static str; 35] = [
-    "mp4",    // MPEG-4 Part 14
-    "m4v",    // MPEG-4 Video
-    "mkv",    // Matroska Video
-    "avi",    // Audio Video Interleave
-    "mov",    // QuickTime Movie
-    "qt",     // QuickTime alternative extension
-    "wmv",    // Windows Media Video
-    "flv",    // Flash Video
-    "f4v",    // Flash MP4 Video
-    "webm",   // WebM
-    "mpg",    // MPEG-1 Video
-    "mpeg",   // MPEG-1/2 Video
-    "mpe",    // MPEG alternative extension
-    "m1v",    // MPEG-1 Video
-    "m2v",    // MPEG-2 Video
-    "3gp",    // 3GPP Media
-    "3g2",    // 3GPP2 Media
-    "ts",     // MPEG Transport Stream
-    "mts",    // AVCHD Video
-    "m2ts",   // Blu-ray BDAV
-    "mxf",    // Material Exchange Format
-    "vob",    // DVD Video Object
-    "asf",    // Advanced Systems Format
-    "rm",     // RealMedia
-    "rmvb",   // RealMedia Variable Bitrate
-    "ogv",    // Ogg Video
-    "ogg",    // Ogg container (can contain video)
-    "divx",   // DivX Video
-    "swf",    // Small Web Format (Flash)
-    "wtv",    // Windows Recorded TV Show
-    "dvr-ms", // Microsoft Digital Video Recording
-    "amv",    // Anime Music Video
-    "hevc",   // High Efficiency Video Coding
-    "h265",   // H.265 Video
-    "h264",   // H.264 Video
+    "mp4", "m4v", "mkv", "avi", "mov", "qt", "wmv", "flv", "f4v", "webm", "mpg", "mpeg", "mpe",
+    "m1v", "m2v", "3gp", "3g2", "ts", "mts", "m2ts", "mxf", "vob", "asf", "rm", "rmvb", "ogv",
+    "ogg", "divx", "swf", "wtv", "dvr-ms", "amv", "hevc", "h265", "h264",
 ];
 
 pub const AUDIO_FORMATS: [&'static str; 18] = [
-    "mp3",  // MPEG-1 Audio Layer III
-    "wav",  // Waveform Audio
-    "flac", // Free Lossless Audio Codec
-    "ogg",  // Ogg Vorbis
-    "opus", // Opus Audio
-    "aac",  // Advanced Audio Coding
-    "m4a",  // MPEG-4 Audio
-    "wma",  // Windows Media Audio
-    "aiff", // Audio Interchange File Format
-    "aif",  // AIFF alternative extension
-    "au",   // Sun/NeXT Audio
-    "snd",  // Sun/NeXT Audio alternative extension
-    "amr",  // Adaptive Multi-Rate Audio
-    "ac3",  // Dolby Digital Audio
-    "mid",  // MIDI
-    "midi", // MIDI alternative extension
-    "wv",   // WavPack
-    "ape",  // Monkey's Audio
+    "mp3", "wav", "flac", "ogg", "opus", "aac", "m4a", "wma", "aiff", "aif", "au", "snd", "amr",
+    "ac3", "mid", "midi", "wv", "ape",
 ];
 
+fn is_supported(file_path: &str, formats: &[&str]) -> bool {
+    file_path.rsplit('.').next().map_or(false, |ext| formats.contains(&ext.to_lowercase().as_str()))
+}
+
 pub fn is_supported_audio(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return AUDIO_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
+    is_supported(file_path, &AUDIO_FORMATS)
 }
 
 pub fn is_supported_img(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return IMAGE_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
+    is_supported(file_path, &IMAGE_FORMATS)
 }
 
 pub fn is_supported_videofile(file_path: &str) -> bool {
-    if let Some(extension) = file_path.rsplit('.').next() {
-        return VIDEO_FORMATS.contains(&extension.to_lowercase().as_str());
-    }
-    false
-}
-
-pub fn import_model(model_data: &[u8], ep: Ep) -> Result<Session, ort::Error> {
-    let mut builder = Session::builder()?
-        .with_optimization_level(GraphOptimizationLevel::Level3)?;
-
-    if let Ep::Cuda = ep {
-        builder = builder
-            .with_execution_providers([CUDAExecutionProvider::default().build()])?;
-    }
-
-    builder.commit_from_memory(model_data)
+    is_supported(file_path, &VIDEO_FORMATS)
 }
 
 pub fn read_predictions_from_file(input_path: &Path) -> io::Result<AIOutputs> {
