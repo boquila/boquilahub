@@ -9,7 +9,6 @@ description = "Cross‑platform CLI and GUI tool for local AI‑powered nature m
 [dependencies]
 egui = "0.34.2"
 eframe = { version = "0.34.2", default-features = false, features = [
-    "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
@@ -22,7 +21,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 ort = { version = "=2.0.0-rc.9", features = ["cuda","load-dynamic"] }
 axum = { version = "0.8.9", default-features = false, features = ["multipart", "http1", "tokio"] }
-tokio = { version = "1.51.1", features = ["full"] }
+tokio = { version = "1.51.1", features = ["rt-multi-thread", "macros", "sync", "net", "fs", "io-util"] }
 reqwest = { version = "0.13.2", features = ["json","blocking", "multipart"] }
 imageproc = "0.26.1"
 ab_glyph = "0.2.32" # Fonts
@@ -34,7 +33,7 @@ rayon = "1.12.0"
 embed-resource = "3.0.9"
 bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.102"
-fast_image_resize = "=6.0.0"
+fast_image_resize = { version = "=6.0.0", features = ["image"] }
 ratatui = "0.30.0"
 realfft = "3.4"
 rodio = { version = "0.22", default-features = false, features = ["playback"] }
