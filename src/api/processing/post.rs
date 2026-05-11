@@ -41,14 +41,17 @@ pub fn nms_indices(boxes: &[XYXY], iou_threshold: f32, per_class: bool) -> Vec<u
         let current_idx = indices[0];
         keep.push(current_idx);
 
-        indices = indices
-            .into_iter()
-            .skip(1)
-            .filter(|&idx| {
-                (per_class && boxes[idx].class_id != boxes[current_idx].class_id)
-                    || boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
-            })
-            .collect();
+        let mut write = 0;
+        for read in 1..indices.len() {
+            let idx = indices[read];
+            if (per_class && boxes[idx].class_id != boxes[current_idx].class_id)
+                || boxes[idx].iou(&boxes[current_idx]) <= iou_threshold
+            {
+                indices[write] = idx;
+                write += 1;
+            }
+        }
+        indices.truncate(write);
     }
 
     keep
