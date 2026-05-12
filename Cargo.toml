@@ -13,7 +13,6 @@ eframe = { version = "0.34.2", default-features = false, features = [
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
 ] }
-egui_extras = { version = "0.34.2", features = ["image"] }
 ffmpeg-next = "8.1.0"
 image = { version = "0.25.10", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
