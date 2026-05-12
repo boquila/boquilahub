@@ -230,7 +230,6 @@ impl Gui {
             .insert(0, "Noto".to_owned());
 
         ctx.set_fonts(fonts);
-        egui_extras::install_image_loaders(ctx);
     }
 
     fn new() -> Self {
