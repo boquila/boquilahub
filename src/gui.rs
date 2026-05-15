@@ -670,7 +670,7 @@ impl Gui {
                                         path.extension()
                                             .and_then(|ext| ext.to_str())
                                             .map(|ext_str| {
-                                                import::IMAGE_FORMATS.iter().any(|&format| {
+                                                formats::IMAGE_FORMATS.iter().any(|&format| {
                                                     ext_str.eq_ignore_ascii_case(format)
                                                 })
                                             })
@@ -702,7 +702,7 @@ impl Gui {
                     .clicked()
                 {
                     if let Some(paths) = rfd::FileDialog::new()
-                        .add_filter("Image", &import::IMAGE_FORMATS)
+                        .add_filter("Image", &formats::IMAGE_FORMATS)
                         .pick_files()
                     {
                         self.selected_files = paths
@@ -723,7 +723,7 @@ impl Gui {
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Video", &import::VIDEO_FORMATS)
+                        .add_filter("Video", &formats::VIDEO_FORMATS)
                         .pick_file()
                     {
                         match VideofileProcessor::first_frame(path.clone().to_str().unwrap()) {
@@ -768,7 +768,7 @@ impl Gui {
                     .clicked()
                 {
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Audio", &import::AUDIO_FORMATS)
+                        .add_filter("Audio", &formats::AUDIO_FORMATS)
                         .pick_file()
                     {
                         match audio::AudioData::from_file(&path) {

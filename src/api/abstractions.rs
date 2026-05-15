@@ -192,7 +192,7 @@ pub struct PredImg {
 
 impl PredImg {
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        let aioutput = match super::import::read_predictions_from_file(&file_path) {
+        let aioutput = match AIOutputs::from_file(&file_path) {
             Ok(predictions) => Some(predictions),
             Err(_) => None, // If file doesn't exist or can't be read, just use None
         };
@@ -278,6 +278,24 @@ impl AIOutputs {
             AIOutputs::Segmentation(segments) => segments.is_empty(),
             AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
         }
+    }
+
+    pub fn from_file(input_path: &std::path::Path) -> std::io::Result<AIOutputs> {
+        // Create expected filename based on input filepath
+        let prediction_path = crate::api::utils::create_predictions_file_path(input_path)?;
+    
+        // Check if file exists
+        if !prediction_path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Prediction file not found",
+            ));
+        }
+    
+        // Read and deserialize the file
+        let data = std::fs::read_to_string(prediction_path)?;
+        let deserialized: AIOutputs = serde_json::from_str(&data)?;
+        Ok(deserialized)
     }
 }
 
