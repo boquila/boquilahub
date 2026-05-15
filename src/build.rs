@@ -8,8 +8,10 @@ pub fn main() {
     std::fs::copy("assets/geofence.json", target_path).unwrap();
     println!("cargo:rerun-if-changed=assets/geofence.json");
 
-    // Boquila Icon
-    embed_resource::compile("assets/app.rc", embed_resource::NONE)
-        .manifest_optional()
-        .unwrap();
+    #[cfg(windows)]
+    {
+        embed_resource::compile("assets/app.rc", embed_resource::NONE)
+            .manifest_optional()
+            .unwrap();
+    }
 }
