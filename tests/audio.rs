@@ -1,8 +1,10 @@
+use anyhow::Result;
 use boquilahub::api::audio::AudioData;
+use boquilahub::api::bq::*;
 
 #[test]
-fn smoke() {
-    let a = AudioData::from_file("assets/test/audio.mp3").unwrap();
+fn smoke() -> Result<()> {
+    let a = AudioData::from_file("assets/test/audio.mp3")?;
     let (min, max, rms) = a.amplitude_stats();
 
     println!(
@@ -15,19 +17,17 @@ fn smoke() {
     println!("amp min={:.4} max={:.4} rms={:.4}", min, max, rms);
     println!("dc_offset={:.6}", a.dc_offset());
     println!("preview={:?}", a.preview(16));
+    Ok(())
 }
 
 #[test]
 #[ignore]
-fn audio_inference() {
-    let audio = AudioData::from_file("assets/test/bird.mp3").unwrap();
-    let _ = boquilahub::api::bq::GlobalBQ::First.set_model(
-        "models/MD_AudioBirds_V1.bq",
-        boquilahub::api::ep::Ep::Cpu,
-        None,
-    );
-    
+fn audio_inference() -> Result<()> {
+    let audio = AudioData::from_file("assets/test/bird.mp3")?;
+    GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", Ep::Cpu, None)?;
+
     let aioutput = boquilahub::api::bq::process_audio(&audio);
     println!("Inference success",);
-    println!("AI Outputs: {:?}",aioutput);
+    println!("AI Outputs: {:?}", aioutput);
+    Ok(())
 }

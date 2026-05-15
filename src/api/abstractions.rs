@@ -191,7 +191,6 @@ pub struct PredImg {
 }
 
 impl PredImg {
-    // Simple constructor: only file_path is provided
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         let aioutput = match super::import::read_predictions_from_file(&file_path) {
             Ok(predictions) => Some(predictions),

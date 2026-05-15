@@ -1,7 +1,6 @@
 use crate::api::{
     abstractions::AI,
-    bq::{BQModel, GlobalBQ},
-    ep::Ep,
+    bq::{BQModel, GlobalBQ, Ep},
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};

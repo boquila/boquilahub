@@ -1,7 +1,6 @@
 /// Here we run supported models and check that they always work
 /// eg. no index out of bounds, no wrong pre or post-processing.
 use anyhow::Result;
-use boquilahub::api::ep::Ep;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
