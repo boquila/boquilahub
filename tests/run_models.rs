@@ -7,7 +7,7 @@ use boquilahub::api::bq::*;
 #[ignore]
 async fn test_models() -> Result<()> {
     let listmodels = BQModel::get_list_from_api().await?;
-    let img = image::open("assets/test/img.jpg")?.to_rgb8();
+    let img = image::open("tests/assets/img.jpg")?.to_rgb8();
     let n = listmodels.len();
     
     for model in listmodels {

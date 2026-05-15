@@ -4,7 +4,7 @@ use boquilahub::api::bq::*;
 
 #[test]
 fn smoke() -> Result<()> {
-    let a = AudioData::from_file("assets/test/audio.mp3")?;
+    let a = AudioData::from_file("tests/assets/audio.mp3")?;
     let (min, max, rms) = a.amplitude_stats();
 
     println!(
@@ -23,7 +23,7 @@ fn smoke() -> Result<()> {
 #[test]
 #[ignore]
 fn audio_inference() -> Result<()> {
-    let audio = AudioData::from_file("assets/test/bird.mp3")?;
+    let audio = AudioData::from_file("tests/assets/bird.mp3")?;
     GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", Ep::Cpu, None)?;
 
     let aioutput = boquilahub::api::bq::process_audio(&audio);
