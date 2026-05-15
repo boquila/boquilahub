@@ -1,8 +1,6 @@
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use ndarray::{Array3, ArrayBase, Dim, OwnedRepr};
-use std::io;
-use std::path::{Path, PathBuf};
 
 pub struct SendScaler(pub ffmpeg::software::scaling::Context);
 unsafe impl Send for SendScaler {}
@@ -18,17 +16,6 @@ impl std::ops::DerefMut for SendScaler {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
-}
-
-/// Creates the predictions file path based on the input file path
-/// For file 'img.jpg', creates path 'img_predictions.json'
-pub fn create_predictions_file_path(input_path: &Path) -> io::Result<PathBuf> {
-    let file_stem = input_path
-        .file_stem()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid input path"))?;
-    let parent = input_path.parent().unwrap_or(Path::new(""));
-    let output_path = parent.join(format!("{}_predictions.json", file_stem.to_string_lossy()));
-    Ok(output_path)
 }
 
 pub fn image_buffer_to_ndarray(

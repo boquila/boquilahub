@@ -1,7 +1,5 @@
 use crate::api::abstractions::AudioProbSugar;
-
 use super::abstractions::{AIOutputs, PredImg};
-use super::utils::create_predictions_file_path;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs::File;
@@ -74,7 +72,7 @@ impl PredImg {
 
     // For file 'img.jpg', creates a file 'img_predictions.json' that contains the AI outputs
     pub async fn write_pred_img_to_file(&self) -> Result<()> {
-        let output_path = create_predictions_file_path(&self.file_path)?;
+        let output_path = self.predictions_file_path()?;
         let mut file = File::create(&output_path)?;
         let json_string = serde_json::to_string(&self.aioutput)?;
         file.write_all(json_string.as_bytes())?;

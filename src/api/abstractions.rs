@@ -192,7 +192,7 @@ pub struct PredImg {
 
 impl PredImg {
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        let aioutput = match AIOutputs::from_file(&file_path) {
+        let aioutput = match AIOutputs::from_predicted_file(&file_path) {
             Ok(predictions) => Some(predictions),
             Err(_) => None, // If file doesn't exist or can't be read, just use None
         };
@@ -208,6 +208,22 @@ impl PredImg {
 
     pub fn reset(&mut self) {
         self.wasprocessed = false;
+    }
+
+    /// Creates the predictions file path based on the input file path
+    /// For file 'img.jpg', creates path 'img_predictions.json'
+    fn create_predictions_file_path(input_path: impl AsRef<std::path::Path>) -> std::io::Result<std::path::PathBuf> {
+        let input_path = input_path.as_ref();
+        let file_stem = input_path
+            .file_stem()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path"))?
+            .to_str()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path"))?;
+        Ok(input_path.with_file_name(format!("{}_predictions.json", file_stem)))
+    }
+
+    pub fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
+        Self::create_predictions_file_path(&self.file_path)
     }
 }
 
@@ -280,21 +296,23 @@ impl AIOutputs {
         }
     }
 
-    pub fn from_file(input_path: &std::path::Path) -> std::io::Result<AIOutputs> {
+    // From an input_path: img.jpg, it generates ing_predictions.json and reads it
+    pub fn from_predicted_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {
         // Create expected filename based on input filepath
-        let prediction_path = crate::api::utils::create_predictions_file_path(input_path)?;
+        let prediction_path = PredImg::create_predictions_file_path(input_path)?;
     
-        // Check if file exists
         if !prediction_path.exists() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "Prediction file not found",
             ));
         }
-    
-        // Read and deserialize the file
-        let data = std::fs::read_to_string(prediction_path)?;
-        let deserialized: AIOutputs = serde_json::from_str(&data)?;
+
+        Self::from_file(prediction_path)
+    }
+
+    pub fn from_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {    
+        let deserialized: AIOutputs = serde_json::from_reader(std::fs::File::open(input_path)?)?;
         Ok(deserialized)
     }
 }
