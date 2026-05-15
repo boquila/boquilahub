@@ -192,11 +192,10 @@ pub struct PredImg {
 
 impl PredImg {
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        let aioutput = match AIOutputs::from_predicted_file(&file_path) {
-            Ok(predictions) => Some(predictions),
-            Err(_) => None, // If file doesn't exist or can't be read, just use None
+        let aioutput = match Self::create_predictions_file_path(&file_path) {
+            Ok(path) if path.exists() => AIOutputs::from_file(path).ok(),
+            _ => None,
         };
-
         let wasprocessed = aioutput.is_some();
 
         PredImg {
@@ -294,21 +293,6 @@ impl AIOutputs {
             AIOutputs::Segmentation(segments) => segments.is_empty(),
             AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
         }
-    }
-
-    // From an input_path: img.jpg, it generates ing_predictions.json and reads it
-    pub fn from_predicted_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {
-        // Create expected filename based on input filepath
-        let prediction_path = PredImg::create_predictions_file_path(input_path)?;
-    
-        if !prediction_path.exists() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "Prediction file not found",
-            ));
-        }
-
-        Self::from_file(prediction_path)
     }
 
     pub fn from_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {    
