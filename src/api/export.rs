@@ -64,10 +64,11 @@ pub async fn copy_to_folder(pred_imgs: &[PredImg], output_path: &str) -> Result<
 }
 
 impl PredImg {
-    pub fn save(&self) {
-        let img_data = image::DynamicImage::ImageRgba8(self.draw()).to_rgb8();
+    pub fn save(&self) -> Result<()> {
+        let img_data = self.draw()?;
         let filename = prepare_export_img(&self.file_path);
-        img_data.save(&filename).unwrap();
+        img_data.save(&filename)?;
+        Ok(())
     }
 
     // For file 'img.jpg', creates a file 'img_predictions.json' that contains the AI outputs

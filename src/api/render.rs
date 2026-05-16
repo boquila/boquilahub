@@ -1,7 +1,7 @@
 use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, ProbSpace, SEGc, XYXYc};
 use crate::localization::translate;
 use ab_glyph::FontRef;
-use image::{DynamicImage, ImageBuffer, Rgb};
+use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
 use std::sync::LazyLock;
@@ -356,12 +356,14 @@ fn get_color(bbox: &XYXYc) -> Rgb<u8> {
 
 impl PredImg {
     #[inline(always)]
-    pub fn draw(&self) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-        let mut img = image::open(&self.file_path).unwrap().into_rgb8();
-        if self.wasprocessed && !self.aioutput.as_ref().unwrap().is_empty() {
-            super::render::draw_aioutput(&mut img, &self.aioutput.as_ref().unwrap());
+    pub fn draw(&self) -> anyhow::Result<image::ImageBuffer<image::Rgb<u8>, Vec<u8>>> {
+        let mut img = image::open(&self.file_path)?.into_rgb8();
+        if let Some(aioutput) = self.aioutput.as_ref() {
+            if !aioutput.is_empty() {
+                super::render::draw_aioutput(&mut img, aioutput);
+            }
         }
-        DynamicImage::ImageRgb8(img).to_rgba8()
+        Ok(img)
     }
 }
 
