@@ -13,7 +13,7 @@ pub enum Lang {
 
 impl Default for Lang {
     fn default() -> Self {
-        let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
+        let locale = sys_locale::get_locale().unwrap_or_default();
         let lang_code = locale.get(0..2).unwrap_or("en");
         Self::from_str(lang_code)
     }
