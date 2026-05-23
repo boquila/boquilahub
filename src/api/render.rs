@@ -1,4 +1,4 @@
-use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, ProbSpace, SEGc, XYXYc};
+use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, Prob, ProbSugar, SEGc, XYXYc};
 use crate::localization::translate;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
@@ -121,8 +121,8 @@ pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOu
         AIOutputs::Segmentation(segs) => {
             draw_seg_from_imgbuf(img, segs);
         }
-        AIOutputs::Classification(prob_space) => {
-            draw_cls_from_imgbuf(img, prob_space);
+        AIOutputs::Classification(probs) => {
+            draw_cls_from_imgbuf(img, probs);
         }
         AIOutputs::AudioClassification(_) => {}
     }
@@ -252,56 +252,40 @@ pub fn draw_no_predictions(
     draw_text_mut(img, WHITE, start_x, start_y, FONT_SCALE, &font, text);
 }
 
-fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, prob_space: &ProbSpace) {
-    let font = &*FONT; // Dereference the LazyLock
+fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, probs: &[Prob]) {
+    let font = &*FONT;
 
-    // Create pairs of (class, prob) and sort by probability descending
-    let mut class_probs: Vec<(&String, f32)> = prob_space
-        .classes
-        .iter()
-        .zip(prob_space.probs.iter())
-        .map(|(class, &prob)| (class, prob))
-        .collect();
+    let mut sorted: Vec<&Prob> = probs.iter().collect();
+    sorted.sort_by(|a, b| b.prob.partial_cmp(&a.prob).unwrap());
+    let top3: Vec<&Prob> = sorted.into_iter().take(3).collect();
 
-    class_probs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-    // Take top 3
-    let top3 = class_probs.into_iter().take(3).collect::<Vec<_>>();
-
-    // Starting position in top left corner
     let start_x = 10i32;
     let start_y = 10i32;
     let line_height = (FONT_SCALE + 8.0) as i32;
 
-    // Calculate background dimensions
     let max_text_width = top3
         .iter()
-        .map(|(class, prob)| format!("{}: {:.1}%", class, prob * 100.0).len())
+        .map(|p| format!("{}: {:.1}%", p.label, p.prob * 100.0).len())
         .max()
         .unwrap_or(0);
 
     let bg_width = (max_text_width as f32 * CHAR_WIDTH + 20.0) as u32;
     let bg_height = (top3.len() as i32 * line_height + 10) as u32;
 
-    // Draw semi-transparent background
     draw_filled_rect_mut(
         img,
         Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
-        Rgb([0, 0, 0]), // Black background
+        Rgb([0, 0, 0]),
     );
-
-    // Draw border
     draw_hollow_rect_mut(
         img,
         Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
         WHITE,
     );
 
-    // Draw each classification
-    for (i, (class, prob)) in top3.iter().enumerate() {
-        let text = format!("{}: {:.1}%", class, prob * 100.0);
+    for (i, p) in top3.iter().enumerate() {
+        let text = format!("{}: {:.1}%", p.label, p.prob * 100.0);
         let y_pos = start_y + (i as i32 * line_height);
-
         draw_text_mut(img, WHITE, start_x, y_pos, FONT_SCALE, &font, &text);
     }
 }
@@ -334,23 +318,19 @@ fn draw_multiline_text(
 
 fn str_label(xyxyc: &XYXYc) -> String {
     let base = format!("{} {:.2}", xyxyc.label, xyxyc.xyxy.prob);
-    match &xyxyc.extra_cls {
-        Some(extra) => {
-            let (str, cls_prob, _id) = extra.highest_confidence_full();
-            format!("{}\n{} {:.2}", base, str, cls_prob)
-        }
+    match xyxyc.extra_cls.as_ref().and_then(|c| c.top()) {
+        Some(p) => format!("{}\n{} {:.2}", base, p.label, p.prob),
         None => base,
     }
 }
 
 fn get_color(bbox: &XYXYc) -> Rgb<u8> {
-    let class_id = match &bbox.extra_cls {
-        Some(extra) => {
-            let (_str, _cls_prob, id) = extra.highest_confidence_full();
-            id
-        }
-        None => bbox.xyxy.class_id,
-    };
+    let class_id = bbox
+        .extra_cls
+        .as_ref()
+        .and_then(|c| c.top())
+        .map(|p| p.class_id)
+        .unwrap_or(bbox.xyxy.class_id);
     BBOX_COLORS[class_id as usize % BBOX_COLORS.len()]
 }
 

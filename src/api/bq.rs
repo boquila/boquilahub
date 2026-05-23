@@ -276,8 +276,8 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
             for xyxyc in detections.iter_mut() {
                 let sliced_img = slice_image(img, &xyxyc.xyxy);
                 let cls_output = ai2_ref.run(&AIInput::Image(&sliced_img));
-                if let AIOutputs::Classification(prob_space) = cls_output {
-                    xyxyc.extra_cls = Some(prob_space);
+                if let AIOutputs::Classification(probs) = cls_output {
+                    xyxyc.extra_cls = Some(probs);
                 }
             }
         }
@@ -286,8 +286,8 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
                 let xyxyc = &mut segc.bbox;
                 let sliced_img = slice_image(img, &xyxyc.xyxy);
                 let cls_output = ai2_ref.run(&AIInput::Image(&sliced_img));
-                if let AIOutputs::Classification(prob_space) = cls_output {
-                    xyxyc.extra_cls = Some(prob_space);
+                if let AIOutputs::Classification(probs) = cls_output {
+                    xyxyc.extra_cls = Some(probs);
                 }
             }
         }

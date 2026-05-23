@@ -1,91 +1,44 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProbSpace {
-    pub classes: Vec<String>,
-    pub probs: Vec<f32>,
-    pub classes_ids: Vec<u32>,
+pub struct Prob {
+    pub label: String,
+    pub prob: f32,
+    pub class_id: u32,
 }
 
-impl ProbSpace {
-    pub fn new(classes: Vec<String>, probs: Vec<f32>, classes_ids: Vec<u32>) -> Self {
-        Self {
-            classes,
-            probs,
-            classes_ids,
-        }
+impl Prob {
+    pub fn new(label: String, prob: f32, class_id: u32) -> Self {
+        Self { label, prob, class_id }
     }
+}
 
-    fn max_index(&self) -> Option<usize> {
-        self.probs
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, _)| index)
-    }
+pub trait ProbSugar {
+    fn highest_confidence(&self) -> String;
+    fn top(&self) -> Option<&Prob>;
+    fn logits_to_probs(&mut self);
+}
 
-    pub fn highest_confidence(&self) -> String {
-        self.max_index()
-            .map(|index| self.classes[index].clone())
+impl ProbSugar for Vec<Prob> {
+    fn highest_confidence(&self) -> String {
+        self.top()
+            .map(|p| p.label.clone())
             .unwrap_or_else(|| String::from("no prediction"))
     }
 
-    pub fn highest_confidence_full(&self) -> (String, f32, u32) {
-        self.max_index()
-            .map(|index| {
-                (
-                    self.classes
-                        .get(index)
-                        .cloned()
-                        .unwrap_or_else(|| "unknown".to_string()),
-                    self.probs[index],
-                    *self.classes_ids.get(index).unwrap_or(&0),
-                )
-            })
-            .unwrap_or_else(|| ("no prediction".to_string(), 0.0, 0))
+    fn top(&self) -> Option<&Prob> {
+        self.iter().max_by(|a, b| {
+            a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
-    pub fn logits_to_probs(&mut self) {
-        // Find the maximum logit for numerical stability
-        let max_logit = self.probs.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b));
-
-        // Compute exp(logit - max_logit) for each logit
-        let exp_logits: Vec<f32> = self
-            .probs
-            .iter()
-            .map(|&logit| (logit - max_logit).exp())
-            .collect();
-
-        // Compute the sum of all exponentials
-        let sum_exp: f32 = exp_logits.iter().sum();
-
-        // Convert to probabilities by dividing each exp by the sum
-        self.probs = exp_logits
-            .iter()
-            .map(|&exp_logit| exp_logit / sum_exp)
-            .collect();
-    }
-
-    pub fn filter(&self, conf: f32) -> Self {
-        let mut filtered = ProbSpace {
-            classes: Vec::new(),
-            probs: Vec::new(),
-            classes_ids: Vec::new(),
-        };
-
-        for (class, (prob, class_id)) in self
-            .classes
-            .iter()
-            .zip(self.probs.iter().zip(self.classes_ids.iter()))
-        {
-            if *prob >= conf {
-                filtered.classes.push(class.clone());
-                filtered.probs.push(*prob);
-                filtered.classes_ids.push(*class_id);
-            }
+    fn logits_to_probs(&mut self) {
+        let max_logit = self.iter().map(|p| p.prob).fold(f32::NEG_INFINITY, f32::max);
+        let exps: Vec<f32> = self.iter().map(|p| (p.prob - max_logit).exp()).collect();
+        let sum: f32 = exps.iter().sum();
+        for (p, e) in self.iter_mut().zip(exps.iter()) {
+            p.prob = e / sum;
         }
-
-        filtered
     }
 }
 
@@ -245,7 +198,7 @@ impl AudioProbSugar for Vec<AudioProb> {
 pub struct XYXYc {
     pub xyxy: XYXY,
     pub label: String,
-    pub extra_cls: Option<ProbSpace>,
+    pub extra_cls: Option<Vec<Prob>>,
 }
 
 impl XYXYc {
@@ -267,7 +220,7 @@ pub struct AudioProb {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
-    Classification(ProbSpace),
+    Classification(Vec<Prob>),
     Segmentation(Vec<SEGc>),
     AudioClassification(Vec<AudioProb>),
 }
@@ -276,7 +229,7 @@ impl AIOutputs {
     pub fn is_empty(&self) -> bool {
         match self {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
-            AIOutputs::Classification(prob_space) => prob_space.classes.is_empty(),
+            AIOutputs::Classification(probs) => probs.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
             AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
         }

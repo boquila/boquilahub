@@ -1,4 +1,4 @@
-use crate::api::abstractions::AudioProbSugar;
+use crate::api::abstractions::{AudioProbSugar, ProbSugar};
 use super::abstractions::{AIOutputs, PredImg};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -30,7 +30,7 @@ fn get_main_label(output: &AIOutputs) -> String {
         AIOutputs::Segmentation(segments) => {
             get_most_frequent_label(segments, |seg| &seg.bbox.label)
         }
-        AIOutputs::Classification(prob_space) => prob_space.highest_confidence(),
+        AIOutputs::Classification(probs) => probs.highest_confidence(),
         AIOutputs::AudioClassification(audio_prob) => audio_prob.highest_confidence(),
     }
 }

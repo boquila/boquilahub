@@ -1,5 +1,5 @@
 use crate::api::{
-    abstractions::{AIOutputs, ModelConfig, ProbSpace},
+    abstractions::{AIOutputs, ModelConfig, Prob, ProbSugar},
     bq::{init_geofence_data, AIMetadata},
     models::Task,
     processing::{
@@ -111,7 +111,7 @@ impl EfficientNetV2 {
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
-        let mut probs: ProbSpace = process_class_output(None, &self.classes, &output);
+        let mut probs: Vec<Prob> = process_class_output(None, &self.classes, &output);
         probs.logits_to_probs();
 
         if self.post_processing.contains(&PostProcessing::GeoFence) {
@@ -122,7 +122,7 @@ impl EfficientNetV2 {
             );
             apply_label_rollup(&mut probs, self.config.confidence_threshold);
         } else {
-            probs = probs.filter(self.config.confidence_threshold);
+            probs.retain(|p| p.prob >= self.config.confidence_threshold);
         }
 
         AIOutputs::Classification(probs)
