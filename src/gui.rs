@@ -168,7 +168,7 @@ struct Gui {
     save_img_from_feed: bool,
     process_all_imgs: bool,
     show_config: ShowConfig,
-    show_dialog: ShowDialog,
+    dialog: OpenDialog,
     img_state: State,
     video_state: State,
     feed_state: State,
@@ -201,12 +201,14 @@ struct ShowConfig {
     feed: bool,
 }
 
-#[derive(Default)]
-struct ShowDialog {
-    process_all: bool,
-    export: bool,
-    feed_url: bool,
-    api_server: bool,
+#[derive(Default, PartialEq)]
+enum OpenDialog {
+    #[default]
+    None,
+    ProcessAll,
+    Export,
+    FeedUrl,
+    ApiServer,
 }
 
 impl Gui {
@@ -589,7 +591,7 @@ impl Gui {
         if temp_ep_selected != self.ep_selected {
             match temp_ep_selected {
                 Ep::BoquilaHubRemote => {
-                    self.show_dialog.api_server = true;
+                    self.dialog = OpenDialog::ApiServer;
                 }
                 Ep::Cuda => {
                     let cuda_version = match temp_ep_selected.version() {
@@ -735,7 +737,7 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::camera_feed)))
                     .clicked()
                 {
-                    self.show_dialog.feed_url = true;
+                    self.dialog = OpenDialog::FeedUrl;
                 }
 
                 ui.end_row();
@@ -770,7 +772,7 @@ impl Gui {
             });
 
         // Feed url dialog
-        if self.show_dialog.feed_url {
+        if self.dialog == OpenDialog::FeedUrl {
             self.feed_input_dialog(ui);
         }
     }
@@ -805,11 +807,11 @@ impl Gui {
                                 self.process_error();
                             }
                         }
-                        self.show_dialog.feed_url = false;
+                        self.dialog = OpenDialog::None;
                     }
                     ui.add_space(8.0);
                     if ui.button(self.t(Key::cancel)).clicked() {
-                        self.show_dialog.feed_url = false;
+                        self.dialog = OpenDialog::None;
                         self.feed_url = None
                     }
                 });
@@ -817,7 +819,7 @@ impl Gui {
     }
 
     fn input_api_url_dialog(&mut self, ui: &egui::Ui) {
-        if self.show_dialog.api_server {
+        if self.dialog == OpenDialog::ApiServer {
             egui::Window::new(self.t(Key::input_url))
                 .collapsible(false)
                 .resizable(false)
@@ -834,7 +836,7 @@ impl Gui {
                             });
 
                             if is_valid_api {
-                                self.show_dialog.api_server = false;
+                                self.dialog = OpenDialog::None;
                                 self.api_server_url = Some(url);
                                 self.ep_selected = Ep::BoquilaHubRemote;
                             } else {
@@ -843,7 +845,7 @@ impl Gui {
                         }
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_dialog.api_server = false;
+                            self.dialog = OpenDialog::None;
                             self.api_server_url = None;
                         }
                     });
@@ -901,7 +903,7 @@ impl Gui {
     }
 
     fn process_all_dialog(&mut self, ui: &egui::Ui) {
-        if self.show_dialog.process_all {
+        if self.dialog == OpenDialog::ProcessAll {
             egui::Window::new(self.t(Key::process_everything))
                 .collapsible(false)
                 .resizable(false)
@@ -910,17 +912,17 @@ impl Gui {
                         if ui.button(self.t(Key::yes)).clicked() {
                             self.process_all_imgs = true;
                             self.start_img_analysis();
-                            self.show_dialog.process_all = false;
+                            self.dialog = OpenDialog::None;
                         }
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::no_only_missing_data)).clicked() {
                             self.process_all_imgs = false;
                             self.start_img_analysis();
-                            self.show_dialog.process_all = false;
+                            self.dialog = OpenDialog::None;
                         }
                         ui.add_space(8.0);
                         if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_dialog.process_all = false;
+                            self.dialog = OpenDialog::None;
                         }
                     });
                 });
@@ -945,7 +947,7 @@ impl Gui {
                         if self.selected_files.get_progress() == 0.0 {
                             self.start_img_analysis();
                         } else {
-                            self.show_dialog.process_all = true;
+                            self.dialog = OpenDialog::ProcessAll;
                         }
                     }
                 }
@@ -980,13 +982,13 @@ impl Gui {
                         .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
                         .clicked()
                     {
-                        self.show_dialog.export = true;
+                        self.dialog = OpenDialog::Export;
                     }
                 });
             }
 
             // Export dialog logic
-            if self.show_dialog.export {
+            if self.dialog == OpenDialog::Export {
                 egui::Window::new(self.t(Key::export))
                     .collapsible(false)
                     .resizable(false)
@@ -1000,7 +1002,7 @@ impl Gui {
                             }
 
                             self.process_done();
-                            self.show_dialog.export = false;
+                            self.dialog = OpenDialog::None;
                         }
 
                         // Export option 2
@@ -1014,7 +1016,7 @@ impl Gui {
                                 }
                             }
                             self.process_done();
-                            self.show_dialog.export = false;
+                            self.dialog = OpenDialog::None;
                         }
 
                         // Export option 3
@@ -1029,12 +1031,12 @@ impl Gui {
                                 }
                             });
                             self.process_done();
-                            self.show_dialog.export = false;
+                            self.dialog = OpenDialog::None;
                         }
 
                         // Cancel any export
                         if ui.button(self.t(Key::cancel)).clicked() {
-                            self.show_dialog.export = false;
+                            self.dialog = OpenDialog::None;
                         }
                     });
             }
