@@ -1656,20 +1656,34 @@ impl eframe::App for Gui {
                             self.audio_state.texture = None;
                         }
 
+                        let window_preds: Vec<AudioProb> = self.audio_predictions.as_ref()
+                            .map(|preds| {
+                                preds.iter()
+                                    .filter(|p| {
+                                        p.end as f64 > self.audio_position
+                                            && (p.start as f64)
+                                                < self.audio_position + self.audio_window_secs
+                                    })
+                                    .cloned()
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        let column_winner = dominant_per_column(
+                            &window_preds,
+                            self.audio_position,
+                            self.audio_window_secs,
+                            PLOT_SPEC_W,
+                        );
+
                         if self.audio_state.texture.is_none() {
                             let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
                             let window = audio.slice(self.audio_position, self.audio_window_secs)
                                 .resample(AUDIO_DISPLAY_SR);
                             let spec = compute_mel(&window, n_fft, hop_length, n_mels, top_db);
-                            let window_preds: Option<Vec<AudioProb>> = self.audio_predictions.as_ref().map(|preds| {
-                                preds.iter()
-                                    .filter(|p| p.end as f64 > self.audio_position && (p.start as f64) < self.audio_position + self.audio_window_secs)
-                                    .cloned()
-                                    .collect()
-                            });
                             let img = mel_to_imgbuf(
                                 &spec, top_db, PLOT_SPEC_W, PLOT_SPEC_H,
-                                window_preds.as_deref(), self.audio_position, self.audio_window_secs,
+                                &window_preds, &column_winner,
                             );
                             self.audio_state.texture = imgbuf_to_texture(&img, ui);
                         }
@@ -1680,7 +1694,8 @@ impl eframe::App for Gui {
                                 texture,
                                 self.audio_position,
                                 self.audio_window_secs,
-                                self.audio_predictions.as_deref(),
+                                &window_preds,
+                                &column_winner,
                                 self.audio_playhead,
                             );
                         }
@@ -1708,22 +1723,92 @@ const AUDIO_DISPLAY_SR: u32 = 22050;
 const PLOT_SPEC_W: usize = 800;
 const PLOT_SPEC_H: usize = 280;
 const PLOT_M_LEFT: f32 = 56.0;
-const PLOT_M_TOP: f32 = 36.0;
+const PLOT_M_TOP: f32 = 40.0;
 const PLOT_M_RIGHT: f32 = 14.0;
 const PLOT_M_BOTTOM: f32 = 34.0;
+
+/// For each pixel column of the spectrogram, the index (into `preds`) of the
+/// dominant prediction (highest prob) at that column's center time, or `None`
+/// if no prediction covers it. This is the single source of truth used by both
+/// the spectrogram coloring and the class-label strip — guaranteeing they stay
+/// pixel-perfectly aligned even when predictions overlap.
+fn dominant_per_column(
+    preds: &[AudioProb],
+    window_start: f64,
+    window_duration: f64,
+    n_cols: usize,
+) -> Vec<Option<usize>> {
+    let mut out = vec![None; n_cols];
+    if preds.is_empty() {
+        return out;
+    }
+    for col in 0..n_cols {
+        let time = window_start + ((col as f64 + 0.5) / n_cols as f64) * window_duration;
+        let mut best_idx: Option<usize> = None;
+        let mut best_prob = f32::MIN;
+        for (i, p) in preds.iter().enumerate() {
+            if time >= p.start as f64 && time < p.end as f64 && p.prediction.prob > best_prob {
+                best_prob = p.prediction.prob;
+                best_idx = Some(i);
+            }
+        }
+        out[col] = best_idx;
+    }
+    out
+}
+
+struct LabelSegment {
+    col_start: usize,
+    col_end: usize, // inclusive
+    class_id: u32,
+    label: String,
+    max_prob: f32,
+}
+
+fn segments_from_columns(preds: &[AudioProb], columns: &[Option<usize>]) -> Vec<LabelSegment> {
+    let mut segs: Vec<LabelSegment> = Vec::new();
+    for (col, winner) in columns.iter().enumerate() {
+        let Some(idx) = winner else { continue; };
+        let p = &preds[*idx];
+        let cid = p.prediction.class_id;
+        let prob = p.prediction.prob;
+        match segs.last_mut() {
+            Some(last)
+                if last.class_id == cid
+                    && last.label == p.prediction.label
+                    && last.col_end + 1 == col =>
+            {
+                last.col_end = col;
+                if prob > last.max_prob {
+                    last.max_prob = prob;
+                }
+            }
+            _ => segs.push(LabelSegment {
+                col_start: col,
+                col_end: col,
+                class_id: cid,
+                label: p.prediction.label.clone(),
+                max_prob: prob,
+            }),
+        }
+    }
+    segs
+}
 
 fn render_audio_plot(
     ui: &mut egui::Ui,
     texture: &egui::TextureHandle,
     audio_position: f64,
     audio_window_secs: f64,
-    predictions: Option<&[AudioProb]>,
+    window_preds: &[AudioProb],
+    column_winner: &[Option<usize>],
     playhead: Option<f64>,
 ) {
     use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind};
 
     let spec_w = PLOT_SPEC_W as f32;
     let spec_h = PLOT_SPEC_H as f32;
+    let n_cols = PLOT_SPEC_W as f32;
     let total = vec2(PLOT_M_LEFT + spec_w + PLOT_M_RIGHT, PLOT_M_TOP + spec_h + PLOT_M_BOTTOM);
     let (response, painter) = ui.allocate_painter(total, Sense::hover());
     let full = response.rect;
@@ -1737,6 +1822,7 @@ fn render_audio_plot(
     let grid_color = Color32::from_rgba_unmultiplied(255, 255, 255, 22);
     let tick_font = FontId::proportional(10.5);
     let title_font = FontId::proportional(10.0);
+    let label_font = FontId::proportional(11.0);
 
     painter.image(
         texture.id(),
@@ -1831,80 +1917,72 @@ fn render_audio_plot(
         weak_color,
     );
 
-    // Class-label strip: every AudioProb has a label; merge consecutive same-label windows.
-    if let Some(preds) = predictions {
-        let win_start = audio_position as f32;
-        let win_end = (audio_position + audio_window_secs) as f32;
+    // Label strip — derived from the same column_winner array used to color the
+    // spectrogram, so a bar's extent is exactly the extent of its colored band.
+    let strip_top = full.top() + 6.0;
+    let strip_bottom = spec.top() - 6.0;
+    let col_to_x = |c: f32| spec.left() + (c / n_cols) * spec_w;
+    let col_to_time =
+        |c: f32| audio_position + (c as f64 / n_cols as f64) * audio_window_secs;
 
-        let mut sorted: Vec<&AudioProb> = preds.iter().collect();
-        sorted.sort_by(|a, b| {
-            a.start
-                .partial_cmp(&b.start)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        let mut segments: Vec<(f32, f32, String, f32, u32)> = Vec::new();
-        for p in sorted {
-            if let Some(last) = segments.last_mut() {
-                if last.2 == p.prediction.label && p.start <= last.1 {
-                    last.1 = last.1.max(p.end);
-                    last.3 = last.3.max(p.prediction.prob);
-                    continue;
-                }
-            }
-            segments.push((
-                p.start,
-                p.end,
-                p.prediction.label.clone(),
-                p.prediction.prob,
-                p.prediction.class_id,
-            ));
+    let segments = segments_from_columns(window_preds, column_winner);
+    for (idx, seg) in segments.iter().enumerate() {
+        let x1 = col_to_x(seg.col_start as f32);
+        let x2 = col_to_x((seg.col_end + 1) as f32);
+        let seg_rect = Rect::from_min_max(pos2(x1, strip_top), pos2(x2, strip_bottom));
+        let c = class_color(seg.class_id);
+        let alpha = (180.0 + 75.0 * seg.max_prob).clamp(180.0, 255.0) as u8;
+        painter.rect_filled(
+            seg_rect,
+            3.0,
+            Color32::from_rgba_unmultiplied(c[0], c[1], c[2], alpha),
+        );
+        if seg_rect.width() > 60.0 {
+            let luminance = 0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
+            let text_color = if luminance > 150.0 {
+                Color32::BLACK
+            } else {
+                Color32::WHITE
+            };
+            painter.text(
+                seg_rect.center(),
+                Align2::CENTER_CENTER,
+                format!("{}  {:.0}%", seg.label, seg.max_prob * 100.0),
+                label_font.clone(),
+                text_color,
+            );
         }
-
-        let strip_top = full.top() + 6.0;
-        let strip_bottom = spec.top() - 6.0;
-        let label_font = FontId::proportional(11.0);
-        for (idx, &(s, e, ref label, prob, class_id)) in segments.iter().enumerate() {
-            if e <= win_start || s >= win_end {
-                continue;
-            }
-            let vs = s.max(win_start);
-            let ve = e.min(win_end);
-            let x1 = spec.left() + ((vs - win_start) / (win_end - win_start)) * spec_w;
-            let x2 = spec.left() + ((ve - win_start) / (win_end - win_start)) * spec_w;
-            let seg_rect = Rect::from_min_max(pos2(x1, strip_top), pos2(x2, strip_bottom));
-            let c = class_color(class_id);
-            let alpha = (180.0 + 75.0 * prob).clamp(180.0, 255.0) as u8;
-            painter.rect_filled(seg_rect, 3.0, Color32::from_rgba_unmultiplied(c[0], c[1], c[2], alpha));
-            if seg_rect.width() > 60.0 {
-                let luminance = 0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
-                let text_color = if luminance > 150.0 { Color32::BLACK } else { Color32::WHITE };
-                painter.text(
-                    seg_rect.center(),
-                    Align2::CENTER_CENTER,
-                    format!("{}  {:.0}%", label, prob * 100.0),
-                    label_font.clone(),
-                    text_color,
-                );
-            }
-            ui.interact(seg_rect, egui::Id::new(("audio_seg", idx)), Sense::hover())
-                .on_hover_text(format!(
-                    "{}\n{:.0}% confidence\n{:.2}s – {:.2}s",
-                    label, prob * 100.0, s, e
-                ));
-        }
+        let t_start = col_to_time(seg.col_start as f32);
+        let t_end = col_to_time((seg.col_end + 1) as f32);
+        ui.interact(
+            seg_rect,
+            egui::Id::new(("audio_seg", idx)),
+            Sense::hover(),
+        )
+        .on_hover_text(format!(
+            "{}\n{:.0}% confidence\n{:.2}s – {:.2}s",
+            seg.label,
+            seg.max_prob * 100.0,
+            t_start,
+            t_end
+        ));
     }
 
-    // Playhead inside spec area only
+    // Playhead
     if let Some(ph) = playhead {
         let win_start = audio_position;
         let win_end = audio_position + audio_window_secs;
         if ph >= win_start && ph <= win_end {
             let frac = (ph - win_start) / (win_end - win_start);
             let x = spec.left() + frac as f32 * spec_w;
+            let playhead_color = if ui.visuals().dark_mode {
+                Color32::WHITE
+            } else {
+                Color32::from_rgb(20, 20, 20)
+            };
             painter.line_segment(
                 [pos2(x, spec.top()), pos2(x, spec.bottom())],
-                Stroke::new(2.0, Color32::WHITE),
+                Stroke::new(2.0, playhead_color),
             );
         }
     }
@@ -1915,29 +1993,17 @@ fn mel_to_imgbuf(
     top_db: f32,
     target_width: usize,
     target_height: usize,
-    predictions: Option<&[AudioProb]>,
-    window_start: f64,
-    window_duration: f64,
+    window_preds: &[AudioProb],
+    column_winner: &[Option<usize>],
 ) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
     let (n_mels, n_time) = spec.dim();
     let sx = target_width as f32 / n_time as f32;
     let sy = target_height as f32 / n_mels as f32;
     let mut pixels = Vec::with_capacity(target_width * target_height * 4);
 
-    let column_color: Vec<Option<[u8; 3]>> = (0..target_width)
-        .map(|col| {
-            let time = window_start + (col as f64 / target_width as f64) * window_duration;
-            predictions.and_then(|preds| {
-                preds.iter()
-                    .filter(|p| time >= p.start as f64 && time < p.end as f64)
-                    .max_by(|a, b| {
-                        a.prediction.prob
-                            .partial_cmp(&b.prediction.prob)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    })
-                    .map(|p| class_color(p.prediction.class_id))
-            })
-        })
+    let column_color: Vec<Option<[u8; 3]>> = column_winner
+        .iter()
+        .map(|w| w.map(|i| class_color(window_preds[i].prediction.class_id)))
         .collect();
 
     for row in 0..target_height {

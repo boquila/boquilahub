@@ -148,15 +148,11 @@ impl ResNet18 {
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
-        let is_binary = self
-            .post_processing
-            .contains(&PostProcessing::BinaryClassification);
-
         for (j, &global_i) in batch_indices.iter().enumerate() {
             let start = global_i as f32 * self.audio_config.stride;
             let end = start + self.audio_config.window_size;
 
-            let prediction = if is_binary {
+            let prediction = if self.post_processing.contains(&PostProcessing::BinaryClassification) {
                 let logit = output[[0, j]];
                 let p_pos = 1.0 / (1.0 + (-logit).exp());
                 let (class_id, prob) = if p_pos >= self.config.confidence_threshold {
