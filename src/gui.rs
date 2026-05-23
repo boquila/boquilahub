@@ -113,6 +113,7 @@ struct Gui {
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
     audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
+    audio_tex_dims: Option<(usize, usize)>,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
     audio_predictions: Option<Vec<AudioProb>>,
@@ -760,6 +761,7 @@ impl Gui {
                                 self.audio_file_path = Some(path);
                                 self.audio_full_mel = None;
                                 self.audio_mel_meta = None;
+                                self.audio_tex_dims = None;
                                 self.audio_view_range = (0.0, dur.max(0.1));
                                 self.audio_view_range_dirty = true;
                                 self.audio_state.texture = None;
@@ -1702,6 +1704,21 @@ impl eframe::App for Gui {
                             ));
                         });
 
+                        // Plot fills the remaining space. Texture is sized to
+                        // match the rendered plot so it stays sharp at any size.
+                        let avail = ui.available_size_before_wrap();
+                        let plot_w = avail.x.max(600.0);
+                        let plot_h = (avail.y - 4.0).max(320.0);
+                        let target_tex_w = (plot_w as usize).clamp(400, 4096);
+                        // ~72% of the plot height is the spectrogram itself
+                        // (the rest is the label strip + time axis).
+                        let target_tex_h =
+                            ((plot_h * 0.72) as usize).clamp(200, 1600);
+
+                        if self.audio_tex_dims != Some((target_tex_w, target_tex_h)) {
+                            self.audio_state.texture = None;
+                        }
+
                         let window_preds: Vec<AudioProb> = self
                             .audio_predictions
                             .as_ref()
@@ -1721,7 +1738,7 @@ impl eframe::App for Gui {
                             &window_preds,
                             self.audio_view_range.0,
                             self.audio_view_range.1 - self.audio_view_range.0,
-                            PLOT_SPEC_W,
+                            target_tex_w,
                         );
 
                         if self.audio_state.texture.is_none() {
@@ -1736,28 +1753,40 @@ impl eframe::App for Gui {
                                     top_db,
                                     self.audio_view_range.0,
                                     self.audio_view_range.1,
-                                    PLOT_SPEC_W,
-                                    PLOT_SPEC_H,
+                                    target_tex_w,
+                                    target_tex_h,
                                     &window_preds,
                                     &column_winner,
                                 );
                                 self.audio_state.texture = imgbuf_to_texture(&img, ui);
+                                self.audio_tex_dims =
+                                    Some((target_tex_w, target_tex_h));
                             }
                         }
 
                         if let Some(texture) = self.audio_state.texture.clone() {
                             let apply_bounds =
                                 std::mem::take(&mut self.audio_view_range_dirty);
-                            let result = render_audio_plot(
-                                ui,
-                                &texture,
-                                self.audio_view_range,
-                                duration,
-                                &window_preds,
-                                &column_winner,
-                                self.audio_playhead,
-                                apply_bounds,
-                            );
+                            let result = {
+                                let full_mel =
+                                    self.audio_full_mel.as_ref().expect("mel precomputed");
+                                let meta = self.audio_mel_meta.expect("mel meta");
+                                render_audio_plot(
+                                    ui,
+                                    &texture,
+                                    full_mel,
+                                    meta,
+                                    self.audio_view_range,
+                                    duration,
+                                    &window_preds,
+                                    &column_winner,
+                                    self.audio_playhead,
+                                    apply_bounds,
+                                    plot_w,
+                                    plot_h,
+                                    target_tex_w,
+                                )
+                            };
 
                             if let Some(new_range) = result.new_view_range {
                                 self.audio_view_range = new_range;
@@ -1794,10 +1823,6 @@ fn imgbuf_to_texture(
 }
 
 const AUDIO_DISPLAY_SR: u32 = 22050;
-const PLOT_SPEC_W: usize = 800;
-const PLOT_SPEC_H: usize = 280;
-const PLOT_W: f32 = 870.0;
-const PLOT_H: f32 = 360.0;
 
 /// For each pixel column of the spectrogram, the index (into `preds`) of the
 /// dominant prediction (highest prob) at that column's center time, or `None`
@@ -1877,12 +1902,17 @@ struct PlotInteraction {
 fn render_audio_plot(
     ui: &mut egui::Ui,
     texture: &egui::TextureHandle,
+    full_mel: &ndarray::Array2<f32>,
+    mel_meta: (usize, usize, usize, f32), // n_fft, hop_length, n_mels, top_db
     view_range: (f64, f64),
     duration: f64,
     window_preds: &[AudioProb],
     column_winner: &[Option<usize>],
     playhead: Option<f64>,
     apply_bounds: bool,
+    plot_w: f32,
+    plot_h: f32,
+    n_cols: usize,
 ) -> PlotInteraction {
     use egui::{Align2, Color32, Stroke};
     use egui_plot::{
@@ -1910,9 +1940,14 @@ fn render_audio_plot(
         .copied()
         .collect();
 
+    let (_n_fft, hop_length, _n_mels_meta, _top_db) = mel_meta;
+    let n_mels = full_mel.nrows();
+    let n_time = full_mel.ncols();
+    let frames_per_sec = AUDIO_DISPLAY_SR as f64 / hop_length as f64;
+
     let plot_response = Plot::new("audio_spectrogram_plot")
-        .width(PLOT_W)
-        .height(PLOT_H)
+        .width(plot_w)
+        .height(plot_h)
         .allow_zoom([true, false])
         .allow_drag([true, false])
         .allow_scroll([true, false])
@@ -1976,17 +2011,33 @@ fn render_audio_plot(
                     );
                 }
             }
+            let t = pos.x;
             let mel = pos.y;
+            // Always show time, even when the cursor is in the label strip.
+            let mins = (t / 60.0).floor() as i64;
+            let secs = t - (mins as f64) * 60.0;
+            let time_str = if mins > 0 {
+                format!("{:02}:{:06.3}", mins, secs)
+            } else {
+                format!("{:.3} s", t)
+            };
             if mel >= 0.0 && mel <= mel_max {
                 let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
                 let hz_str = if hz >= 1000.0 {
-                    format!("{:.1} kHz", hz / 1000.0)
+                    format!("{:.2} kHz", hz / 1000.0)
                 } else {
                     format!("{:.0} Hz", hz)
                 };
-                format!("{:.2} s\n{}", pos.x, hz_str)
+                // Sample the precomputed mel: nearest-neighbor on (row, col).
+                let col_f = (t * frames_per_sec).clamp(0.0, (n_time - 1) as f64);
+                let col = col_f.round() as usize;
+                let row_f = ((mel / mel_max) * (n_mels as f64 - 1.0))
+                    .clamp(0.0, (n_mels - 1) as f64);
+                let row = row_f.round() as usize;
+                let db = full_mel[[row, col]];
+                format!("{}\n{}\n{:+.1} dB", time_str, hz_str, db)
             } else {
-                format!("{:.2} s", pos.x)
+                time_str
             }
         })
         .show(ui, |plot_ui| {
@@ -2021,10 +2072,10 @@ fn render_audio_plot(
             let px_per_unit = ((p_right - p_left).abs() as f64) / span;
             let label_fit_units = 60.0 / px_per_unit.max(0.001);
 
+            let n_cols_f = n_cols as f64;
             for (idx, seg) in segments.iter().enumerate() {
-                let n_cols = PLOT_SPEC_W as f64;
-                let x1 = x_min + (seg.col_start as f64 / n_cols) * span;
-                let x2 = x_min + ((seg.col_end + 1) as f64 / n_cols) * span;
+                let x1 = x_min + (seg.col_start as f64 / n_cols_f) * span;
+                let x2 = x_min + ((seg.col_end + 1) as f64 / n_cols_f) * span;
                 let c = class_color(seg.class_id);
                 let alpha = (180.0 + 75.0 * seg.max_prob).clamp(180.0, 255.0) as u8;
                 let fill = Color32::from_rgba_unmultiplied(c[0], c[1], c[2], alpha);
@@ -2170,8 +2221,8 @@ fn mel_slice_to_imgbuf(
                     pixels.extend_from_slice(&[r, g, b, 255]);
                 }
                 None => {
-                    let g = (t_norm * 255.0) as u8;
-                    pixels.extend_from_slice(&[g, g, g, 255]);
+                    let [r, g, b] = viridis(t_norm);
+                    pixels.extend_from_slice(&[r, g, b, 255]);
                 }
             }
         }

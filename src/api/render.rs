@@ -384,6 +384,21 @@ pub fn magma(t: f32) -> [u8; 3] {
     colormap_lerp(&stops, t)
 }
 
+pub fn viridis(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [68, 1, 84],
+        [72, 40, 120],
+        [62, 83, 160],
+        [49, 120, 157],
+        [38, 153, 158],
+        [50, 183, 148],
+        [97, 209, 107],
+        [173, 226, 44],
+        [253, 231, 37],
+    ];
+    colormap_lerp(&stops, t)
+}
+
 fn colormap_lerp(stops: &[[u8; 3]; 9], t: f32) -> [u8; 3] {
     let t = t.clamp(0.0, 1.0);
     let idx = t * (stops.len() - 1) as f32;
