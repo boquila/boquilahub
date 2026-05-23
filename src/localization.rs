@@ -96,8 +96,6 @@ pub enum Key {
     confidence_level,
     overlap_filter,
     region_filter,
-    select_architecture,
-    model_have_no_architecture,
     yes,
     no_only_missing_data,
     process_everything,
@@ -187,14 +185,6 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::VI => "Xử lí mọi thứ?",
             Lang::NK => "Obraditi sve?",
         },
-        Key::select_architecture => match lang {
-            Lang::VI => "Lựa chọn kiến trúc của mô hình",
-            _ => "Select model architecture",
-        },
-        Key::model_have_no_architecture => match lang {
-            Lang::VI => "Mô hình này không hỗ trợ kiến trúc được lựa chọn. Vui lòng chọn kiến trúc phù hợp:",
-            _ => "This model doesn't have an architecture specified. Please select the appropriate architecture:",
-        }
         Key::confidence_level => match lang {
             Lang::EN => "Confidence",
             Lang::ES => "Confianza",

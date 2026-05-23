@@ -3,7 +3,7 @@ use abstractions::*;
 use audio::AudioData;
 use bq::*;
 use image::{open, ImageBuffer, Rgba};
-use models::{Model, Task};
+use models::Task;
 use processing::pre::compute_mel;
 use processing::post::PostProcessing;
 use render::*;
@@ -56,7 +56,7 @@ macro_rules! ai_config_window {
                     let has_nms = $self
                         .$current_ai_fn()
                         .post_processing
-                        .contains(&"NMS".to_owned());
+                        .contains(&PostProcessing::NMS);
                     if has_nms {
                         let text_slide2 = $self.t(Key::overlap_filter);
                         ui.add(
@@ -70,7 +70,7 @@ macro_rules! ai_config_window {
                     let has_geofence = $self
                         .$current_ai_fn()
                         .post_processing
-                        .contains(&"geofence".to_owned());
+                        .contains(&PostProcessing::GeoFence);
                     if has_geofence {
                         ui.label($self.t(Key::region_filter));
                         egui::ComboBox::from_id_salt("Region")
@@ -105,8 +105,8 @@ macro_rules! ai_config_window {
 #[derive(Default)]
 struct Gui {
     // Large types first
-    ais: Vec<AI>,
-    ais_cls_only: Vec<AI>,
+    ais: Vec<AIMetadata>,
+    ais_cls_only: Vec<AIMetadata>,
     selected_files: Vec<PredImg>,
     video_file_path: Option<PathBuf>,
     audio_file_path: Option<PathBuf>,
@@ -129,9 +129,6 @@ struct Gui {
     api_server_url: Option<String>,
     temp_str: String,
     temp_api_str: String,
-    temp_architecture: String,
-    pending_model_path: Option<String>,
-    pending_model_ep: Option<Ep>,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
@@ -210,7 +207,6 @@ struct ShowDialog {
     export: bool,
     feed_url: bool,
     api_server: bool,
-    architecture: bool,
 }
 
 impl Gui {
@@ -232,17 +228,16 @@ impl Gui {
     }
 
     fn new() -> Self {
-        let ais: Vec<AI> = BQModel::get_list();
-        let classify_ais: Vec<AI> = ais
+        let ais: Vec<AIMetadata> = BQModel::get_list();
+        let classify_ais: Vec<AIMetadata> = ais
             .iter()
-            .filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio"))
+            .filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image)
             .cloned()
             .collect();
 
         Self {
             ais: ais,
             ais_cls_only: classify_ais,
-            temp_architecture: "yolo".to_owned(),
             image_texture_n: 1,
             video_step_frame: 3,
             feed_step_frame: 3,
@@ -274,17 +269,17 @@ impl Gui {
         translate(key, &self.lang)
     }
 
-    fn current_ai(&self) -> &AI {
+    fn current_ai(&self) -> &AIMetadata {
         return &self.ais[self.ai_selected.unwrap()];
     }
 
-    fn current_ai_cls(&self) -> &AI {
+    fn current_ai_cls(&self) -> &AIMetadata {
         return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
     }
 
     fn is_audio_model(&self) -> bool {
         self.ai_selected
-            .map(|i| self.ais[i].modality.as_deref() == Some("audio"))
+            .map(|i| self.ais[i].modality == Modality::Audio)
             .unwrap_or(false)
     }
 
@@ -396,8 +391,6 @@ impl Gui {
                     self.api_result_receiver = None;
                 }
             }
-
-            self.architecture_selection_dialog(ui);
         }
 
         self.input_api_url_dialog(ui);
@@ -434,7 +427,7 @@ impl Gui {
                 // '+' button, select a escond AI
                 if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
                 {
-                    if &self.ais[self.ai_selected.unwrap()].task != "classify" {
+                    if self.ais[self.ai_selected.unwrap()].task != Task::Classify {
                         if ui
                             .button("+")
                             .on_hover_text(self.t(Key::add_classification_model_to_complement))
@@ -458,21 +451,12 @@ impl Gui {
                     }
                 }
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                match GlobalBQ::First.set_model(
+                if GlobalBQ::First.set_model(
                     &model_path,
                     self.ep_selected,
                     Some(self.ai_config.clone()),
-                ) {
-                    Ok(_) => {}
-                    Err(error) => {
-                        if error.to_string().contains("No architecture specified") {
-                            self.pending_model_path = Some(model_path);
-                            self.pending_model_ep = Some(self.ep_selected);
-                            self.show_dialog.architecture = true;
-                        } else {
-                            self.process_error();
-                        }
-                    }
+                ).is_err() {
+                    self.process_error();
                 }
             }
 
@@ -526,21 +510,12 @@ impl Gui {
             });
             if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
                 let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                match GlobalBQ::Second.set_model(
+                if GlobalBQ::Second.set_model(
                     &model_path,
                     self.ep_selected,
                     Some(self.ai_cls_config.clone()),
-                ) {
-                    Ok(_) => {}
-                    Err(error) => {
-                        if error.to_string().contains("No architecture specified") {
-                            self.pending_model_path = Some(model_path);
-                            self.pending_model_ep = Some(self.ep_selected);
-                            self.show_dialog.architecture = true;
-                        } else {
-                            self.process_error();
-                        }
-                    }
+                ).is_err() {
+                    self.process_error();
                 }
             }
 
@@ -865,92 +840,6 @@ impl Gui {
                         if ui.button(self.t(Key::cancel)).clicked() {
                             self.show_dialog.api_server = false;
                             self.api_server_url = None;
-                        }
-                    });
-                });
-        }
-    }
-
-    fn architecture_selection_dialog(&mut self, ui: &egui::Ui) {
-        if self.show_dialog.architecture {
-            egui::Window::new(self.t(Key::select_architecture))
-                .collapsible(false)
-                .resizable(false)
-                .show(ui, |ui| {
-                    ui.label(self.t(Key::model_have_no_architecture));
-                    ui.add_space(8.0);
-
-                    egui::ComboBox::from_id_salt(self.t(Key::select_architecture))
-                        .selected_text(&self.temp_architecture)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.temp_architecture,
-                                "yolo".to_string(),
-                                "YOLO",
-                            );
-                            ui.selectable_value(
-                                &mut self.temp_architecture,
-                                "efficientnetv2".to_string(),
-                                "EfficientNetV2",
-                            );
-                        });
-
-                    ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        if ui.button("OK").clicked() {
-                            if let (Some(model_path), Some(ep)) =
-                                (&self.pending_model_path, self.pending_model_ep)
-                            {
-                                let (model_metadata, data) = match BQModel::import_data(model_path) {
-                                    Ok(result) => result,
-                                    Err(_) => {
-                                        self.process_error();
-                                        self.show_dialog.architecture = false;
-                                        self.pending_model_path = None;
-                                        self.pending_model_ep = None;
-                                        return;
-                                    }
-                                };
-                                let mut updated_metadata = model_metadata;
-                                updated_metadata.architecture =
-                                    Some(self.temp_architecture.clone());
-
-                                // Create model
-                                let session = BQModel::session_from_memory(&data, ep).unwrap();
-                                let post: Vec<PostProcessing> = updated_metadata
-                                    .post_processing
-                                    .iter()
-                                    .map(|s| PostProcessing::from(s.as_str()))
-                                    .filter(|t| !matches!(t, PostProcessing::None))
-                                    .collect();
-
-                                match Model::new(
-                                    updated_metadata.classes,
-                                    Task::from(updated_metadata.task.as_str()),
-                                    post,
-                                    session,
-                                    updated_metadata.architecture,
-                                    ModelConfig::default(),
-                                    updated_metadata.audio_config,
-                                ) {
-                                    Ok(aimodel) => {
-                                        *CURRENT_AI.write().unwrap() = Some(aimodel);
-                                    }
-                                    Err(_) => {
-                                        self.process_error();
-                                    }
-                                }
-                            }
-
-                            self.show_dialog.architecture = false;
-                            self.pending_model_path = None;
-                            self.pending_model_ep = None;
-                        }
-                        ui.add_space(8.0);
-                        if ui.button("Cancel").clicked() {
-                            self.show_dialog.architecture = false;
-                            self.pending_model_path = None;
-                            self.pending_model_ep = None;
                         }
                     });
                 });

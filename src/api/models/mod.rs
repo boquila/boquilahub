@@ -9,11 +9,21 @@ use image::{ImageBuffer, Rgb};
 use ort::session::Session;
 pub use yolo::Yolo;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Task {
     Classify,
     Segment,
     Detect,
+}
+
+impl Task {
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Task::Classify => "classify",
+            Task::Segment => "segment",
+            Task::Detect => "detect",
+        }
+    }
 }
 
 impl From<&str> for Task {

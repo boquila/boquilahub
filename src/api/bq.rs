@@ -407,8 +407,8 @@ impl AIMetadata {
     }
 }
 
-#[derive(Clone, Debug)]
-enum Modality {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Modality {
     Audio,
     Image,
 }

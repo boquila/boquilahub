@@ -8,7 +8,8 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use super::api::{
-    bq::{BQModel, GlobalBQ, Ep, AIMetadata},
+    bq::{AIMetadata, BQModel, Ep, GlobalBQ, Modality},
+    models::Task,
     rest::{get_ipv4_address, run_api},
 };
 use super::localization::{translate, Key, Lang};
@@ -56,7 +57,7 @@ impl App {
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
         let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
-        let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio")).cloned().collect();
+        let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image).cloned().collect();
         Self {
             lang,
             row: 0, side_btn: false,
@@ -90,7 +91,7 @@ impl App {
         self.ai_selected.is_some()
             && !self.cls_active
             && !self.cls_ais.is_empty()
-            && self.ai_selected.map_or(false, |i| self.ais[i].task != "classify")
+            && self.ai_selected.map_or(false, |i| self.ais[i].task != Task::Classify)
     }
     fn has_side_btn(&self) -> bool {
         match self.cur_row() {

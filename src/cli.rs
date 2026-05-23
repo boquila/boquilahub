@@ -1,6 +1,5 @@
 use crate::api::{
-    abstractions::AI,
-    bq::{BQModel, GlobalBQ, Ep},
+    bq::{AIMetadata, BQModel, Ep, GlobalBQ, Modality},
     rest::{get_ipv4_address, run_api},
 };
 use clap::{Args, Parser, Subcommand};
@@ -86,14 +85,14 @@ pub async fn run_cli(command: Commands) {
             let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
             let model_path = format!("models/{}.bq", model_name_clean);
 
-            let ais: Vec<AI> = BQModel::get_list();
+            let ais: Vec<AIMetadata> = BQModel::get_list();
 
             if let Some(model_cls_name) = &args.model_cls {
                 let model_cls_name_clean =
                     model_cls_name.strip_suffix(".bq").unwrap_or(model_cls_name);
                 let model_cls_path = format!("models/{}.bq", model_cls_name_clean);
 
-                let cls_found = ais.iter().any(|ai| ai.get_path().contains(&model_cls_path));
+                let cls_found = ais.iter().any(|ai| ai.get_path() == model_cls_path);
                 if !cls_found {
                     panic!(
                         "Model class path '{}' was not found in any of the registered AI paths.\n\
@@ -107,7 +106,7 @@ pub async fn run_cli(command: Commands) {
 
             let port = args.port;
 
-            let model_ai = ais.iter().find(|ai| ai.get_path().contains(&model_path));
+            let model_ai = ais.iter().find(|ai| ai.get_path() == model_path);
             if model_ai.is_none() {
                 panic!(
                     "Model path '{}' was not found in any of the registered AI paths.\n\
@@ -115,7 +114,7 @@ pub async fn run_cli(command: Commands) {
                     model_path, model_name_clean, model_name_clean
                 );
             }
-            if model_ai.unwrap().modality.as_deref() == Some("audio") {
+            if model_ai.unwrap().modality == Modality::Audio {
                 panic!(
                     "Audio models cannot be deployed as API. Model '{}' is an audio model.",
                     model_name_clean
@@ -141,7 +140,7 @@ pub async fn run_cli(command: Commands) {
             }
         }
         Commands::List => {
-            let ais: Vec<AI> = BQModel::get_list();
+            let ais: Vec<AIMetadata> = BQModel::get_list();
             print_ais_table(&ais);
             std::process::exit(0);
         }
@@ -185,7 +184,7 @@ const ASCII_ART: &'static str = r#"
 
 "#;
 
-pub fn print_ais_table(ais: &[AI]) {
+pub fn print_ais_table(ais: &[AIMetadata]) {
     if ais.is_empty() {
         println!("No AI models found.");
         return;
@@ -193,13 +192,10 @@ pub fn print_ais_table(ais: &[AI]) {
 
     // Calculate column widths
     let name_width = std::cmp::max(4, ais.iter().map(|ai| ai.name.len()).max().unwrap_or(0));
-    let task_width = std::cmp::max(4, ais.iter().map(|ai| ai.task.len()).max().unwrap_or(0));
+    let task_width = std::cmp::max(4, ais.iter().map(|ai| ai.task.name().len()).max().unwrap_or(0));
     let arch_width = std::cmp::max(
         12,
-        ais.iter()
-            .map(|ai| ai.architecture.as_ref().map_or(0, |s| s.len()))
-            .max()
-            .unwrap_or(0),
+        ais.iter().map(|ai| ai.architecture.len()).max().unwrap_or(0),
     );
     let classes_width = 8;
 
@@ -227,8 +223,8 @@ pub fn print_ais_table(ais: &[AI]) {
         println!(
             "│ {:name_width$} │ {:task_width$} │ {:arch_width$} │ {:>classes_width$} │",
             ai.name,
-            ai.task,
-            ai.architecture.as_deref().unwrap_or(""),
+            ai.task.name(),
+            ai.architecture,
             ai.classes.len()
         );
     }
