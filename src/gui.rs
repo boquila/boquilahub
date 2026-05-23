@@ -111,13 +111,15 @@ struct Gui {
     video_file_path: Option<PathBuf>,
     audio_file_path: Option<PathBuf>,
     audio_data: Option<AudioData>,
-    audio_position: f64,
-    audio_window_secs: f64,
+    audio_full_mel: Option<ndarray::Array2<f32>>,
+    audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
+    audio_view_range: (f64, f64),
+    audio_view_range_dirty: bool,
     audio_predictions: Option<Vec<AudioProb>>,
     audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
     audio_playing: bool,
     audio_play_start: Option<Instant>,
-    audio_play_offset: f64,
+    audio_play_start_pos: f64,
     audio_playhead: Option<f64>,
     audio_stream: Option<rodio::MixerDeviceSink>,
     audio_player: Option<rodio::Player>,
@@ -240,7 +242,6 @@ impl Gui {
             image_texture_n: 1,
             video_step_frame: 3,
             feed_step_frame: 3,
-            audio_window_secs: 10.0,
             process_all_imgs: true,
             ..Default::default()
         }
@@ -450,6 +451,10 @@ impl Gui {
                         self.audio_file_path = None;
                         self.audio_predictions = None;
                     }
+                    // Mel params may differ for the new audio model — invalidate cache.
+                    self.audio_full_mel = None;
+                    self.audio_mel_meta = None;
+                    self.audio_state.texture = None;
                 }
                 let model_path = self.ais[self.ai_selected.unwrap()].get_path();
                 if GlobalBQ::First.set_model(
@@ -749,11 +754,22 @@ impl Gui {
                     {
                         match audio::AudioData::from_file(&path) {
                             Ok(audio_data) => {
-                                self.audio_data = Some(audio_data.to_mono());
+                                let mono = audio_data.to_mono();
+                                let dur = mono.duration();
+                                self.audio_data = Some(mono);
                                 self.audio_file_path = Some(path);
-                                self.audio_position = 0.0;
+                                self.audio_full_mel = None;
+                                self.audio_mel_meta = None;
+                                self.audio_view_range = (0.0, dur.max(0.1));
+                                self.audio_view_range_dirty = true;
                                 self.audio_state.texture = None;
                                 self.audio_predictions = None;
+                                self.audio_playhead = None;
+                                self.audio_playing = false;
+                                self.audio_play_start = None;
+                                self.audio_play_start_pos = 0.0;
+                                self.audio_player = None;
+                                self.audio_stream = None;
                                 self.mode = Mode::Audio;
                                 self.audio_state.progress_bar = 0.0;
                             }
@@ -1397,6 +1413,32 @@ impl Gui {
         }
     }
 
+    fn start_playback_from_data(&mut self, start_pos: f64) {
+        let Some(audio) = self.audio_data.as_ref() else { return; };
+        let src = AudioBufferSource::new_from(audio, start_pos);
+        if let Ok(mut stream) = rodio::DeviceSinkBuilder::open_default_sink() {
+            stream.log_on_drop(false);
+            let player = rodio::Player::connect_new(stream.mixer());
+            player.append(src);
+            self.audio_stream = Some(stream);
+            self.audio_player = Some(player);
+            self.audio_playing = true;
+            self.audio_play_start = Some(Instant::now());
+            self.audio_play_start_pos = start_pos;
+            self.audio_playhead = Some(start_pos);
+        }
+    }
+
+    fn stop_playback(&mut self) {
+        if let Some(player) = &self.audio_player {
+            player.stop();
+        }
+        self.audio_player = None;
+        self.audio_stream = None;
+        self.audio_playing = false;
+        self.audio_play_start = None;
+    }
+
     fn audio_handle_results(&mut self) {
         if let Some(rx) = &self.audio_result_receiver {
             if let Ok(result) = rx.try_recv() {
@@ -1566,103 +1608,109 @@ impl eframe::App for Gui {
                     self.feed_handle_results(ui);
                 }
                 Mode::Audio => {
-                    if let Some(audio) = &self.audio_data {
-                        let duration = audio.duration();
+                    if self.audio_data.is_some() {
+                        let duration =
+                            self.audio_data.as_ref().unwrap().duration().max(0.1);
 
+                        // Precompute the mel for the entire audio on first use.
+                        if self.audio_full_mel.is_none() {
+                            let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
+                            let resampled =
+                                self.audio_data.as_ref().unwrap().resample(AUDIO_DISPLAY_SR);
+                            let mel =
+                                compute_mel(&resampled, n_fft, hop_length, n_mels, top_db);
+                            self.audio_full_mel = Some(mel);
+                            self.audio_mel_meta = Some((n_fft, hop_length, n_mels, top_db));
+                            self.audio_state.texture = None;
+                        }
+
+                        // Clamp view range to audio bounds; require a minimum span.
+                        const MIN_VIEW_SECS: f64 = 0.1;
+                        let (vs, ve) = self.audio_view_range;
+                        let vs = vs.max(0.0).min((duration - MIN_VIEW_SECS).max(0.0));
+                        let ve = ve.max(vs + MIN_VIEW_SECS).min(duration);
+                        if (vs - self.audio_view_range.0).abs() > 1e-6
+                            || (ve - self.audio_view_range.1).abs() > 1e-6
+                        {
+                            self.audio_view_range = (vs, ve);
+                            self.audio_view_range_dirty = true;
+                            self.audio_state.texture = None;
+                        }
+
+                        // Drive the playhead off the playback clock.
                         if self.audio_playing {
                             if let Some(start) = self.audio_play_start {
-                                let playhead_time = (self.audio_play_offset + start.elapsed().as_secs_f64()).min(duration);
-                                if playhead_time >= duration {
-                                    self.audio_playing = false;
-                                    self.audio_play_start = None;
-                                    self.audio_player = None;
-                                    self.audio_stream = None;
-                                } else if playhead_time > self.audio_position + self.audio_window_secs {
-                                    self.audio_position = playhead_time;
+                                let ph = (self.audio_play_start_pos
+                                    + start.elapsed().as_secs_f64())
+                                .min(duration);
+                                if ph >= duration {
+                                    self.stop_playback();
+                                }
+                                self.audio_playhead = Some(ph);
+
+                                // Auto-follow: when playhead leaves the visible range
+                                // to the right, shift the view forward by one span.
+                                let (vs, ve) = self.audio_view_range;
+                                if ph > ve {
+                                    let span = ve - vs;
+                                    let new_vs = (ph - span * 0.05).max(0.0);
+                                    let new_ve = (new_vs + span).min(duration);
+                                    self.audio_view_range = (new_vs, new_ve);
+                                    self.audio_view_range_dirty = true;
                                     self.audio_state.texture = None;
                                 }
-                                self.audio_playhead = Some(playhead_time);
                             }
                             ui.ctx().request_repaint();
-                        } else {
-                            self.audio_playhead = None;
                         }
 
                         ui.horizontal(|ui| {
                             if self.audio_playing {
                                 if ui.button("⏸").clicked() {
-                                    self.audio_position = self.audio_play_offset + self.audio_play_start.map_or(0.0, |s| s.elapsed().as_secs_f64());
-                                    self.audio_position = self.audio_position.min(duration);
-                                    if let Some(player) = &self.audio_player {
-                                        player.stop();
-                                    }
-                                    self.audio_player = None;
-                                    self.audio_stream = None;
-                                    self.audio_playing = false;
-                                    self.audio_play_start = None;
-                                    self.audio_state.texture = None;
+                                    self.stop_playback();
+                                    // playhead stays where it was — visible marker.
                                 }
-                            } else {
-                                if ui.button("▶").clicked() {
-                                    self.audio_play_offset = self.audio_position;
-                                    self.audio_play_start = Some(Instant::now());
-                                    self.audio_playing = true;
-                                    self.audio_playhead = Some(self.audio_position);
-                                    let start_pos = self.audio_position;
-                                    let audio_clone = audio.clone();
-                                    if let Ok(mut stream) = rodio::DeviceSinkBuilder::open_default_sink() {
-                                        stream.log_on_drop(false);
-                                        let player = rodio::Player::connect_new(stream.mixer());
-                                        let src = AudioBufferSource::new_from(&audio_clone, start_pos);
-                                        player.append(src);
-                                        self.audio_stream = Some(stream);
-                                        self.audio_player = Some(player);
-                                    }
-                                }
+                            } else if ui.button("▶").clicked() {
+                                let start_pos = self
+                                    .audio_playhead
+                                    .unwrap_or(self.audio_view_range.0)
+                                    .clamp(0.0, duration);
+                                self.start_playback_from_data(start_pos);
                             }
+                            if ui
+                                .button("⏮")
+                                .on_hover_text("Reset playhead to start")
+                                .clicked()
+                            {
+                                self.stop_playback();
+                                self.audio_playhead = Some(0.0);
+                            }
+                            ui.separator();
+                            if ui
+                                .button("Fit")
+                                .on_hover_text("Fit view to whole audio")
+                                .clicked()
+                            {
+                                self.audio_view_range = (0.0, duration);
+                                self.audio_view_range_dirty = true;
+                                self.audio_state.texture = None;
+                            }
+                            ui.label(format!(
+                                "view {:.2}s → {:.2}s   ·   span {:.2}s",
+                                self.audio_view_range.0,
+                                self.audio_view_range.1,
+                                self.audio_view_range.1 - self.audio_view_range.0,
+                            ));
                         });
 
-                        ui.style_mut().spacing.slider_width = 300.0;
-
-                        if duration > self.audio_window_secs {
-                            let max_pos = (duration - self.audio_window_secs).max(0.0);
-                            let pos_text = self.t(Key::position);
-                            if ui.add(
-                                egui::Slider::new(&mut self.audio_position, 0.0..=max_pos)
-                                    .text(pos_text)
-                                    .step_by(0.1),
-                            ).changed() {
-                                self.audio_state.texture = None;
-                                if self.audio_playing || self.audio_player.is_some() {
-                                    if let Some(player) = &self.audio_player {
-                                        player.stop();
-                                    }
-                                    self.audio_player = None;
-                                    self.audio_stream = None;
-                                    self.audio_playing = false;
-                                    self.audio_play_start = None;
-                                    self.audio_playhead = None;
-                                }
-                            }
-                        }
-
-                        let win_text = self.t(Key::window);
-                        if ui.add(
-                            egui::Slider::new(&mut self.audio_window_secs, 1.0..=duration.min(60.0))
-                                .text(win_text)
-                                .step_by(1.0),
-                        ).changed() {
-                            self.audio_position = self.audio_position.min((duration - self.audio_window_secs).max(0.0));
-                            self.audio_state.texture = None;
-                        }
-
-                        let window_preds: Vec<AudioProb> = self.audio_predictions.as_ref()
+                        let window_preds: Vec<AudioProb> = self
+                            .audio_predictions
+                            .as_ref()
                             .map(|preds| {
-                                preds.iter()
+                                preds
+                                    .iter()
                                     .filter(|p| {
-                                        p.end as f64 > self.audio_position
-                                            && (p.start as f64)
-                                                < self.audio_position + self.audio_window_secs
+                                        p.end as f64 > self.audio_view_range.0
+                                            && (p.start as f64) < self.audio_view_range.1
                                     })
                                     .cloned()
                                     .collect()
@@ -1671,33 +1719,59 @@ impl eframe::App for Gui {
 
                         let column_winner = dominant_per_column(
                             &window_preds,
-                            self.audio_position,
-                            self.audio_window_secs,
+                            self.audio_view_range.0,
+                            self.audio_view_range.1 - self.audio_view_range.0,
                             PLOT_SPEC_W,
                         );
 
                         if self.audio_state.texture.is_none() {
-                            let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
-                            let window = audio.slice(self.audio_position, self.audio_window_secs)
-                                .resample(AUDIO_DISPLAY_SR);
-                            let spec = compute_mel(&window, n_fft, hop_length, n_mels, top_db);
-                            let img = mel_to_imgbuf(
-                                &spec, top_db, PLOT_SPEC_W, PLOT_SPEC_H,
-                                &window_preds, &column_winner,
-                            );
-                            self.audio_state.texture = imgbuf_to_texture(&img, ui);
+                            if let (Some(full_mel), Some(meta)) =
+                                (self.audio_full_mel.as_ref(), self.audio_mel_meta)
+                            {
+                                let (_n_fft, hop_length, _n_mels, top_db) = meta;
+                                let img = mel_slice_to_imgbuf(
+                                    full_mel,
+                                    AUDIO_DISPLAY_SR,
+                                    hop_length,
+                                    top_db,
+                                    self.audio_view_range.0,
+                                    self.audio_view_range.1,
+                                    PLOT_SPEC_W,
+                                    PLOT_SPEC_H,
+                                    &window_preds,
+                                    &column_winner,
+                                );
+                                self.audio_state.texture = imgbuf_to_texture(&img, ui);
+                            }
                         }
 
-                        if let Some(texture) = &self.audio_state.texture {
-                            render_audio_plot(
+                        if let Some(texture) = self.audio_state.texture.clone() {
+                            let apply_bounds =
+                                std::mem::take(&mut self.audio_view_range_dirty);
+                            let result = render_audio_plot(
                                 ui,
-                                texture,
-                                self.audio_position,
-                                self.audio_window_secs,
+                                &texture,
+                                self.audio_view_range,
+                                duration,
                                 &window_preds,
                                 &column_winner,
                                 self.audio_playhead,
+                                apply_bounds,
                             );
+
+                            if let Some(new_range) = result.new_view_range {
+                                self.audio_view_range = new_range;
+                                self.audio_state.texture = None;
+                            }
+
+                            if let Some(t) = result.clicked_time {
+                                let was_playing = self.audio_playing;
+                                self.stop_playback();
+                                self.audio_playhead = Some(t);
+                                if was_playing {
+                                    self.start_playback_from_data(t);
+                                }
+                            }
                         }
                     }
 
@@ -1722,10 +1796,8 @@ fn imgbuf_to_texture(
 const AUDIO_DISPLAY_SR: u32 = 22050;
 const PLOT_SPEC_W: usize = 800;
 const PLOT_SPEC_H: usize = 280;
-const PLOT_M_LEFT: f32 = 56.0;
-const PLOT_M_TOP: f32 = 40.0;
-const PLOT_M_RIGHT: f32 = 14.0;
-const PLOT_M_BOTTOM: f32 = 34.0;
+const PLOT_W: f32 = 870.0;
+const PLOT_H: f32 = 360.0;
 
 /// For each pixel column of the spectrogram, the index (into `preds`) of the
 /// dominant prediction (highest prob) at that column's center time, or `None`
@@ -1795,210 +1867,272 @@ fn segments_from_columns(preds: &[AudioProb], columns: &[Option<usize>]) -> Vec<
     segs
 }
 
+struct PlotInteraction {
+    /// New view range if the user panned/zoomed (or None if unchanged).
+    new_view_range: Option<(f64, f64)>,
+    /// Time the user clicked at (no drag), if any.
+    clicked_time: Option<f64>,
+}
+
 fn render_audio_plot(
     ui: &mut egui::Ui,
     texture: &egui::TextureHandle,
-    audio_position: f64,
-    audio_window_secs: f64,
+    view_range: (f64, f64),
+    duration: f64,
     window_preds: &[AudioProb],
     column_winner: &[Option<usize>],
     playhead: Option<f64>,
-) {
-    use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind};
+    apply_bounds: bool,
+) -> PlotInteraction {
+    use egui::{Align2, Color32, Stroke};
+    use egui_plot::{
+        GridMark, Line, Plot, PlotBounds, PlotImage, PlotPoint, PlotPoints, Polygon, Text,
+    };
 
-    let spec_w = PLOT_SPEC_W as f32;
-    let spec_h = PLOT_SPEC_H as f32;
-    let n_cols = PLOT_SPEC_W as f32;
-    let total = vec2(PLOT_M_LEFT + spec_w + PLOT_M_RIGHT, PLOT_M_TOP + spec_h + PLOT_M_BOTTOM);
-    let (response, painter) = ui.allocate_painter(total, Sense::hover());
-    let full = response.rect;
-    let spec = Rect::from_min_size(
-        full.min + vec2(PLOT_M_LEFT, PLOT_M_TOP),
-        vec2(spec_w, spec_h),
-    );
-
-    let axis_color = ui.style().visuals.text_color();
-    let weak_color = ui.style().visuals.weak_text_color();
-    let grid_color = Color32::from_rgba_unmultiplied(255, 255, 255, 22);
-    let tick_font = FontId::proportional(10.5);
-    let title_font = FontId::proportional(10.0);
-    let label_font = FontId::proportional(11.0);
-
-    painter.image(
-        texture.id(),
-        spec,
-        Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-        Color32::WHITE,
-    );
-    painter.rect_stroke(
-        spec,
-        0.0,
-        Stroke::new(1.0, weak_color),
-        StrokeKind::Outside,
-    );
-
-    // X-axis: time
-    let n_x = 6;
-    let win = audio_window_secs;
-    for i in 0..n_x {
-        let frac = i as f32 / (n_x - 1) as f32;
-        let time = audio_position + frac as f64 * win;
-        let x = spec.left() + frac * spec_w;
-        if i != 0 && i != n_x - 1 {
-            painter.line_segment(
-                [pos2(x, spec.top()), pos2(x, spec.bottom())],
-                Stroke::new(1.0, grid_color),
-            );
-        }
-        painter.line_segment(
-            [pos2(x, spec.bottom()), pos2(x, spec.bottom() + 4.0)],
-            Stroke::new(1.0, weak_color),
-        );
-        let label = if win >= 10.0 {
-            format!("{:.0}s", time)
-        } else if win >= 2.0 {
-            format!("{:.1}s", time)
-        } else {
-            format!("{:.2}s", time)
-        };
-        painter.text(
-            pos2(x, spec.bottom() + 6.0),
-            Align2::CENTER_TOP,
-            label,
-            tick_font.clone(),
-            axis_color,
-        );
-    }
-
-    // Y-axis: frequency (mel-mapped). Caller resamples to AUDIO_DISPLAY_SR before computing mel.
-    let nyquist = AUDIO_DISPLAY_SR as f32 / 2.0;
+    let nyquist = AUDIO_DISPLAY_SR as f64 / 2.0;
     let mel_max = 2595.0 * (1.0 + nyquist / 700.0).log10();
-    let freqs_hz: [f32; 6] = [0.0, 250.0, 1000.0, 2000.0, 4000.0, 8000.0];
-    for &hz in freqs_hz.iter().filter(|&&f| f <= nyquist) {
-        let mel = 2595.0 * (1.0 + hz / 700.0).log10();
-        let y = spec.bottom() - (mel / mel_max) * spec_h;
-        if hz > 0.0 {
-            painter.line_segment(
-                [pos2(spec.left(), y), pos2(spec.right(), y)],
-                Stroke::new(1.0, grid_color),
-            );
-        }
-        painter.line_segment(
-            [pos2(spec.left() - 4.0, y), pos2(spec.left(), y)],
-            Stroke::new(1.0, weak_color),
-        );
-        let text = if hz >= 1000.0 {
-            format!("{:.0}k", hz / 1000.0)
-        } else {
-            format!("{:.0}", hz)
-        };
-        painter.text(
-            pos2(spec.left() - 6.0, y),
-            Align2::RIGHT_CENTER,
-            text,
-            tick_font.clone(),
-            axis_color,
-        );
-    }
+    let strip_pad = mel_max * 0.04;
+    let strip_h = mel_max * 0.12;
+    let strip_y_lo = mel_max + strip_pad;
+    let strip_y_hi = strip_y_lo + strip_h;
+    let y_max = strip_y_hi;
 
-    // Axis titles
-    painter.text(
-        pos2(spec.center().x, full.bottom() - 3.0),
-        Align2::CENTER_BOTTOM,
-        "time (s)",
-        title_font.clone(),
-        weak_color,
-    );
-    painter.text(
-        pos2(full.left() + 8.0, spec.top() - 8.0),
-        Align2::LEFT_BOTTOM,
-        "Hz",
-        title_font.clone(),
-        weak_color,
-    );
-
-    // Label strip — derived from the same column_winner array used to color the
-    // spectrogram, so a bar's extent is exactly the extent of its colored band.
-    let strip_top = full.top() + 6.0;
-    let strip_bottom = spec.top() - 6.0;
-    let col_to_x = |c: f32| spec.left() + (c / n_cols) * spec_w;
-    let col_to_time =
-        |c: f32| audio_position + (c as f64 / n_cols as f64) * audio_window_secs;
+    let (x_min, x_max) = view_range;
+    let span = (x_max - x_min).max(1e-9);
 
     let segments = segments_from_columns(window_preds, column_winner);
-    for (idx, seg) in segments.iter().enumerate() {
-        let x1 = col_to_x(seg.col_start as f32);
-        let x2 = col_to_x((seg.col_end + 1) as f32);
-        let seg_rect = Rect::from_min_max(pos2(x1, strip_top), pos2(x2, strip_bottom));
-        let c = class_color(seg.class_id);
-        let alpha = (180.0 + 75.0 * seg.max_prob).clamp(180.0, 255.0) as u8;
-        painter.rect_filled(
-            seg_rect,
-            3.0,
-            Color32::from_rgba_unmultiplied(c[0], c[1], c[2], alpha),
-        );
-        if seg_rect.width() > 60.0 {
-            let luminance = 0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
-            let text_color = if luminance > 150.0 {
-                Color32::BLACK
+    let texture_id = texture.id();
+    let dark_mode = ui.visuals().dark_mode;
+
+    let hz_ticks: Vec<f64> = [0.0_f64, 250.0, 1000.0, 2000.0, 4000.0, 8000.0]
+        .iter()
+        .filter(|h| **h <= nyquist)
+        .copied()
+        .collect();
+
+    let plot_response = Plot::new("audio_spectrogram_plot")
+        .width(PLOT_W)
+        .height(PLOT_H)
+        .allow_zoom([true, false])
+        .allow_drag([true, false])
+        .allow_scroll([true, false])
+        .allow_boxed_zoom(false)
+        .allow_double_click_reset(true)
+        .show_x(false)
+        .show_y(false)
+        .show_grid([false, true])
+        .show_axes([true, true])
+        .show_background(false)
+        .show_crosshair(true)
+        .set_margin_fraction(egui::vec2(0.0, 0.0))
+        .default_x_bounds(x_min, x_max)
+        .default_y_bounds(0.0, y_max)
+        .x_axis_formatter(move |mark, _range| {
+            let t = mark.value;
+            if span >= 10.0 {
+                format!("{:.0}s", t)
+            } else if span >= 2.0 {
+                format!("{:.1}s", t)
             } else {
-                Color32::WHITE
-            };
-            painter.text(
-                seg_rect.center(),
-                Align2::CENTER_CENTER,
-                format!("{}  {:.0}%", seg.label, seg.max_prob * 100.0),
-                label_font.clone(),
-                text_color,
+                format!("{:.2}s", t)
+            }
+        })
+        .y_axis_formatter(move |mark, _range| {
+            let mel = mark.value;
+            if mel < -0.5 || mel > mel_max + 0.5 {
+                return String::new();
+            }
+            let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
+            if hz >= 1000.0 {
+                format!("{:.0}k", hz / 1000.0)
+            } else if hz < 1.0 {
+                String::from("0")
+            } else {
+                format!("{:.0}", hz)
+            }
+        })
+        .y_grid_spacer({
+            let hz_ticks = hz_ticks.clone();
+            move |_input| {
+                hz_ticks
+                    .iter()
+                    .map(|hz| {
+                        let mel = 2595.0 * (1.0 + hz / 700.0).log10();
+                        GridMark {
+                            value: mel,
+                            step_size: mel_max / 6.0,
+                        }
+                    })
+                    .collect()
+            }
+        })
+        .label_formatter(move |name, pos| {
+            if let Some(rest) = name.strip_prefix("seg|") {
+                let parts: Vec<&str> = rest.splitn(4, '|').collect();
+                if parts.len() == 4 {
+                    return format!(
+                        "{}\n{}% confidence\n{}s – {}s",
+                        parts[0], parts[1], parts[2], parts[3]
+                    );
+                }
+            }
+            let mel = pos.y;
+            if mel >= 0.0 && mel <= mel_max {
+                let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
+                let hz_str = if hz >= 1000.0 {
+                    format!("{:.1} kHz", hz / 1000.0)
+                } else {
+                    format!("{:.0} Hz", hz)
+                };
+                format!("{:.2} s\n{}", pos.x, hz_str)
+            } else {
+                format!("{:.2} s", pos.x)
+            }
+        })
+        .show(ui, |plot_ui| {
+            // External state takes precedence: snap the plot to our requested
+            // view range on the frame that requested it. Bounds modifications
+            // are queued and applied AFTER this closure runs (last-write-wins),
+            // so we issue exactly one SetX/SetY pair per frame.
+            //
+            // y is never touched by interaction (drag/zoom/scroll are x-only),
+            // so we only need to set y bounds when we're also forcing x.
+            if apply_bounds {
+                plot_ui.set_plot_bounds(PlotBounds::from_min_max(
+                    [x_min, 0.0],
+                    [x_max, y_max],
+                ));
+            }
+
+            plot_ui.image(
+                PlotImage::new(
+                    "spec",
+                    texture_id,
+                    PlotPoint::new((x_min + x_max) / 2.0, mel_max / 2.0),
+                    egui::vec2(span as f32, mel_max as f32),
+                )
+                .allow_hover(false),
             );
+
+            // Pixel width per plot x-unit, for the inline-label fit check.
+            let xform = plot_ui.transform();
+            let p_left = xform.position_from_point(&PlotPoint::new(x_min, 0.0)).x;
+            let p_right = xform.position_from_point(&PlotPoint::new(x_max, 0.0)).x;
+            let px_per_unit = ((p_right - p_left).abs() as f64) / span;
+            let label_fit_units = 60.0 / px_per_unit.max(0.001);
+
+            for (idx, seg) in segments.iter().enumerate() {
+                let n_cols = PLOT_SPEC_W as f64;
+                let x1 = x_min + (seg.col_start as f64 / n_cols) * span;
+                let x2 = x_min + ((seg.col_end + 1) as f64 / n_cols) * span;
+                let c = class_color(seg.class_id);
+                let alpha = (180.0 + 75.0 * seg.max_prob).clamp(180.0, 255.0) as u8;
+                let fill = Color32::from_rgba_unmultiplied(c[0], c[1], c[2], alpha);
+
+                let prob_pct = (seg.max_prob * 100.0).round() as i32;
+                let name = format!("seg|{}|{}|{:.2}|{:.2}", seg.label, prob_pct, x1, x2);
+
+                let pts: Vec<[f64; 2]> = vec![
+                    [x1, strip_y_lo],
+                    [x2, strip_y_lo],
+                    [x2, strip_y_hi],
+                    [x1, strip_y_hi],
+                ];
+                plot_ui.polygon(
+                    Polygon::new(name, PlotPoints::from(pts))
+                        .fill_color(fill)
+                        .stroke(Stroke::NONE),
+                );
+
+                if (x2 - x1) > label_fit_units {
+                    let luminance =
+                        0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
+                    let text_color = if luminance > 150.0 {
+                        Color32::BLACK
+                    } else {
+                        Color32::WHITE
+                    };
+                    plot_ui.text(
+                        Text::new(
+                            format!("txt_{idx}"),
+                            PlotPoint::new(
+                                (x1 + x2) / 2.0,
+                                (strip_y_lo + strip_y_hi) / 2.0,
+                            ),
+                            format!("{}  {}%", seg.label, prob_pct),
+                        )
+                        .color(text_color)
+                        .anchor(Align2::CENTER_CENTER)
+                        .allow_hover(false),
+                    );
+                }
+            }
+
+            if let Some(ph) = playhead {
+                if ph >= x_min && ph <= x_max {
+                    let color = if dark_mode {
+                        Color32::WHITE
+                    } else {
+                        Color32::from_rgb(20, 20, 20)
+                    };
+                    let pts: Vec<[f64; 2]> = vec![[ph, 0.0], [ph, mel_max]];
+                    plot_ui.line(
+                        Line::new("playhead", PlotPoints::from(pts))
+                            .color(color)
+                            .width(2.0)
+                            .allow_hover(false),
+                    );
+                }
+            }
+        });
+
+    // Read back the plot's bounds — these reflect any pan/zoom interaction —
+    // and clamp to [0, duration].
+    let bounds = plot_response.transform.bounds();
+    let new_min = bounds.min()[0].max(0.0);
+    let new_max = bounds.max()[0].min(duration).max(new_min + 1e-6);
+    let new_view_range = if (new_min - x_min).abs() > 1e-4 || (new_max - x_max).abs() > 1e-4 {
+        Some((new_min, new_max))
+    } else {
+        None
+    };
+
+    // Detect a pure click (no drag) for seek-to-time.
+    let mut clicked_time: Option<f64> = None;
+    let resp = &plot_response.response;
+    if resp.clicked() {
+        if let Some(screen_pos) = resp.interact_pointer_pos() {
+            let plot_pos = plot_response.transform.value_from_position(screen_pos);
+            let t = plot_pos.x.clamp(0.0, duration);
+            // Ignore clicks inside the strip area — those land on a bar, not the spec.
+            if plot_pos.y >= 0.0 && plot_pos.y <= mel_max {
+                clicked_time = Some(t);
+            }
         }
-        let t_start = col_to_time(seg.col_start as f32);
-        let t_end = col_to_time((seg.col_end + 1) as f32);
-        ui.interact(
-            seg_rect,
-            egui::Id::new(("audio_seg", idx)),
-            Sense::hover(),
-        )
-        .on_hover_text(format!(
-            "{}\n{:.0}% confidence\n{:.2}s – {:.2}s",
-            seg.label,
-            seg.max_prob * 100.0,
-            t_start,
-            t_end
-        ));
     }
 
-    // Playhead
-    if let Some(ph) = playhead {
-        let win_start = audio_position;
-        let win_end = audio_position + audio_window_secs;
-        if ph >= win_start && ph <= win_end {
-            let frac = (ph - win_start) / (win_end - win_start);
-            let x = spec.left() + frac as f32 * spec_w;
-            let playhead_color = if ui.visuals().dark_mode {
-                Color32::WHITE
-            } else {
-                Color32::from_rgb(20, 20, 20)
-            };
-            painter.line_segment(
-                [pos2(x, spec.top()), pos2(x, spec.bottom())],
-                Stroke::new(2.0, playhead_color),
-            );
-        }
+    PlotInteraction {
+        new_view_range,
+        clicked_time,
     }
 }
 
-fn mel_to_imgbuf(
-    spec: &ndarray::Array2<f32>,
+/// Render a texture for an arbitrary visible time range from a precomputed mel
+/// spectrogram covering the entire audio. The mel's time-axis indexing
+/// (`time = frame * hop_length / sample_rate`) drives the bilinear sampling.
+fn mel_slice_to_imgbuf(
+    full_mel: &ndarray::Array2<f32>,
+    sample_rate: u32,
+    hop_length: usize,
     top_db: f32,
+    view_start: f64,
+    view_end: f64,
     target_width: usize,
     target_height: usize,
     window_preds: &[AudioProb],
     column_winner: &[Option<usize>],
 ) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
-    let (n_mels, n_time) = spec.dim();
-    let sx = target_width as f32 / n_time as f32;
-    let sy = target_height as f32 / n_mels as f32;
+    let (n_mels, n_time) = full_mel.dim();
     let mut pixels = Vec::with_capacity(target_width * target_height * 4);
 
     let column_color: Vec<Option<[u8; 3]>> = column_winner
@@ -2006,28 +2140,37 @@ fn mel_to_imgbuf(
         .map(|w| w.map(|i| class_color(window_preds[i].prediction.class_id)))
         .collect();
 
+    let frames_per_sec = sample_rate as f64 / hop_length as f64;
+    let view_dur = (view_end - view_start).max(1e-9);
+
+    // For each y-row of the target texture, sample the appropriate mel-bin row.
+    let sy = target_height as f32 / n_mels as f32;
+
     for row in 0..target_height {
         let src_row = ((target_height - 1 - row) as f32 / sy).min(n_mels as f32 - 1.0);
         let row_lo = src_row.floor() as usize;
         let row_hi = (row_lo + 1).min(n_mels - 1);
         let fr = src_row - row_lo as f32;
+
         for col in 0..target_width {
-            let src_col = (col as f32 / sx).min(n_time as f32 - 1.0);
-            let col_lo = src_col.floor() as usize;
+            // Column center time → mel frame index (fractional).
+            let t = view_start + ((col as f64 + 0.5) / target_width as f64) * view_dur;
+            let src_col_f = (t * frames_per_sec).clamp(0.0, (n_time - 1) as f64);
+            let col_lo = src_col_f.floor() as usize;
             let col_hi = (col_lo + 1).min(n_time - 1);
-            let fc = src_col - col_lo as f32;
-            let v = spec[[row_lo, col_lo]] * (1.0 - fc) * (1.0 - fr)
-                  + spec[[row_lo, col_hi]] * fc * (1.0 - fr)
-                  + spec[[row_hi, col_lo]] * (1.0 - fc) * fr
-                  + spec[[row_hi, col_hi]] * fc * fr;
-            let t = ((v + top_db) / top_db).clamp(0.0, 1.0);
+            let fc = (src_col_f - col_lo as f64) as f32;
+            let v = full_mel[[row_lo, col_lo]] * (1.0 - fc) * (1.0 - fr)
+                + full_mel[[row_lo, col_hi]] * fc * (1.0 - fr)
+                + full_mel[[row_hi, col_lo]] * (1.0 - fc) * fr
+                + full_mel[[row_hi, col_hi]] * fc * fr;
+            let t_norm = ((v + top_db) / top_db).clamp(0.0, 1.0);
             match column_color[col] {
                 Some(c) => {
-                    let [r, g, b] = class_colormap(c, t);
+                    let [r, g, b] = class_colormap(c, t_norm);
                     pixels.extend_from_slice(&[r, g, b, 255]);
                 }
                 None => {
-                    let g = (t * 255.0) as u8;
+                    let g = (t_norm * 255.0) as u8;
                     pixels.extend_from_slice(&[g, g, g, 255]);
                 }
             }
@@ -2035,6 +2178,7 @@ fn mel_to_imgbuf(
     }
     ImageBuffer::from_raw(target_width as u32, target_height as u32, pixels).unwrap()
 }
+
 
 #[derive(Default, PartialEq)]
 enum Mode {
