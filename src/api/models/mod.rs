@@ -67,28 +67,9 @@ impl Model {
     ) -> Result<Self, Error> {
         let arch = metadata.architecture.to_lowercase();
         match arch.as_str() {
-            "yolo" => Ok(Model::Yolo(Yolo::new(
-                metadata.classes,
-                metadata.task,
-                metadata.post_processing,
-                session,
-                config,
-            )?)),
-            "efficientnetv2" => Ok(Model::EfficientNetV2(EfficientNetV2::new(
-                metadata.classes,
-                metadata.task,
-                metadata.post_processing,
-                session,
-                config,
-            )?)),
-            "resnet18" => Ok(Model::ResNet18(ResNet18::new(
-                metadata.classes,
-                metadata.task,
-                metadata.post_processing,
-                session,
-                config,
-                metadata.audio_config.unwrap(),
-            )?)),
+            "yolo" => Ok(Model::Yolo(Yolo::new(metadata, session, config)?)),
+            "efficientnetv2" => Ok(Model::EfficientNetV2(EfficientNetV2::new(metadata, session, config)?)),
+            "resnet18" => Ok(Model::ResNet18(ResNet18::new(metadata, session, config)?)),
             arch => Err(anyhow!("Unsupported model architecture: {}", arch)),
         }
     }

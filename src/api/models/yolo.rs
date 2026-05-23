@@ -242,9 +242,7 @@ impl Yolo {
 
 impl Yolo {
     pub fn new(
-        classes: Vec<String>,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
+        metadata: AIMetadata,
         session: Session,
         config: ModelConfig,
     ) -> Result<Self, Error> {
@@ -295,7 +293,7 @@ impl Yolo {
         };
 
         Ok(Yolo {
-            classes,
+            classes: metadata.classes,
             input_width,
             input_height,
             output_width,
@@ -303,8 +301,8 @@ impl Yolo {
             num_masks,
             mask_height,
             mask_width,
-            task,
-            post_processing,
+            task: metadata.task,
+            post_processing: metadata.post_processing,
             session,
             config,
             _yolotype,

@@ -38,13 +38,14 @@ pub struct ResNet18 {
 
 impl ResNet18 {
     pub fn new(
-        classes: Vec<String>,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
+        metadata: AIMetadata,
         session: Session,
         config: ModelConfig,
-        audio_config: AudioConfig
     ) -> Result<Self, Error> {
+        let Some(audio_config) = metadata.audio_config else {
+            bail!("ResNet18 requires audio_config in metadata");
+        };
+
         let (batch_size, channel, input_height, input_width) = match &session.inputs[0].input_type {
             ValueType::Tensor { dimensions, .. } => (
                 dimensions[0] as i32,
@@ -69,7 +70,7 @@ impl ResNet18 {
         let output_name: String = session.outputs[0].name.clone();
 
         Ok(ResNet18 {
-            classes,
+            classes: metadata.classes,
             batch_size,
             channel,
             input_width,
@@ -78,11 +79,11 @@ impl ResNet18 {
             output_width,
             output_height,
             output_name,
-            task,
-            post_processing,
+            task: metadata.task,
+            post_processing: metadata.post_processing,
             session,
             config,
-            audio_config
+            audio_config,
         })
     }
 }
