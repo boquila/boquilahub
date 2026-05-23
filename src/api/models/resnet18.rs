@@ -1,6 +1,6 @@
 use super::*;
 use crate::api::{
-    abstractions::{AIOutputs, AudioProb},
+    abstractions::{AIOutputs, AudioProb, Prob},
     audio::AudioData,
     processing::{
         inference::inference,
@@ -154,13 +154,11 @@ impl ResNet18 {
             let start = global_i as f32 * self.audio_config.stride;
             let end = start + self.audio_config.window_size;
             let class_id = if prob >= self.config.confidence_threshold { 1 } else { 0 };
+            let label = self.classes[class_id as usize].clone();
             all_probs.push(AudioProb {
                 start,
                 end,
-                class_id,
-                prob,
-                positive: class_id == 1,
-                label: self.classes[class_id as usize].clone(),
+                prediction: Prob::new(label, prob, class_id),
             });
         }
     }

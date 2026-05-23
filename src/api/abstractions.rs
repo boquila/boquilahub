@@ -188,8 +188,8 @@ pub trait AudioProbSugar {
 impl AudioProbSugar for Vec<AudioProb> {
     fn highest_confidence(&self) -> String {
         self.iter()
-            .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|audio| audio.label.clone())
+            .max_by(|a, b| a.prediction.prob.partial_cmp(&b.prediction.prob).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|audio| audio.prediction.label.clone())
             .unwrap_or_else(|| String::from("no prediction"))
     }
 }
@@ -211,10 +211,7 @@ impl XYXYc {
 pub struct AudioProb {
     pub start: f32,
     pub end: f32,
-    pub class_id: u32,
-    pub prob: f32,
-    pub positive: bool,
-    pub label: String,
+    pub prediction: Prob,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

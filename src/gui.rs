@@ -1765,9 +1765,9 @@ fn mel_to_imgbuf(
                 preds.iter()
                     .filter(|p| time >= p.start as f64 && time < p.end as f64)
                     .max_by(|a, b| {
-                        let a_prio = if a.positive { 1 } else { 0 };
-                        let b_prio = if b.positive { 1 } else { 0 };
-                        a_prio.cmp(&b_prio).then(a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
+                        a.prediction.class_id.cmp(&b.prediction.class_id).then(
+                            a.prediction.prob.partial_cmp(&b.prediction.prob).unwrap_or(std::cmp::Ordering::Equal)
+                        )
                     })
             });
             match pred {
@@ -1776,7 +1776,7 @@ fn mel_to_imgbuf(
                     pixels.extend_from_slice(&[g, g, g, 255]);
                 }
                 Some(Some(p)) => {
-                    if p.positive {
+                    if p.prediction.class_id == 1 {
                         let [r, g, b] = magma(t);
                         pixels.extend_from_slice(&[r, g, b, 255]);
                     } else {
