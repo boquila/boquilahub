@@ -2013,7 +2013,6 @@ fn render_audio_plot(
             }
             let t = pos.x;
             let mel = pos.y;
-            // Always show time, even when the cursor is in the label strip.
             let mins = (t / 60.0).floor() as i64;
             let secs = t - (mins as f64) * 60.0;
             let time_str = if mins > 0 {
@@ -2021,6 +2020,7 @@ fn render_audio_plot(
             } else {
                 format!("{:.3} s", t)
             };
+            let mut lines: Vec<String> = vec![time_str];
             if mel >= 0.0 && mel <= mel_max {
                 let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
                 let hz_str = if hz >= 1000.0 {
@@ -2028,17 +2028,48 @@ fn render_audio_plot(
                 } else {
                     format!("{:.0} Hz", hz)
                 };
-                // Sample the precomputed mel: nearest-neighbor on (row, col).
                 let col_f = (t * frames_per_sec).clamp(0.0, (n_time - 1) as f64);
                 let col = col_f.round() as usize;
                 let row_f = ((mel / mel_max) * (n_mels as f64 - 1.0))
                     .clamp(0.0, (n_mels - 1) as f64);
                 let row = row_f.round() as usize;
                 let db = full_mel[[row, col]];
-                format!("{}\n{}\n{:+.1} dB", time_str, hz_str, db)
-            } else {
-                time_str
+                lines.push(hz_str);
+                lines.push(format!("{:+.1} dB", db));
             }
+            // Predictions overlapping the cursor's time (top 3 by prob).
+            let mut hits: Vec<(&str, f32, f32, f32)> = window_preds
+                .iter()
+                .filter(|p| t >= p.start as f64 && t < p.end as f64)
+                .map(|p| {
+                    (
+                        p.prediction.label.as_str(),
+                        p.prediction.prob,
+                        p.start,
+                        p.end,
+                    )
+                })
+                .collect();
+            hits.sort_by(|a, b| {
+                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            if !hits.is_empty() {
+                lines.push(String::new());
+                lines.push(String::from("AI predictions here:"));
+                for (label, prob, s, e) in hits.iter().take(6) {
+                    lines.push(format!(
+                        "  {} — {:.0}%  ({:.2}–{:.2}s)",
+                        label,
+                        prob * 100.0,
+                        s,
+                        e
+                    ));
+                }
+                if hits.len() > 6 {
+                    lines.push(format!("  …and {} more", hits.len() - 6));
+                }
+            }
+            lines.join("\n")
         })
         .show(ui, |plot_ui| {
             // External state takes precedence: snap the plot to our requested
