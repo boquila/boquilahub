@@ -2,7 +2,7 @@ pub mod efficientnet;
 pub mod resnet18;
 pub mod yolo;
 use crate::api::models::resnet18::ResNet18;
-use super::{audio::AudioData, abstractions::*, processing::post::PostProcessing};
+use super::{audio::AudioData, abstractions::*, bq::AIMetadata, processing::post::PostProcessing};
 use anyhow::{anyhow, Error, Result};
 pub use efficientnet::EfficientNetV2;
 use image::{ImageBuffer, Rgb};
@@ -49,55 +49,37 @@ impl Model {
     }
 }
 
-pub trait ModelTrait {
-    fn new(
-        classes: Vec<String>,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
-        session: Session,
-        config: ModelConfig,
-        audio_config: Option<AudioConfig>,
-    ) -> Result<Self, Error>
-    where
-        Self: Sized;
-}
-
 impl Model {
     pub fn new(
-        classes: Vec<String>,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
+        metadata: AIMetadata,
         session: Session,
-        architecture: Option<String>,
         config: ModelConfig,
-        audio_config: Option<AudioConfig>,
     ) -> Result<Self, Error> {
-        let arch = architecture.as_ref().map(|s| s.to_lowercase());
-        match arch.as_deref() {
-            Some("yolo") => Ok(Model::Yolo(Yolo::new(
-                classes,
-                task,
-                post_processing,
+        let arch = metadata.architecture.to_lowercase();
+        match arch.as_str() {
+            "yolo" => Ok(Model::Yolo(Yolo::new(
+                metadata.classes,
+                metadata.task,
+                metadata.post_processing,
                 session,
                 config,
             )?)),
-            Some("efficientnetv2") => Ok(Model::EfficientNetV2(EfficientNetV2::new(
-                classes,
-                task,
-                post_processing,
+            "efficientnetv2" => Ok(Model::EfficientNetV2(EfficientNetV2::new(
+                metadata.classes,
+                metadata.task,
+                metadata.post_processing,
                 session,
                 config,
             )?)),
-            Some("resnet18") => Ok(Model::ResNet18(ResNet18::new(
-                classes,
-                task,
-                post_processing,
+            "resnet18" => Ok(Model::ResNet18(ResNet18::new(
+                metadata.classes,
+                metadata.task,
+                metadata.post_processing,
                 session,
                 config,
-                audio_config.unwrap(),
+                metadata.audio_config.unwrap(),
             )?)),
-            Some(arch) => Err(anyhow!("Unsupported model architecture: {}", arch)),
-            None => Err(anyhow!("No architecture specified")),
+            arch => Err(anyhow!("Unsupported model architecture: {}", arch)),
         }
     }
 

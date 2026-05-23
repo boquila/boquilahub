@@ -8,8 +8,7 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use super::api::{
-    abstractions::AI,
-    bq::{BQModel, GlobalBQ, Ep},
+    bq::{BQModel, GlobalBQ, Ep, AIMetadata},
     rest::{get_ipv4_address, run_api},
 };
 use super::localization::{translate, Key, Lang};
@@ -43,9 +42,9 @@ struct App {
     lang: Lang,
     row: usize,
     side_btn: bool, // true = focus is on the +/- button, not the combo
-    ais: Vec<AI>,
+    ais: Vec<AIMetadata>,
     ai_options: Vec<String>,  ai_selected: Option<usize>,  ai_open: bool,  ai_cursor: usize,
-    cls_ais: Vec<AI>,
+    cls_ais: Vec<AIMetadata>,
     cls_active: bool, cls_selected: Option<usize>, cls_open: bool, cls_cursor: usize,
     ep_selected: Option<Ep>,  ep_open: bool,  ep_cursor: usize,
     api_deployed: bool,
@@ -57,7 +56,7 @@ impl App {
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
         let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
-        let cls_ais: Vec<AI> = ais.iter().filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio")).cloned().collect();
+        let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == "classify" && ai.modality.as_deref() != Some("audio")).cloned().collect();
         Self {
             lang,
             row: 0, side_btn: false,

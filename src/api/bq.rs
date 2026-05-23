@@ -39,22 +39,11 @@ impl GlobalBQ {
         let config = config.unwrap_or_default();
 
         let (model_metadata, data) = BQModel::import_data(value)?;
-        ensure!(model_metadata.architecture.is_some(), "Model architecture must be specified");
         let session = BQModel::session_from_memory(&data, ep)?;
-        let post: Vec<PostProcessing> = model_metadata
-            .post_processing
-            .iter()
-            .map(|s| PostProcessing::from(s.as_str()))
-            .filter(|t| !matches!(t, PostProcessing::None))
-            .collect();
         let aimodel: Model = Model::new(
-            model_metadata.classes,
-            Task::from(model_metadata.task.as_str()),
-            post,
+            model_metadata,
             session,
-            model_metadata.architecture,
             config,
-            model_metadata.audio_config,
         )?;
         *self.get_lock().write().unwrap() = Some(aimodel);
         Ok(())
@@ -76,7 +65,7 @@ impl GlobalBQ {
     }
 }
 
-fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AI, usize)> {
+fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AIMetadata, usize)> {
     ensure!(content.len() >= 7, "File too short to be a valid .bq file");
     ensure!(&content[..7] == b"BQMODEL", "Invalid file format: missing BQMODEL magic string");
     ensure!(content[7] == 1, "Unsupported .bq version: {}", content[7]);
@@ -88,10 +77,9 @@ fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AI, usize)> {
 
     let json_str = String::from_utf8(content[12..json_end].to_vec())
         .context("Failed to parse JSON content in .bq file")?;
-    let mut ai_model: AI = serde_json::from_str(&json_str)
+    let ai_model: AIMetadataRaw = serde_json::from_str(&json_str)
         .context("Failed to deserialize JSON into AI metadata")?;
-    ai_model.name = file_stem.to_string();
-
+    let ai_model = ai_model.cook(file_stem);
     Ok((ai_model, json_end))
 }
 
@@ -105,7 +93,7 @@ impl BQModel {
         Ok(builder.commit_from_memory(model_data)?)
     }
 
-    pub fn import_data(file_path: impl AsRef<Path>) -> Result<(AI, Vec<u8>)> {
+    pub fn import_data(file_path: impl AsRef<Path>) -> Result<(AIMetadata, Vec<u8>)> {
         let content = fs::read(&file_path)
             .with_context(|| format!("Failed to read .bq file: {}", file_path.as_ref().display()))?;
         let name = file_path
@@ -134,7 +122,7 @@ impl BQModel {
         Ok((ai_model, onnx_data))
     }
 
-    pub fn from_file_to_metadata(file_path: impl AsRef<Path>) -> Result<AI> {
+    pub fn from_file_to_metadata(file_path: impl AsRef<Path>) -> Result<AIMetadata> {
         let path = file_path.as_ref();
         let name = path
             .file_stem()
@@ -158,7 +146,7 @@ impl BQModel {
         Ok(ai_model)
     }
 
-    pub fn get_list() -> Vec<AI> {
+    pub fn get_list() -> Vec<AIMetadata> {
         analyze_folder("models/").unwrap_or_default()
     }
 
@@ -189,7 +177,7 @@ impl BQModel {
         let output_path = format!("{}.bq", name);
 
         let json_content = fs::read(&json_path).with_context(|| format!("Failed to open {}", json_path))?;
-        let _ai: AI = serde_json::from_slice(&json_content)
+        let _ai: AIMetadataRaw = serde_json::from_slice(&json_content)
             .with_context(|| format!("Failed to deserialize {} into required AI metadata", json_path))?;
         let onnx_content = fs::read(&onnx_path).with_context(|| format!("Failed to open {}", onnx_path))?;
 
@@ -223,7 +211,7 @@ impl BQModel {
     }
 }
 
-fn analyze_folder(folder_path: &str) -> Result<Vec<AI>> {
+fn analyze_folder(folder_path: &str) -> Result<Vec<AIMetadata>> {
     let path = Path::new(folder_path);
     if !path.is_dir() || !path.exists() {
         fs::create_dir(folder_path).context("Failed to create models directory")?;
@@ -373,7 +361,7 @@ impl Ep {
 }
 
 impl AIMetadataRaw {
-    pub fn cook(self, name: String) -> AIMetadata {
+    pub fn cook(self, name: &str) -> AIMetadata {
         let post_processing = self
             .post_processing
             .iter()
@@ -386,19 +374,23 @@ impl AIMetadataRaw {
             _ => Modality::Image,
         };
 
+        let task = Task::from(self.task.as_str());
+
+        let architecture = self.architecture.unwrap_or_else(|| "yolo".to_string());
+
         AIMetadata {
-            task: self.task,
-            architecture: self.architecture,
+            task: task,
+            architecture: architecture,
             post_processing,
             classes: self.classes,
-            name,
+            name: name.to_owned(),
             modality,
             audio_config: self.audio_config,
         }
     }
 }
 
-#[derive(Clone Debug)]
+#[derive(Clone, Debug)]
 pub struct AIMetadata {
     pub task: Task,
     pub architecture: String, 
