@@ -113,9 +113,6 @@ struct Gui {
     audio_data: Option<AudioData>,
     audio_position: f64,
     audio_window_secs: f64,
-    audio_spec_width: usize,
-    audio_spec_height: usize,
-    
     audio_predictions: Option<Vec<AudioProb>>,
     audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
     audio_playing: bool,
@@ -244,9 +241,6 @@ impl Gui {
             video_step_frame: 3,
             feed_step_frame: 3,
             audio_window_secs: 10.0,
-            audio_spec_width: 800,
-            audio_spec_height: 300,
-            
             process_all_imgs: true,
             ..Default::default()
         }
@@ -1571,7 +1565,7 @@ impl eframe::App for Gui {
 
                     self.feed_handle_results(ui);
                 }
-Mode::Audio => {
+                Mode::Audio => {
                     if let Some(audio) = &self.audio_data {
                         let duration = audio.duration();
 
@@ -1662,28 +1656,10 @@ Mode::Audio => {
                             self.audio_state.texture = None;
                         }
 
-                        let mut w = self.audio_spec_width as f32;
-                        if ui.add(
-                            egui::Slider::new(&mut w, 300.0..=1400.0)
-                                .text(self.t(Key::width_)),
-                        ).changed() {
-                            self.audio_spec_width = w.round() as usize;
-                            self.audio_state.texture = None;
-                        }
-
-                        let mut h = self.audio_spec_height as f32;
-                        if ui.add(
-                            egui::Slider::new(&mut h, 100.0..=700.0)
-                                .text(self.t(Key::height_)),
-                        ).changed() {
-                            self.audio_spec_height = h.round() as usize;
-                            self.audio_state.texture = None;
-                        }
-
                         if self.audio_state.texture.is_none() {
                             let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
                             let window = audio.slice(self.audio_position, self.audio_window_secs)
-                                .resample(22050);
+                                .resample(AUDIO_DISPLAY_SR);
                             let spec = compute_mel(&window, n_fft, hop_length, n_mels, top_db);
                             let window_preds: Option<Vec<AudioProb>> = self.audio_predictions.as_ref().map(|preds| {
                                 preds.iter()
@@ -1692,27 +1668,21 @@ Mode::Audio => {
                                     .collect()
                             });
                             let img = mel_to_imgbuf(
-                                &spec, top_db, self.audio_spec_width, self.audio_spec_height,
+                                &spec, top_db, PLOT_SPEC_W, PLOT_SPEC_H,
                                 window_preds.as_deref(), self.audio_position, self.audio_window_secs,
                             );
                             self.audio_state.texture = imgbuf_to_texture(&img, ui);
                         }
 
                         if let Some(texture) = &self.audio_state.texture {
-                            let response = ui.add(
-                                egui::Image::new(texture)
-                                    .corner_radius(10.0),
+                            render_audio_plot(
+                                ui,
+                                texture,
+                                self.audio_position,
+                                self.audio_window_secs,
+                                self.audio_predictions.as_deref(),
+                                self.audio_playhead,
                             );
-                            if let Some(playhead) = self.audio_playhead {
-                                let frac = ((playhead - self.audio_position) / self.audio_window_secs).clamp(0.0, 1.0);
-                                if frac <= 1.0 {
-                                    let playhead_x = response.rect.left() + response.rect.width() * frac as f32;
-                                    ui.painter().line_segment(
-                                        [egui::pos2(playhead_x, response.rect.top()), egui::pos2(playhead_x, response.rect.bottom())],
-                                        egui::Stroke::new(2.0, egui::Color32::WHITE),
-                                    );
-                                }
-                            }
                         }
                     }
 
@@ -1734,6 +1704,212 @@ fn imgbuf_to_texture(
     Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 
+const AUDIO_DISPLAY_SR: u32 = 22050;
+const PLOT_SPEC_W: usize = 800;
+const PLOT_SPEC_H: usize = 280;
+const PLOT_M_LEFT: f32 = 56.0;
+const PLOT_M_TOP: f32 = 36.0;
+const PLOT_M_RIGHT: f32 = 14.0;
+const PLOT_M_BOTTOM: f32 = 34.0;
+
+fn render_audio_plot(
+    ui: &mut egui::Ui,
+    texture: &egui::TextureHandle,
+    audio_position: f64,
+    audio_window_secs: f64,
+    predictions: Option<&[AudioProb]>,
+    playhead: Option<f64>,
+) {
+    use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind};
+
+    let spec_w = PLOT_SPEC_W as f32;
+    let spec_h = PLOT_SPEC_H as f32;
+    let total = vec2(PLOT_M_LEFT + spec_w + PLOT_M_RIGHT, PLOT_M_TOP + spec_h + PLOT_M_BOTTOM);
+    let (response, painter) = ui.allocate_painter(total, Sense::hover());
+    let full = response.rect;
+    let spec = Rect::from_min_size(
+        full.min + vec2(PLOT_M_LEFT, PLOT_M_TOP),
+        vec2(spec_w, spec_h),
+    );
+
+    let axis_color = ui.style().visuals.text_color();
+    let weak_color = ui.style().visuals.weak_text_color();
+    let grid_color = Color32::from_rgba_unmultiplied(255, 255, 255, 22);
+    let tick_font = FontId::proportional(10.5);
+    let title_font = FontId::proportional(10.0);
+
+    painter.image(
+        texture.id(),
+        spec,
+        Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+        Color32::WHITE,
+    );
+    painter.rect_stroke(
+        spec,
+        0.0,
+        Stroke::new(1.0, weak_color),
+        StrokeKind::Outside,
+    );
+
+    // X-axis: time
+    let n_x = 6;
+    let win = audio_window_secs;
+    for i in 0..n_x {
+        let frac = i as f32 / (n_x - 1) as f32;
+        let time = audio_position + frac as f64 * win;
+        let x = spec.left() + frac * spec_w;
+        if i != 0 && i != n_x - 1 {
+            painter.line_segment(
+                [pos2(x, spec.top()), pos2(x, spec.bottom())],
+                Stroke::new(1.0, grid_color),
+            );
+        }
+        painter.line_segment(
+            [pos2(x, spec.bottom()), pos2(x, spec.bottom() + 4.0)],
+            Stroke::new(1.0, weak_color),
+        );
+        let label = if win >= 10.0 {
+            format!("{:.0}s", time)
+        } else if win >= 2.0 {
+            format!("{:.1}s", time)
+        } else {
+            format!("{:.2}s", time)
+        };
+        painter.text(
+            pos2(x, spec.bottom() + 6.0),
+            Align2::CENTER_TOP,
+            label,
+            tick_font.clone(),
+            axis_color,
+        );
+    }
+
+    // Y-axis: frequency (mel-mapped). Caller resamples to AUDIO_DISPLAY_SR before computing mel.
+    let nyquist = AUDIO_DISPLAY_SR as f32 / 2.0;
+    let mel_max = 2595.0 * (1.0 + nyquist / 700.0).log10();
+    let freqs_hz: [f32; 6] = [0.0, 250.0, 1000.0, 2000.0, 4000.0, 8000.0];
+    for &hz in freqs_hz.iter().filter(|&&f| f <= nyquist) {
+        let mel = 2595.0 * (1.0 + hz / 700.0).log10();
+        let y = spec.bottom() - (mel / mel_max) * spec_h;
+        if hz > 0.0 {
+            painter.line_segment(
+                [pos2(spec.left(), y), pos2(spec.right(), y)],
+                Stroke::new(1.0, grid_color),
+            );
+        }
+        painter.line_segment(
+            [pos2(spec.left() - 4.0, y), pos2(spec.left(), y)],
+            Stroke::new(1.0, weak_color),
+        );
+        let text = if hz >= 1000.0 {
+            format!("{:.0}k", hz / 1000.0)
+        } else {
+            format!("{:.0}", hz)
+        };
+        painter.text(
+            pos2(spec.left() - 6.0, y),
+            Align2::RIGHT_CENTER,
+            text,
+            tick_font.clone(),
+            axis_color,
+        );
+    }
+
+    // Axis titles
+    painter.text(
+        pos2(spec.center().x, full.bottom() - 3.0),
+        Align2::CENTER_BOTTOM,
+        "time (s)",
+        title_font.clone(),
+        weak_color,
+    );
+    painter.text(
+        pos2(full.left() + 8.0, spec.top() - 8.0),
+        Align2::LEFT_BOTTOM,
+        "Hz",
+        title_font.clone(),
+        weak_color,
+    );
+
+    // Class-label strip: every AudioProb has a label; merge consecutive same-label windows.
+    if let Some(preds) = predictions {
+        let win_start = audio_position as f32;
+        let win_end = (audio_position + audio_window_secs) as f32;
+
+        let mut sorted: Vec<&AudioProb> = preds.iter().collect();
+        sorted.sort_by(|a, b| {
+            a.start
+                .partial_cmp(&b.start)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut segments: Vec<(f32, f32, String, f32, u32)> = Vec::new();
+        for p in sorted {
+            if let Some(last) = segments.last_mut() {
+                if last.2 == p.prediction.label && p.start <= last.1 {
+                    last.1 = last.1.max(p.end);
+                    last.3 = last.3.max(p.prediction.prob);
+                    continue;
+                }
+            }
+            segments.push((
+                p.start,
+                p.end,
+                p.prediction.label.clone(),
+                p.prediction.prob,
+                p.prediction.class_id,
+            ));
+        }
+
+        let strip_top = full.top() + 6.0;
+        let strip_bottom = spec.top() - 6.0;
+        let label_font = FontId::proportional(11.0);
+        for (idx, &(s, e, ref label, prob, class_id)) in segments.iter().enumerate() {
+            if e <= win_start || s >= win_end {
+                continue;
+            }
+            let vs = s.max(win_start);
+            let ve = e.min(win_end);
+            let x1 = spec.left() + ((vs - win_start) / (win_end - win_start)) * spec_w;
+            let x2 = spec.left() + ((ve - win_start) / (win_end - win_start)) * spec_w;
+            let seg_rect = Rect::from_min_max(pos2(x1, strip_top), pos2(x2, strip_bottom));
+            let c = class_color(class_id);
+            let alpha = (180.0 + 75.0 * prob).clamp(180.0, 255.0) as u8;
+            painter.rect_filled(seg_rect, 3.0, Color32::from_rgba_unmultiplied(c[0], c[1], c[2], alpha));
+            if seg_rect.width() > 60.0 {
+                let luminance = 0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
+                let text_color = if luminance > 150.0 { Color32::BLACK } else { Color32::WHITE };
+                painter.text(
+                    seg_rect.center(),
+                    Align2::CENTER_CENTER,
+                    format!("{}  {:.0}%", label, prob * 100.0),
+                    label_font.clone(),
+                    text_color,
+                );
+            }
+            ui.interact(seg_rect, egui::Id::new(("audio_seg", idx)), Sense::hover())
+                .on_hover_text(format!(
+                    "{}\n{:.0}% confidence\n{:.2}s – {:.2}s",
+                    label, prob * 100.0, s, e
+                ));
+        }
+    }
+
+    // Playhead inside spec area only
+    if let Some(ph) = playhead {
+        let win_start = audio_position;
+        let win_end = audio_position + audio_window_secs;
+        if ph >= win_start && ph <= win_end {
+            let frac = (ph - win_start) / (win_end - win_start);
+            let x = spec.left() + frac as f32 * spec_w;
+            painter.line_segment(
+                [pos2(x, spec.top()), pos2(x, spec.bottom())],
+                Stroke::new(2.0, Color32::WHITE),
+            );
+        }
+    }
+}
+
 fn mel_to_imgbuf(
     spec: &ndarray::Array2<f32>,
     top_db: f32,
@@ -1747,46 +1923,44 @@ fn mel_to_imgbuf(
     let sx = target_width as f32 / n_time as f32;
     let sy = target_height as f32 / n_mels as f32;
     let mut pixels = Vec::with_capacity(target_width * target_height * 4);
+
+    let column_color: Vec<Option<[u8; 3]>> = (0..target_width)
+        .map(|col| {
+            let time = window_start + (col as f64 / target_width as f64) * window_duration;
+            predictions.and_then(|preds| {
+                preds.iter()
+                    .filter(|p| time >= p.start as f64 && time < p.end as f64)
+                    .max_by(|a, b| {
+                        a.prediction.prob
+                            .partial_cmp(&b.prediction.prob)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .map(|p| class_color(p.prediction.class_id))
+            })
+        })
+        .collect();
+
     for row in 0..target_height {
+        let src_row = ((target_height - 1 - row) as f32 / sy).min(n_mels as f32 - 1.0);
+        let row_lo = src_row.floor() as usize;
+        let row_hi = (row_lo + 1).min(n_mels - 1);
+        let fr = src_row - row_lo as f32;
         for col in 0..target_width {
             let src_col = (col as f32 / sx).min(n_time as f32 - 1.0);
-            let src_row = (row as f32 / sy).min(n_mels as f32 - 1.0);
             let col_lo = src_col.floor() as usize;
             let col_hi = (col_lo + 1).min(n_time - 1);
             let fc = src_col - col_lo as f32;
-            let row_lo = src_row.floor() as usize;
-            let row_hi = (row_lo + 1).min(n_mels - 1);
-            let fr = src_row - row_lo as f32;
             let v = spec[[row_lo, col_lo]] * (1.0 - fc) * (1.0 - fr)
                   + spec[[row_lo, col_hi]] * fc * (1.0 - fr)
                   + spec[[row_hi, col_lo]] * (1.0 - fc) * fr
                   + spec[[row_hi, col_hi]] * fc * fr;
             let t = ((v + top_db) / top_db).clamp(0.0, 1.0);
-            let time = window_start + (col as f64 / target_width as f64) * window_duration;
-            let pred = predictions.map(|preds| {
-                preds.iter()
-                    .filter(|p| time >= p.start as f64 && time < p.end as f64)
-                    .max_by(|a, b| {
-                        a.prediction.class_id.cmp(&b.prediction.class_id).then(
-                            a.prediction.prob.partial_cmp(&b.prediction.prob).unwrap_or(std::cmp::Ordering::Equal)
-                        )
-                    })
-            });
-            match pred {
+            match column_color[col] {
+                Some(c) => {
+                    let [r, g, b] = class_colormap(c, t);
+                    pixels.extend_from_slice(&[r, g, b, 255]);
+                }
                 None => {
-                    let g = (t * 255.0) as u8;
-                    pixels.extend_from_slice(&[g, g, g, 255]);
-                }
-                Some(Some(p)) => {
-                    if p.prediction.class_id == 1 {
-                        let [r, g, b] = magma(t);
-                        pixels.extend_from_slice(&[r, g, b, 255]);
-                    } else {
-                        let [r, g, b] = viridis(t);
-                        pixels.extend_from_slice(&[r, g, b, 255]);
-                    }
-                }
-                Some(None) => {
                     let g = (t * 255.0) as u8;
                     pixels.extend_from_slice(&[g, g, g, 255]);
                 }

@@ -148,18 +148,37 @@ impl ResNet18 {
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
-        for (j, &logit) in output.iter().take(batch_indices.len()).enumerate() {
-            let global_i = batch_indices[j];
-            let prob = 1.0 / (1.0 + (-logit).exp());
+        let is_binary = self
+            .post_processing
+            .contains(&PostProcessing::BinaryClassification);
+
+        for (j, &global_i) in batch_indices.iter().enumerate() {
             let start = global_i as f32 * self.audio_config.stride;
             let end = start + self.audio_config.window_size;
-            let class_id = if prob >= self.config.confidence_threshold { 1 } else { 0 };
-            let label = self.classes[class_id as usize].clone();
-            all_probs.push(AudioProb {
-                start,
-                end,
-                prediction: Prob::new(label, prob, class_id),
-            });
+
+            let prediction = if is_binary {
+                let logit = output[[0, j]];
+                let p_pos = 1.0 / (1.0 + (-logit).exp());
+                let (class_id, prob) = if p_pos >= self.config.confidence_threshold {
+                    (1u32, p_pos)
+                } else {
+                    (0u32, 1.0 - p_pos)
+                };
+                let label = self.classes[class_id as usize].clone();
+                Prob::new(label, prob, class_id)
+            } else {
+                let num_classes = self.output_height as usize;
+                let mut probs: Vec<Prob> = (0..num_classes)
+                    .map(|c| Prob::new(self.classes[c].clone(), output[[c, j]], c as u32))
+                    .collect();
+                probs.logits_to_probs();
+                probs
+                    .into_iter()
+                    .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap())
+                    .unwrap()
+            };
+
+            all_probs.push(AudioProb { start, end, prediction });
         }
     }
 }

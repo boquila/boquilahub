@@ -11,6 +11,9 @@ pub enum PostProcessing {
     GeoFence,
     Rollup,
     Ensemble,
+    Sigmoid,
+    Softmax,
+    BinaryClassification,
     None,
 }
 
@@ -21,6 +24,9 @@ impl From<&str> for PostProcessing {
             "rollup" => PostProcessing::Rollup,
             "geofence" | "geo_fence" | "geo-fence" => PostProcessing::GeoFence,
             "ensemble" | "ensemble_classification" => PostProcessing::Ensemble,
+            "sigmoid" => PostProcessing::Sigmoid,
+            "softmax" => PostProcessing::Softmax,
+            "binary" | "binary_classification" => PostProcessing::BinaryClassification,
             _ => PostProcessing::None, // default fallback
         }
     }

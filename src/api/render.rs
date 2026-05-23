@@ -334,6 +334,28 @@ fn get_color(bbox: &XYXYc) -> Rgb<u8> {
     BBOX_COLORS[class_id as usize % BBOX_COLORS.len()]
 }
 
+pub fn class_color(class_id: u32) -> [u8; 3] {
+    let c = BBOX_COLORS[class_id as usize % BBOX_COLORS.len()];
+    [c[0], c[1], c[2]]
+}
+
+/// Per-class colormap: black → class color → tinted bright.
+/// Two linear segments with a gamma-corrected dark→color ramp and a capped
+/// color→white ramp at the top end, so each class keeps its hue at high `t`
+/// while still feeling vivid like magma.
+pub fn class_colormap(c: [u8; 3], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let (cr, cg, cb) = (c[0] as f32, c[1] as f32, c[2] as f32);
+    let (r, g, b) = if t < 0.6 {
+        let k = (t / 0.6).powf(0.7);
+        (cr * k, cg * k, cb * k)
+    } else {
+        let w = ((t - 0.6) / 0.4) * 0.5;
+        (cr + (255.0 - cr) * w, cg + (255.0 - cg) * w, cb + (255.0 - cb) * w)
+    };
+    [r as u8, g as u8, b as u8]
+}
+
 impl PredImg {
     #[inline(always)]
     pub fn draw(&self) -> anyhow::Result<image::ImageBuffer<image::Rgb<u8>, Vec<u8>>> {
@@ -358,21 +380,6 @@ pub fn magma(t: f32) -> [u8; 3] {
         [237, 149, 27],
         [249, 213, 70],
         [252, 253, 191],
-    ];
-    colormap_lerp(&stops, t)
-}
-
-pub fn viridis(t: f32) -> [u8; 3] {
-    let stops: [[u8; 3]; 9] = [
-        [12, 0, 36],
-        [28, 16, 68],
-        [24, 58, 100],
-        [18, 90, 105],
-        [14, 115, 98],
-        [32, 135, 85],
-        [72, 155, 60],
-        [130, 170, 48],
-        [200, 180, 24],
     ];
     colormap_lerp(&stops, t)
 }
