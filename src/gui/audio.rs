@@ -562,7 +562,7 @@ fn render_audio_plot(
                 })
                 .collect();
             hits.sort_by(|a, b| {
-                b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+                a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal)
             });
             if !hits.is_empty() {
                 lines.push(String::new());
