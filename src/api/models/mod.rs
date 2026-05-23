@@ -9,7 +9,7 @@ use image::{ImageBuffer, Rgb};
 use ort::session::Session;
 pub use yolo::Yolo;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Task {
     Classify,
     Segment,

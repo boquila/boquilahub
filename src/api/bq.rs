@@ -372,3 +372,51 @@ impl Ep {
 
 }
 
+impl AIMetadataRaw {
+    pub fn cook(self, name: String) -> AIMetadata {
+        let post_processing = self
+            .post_processing
+            .iter()
+            .map(|s| PostProcessing::from(s.as_str()))
+            .filter(|t| !matches!(t, PostProcessing::None))
+            .collect();
+
+        let modality = match self.modality.as_deref() {
+            Some("audio") => Modality::Audio,
+            _ => Modality::Image,
+        };
+
+        AIMetadata {
+            task: self.task,
+            architecture: self.architecture,
+            post_processing,
+            classes: self.classes,
+            name,
+            modality,
+            audio_config: self.audio_config,
+        }
+    }
+}
+
+#[derive(Clone Debug)]
+pub struct AIMetadata {
+    pub task: Task,
+    pub architecture: String, 
+    pub post_processing: Vec<PostProcessing>,
+    pub classes: Vec<String>,
+    pub name: String,
+    pub modality: Modality,
+    pub audio_config: Option<AudioConfig>,
+}
+
+impl AIMetadata {
+    pub fn get_path(&self) -> String {
+        format!("models/{}.bq", self.name)
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Modality {
+    Audio,
+    Image,
+}

@@ -150,20 +150,13 @@ impl XYXY {
     }
 }
 
-// AI complementary data
 #[derive(Deserialize, Clone, Debug)]
-pub struct AI {
+pub struct AIMetadataRaw {
     pub task: String,
     pub architecture: Option<String>, // yolo, efficientnet, whatever else
     pub post_processing: Vec<String>,
     pub classes: Vec<String>,
-    #[serde(skip)]
-    pub name: String,
-
-    // input modality so we know how to preprocess (None defaults to "image")
-    pub modality: Option<String>, // "image" or "audio"
-
-    // Audio processing
+    pub modality: Option<String>, // "image" or "audio", defaults to "image"
     pub audio_config: Option<AudioConfig>,
 }
 
@@ -175,12 +168,6 @@ pub struct AudioConfig {
     pub n_fft: u32,       // e.g. 2048
     pub hop_length: u32,  // e.g. 512
     pub top_db: f32,      // e.g. 80.0
-}
-
-impl AI {
-    pub fn get_path(&self) -> String {
-        format!("models/{}.bq", self.name)
-    }
 }
 
 #[derive(Clone)]
