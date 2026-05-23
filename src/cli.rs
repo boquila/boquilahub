@@ -81,61 +81,31 @@ pub struct Cli {
 pub async fn run_cli(command: Commands) {
     match command {
         Commands::Serve(args) => {
-            let model_name = &args.model;
-            let model_name_clean = model_name.strip_suffix(".bq").unwrap_or(model_name);
-            let model_path = format!("models/{}.bq", model_name_clean);
-
             let ais: Vec<AIMetadata> = BQModel::get_list();
+            let model = resolve_model(&args.model, &ais);
 
-            if let Some(model_cls_name) = &args.model_cls {
-                let model_cls_name_clean =
-                    model_cls_name.strip_suffix(".bq").unwrap_or(model_cls_name);
-                let model_cls_path = format!("models/{}.bq", model_cls_name_clean);
-
-                let cls_found = ais.iter().any(|ai| ai.get_path() == model_cls_path);
-                if !cls_found {
-                    panic!(
-                        "Model class path '{}' was not found in any of the registered AI paths.\n\
-            Make sure that the model '{}' (or '{}.bq') exists in the 'models/' directory",
-                        model_cls_path, model_cls_name_clean, model_cls_name_clean
-                    );
-                }
-
-                let _ = GlobalBQ::Second.set_model(&model_cls_path, Ep::Cuda, None);
-            }
-
-            let port = args.port;
-
-            let model_ai = ais.iter().find(|ai| ai.get_path() == model_path);
-            if model_ai.is_none() {
-                panic!(
-                    "Model path '{}' was not found in any of the registered AI paths.\n\
-        Make sure that the model '{}' (or '{}.bq') exists in the 'models/' directory",
-                    model_path, model_name_clean, model_name_clean
-                );
-            }
-            if model_ai.unwrap().modality == Modality::Audio {
+            if model.modality == Modality::Audio {
                 panic!(
                     "Audio models cannot be deployed as API. Model '{}' is an audio model.",
-                    model_name_clean
+                    model.name
                 );
             }
 
-            let _ = GlobalBQ::First.set_model(&model_path, Ep::Cuda, None);
-
-            let ip_text = format!("http://{}:8791", get_ipv4_address().unwrap());
-            println!("{}", ASCII_ART);
-
-            if let Some(model_cls_name) = &args.model_cls {
-                println!("Model deployed: {} with {}", model_name_clean, model_cls_name);
-            } else {
-                println!("Model deployed: {}", model_name_clean);
+            if let Some(cls_name) = &args.model_cls {
+                let cls = resolve_model(cls_name, &ais);
+                let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::Cuda, None);
             }
 
-            println!("IP Address: {}", ip_text);
+            let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::Cuda, None);
 
-            let result = run_api(port).await;
-            if let Err(e) = result {
+            println!("{}", ASCII_ART);
+            match &args.model_cls {
+                Some(cls) => println!("Model deployed: {} with {}", model.name, cls),
+                None => println!("Model deployed: {}", model.name),
+            }
+            println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
+
+            if let Err(e) = run_api(args.port).await {
                 eprintln!("Error running API: {}", e);
             }
         }
@@ -183,6 +153,16 @@ const ASCII_ART: &'static str = r#"
                           |__/                                      AI for Biodiversity
 
 "#;
+
+fn resolve_model<'a>(name: &str, ais: &'a [AIMetadata]) -> &'a AIMetadata {
+    let clean = name.strip_suffix(".bq").unwrap_or(name);
+    ais.iter().find(|ai| ai.name == clean).unwrap_or_else(|| {
+        panic!(
+            "Model '{0}' (or '{0}.bq') was not found in the 'models/' directory",
+            clean
+        )
+    })
+}
 
 pub fn print_ais_table(ais: &[AIMetadata]) {
     if ais.is_empty() {
