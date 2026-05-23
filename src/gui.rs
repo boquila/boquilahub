@@ -288,17 +288,22 @@ impl Gui {
     }
 
     fn audio_mel_params(&self) -> (usize, usize, usize, f32) {
+        const N_MELS: usize = 128;
+        const FALLBACK_N_FFT: usize = 2048;
+        const FALLBACK_HOP_LENGTH: usize = 512;
+        const FALLBACK_TOP_DB: f32 = 80.0;
+
         if let Some(ai) = self.ai_selected {
             if let Some(ref ac) = self.ais[ai].audio_config {
                 return (
                     ac.n_fft as usize,
                     ac.hop_length as usize,
-                    128,
+                    N_MELS,
                     ac.top_db,
                 );
             }
         }
-        (2048, 512, 128, 80.0)
+        (FALLBACK_N_FFT, FALLBACK_HOP_LENGTH, N_MELS, FALLBACK_TOP_DB)
     }
 
     fn paint(&mut self, ui: &egui::Ui, i: usize) {
