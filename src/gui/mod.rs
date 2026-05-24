@@ -944,7 +944,8 @@ impl eframe::App for Gui {
                     ui.selectable_value(&mut self.mode, Mode::Feed, text);
                 }
                 if audio_mode {
-                    ui.selectable_value(&mut self.mode, Mode::Audio, "Audio");
+                    let text = self.t(Key::audio_processing);
+                    ui.selectable_value(&mut self.mode, Mode::Audio, text);
                 }
             });
 

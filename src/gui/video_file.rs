@@ -1003,7 +1003,13 @@ fn tooltip_ui(
     lang: &Lang,
 ) {
     ui.label(
-        egui::RichText::new(format!("{}  ·  frame {}", format_time(secs), frame)).strong(),
+        egui::RichText::new(format!(
+            "{}  ·  {} {}",
+            format_time(secs),
+            translate(Key::frame_label, lang),
+            frame
+        ))
+        .strong(),
     );
     let Some(pv) = pv else { return; };
     let Some(nearest) = pv.last_processed_at_or_before(frame) else {

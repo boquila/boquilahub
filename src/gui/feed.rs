@@ -543,8 +543,9 @@ impl Gui {
                     .unwrap_or(n.elapsed);
                 ui.separator();
                 ui.label(format!(
-                    "{}  ·  buffer {:.1}s / {}s",
+                    "{}  ·  {} {:.1}s / {}s",
                     format_time(here.as_secs_f64()),
+                    self.t(Key::buffer_label),
                     (n.elapsed.saturating_sub(o.elapsed)).as_secs_f64(),
                     self.feed_buffer_max_secs,
                 ));
@@ -934,8 +935,9 @@ fn feed_tooltip_ui(
     let Some(frame) = buf.iter().find(|f| f.frame_idx == target_idx) else { return; };
     ui.label(
         egui::RichText::new(format!(
-            "{}  ·  frame {}",
+            "{}  ·  {} {}",
             format_time(frame.elapsed.as_secs_f64()),
+            translate(Key::frame_label, lang),
             frame.frame_idx
         ))
         .strong(),
