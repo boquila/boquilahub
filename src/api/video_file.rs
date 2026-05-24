@@ -150,34 +150,56 @@ impl VideofileProcessor {
     pub fn get_n_frames(&self) -> u64 { self.n_frames }
     pub fn fps(&self) -> f64 { self.fps }
 
-    pub fn first_frame(
-        file_path: &str,
-    ) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
+    /// Single-shot open: read metadata and decode the first frame, then close.
+    /// Used at file-pick time so the GUI can show the first frame without also
+    /// paying for the full streaming decoder + thread spawn that `new()` does
+    /// — that gets built lazily when the user actually clicks Analyse.
+    pub fn probe(file_path: &str) -> Result<VideoProbe, Box<dyn std::error::Error>> {
         ffmpeg::init()?;
         ffmpeg::util::log::set_level(ffmpeg::util::log::Level::Quiet);
 
         let mut input_ctx = ffmpeg::format::input(&Path::new(file_path))?;
 
-        let (stream_index, mut decoder) = {
+        let (stream_index, n_frames, fps, mut decoder) = {
             let video_stream = input_ctx
                 .streams()
                 .best(ffmpeg::media::Type::Video)
                 .ok_or("No video stream found")?;
             let idx = video_stream.index();
+            let n = video_stream.frames().max(0) as u64;
+            let avg = video_stream.avg_frame_rate();
+            let fps_from_stream = if avg.denominator() != 0 {
+                avg.numerator() as f64 / avg.denominator() as f64
+            } else {
+                0.0
+            };
             let dec =
                 ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())?
                     .decoder()
                     .video()?;
-            (idx, dec)
+            let fps = if fps_from_stream > 0.0 {
+                fps_from_stream
+            } else {
+                let dec_fr = dec.frame_rate().unwrap_or(ffmpeg::Rational::new(0, 1));
+                if dec_fr.denominator() != 0 {
+                    dec_fr.numerator() as f64 / dec_fr.denominator() as f64
+                } else {
+                    30.0
+                }
+            };
+            (idx, n, fps, dec)
         };
+
+        let width = decoder.width();
+        let height = decoder.height();
 
         let mut scaler = ffmpeg::software::scaling::Context::get(
             decoder.format(),
-            decoder.width(),
-            decoder.height(),
+            width,
+            height,
             ffmpeg::format::Pixel::RGB24,
-            decoder.width(),
-            decoder.height(),
+            width,
+            height,
             ffmpeg::software::scaling::Flags::BILINEAR,
         )?;
 
@@ -193,12 +215,26 @@ impl VideofileProcessor {
             if decoder.receive_frame(&mut decoded).is_ok() {
                 let mut rgb_frame = ffmpeg::frame::Video::empty();
                 scaler.run(&decoded, &mut rgb_frame)?;
-                return Ok(rgb_frame_to_imgbuf(&rgb_frame));
+                return Ok(VideoProbe {
+                    first_frame: rgb_frame_to_imgbuf(&rgb_frame),
+                    width,
+                    height,
+                    fps,
+                    n_frames,
+                });
             }
         }
 
         Err("No frames found".into())
     }
+}
+
+pub struct VideoProbe {
+    pub first_frame: ImageBuffer<Rgb<u8>, Vec<u8>>,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,
+    pub n_frames: u64,
 }
 
 impl Iterator for VideofileProcessor {

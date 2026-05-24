@@ -1,11 +1,13 @@
 mod audio;
+#[path = "image.rs"]
+mod image_view;
 mod video_file;
 
 use super::{api::*, localization::*};
 use abstractions::*;
 use crate::api::audio::AudioData;
 use bq::*;
-use image::{open, ImageBuffer, Rgba};
+use image::{ImageBuffer, Rgba};
 use models::Task;
 use processing::post::PostProcessing;
 use render::*;
@@ -286,31 +288,6 @@ impl Gui {
 
     fn is_image_model(&self) -> bool {
         !self.is_audio_model()
-    }
-
-    fn paint(&mut self, ui: &egui::Ui, i: usize) {
-        let img = &self.draw_gui(&self.selected_files[i]);
-        self.img_state.texture = imgbuf_to_texture(img, ui)
-    }
-
-    fn draw_gui(&self, predimg: &PredImg) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-        let mut img = image::open(&predimg.file_path).unwrap().into_rgb8();
-
-        if predimg.wasprocessed {
-            if predimg.aioutput.as_ref().unwrap().is_empty() {
-                draw_no_predictions(&mut img, Some(&self.lang));
-            } else {
-                draw_aioutput(&mut img, &predimg.aioutput.as_ref().unwrap());
-            }
-}
-
-        image::DynamicImage::ImageRgb8(img).to_rgba8()
-    }
-
-    fn save_gui(&self, predimg: &PredImg) {
-        let img_data = image::DynamicImage::ImageRgba8(self.draw_gui(predimg)).to_rgb8();
-        let filename = export::prepare_export_img(&predimg.file_path);
-        img_data.save(&filename).unwrap();
     }
 
     fn show_timed_message(
@@ -693,23 +670,47 @@ impl Gui {
                         .pick_file()
                     {
                         let path_str = path.to_string_lossy().to_string();
-                        match VideofileProcessor::first_frame(&path_str) {
-                            Ok(frame) => {
+                        match VideofileProcessor::probe(&path_str) {
+                            Ok(probe) => {
+                                // Cap the preview to a sane width before the
+                                // RGB→RGBA copy + GPU upload. 1080p sources
+                                // are untouched; 4K (33 MB at full res) drops
+                                // to ~8 MB, and the preview panel is rarely
+                                // wider than this anyway.
+                                const PREVIEW_MAX_W: u32 = 1920;
+                                let display_rgb = if probe.first_frame.width() > PREVIEW_MAX_W {
+                                    let h = (probe.first_frame.height() as f32
+                                        * PREVIEW_MAX_W as f32
+                                        / probe.first_frame.width() as f32)
+                                        as u32;
+                                    image::imageops::resize(
+                                        &probe.first_frame,
+                                        PREVIEW_MAX_W,
+                                        h.max(1),
+                                        image::imageops::FilterType::Triangle,
+                                    )
+                                } else {
+                                    probe.first_frame
+                                };
                                 self.video_state.texture = imgbuf_to_texture(
-                                    &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
+                                    &image::DynamicImage::ImageRgb8(display_rgb).to_rgba8(),
                                     ui,
                                 );
-                                let processor = VideofileProcessor::new(&path_str);
                                 let pred_video = PredVideo::new_simple(
                                     path.clone(),
-                                    processor.width(),
-                                    processor.height(),
-                                    processor.fps(),
-                                    processor.get_n_frames(),
+                                    probe.width,
+                                    probe.height,
+                                    probe.fps,
+                                    probe.n_frames,
                                 );
                                 self.video_pred = Some(pred_video);
                                 self.video_thumbnails.clear();
-                                self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
+                                // Leave the streaming decoder unbuilt — the
+                                // analysis path lazy-creates one when the user
+                                // clicks Analyse (via `needs_fresh_decoder`).
+                                // This saves a second ffmpeg open + a thread
+                                // spawn at file-pick time.
+                                self.video_file_processor = Arc::new(Mutex::new(None));
                                 self.mode = Mode::Video;
                                 self.video_state.progress_bar = 0.0;
                                 self.video_playhead_frame = Some(0);
@@ -856,198 +857,6 @@ impl Gui {
         }
     }
 
-    fn start_img_analysis(&mut self) {
-        self.img_state.is_processing = true;
-        // process all, even if they were process before
-        if self.process_all_imgs {
-            self.selected_files
-                .iter_mut()
-                .for_each(|pred_img| pred_img.reset());
-        }
-        //  Async processing: Images
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.image_processing_receiver = Some(rx);
-
-        let copy_predigms = self.selected_files.clone();
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.img_state.cancel_sender = Some(cancel_tx);
-
-        let api_endpoint = self.get_endpoint();
-        let is_remote = !self.ep_selected.is_local();
-        tokio::spawn(async move {
-            for (i, predimg) in copy_predigms.iter().enumerate() {
-                if predimg.wasprocessed {
-                    continue;
-                }
-                // CHECK FOR CANCELLATION HERE
-                if cancel_rx.try_recv().is_ok() {
-                    break;
-                }
-                let bbox = if is_remote {
-                    let buffer = fs::read(&predimg.file_path).unwrap();
-                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
-                        Ok(result) => result,
-                        Err(_) => {
-                            break;
-                        }
-                    }
-                } else {
-                    let img = open(&predimg.file_path).unwrap().into_rgb8();
-                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
-                        .await
-                        .unwrap()
-                };
-
-                if tx.send((i, bbox)).is_err() {
-                    break;
-                }
-            }
-        });
-    }
-
-    fn process_all_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog == OpenDialog::ProcessAll {
-            egui::Window::new(self.t(Key::process_everything))
-                .collapsible(false)
-                .resizable(false)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        if ui.button(self.t(Key::yes)).clicked() {
-                            self.process_all_imgs = true;
-                            self.start_img_analysis();
-                            self.dialog = OpenDialog::None;
-                        }
-                        ui.add_space(8.0);
-                        if ui.button(self.t(Key::no_only_missing_data)).clicked() {
-                            self.process_all_imgs = false;
-                            self.start_img_analysis();
-                            self.dialog = OpenDialog::None;
-                        }
-                        ui.add_space(8.0);
-                        if ui.button(self.t(Key::cancel)).clicked() {
-                            self.dialog = OpenDialog::None;
-                        }
-                    });
-                });
-        }
-    }
-
-    fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.len() >= 1 && (self.is_image_model() || !self.ep_selected.is_local()) {
-            ui.vertical_centered(|ui| {
-                ui.heading(self.t(Key::image));
-                ui.heading(self.t(Key::analysis));
-            });
-            ui.separator();
-
-            // Analyze button Widget
-            ui.vertical_centered(|ui| {
-                if ui
-                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
-                    .clicked()
-                {
-                    if !self.img_state.is_processing {
-                        if self.selected_files.get_progress() == 0.0 {
-                            self.start_img_analysis();
-                        } else {
-                            self.dialog = OpenDialog::ProcessAll;
-                        }
-                    }
-                }
-
-                // Cancel button widget
-                if self.img_state.is_processing {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
-                        .clicked()
-                    {
-                        self.img_state.cancel();
-                        self.image_processing_receiver = None;
-                    }
-                }
-            });
-
-            // Progress Bar: Image
-            if self.selected_files.len() > 0 {
-                ui.add(
-                    egui::ProgressBar::new(self.img_state.progress_bar)
-                        .show_percentage()
-                        .animate(self.img_state.is_processing),
-                );
-            }
-
-            ui.add_space(8.0);
-
-            // Export button Widget
-            if self.mode == Mode::Image {
-                ui.vertical_centered(|ui| {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
-                        .clicked()
-                    {
-                        self.dialog = OpenDialog::Export;
-                    }
-                });
-            }
-
-            // Export dialog logic
-            if self.dialog == OpenDialog::Export {
-                egui::Window::new(self.t(Key::export))
-                    .collapsible(false)
-                    .resizable(false)
-                    .show(ui, |ui| {
-                        // Export option 1
-                        if ui.button(self.t(Key::export_predictions)).clicked() {
-                            for file in self.selected_files.clone() {
-                                tokio::spawn(async move {
-                                    let _ = file.write_pred_img_to_file().await;
-                                });
-                            }
-
-                            self.process_done();
-                            self.dialog = OpenDialog::None;
-                        }
-
-                        // Export option 2
-                        if ui
-                            .button(self.t(Key::export_imgs_with_predictions))
-                            .clicked()
-                        {
-                            for file in &self.selected_files {
-                                if file.wasprocessed {
-                                    self.save_gui(file);
-                                }
-                            }
-                            self.process_done();
-                            self.dialog = OpenDialog::None;
-                        }
-
-                        // Export option 3
-                        if ui.button(self.t(Key::copy_with_classification)).clicked() {
-                            let timestamp =
-                                chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                            tokio::spawn({
-                                let selected_files = self.selected_files.clone(); // Make sure it's Send + 'static
-                                let path = format!("export/export_{}", timestamp);
-                                async move {
-                                    let _ = export::copy_to_folder(&selected_files, &path).await;
-                                }
-                            });
-                            self.process_done();
-                            self.dialog = OpenDialog::None;
-                        }
-
-                        // Cancel any export
-                        if ui.button(self.t(Key::cancel)).clicked() {
-                            self.dialog = OpenDialog::None;
-                        }
-                    });
-            }
-
-            self.process_all_dialog(ui);
-        }
-    }
-
     fn start_feed_analysis(&mut self) {
         self.feed_state.is_processing = true;
         // Async processing: Video
@@ -1138,32 +947,6 @@ impl Gui {
                     }
                 }
             });
-        }
-    }
-
-    fn img_handle_results(&mut self, ui: &egui::Ui) {
-        if let Some(rx) = &mut self.image_processing_receiver {
-            let mut updates = Vec::new();
-            while let Ok((i, bbox)) = rx.try_recv() {
-                updates.push((i, bbox));
-            }
-
-            for (i, bbox) in updates {
-                self.selected_files[i].aioutput = Some(bbox);
-                self.selected_files[i].wasprocessed = true;
-                // if the img is the same that the user is seeing, we'll repaint it
-                if i == self.image_texture_n - 1 {
-                    self.paint(ui, i);
-                }
-            }
-
-            if self.selected_files.iter().all(|f| f.wasprocessed) {
-                self.img_state.is_processing = false;
-                self.image_processing_receiver = None;
-            }
-
-            self.img_state.progress_bar = self.selected_files.get_progress();
-            ui.request_repaint();
         }
     }
 
@@ -1288,30 +1071,7 @@ impl eframe::App for Gui {
             }
             egui::ScrollArea::vertical().show(ui, |ui| match self.mode {
                 Mode::Image => {
-                    ui.style_mut().spacing.slider_width = 300.0;
-                    if self.selected_files.len() > 1 {
-                        let images_slider = ui.add(
-                            egui::Slider::new(
-                                &mut self.image_texture_n,
-                                1..=self.selected_files.len(),
-                            )
-                            .text(""),
-                        );
-
-                        if images_slider.changed() {
-                            self.paint(ui, self.image_texture_n - 1);
-                        }
-                    }
-
-                    if let Some(texture) = &self.img_state.texture {
-                        ui.add(
-                            egui::Image::new(texture)
-                                .max_height(800.0)
-                                .corner_radius(10.0),
-                        );
-                    }
-
-                    self.img_handle_results(ui);
+                    self.ui_image(ui);
                 }
                 Mode::Video => {
                     self.ui_video(ui);

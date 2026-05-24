@@ -1,0 +1,922 @@
+use super::{imgbuf_to_texture, Gui, Mode, OpenDialog};
+use crate::api::abstractions::*;
+use crate::api::bq::process_imgbuf;
+use crate::api::export;
+use crate::api::render::*;
+use crate::api::rest::detect_remotely;
+use crate::localization::*;
+use image::{ImageBuffer, Rgba};
+use std::fs;
+
+const MIN_PREVIEW_H: f32 = 240.0;
+const SIDE_PANEL_W: f32 = 240.0;
+
+impl Gui {
+    // ---------- texture loading ----------
+
+    pub(super) fn paint(&mut self, ui: &egui::Ui, i: usize) {
+        let Some(predimg) = self.selected_files.get(i) else { return; };
+        let Ok(loaded) = image::open(&predimg.file_path) else { return; };
+        let img = loaded.into_rgba8();
+        self.img_state.texture = imgbuf_to_texture(&img, ui);
+    }
+
+    fn draw_gui(&self, predimg: &PredImg) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+        let mut img = image::open(&predimg.file_path).unwrap().into_rgb8();
+        if predimg.wasprocessed {
+            if predimg.aioutput.as_ref().unwrap().is_empty() {
+                draw_no_predictions(&mut img, Some(&self.lang));
+            } else {
+                draw_aioutput(&mut img, predimg.aioutput.as_ref().unwrap());
+            }
+        }
+        image::DynamicImage::ImageRgb8(img).to_rgba8()
+    }
+
+    pub(super) fn save_gui(&self, predimg: &PredImg) {
+        let img_data = image::DynamicImage::ImageRgba8(self.draw_gui(predimg)).to_rgb8();
+        let filename = export::prepare_export_img(&predimg.file_path);
+        img_data.save(&filename).unwrap();
+    }
+
+    // ---------- analysis lifecycle ----------
+
+    pub(super) fn start_img_analysis(&mut self) {
+        self.img_state.is_processing = true;
+        if self.process_all_imgs {
+            self.selected_files
+                .iter_mut()
+                .for_each(|pred_img| pred_img.reset());
+        }
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.image_processing_receiver = Some(rx);
+
+        let copy_predigms = self.selected_files.clone();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.img_state.cancel_sender = Some(cancel_tx);
+
+        let api_endpoint = self.get_endpoint();
+        let is_remote = !self.ep_selected.is_local();
+        tokio::spawn(async move {
+            for (i, predimg) in copy_predigms.iter().enumerate() {
+                if predimg.wasprocessed {
+                    continue;
+                }
+                if cancel_rx.try_recv().is_ok() {
+                    break;
+                }
+                let bbox = if is_remote {
+                    let buffer = fs::read(&predimg.file_path).unwrap();
+                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                        Ok(result) => result,
+                        Err(_) => break,
+                    }
+                } else {
+                    let img = image::open(&predimg.file_path).unwrap().into_rgb8();
+                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
+                        .await
+                        .unwrap()
+                };
+
+                if tx.send((i, bbox)).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
+    pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
+        let Some(rx) = self.image_processing_receiver.as_mut() else { return; };
+
+        let mut updates = Vec::new();
+        while let Ok((i, bbox)) = rx.try_recv() {
+            updates.push((i, bbox));
+        }
+
+        for (i, bbox) in updates {
+            self.selected_files[i].aioutput = Some(bbox);
+            self.selected_files[i].wasprocessed = true;
+            if i == self.image_texture_n - 1 {
+                self.paint(ui, i);
+            }
+        }
+
+        if self.selected_files.iter().all(|f| f.wasprocessed) {
+            self.img_state.is_processing = false;
+            self.image_processing_receiver = None;
+        }
+
+        self.img_state.progress_bar = self.selected_files.get_progress();
+        ui.request_repaint();
+    }
+
+    pub(super) fn process_all_dialog(&mut self, ui: &egui::Ui) {
+        if self.dialog != OpenDialog::ProcessAll {
+            return;
+        }
+        egui::Window::new(self.t(Key::process_everything))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(self.t(Key::yes)).clicked() {
+                        self.process_all_imgs = true;
+                        self.start_img_analysis();
+                        self.dialog = OpenDialog::None;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::no_only_missing_data)).clicked() {
+                        self.process_all_imgs = false;
+                        self.start_img_analysis();
+                        self.dialog = OpenDialog::None;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.dialog = OpenDialog::None;
+                    }
+                });
+            });
+    }
+
+    // ---------- left-panel widget (Analyze / Export) ----------
+
+    pub(super) fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
+        if self.selected_files.is_empty()
+            || !(self.is_image_model() || !self.ep_selected.is_local())
+        {
+            return;
+        }
+
+        ui.vertical_centered(|ui| {
+            ui.heading(self.t(Key::image));
+            ui.heading(self.t(Key::analysis));
+        });
+        ui.separator();
+
+        ui.vertical_centered(|ui| {
+            if ui
+                .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
+                .clicked()
+                && !self.img_state.is_processing
+            {
+                if self.selected_files.get_progress() == 0.0 {
+                    self.start_img_analysis();
+                } else {
+                    self.dialog = OpenDialog::ProcessAll;
+                }
+            }
+
+            if self.img_state.is_processing
+                && ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
+                    .clicked()
+            {
+                self.img_state.cancel();
+                self.image_processing_receiver = None;
+            }
+        });
+
+        ui.add(
+            egui::ProgressBar::new(self.img_state.progress_bar)
+                .show_percentage()
+                .animate(self.img_state.is_processing),
+        );
+
+        ui.add_space(8.0);
+
+        if self.mode == Mode::Image {
+            ui.vertical_centered(|ui| {
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
+                    .clicked()
+                {
+                    self.dialog = OpenDialog::Export;
+                }
+            });
+        }
+
+        if self.dialog == OpenDialog::Export && self.mode == Mode::Image {
+            egui::Window::new(self.t(Key::export))
+                .collapsible(false)
+                .resizable(false)
+                .show(ui, |ui| {
+                    if ui.button(self.t(Key::export_predictions)).clicked() {
+                        for file in self.selected_files.clone() {
+                            tokio::spawn(async move {
+                                let _ = file.write_pred_img_to_file().await;
+                            });
+                        }
+                        self.process_done();
+                        self.dialog = OpenDialog::None;
+                    }
+
+                    if ui
+                        .button(self.t(Key::export_imgs_with_predictions))
+                        .clicked()
+                    {
+                        for file in &self.selected_files {
+                            if file.wasprocessed {
+                                self.save_gui(file);
+                            }
+                        }
+                        self.process_done();
+                        self.dialog = OpenDialog::None;
+                    }
+
+                    if ui.button(self.t(Key::copy_with_classification)).clicked() {
+                        let timestamp =
+                            chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+                        tokio::spawn({
+                            let selected_files = self.selected_files.clone();
+                            let path = format!("export/export_{}", timestamp);
+                            async move {
+                                let _ = export::copy_to_folder(&selected_files, &path).await;
+                            }
+                        });
+                        self.process_done();
+                        self.dialog = OpenDialog::None;
+                    }
+
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.dialog = OpenDialog::None;
+                    }
+                });
+        }
+
+        self.process_all_dialog(ui);
+    }
+
+    // ---------- main image viewer ----------
+
+    pub(super) fn ui_image(&mut self, ui: &mut egui::Ui) {
+        if self.selected_files.is_empty() {
+            return;
+        }
+        let n = self.selected_files.len();
+        if self.image_texture_n < 1 {
+            self.image_texture_n = 1;
+        }
+        if self.image_texture_n > n {
+            self.image_texture_n = n;
+        }
+
+        self.draw_image_header(ui, n);
+
+        let i = self.image_texture_n - 1;
+        let is_classification = matches!(
+            self.selected_files[i].aioutput.as_ref(),
+            Some(AIOutputs::Classification(_))
+        );
+        let has_non_empty_output = self.selected_files[i].wasprocessed
+            && self
+                .selected_files[i]
+                .aioutput
+                .as_ref()
+                .map(|a| !a.is_empty())
+                .unwrap_or(false);
+        let show_side_panel = is_classification && has_non_empty_output;
+
+        let avail = ui.available_size_before_wrap();
+        let side_gap = if show_side_panel { 12.0 } else { 0.0 };
+        let side_w = if show_side_panel {
+            SIDE_PANEL_W.min((avail.x * 0.32).max(180.0))
+        } else {
+            0.0
+        };
+        let preview_w = (avail.x - side_w - side_gap).max(200.0);
+        let preview_h = (avail.y - 8.0).max(MIN_PREVIEW_H);
+
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_max_width(preview_w);
+                self.draw_image_preview(ui, preview_w, preview_h);
+            });
+
+            if show_side_panel {
+                ui.add_space(side_gap);
+                ui.vertical(|ui| {
+                    ui.set_max_width(side_w);
+                    self.draw_classification_panel(ui);
+                });
+            }
+        });
+
+        self.img_handle_results(ui);
+    }
+
+    fn draw_image_header(&mut self, ui: &mut egui::Ui, n: usize) {
+        let mut new_index = self.image_texture_n;
+
+        ui.horizontal_wrapped(|ui| {
+            if n > 1 {
+                let prev_enabled = new_index > 1;
+                ui.add_enabled_ui(prev_enabled, |ui| {
+                    if ui.button("⏮").on_hover_text("Previous image").clicked() {
+                        new_index = new_index.saturating_sub(1).max(1);
+                    }
+                });
+                let next_enabled = new_index < n;
+                ui.add_enabled_ui(next_enabled, |ui| {
+                    if ui.button("⏭").on_hover_text("Next image").clicked() {
+                        new_index = (new_index + 1).min(n);
+                    }
+                });
+                ui.separator();
+            }
+            let predimg = &self.selected_files[new_index - 1];
+            let name = predimg
+                .file_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("(unknown)");
+            ui.label(egui::RichText::new(name).strong());
+            if n > 1 {
+                ui.label(
+                    egui::RichText::new(format!("·  {} / {}", new_index, n)).weak(),
+                );
+            }
+
+            if predimg.wasprocessed {
+                if let Some(aio) = predimg.aioutput.as_ref() {
+                    if let Some(summary) = summary_line(aio) {
+                        ui.separator();
+                        ui.label(egui::RichText::new(summary).strong());
+                    }
+                }
+            } else {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new("not analysed")
+                        .weak()
+                        .small(),
+                );
+            }
+        });
+
+        if n > 1 {
+            let slider_w = (ui.available_width() - 16.0).max(200.0);
+            ui.spacing_mut().slider_width = slider_w;
+            ui.add(egui::Slider::new(&mut new_index, 1..=n).text(""));
+        }
+
+        if new_index != self.image_texture_n {
+            self.image_texture_n = new_index;
+            self.paint(ui, new_index - 1);
+        }
+    }
+
+    fn draw_image_preview(
+        &mut self,
+        ui: &mut egui::Ui,
+        max_w: f32,
+        max_h: f32,
+    ) {
+        let Some(tex) = self.img_state.texture.clone() else {
+            // Placeholder while the texture isn't ready yet.
+            let (rect, _) = ui.allocate_exact_size(
+                egui::vec2(max_w, max_h.min(MIN_PREVIEW_H)),
+                egui::Sense::hover(),
+            );
+            let bg = if ui.visuals().dark_mode {
+                egui::Color32::from_rgb(28, 32, 36)
+            } else {
+                egui::Color32::from_rgb(228, 230, 234)
+            };
+            ui.painter().rect_filled(rect, 8.0, bg);
+            return;
+        };
+
+        let tex_size = tex.size_vec2();
+        if tex_size.x < 1.0 || tex_size.y < 1.0 {
+            return;
+        }
+        let scale = (max_w / tex_size.x).min(max_h / tex_size.y).min(1.0);
+        let disp_w = (tex_size.x * scale).max(1.0);
+        let disp_h = (tex_size.y * scale).max(1.0);
+
+        ui.vertical_centered(|ui| {
+            let img_resp = ui.add(
+                egui::Image::new(&tex)
+                    .max_size(egui::vec2(disp_w, disp_h))
+                    .corner_radius(8.0),
+            );
+
+            let i = self.image_texture_n - 1;
+            let predimg = &self.selected_files[i];
+
+            if predimg.wasprocessed {
+                match predimg.aioutput.as_ref() {
+                    Some(aio) if !aio.is_empty() => {
+                        draw_image_overlay(ui, &img_resp, aio, tex_size);
+                    }
+                    Some(_) => {
+                        draw_empty_predictions_chip(ui, &img_resp);
+                    }
+                    None => {}
+                }
+            }
+        });
+    }
+
+    fn draw_classification_panel(&self, ui: &mut egui::Ui) {
+        let i = self.image_texture_n - 1;
+        let probs = match self.selected_files[i].aioutput.as_ref() {
+            Some(AIOutputs::Classification(probs)) => probs,
+            _ => return,
+        };
+        if probs.is_empty() {
+            ui.label(egui::RichText::new("no predictions").weak());
+            return;
+        }
+
+        ui.vertical(|ui| {
+            ui.label(egui::RichText::new("Predictions").heading());
+            ui.add_space(4.0);
+
+            let mut ranked: Vec<&Prob> = probs.iter().collect();
+            ranked.sort_by(|a, b| {
+                b.prob
+                    .partial_cmp(&a.prob)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
+            let dark = ui.visuals().dark_mode;
+            let track_color = if dark {
+                egui::Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+            } else {
+                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 18)
+            };
+            let bar_h: f32 = 22.0;
+
+            for (rank, p) in ranked.iter().enumerate() {
+                let c = class_color(p.class_id);
+                let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("■").color(color).monospace());
+                    let label_text = if rank == 0 {
+                        egui::RichText::new(&p.label).strong()
+                    } else {
+                        egui::RichText::new(&p.label)
+                    };
+                    ui.label(label_text);
+                });
+
+                let (rect, _) = ui.allocate_exact_size(
+                    egui::vec2(ui.available_width().max(80.0), bar_h),
+                    egui::Sense::hover(),
+                );
+                let painter = ui.painter();
+                painter.rect_filled(rect, 4.0, track_color);
+                let fill_w = rect.width() * p.prob.clamp(0.0, 1.0);
+                let fill_rect = egui::Rect::from_min_size(
+                    rect.min,
+                    egui::vec2(fill_w.max(1.0), rect.height()),
+                );
+                painter.rect_filled(fill_rect, 4.0, color);
+                let txt = format!("{:.1}%", p.prob * 100.0);
+                let galley = painter.layout_no_wrap(
+                    txt,
+                    egui::FontId::proportional(12.0),
+                    egui::Color32::WHITE,
+                );
+                let inside_fill = galley.size().x + 10.0 < fill_w;
+                let text_x = if inside_fill {
+                    fill_rect.right() - galley.size().x - 6.0
+                } else {
+                    fill_rect.right() + 6.0
+                };
+                let text_color = if inside_fill {
+                    egui::Color32::WHITE
+                } else if dark {
+                    egui::Color32::from_gray(220)
+                } else {
+                    egui::Color32::from_gray(40)
+                };
+                painter.galley(
+                    egui::pos2(
+                        text_x,
+                        rect.center().y - galley.size().y / 2.0,
+                    ),
+                    galley,
+                    text_color,
+                );
+
+                ui.add_space(4.0);
+            }
+        });
+    }
+}
+
+// ---------- free helpers ----------
+
+fn summary_line(aio: &AIOutputs) -> Option<String> {
+    match aio {
+        AIOutputs::ObjectDetection(b) if b.is_empty() => Some("no detections".into()),
+        AIOutputs::ObjectDetection(b) => {
+            let top = b.iter().max_by(|a, c| {
+                a.xyxy
+                    .prob
+                    .partial_cmp(&c.xyxy.prob)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })?;
+            let noun = if b.len() == 1 { "detection" } else { "detections" };
+            Some(format!(
+                "{} {}  ·  top: {} {:.0}%",
+                b.len(),
+                noun,
+                top.label,
+                top.xyxy.prob * 100.0
+            ))
+        }
+        AIOutputs::Segmentation(s) if s.is_empty() => Some("no segments".into()),
+        AIOutputs::Segmentation(s) => {
+            let top = s.iter().max_by(|a, c| {
+                a.bbox
+                    .xyxy
+                    .prob
+                    .partial_cmp(&c.bbox.xyxy.prob)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })?;
+            let noun = if s.len() == 1 { "segment" } else { "segments" };
+            Some(format!(
+                "{} {}  ·  top: {} {:.0}%",
+                s.len(),
+                noun,
+                top.bbox.label,
+                top.bbox.xyxy.prob * 100.0
+            ))
+        }
+        AIOutputs::Classification(p) => {
+            let top = p.iter().max_by(|a, c| {
+                a.prob
+                    .partial_cmp(&c.prob)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })?;
+            Some(format!(
+                "classification  ·  {} {:.0}%",
+                top.label,
+                top.prob * 100.0
+            ))
+        }
+        AIOutputs::AudioClassification(_) => None,
+    }
+}
+
+fn bbox_screen_rect(
+    b: &XYXYc,
+    origin: egui::Pos2,
+    scale: egui::Vec2,
+) -> egui::Rect {
+    egui::Rect::from_min_max(
+        egui::pos2(
+            origin.x + b.xyxy.x1 * scale.x,
+            origin.y + b.xyxy.y1 * scale.y,
+        ),
+        egui::pos2(
+            origin.x + b.xyxy.x2 * scale.x,
+            origin.y + b.xyxy.y2 * scale.y,
+        ),
+    )
+}
+
+fn draw_image_overlay(
+    ui: &egui::Ui,
+    img_resp: &egui::Response,
+    aio: &AIOutputs,
+    original_size: egui::Vec2,
+) {
+    let rect = img_resp.rect;
+    if rect.width() < 1.0 || rect.height() < 1.0 {
+        return;
+    }
+    let scale = egui::vec2(
+        rect.width() / original_size.x.max(1.0),
+        rect.height() / original_size.y.max(1.0),
+    );
+    let hover_pos = img_resp.hover_pos();
+    let painter = ui.painter_at(rect);
+
+    match aio {
+        AIOutputs::ObjectDetection(bboxes) => {
+            let hovered = pick_hovered_bbox(bboxes, hover_pos, rect.min, scale);
+            for (idx, b) in bboxes.iter().enumerate() {
+                draw_box_with_label(
+                    &painter,
+                    rect,
+                    bbox_screen_rect(b, rect.min, scale),
+                    bbox_color_id(b),
+                    &b.label,
+                    b.xyxy.prob,
+                    Some(idx) == hovered,
+                    false,
+                );
+            }
+            if let Some(idx) = hovered {
+                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                    bbox_tooltip_ui(ui, &bboxes[idx]);
+                });
+            }
+        }
+        AIOutputs::Segmentation(segs) => {
+            let hovered = pick_hovered_seg(segs, hover_pos, rect.min, scale);
+            for (idx, s) in segs.iter().enumerate() {
+                draw_box_with_label(
+                    &painter,
+                    rect,
+                    bbox_screen_rect(&s.bbox, rect.min, scale),
+                    bbox_color_id(&s.bbox),
+                    &s.bbox.label,
+                    s.bbox.xyxy.prob,
+                    Some(idx) == hovered,
+                    true,
+                );
+            }
+            if let Some(idx) = hovered {
+                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                    seg_tooltip_ui(ui, &segs[idx]);
+                });
+            }
+        }
+        AIOutputs::Classification(probs) => {
+            draw_classification_ribbon(&painter, rect, probs);
+            img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                classification_tooltip_ui(ui, probs);
+            });
+        }
+        AIOutputs::AudioClassification(_) => {}
+    }
+}
+
+fn pick_hovered_bbox(
+    bboxes: &[XYXYc],
+    hover_pos: Option<egui::Pos2>,
+    origin: egui::Pos2,
+    scale: egui::Vec2,
+) -> Option<usize> {
+    let p = hover_pos?;
+    let mut best: Option<(usize, f32)> = None;
+    for (idx, b) in bboxes.iter().enumerate() {
+        let r = bbox_screen_rect(b, origin, scale);
+        if r.contains(p) {
+            let area = r.width() * r.height();
+            if best.map_or(true, |(_, a)| area < a) {
+                best = Some((idx, area));
+            }
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
+fn pick_hovered_seg(
+    segs: &[SEGc],
+    hover_pos: Option<egui::Pos2>,
+    origin: egui::Pos2,
+    scale: egui::Vec2,
+) -> Option<usize> {
+    let p = hover_pos?;
+    let mut best: Option<(usize, f32)> = None;
+    for (idx, s) in segs.iter().enumerate() {
+        let r = bbox_screen_rect(&s.bbox, origin, scale);
+        if r.contains(p) {
+            let area = r.width() * r.height();
+            if best.map_or(true, |(_, a)| area < a) {
+                best = Some((idx, area));
+            }
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
+fn bbox_color_id(b: &XYXYc) -> u32 {
+    b.extra_cls
+        .as_ref()
+        .and_then(|c| c.top())
+        .map(|p| p.class_id)
+        .unwrap_or(b.xyxy.class_id)
+}
+
+fn draw_box_with_label(
+    painter: &egui::Painter,
+    clip: egui::Rect,
+    r: egui::Rect,
+    class_id: u32,
+    label: &str,
+    prob: f32,
+    hovered: bool,
+    is_segment: bool,
+) {
+    let c = class_color(class_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+
+    if is_segment {
+        let fill_alpha = if hovered { 90 } else { 50 };
+        let fill = egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], fill_alpha);
+        painter.rect_filled(r, 2.0, fill);
+    }
+
+    let stroke_w = if hovered { 3.0 } else { 1.8 };
+    painter.rect_stroke(
+        r,
+        2.0,
+        egui::Stroke::new(stroke_w, color),
+        egui::StrokeKind::Inside,
+    );
+
+    let text = format!("{}  {:.0}%", label, prob * 100.0);
+    let font = egui::FontId::proportional(12.0);
+    let galley = painter.layout_no_wrap(text, font, egui::Color32::WHITE);
+    let label_w = galley.size().x + 8.0;
+    let label_h = galley.size().y + 4.0;
+
+    if r.width() >= label_w * 0.6 {
+        let y = if r.min.y - label_h >= clip.min.y {
+            r.min.y - label_h
+        } else {
+            r.min.y
+        };
+        let bg = egui::Rect::from_min_size(
+            egui::pos2(r.min.x, y),
+            egui::vec2(label_w.min(r.width().max(label_w)), label_h),
+        );
+        painter.rect_filled(bg, 2.0, color);
+        painter.galley(
+            bg.min + egui::vec2(4.0, 2.0),
+            galley,
+            egui::Color32::WHITE,
+        );
+    }
+}
+
+fn draw_classification_ribbon(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    probs: &[Prob],
+) {
+    if probs.is_empty() {
+        return;
+    }
+    let mut ranked: Vec<&Prob> = probs.iter().collect();
+    ranked.sort_by(|a, b| {
+        b.prob
+            .partial_cmp(&a.prob)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let pad = 8.0;
+    let chip_h = 24.0;
+    let font = egui::FontId::proportional(13.0);
+    let mut x = rect.min.x + pad;
+    let y = rect.min.y + pad;
+    let max_x = rect.max.x - pad;
+
+    for p in ranked.iter().take(3) {
+        let c = class_color(p.class_id);
+        let bg = egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 230);
+        let text = format!("{}  {:.0}%", p.label, p.prob * 100.0);
+        let galley = painter.layout_no_wrap(text, font.clone(), egui::Color32::WHITE);
+        let w = galley.size().x + 14.0;
+        if x + w > max_x {
+            break;
+        }
+        let chip = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, chip_h));
+        painter.rect_filled(chip, 12.0, bg);
+        painter.galley(
+            chip.min + egui::vec2(7.0, (chip_h - galley.size().y) / 2.0),
+            galley,
+            egui::Color32::WHITE,
+        );
+        x += w + 6.0;
+    }
+}
+
+fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response) {
+    let painter = ui.painter_at(img_resp.rect);
+    let text = "no predictions";
+    let galley = painter.layout_no_wrap(
+        text.into(),
+        egui::FontId::proportional(13.0),
+        egui::Color32::WHITE,
+    );
+    let pad = 8.0;
+    let chip_h = 24.0;
+    let chip_w = galley.size().x + 14.0;
+    let bg = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180);
+    let pos = egui::pos2(img_resp.rect.min.x + pad, img_resp.rect.min.y + pad);
+    let chip = egui::Rect::from_min_size(pos, egui::vec2(chip_w, chip_h));
+    painter.rect_filled(chip, 12.0, bg);
+    painter.galley(
+        chip.min + egui::vec2(7.0, (chip_h - galley.size().y) / 2.0),
+        galley,
+        egui::Color32::WHITE,
+    );
+}
+
+fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc) {
+    let cls_id = bbox_color_id(b);
+    let c = class_color(cls_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(egui::RichText::new(&b.label).strong());
+    });
+    ui.label(format!("{:.0}% confidence", b.xyxy.prob * 100.0));
+    let w = (b.xyxy.x2 - b.xyxy.x1).max(0.0).round() as i32;
+    let h = (b.xyxy.y2 - b.xyxy.y1).max(0.0).round() as i32;
+    ui.label(
+        egui::RichText::new(format!("{} × {} px", w, h))
+            .weak()
+            .small(),
+    );
+
+    if let Some(extras) = b.extra_cls.as_ref() {
+        if !extras.is_empty() {
+            ui.separator();
+            ui.label(egui::RichText::new("Refined").strong());
+            let mut sorted: Vec<&Prob> = extras.iter().collect();
+            sorted.sort_by(|a, b| {
+                b.prob
+                    .partial_cmp(&a.prob)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            for p in sorted.iter().take(4) {
+                tooltip_row(ui, p.class_id, &p.label, p.prob);
+            }
+        }
+    }
+}
+
+fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc) {
+    let cls_id = bbox_color_id(&s.bbox);
+    let c = class_color(cls_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(egui::RichText::new(&s.bbox.label).strong());
+        ui.label(
+            egui::RichText::new("· segment")
+                .weak()
+                .small(),
+        );
+    });
+    ui.label(format!("{:.0}% confidence", s.bbox.xyxy.prob * 100.0));
+    let w = (s.bbox.xyxy.x2 - s.bbox.xyxy.x1).max(0.0).round() as i32;
+    let h = (s.bbox.xyxy.y2 - s.bbox.xyxy.y1).max(0.0).round() as i32;
+    ui.label(
+        egui::RichText::new(format!("bbox {} × {} px", w, h))
+            .weak()
+            .small(),
+    );
+    ui.label(
+        egui::RichText::new(format!("mask {} × {}", s.mask.width, s.mask.height))
+            .weak()
+            .small(),
+    );
+
+    if let Some(extras) = s.bbox.extra_cls.as_ref() {
+        if !extras.is_empty() {
+            ui.separator();
+            ui.label(egui::RichText::new("Refined").strong());
+            let mut sorted: Vec<&Prob> = extras.iter().collect();
+            sorted.sort_by(|a, b| {
+                b.prob
+                    .partial_cmp(&a.prob)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            for p in sorted.iter().take(4) {
+                tooltip_row(ui, p.class_id, &p.label, p.prob);
+            }
+        }
+    }
+}
+
+fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob]) {
+    if probs.is_empty() {
+        ui.label(egui::RichText::new("(no classification)").weak());
+        return;
+    }
+    ui.label(egui::RichText::new("Classification").strong());
+    let mut sorted: Vec<&Prob> = probs.iter().collect();
+    sorted.sort_by(|a, b| {
+        b.prob
+            .partial_cmp(&a.prob)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    for p in sorted.iter().take(6) {
+        tooltip_row(ui, p.class_id, &p.label, p.prob);
+    }
+    if probs.len() > 6 {
+        ui.label(
+            egui::RichText::new(format!("…and {} more", probs.len() - 6)).weak(),
+        );
+    }
+}
+
+fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
+    let c = class_color(class_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(format!("{} — {:.0}%", label, prob * 100.0));
+    });
+}
