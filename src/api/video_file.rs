@@ -3,25 +3,9 @@ use super::utils::{rgb_frame_to_imgbuf, SendScaler};
 use ffmpeg_next as ffmpeg;
 use ffmpeg_next::Rescale;
 use image::{ImageBuffer, Rgb};
-use std::{
-    iter::Iterator,
-    path::{Path, PathBuf},
-};
+use std::{iter::Iterator, path::Path};
 
 pub type Time = i64;
-
-pub fn get_output_path(file_path: &str) -> PathBuf {
-    let path = Path::new(file_path);
-    let file_name = path
-        .file_name()
-        .map(|name| format!("predict_{}", name.to_string_lossy()))
-        .unwrap_or_else(|| "predict_output".to_string());
-
-    match path.parent() {
-        Some(parent) => parent.join(file_name),
-        None => PathBuf::from(file_name),
-    }
-}
 
 /// Decoded video frame paired with its ordinal frame index (0-based).
 struct DecodedFrame {

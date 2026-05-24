@@ -207,7 +207,8 @@ impl Gui {
                                 let _ = file.write_pred_img_to_file().await;
                             });
                         }
-                        self.process_done();
+                        let msg = self.t(Key::saved_next_to_originals).to_string();
+                        self.process_done_with(msg);
                         self.dialog = OpenDialog::None;
                     }
 
@@ -220,21 +221,7 @@ impl Gui {
                                 self.save_gui(file);
                             }
                         }
-                        self.process_done();
-                        self.dialog = OpenDialog::None;
-                    }
-
-                    if ui.button(self.t(Key::copy_with_classification)).clicked() {
-                        let timestamp =
-                            chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                        tokio::spawn({
-                            let selected_files = self.selected_files.clone();
-                            let path = format!("export/export_{}", timestamp);
-                            async move {
-                                let _ = export::copy_to_folder(&selected_files, &path).await;
-                            }
-                        });
-                        self.process_done();
+                        self.process_done_at(format!("{}/", export::EXPORT_DIR));
                         self.dialog = OpenDialog::None;
                     }
 

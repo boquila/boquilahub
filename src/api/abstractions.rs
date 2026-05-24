@@ -194,6 +194,50 @@ impl AudioProbSugar for Vec<AudioProb> {
     }
 }
 
+#[derive(Clone)]
+pub struct PredAudio {
+    pub file_path: std::path::PathBuf,
+    pub aioutput: Option<AIOutputs>,
+    pub wasprocessed: bool,
+}
+
+impl PredAudio {
+    pub fn new_simple(file_path: std::path::PathBuf) -> Self {
+        let aioutput = match Self::create_predictions_file_path(&file_path) {
+            Ok(path) if path.exists() => AIOutputs::from_file(path).ok(),
+            _ => None,
+        };
+        let wasprocessed = aioutput.is_some();
+
+        PredAudio {
+            file_path,
+            aioutput,
+            wasprocessed,
+        }
+    }
+
+    fn create_predictions_file_path(input_path: impl AsRef<std::path::Path>) -> std::io::Result<std::path::PathBuf> {
+        let input_path = input_path.as_ref();
+        let file_stem = input_path
+            .file_stem()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path"))?
+            .to_str()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path"))?;
+        Ok(input_path.with_file_name(format!("{}_predictions.json", file_stem)))
+    }
+
+    pub fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
+        Self::create_predictions_file_path(&self.file_path)
+    }
+
+    pub fn audio_predictions(&self) -> Option<&[AudioProb]> {
+        match self.aioutput.as_ref() {
+            Some(AIOutputs::AudioClassification(p)) => Some(p),
+            _ => None,
+        }
+    }
+}
+
 /// A video that has been (or will be) analyzed frame by frame.
 ///
 /// `frames[i]` is the prediction for frame `i`:

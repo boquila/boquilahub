@@ -113,14 +113,13 @@ struct Gui {
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
     selected_files: Vec<PredImg>,
-    audio_file_path: Option<PathBuf>,
+    pred_audio: Option<PredAudio>,
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
     audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
     audio_tex_dims: Option<(usize, usize)>,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
-    audio_predictions: Option<Vec<AudioProb>>,
     audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
     audio_playing: bool,
     audio_play_start: Option<Instant>,
@@ -147,6 +146,7 @@ struct Gui {
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
     video_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<AnalysisFrame>>,
     video_export_receiver: Option<std::sync::mpsc::Receiver<ExportProgress>>,
+    video_export_path: Option<String>,
     video_playhead_frame: Option<u64>,
     video_playing: bool,
     video_play_start: Option<Instant>,
@@ -156,6 +156,9 @@ struct Gui {
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
     done_time: Option<Instant>,
     error_time: Option<Instant>,
+    // Optional override for the "Done" toast — used to surface the export
+    // path so the user isn't left guessing where their files landed.
+    done_message: Option<String>,
 
     // Model Configurations
     ai_config: ModelConfig,
@@ -271,6 +274,18 @@ impl Gui {
 
     fn process_done(&mut self) {
         self.done_time = Some(Instant::now());
+        self.done_message = None;
+    }
+
+    fn process_done_at(&mut self, location: impl Into<String>) {
+        self.done_time = Some(Instant::now());
+        let prefix = self.t(Key::saved_to);
+        self.done_message = Some(format!("✅ {} {}", prefix, location.into()));
+    }
+
+    fn process_done_with(&mut self, message: impl Into<String>) {
+        self.done_time = Some(Instant::now());
+        self.done_message = Some(format!("✅ {}", message.into()));
     }
 
     fn process_error(&mut self) {
@@ -297,9 +312,10 @@ impl Gui {
         time: &mut Option<std::time::Instant>,
         ui: &mut egui::Ui,
         message: &str,
+        duration_secs: f32,
     ) {
         if let Some(start_time) = *time {
-            if start_time.elapsed().as_secs_f32() < 3.0 {
+            if start_time.elapsed().as_secs_f32() < duration_secs {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                     ui.label(message);
                 });
@@ -311,15 +327,19 @@ impl Gui {
     }
 
     fn show_done_message(&mut self, ui: &mut egui::Ui) {
-        let message = &self.t(Key::done);
+        let default = self.t(Key::done);
+        let message: &str = self.done_message.as_deref().unwrap_or(default);
+        // Path-bearing toasts need long enough to actually be read; the plain
+        // "Done" toast was 3s and felt fine, but a file path requires more.
+        let duration = if self.done_message.is_some() { 10.0 } else { 3.0 };
         let time = &mut self.done_time;
-        Gui::show_timed_message(time, ui, message);
+        Gui::show_timed_message(time, ui, message, duration);
     }
 
     fn show_error_message(&mut self, ui: &mut egui::Ui) {
         let message = &self.t(Key::error_ocurred);
         let time = &mut self.error_time;
-        Gui::show_timed_message(time, ui, message);
+        Gui::show_timed_message(time, ui, message, 3.0);
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
@@ -413,8 +433,7 @@ impl Gui {
                     GlobalBQ::Second.clear();
                     if self.audio_data.is_none() {
                         self.audio_data = None;
-                        self.audio_file_path = None;
-                        self.audio_predictions = None;
+                        self.pred_audio = None;
                     }
                     // Mel params may differ for the new audio model — invalidate cache.
                     self.audio_full_mel = None;
@@ -706,6 +725,8 @@ impl Gui {
                                     probe.fps,
                                     probe.n_frames,
                                 );
+                                let has_cached_predictions = pred_video.wasprocessed
+                                    && pred_video.processed_count() > 0;
                                 self.video_pred = Some(pred_video);
                                 self.video_thumbnails.clear();
                                 // Leave the streaming decoder unbuilt — the
@@ -719,6 +740,12 @@ impl Gui {
                                 self.video_playhead_frame = Some(0);
                                 self.video_last_displayed_frame = None;
                                 self.video_playing = false;
+                                // Sidecar predictions were loaded — decode the
+                                // video once to populate thumbnails so playback
+                                // works without re-running the model.
+                                if has_cached_predictions {
+                                    self.start_video_thumbnail_regen();
+                                }
                             }
                             Err(_) => {
                                 self.process_error();
@@ -753,14 +780,13 @@ impl Gui {
                                 let mono = audio_data.to_mono();
                                 let dur = mono.duration();
                                 self.audio_data = Some(mono);
-                                self.audio_file_path = Some(path);
+                                self.pred_audio = Some(PredAudio::new_simple(path));
                                 self.audio_full_mel = None;
                                 self.audio_mel_meta = None;
                                 self.audio_tex_dims = None;
                                 self.audio_view_range = (0.0, dur.max(0.1));
                                 self.audio_view_range_dirty = true;
                                 self.audio_state.texture = None;
-                                self.audio_predictions = None;
                                 self.audio_playhead = None;
                                 self.audio_playing = false;
                                 self.audio_play_start = None;
@@ -1045,7 +1071,7 @@ impl eframe::App for Gui {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = self.video_pred.is_some();
             let cond3 = self.feed_url.is_some();
-            let cond4 = self.audio_file_path.is_some();
+            let cond4 = self.pred_audio.is_some();
             // it has a mode AND another
             let img_mode = cond1 && (cond2 || cond3 || cond4);
             let video_mode = cond2 && (cond1 || cond3 || cond4);

@@ -1,6 +1,7 @@
 use super::{imgbuf_to_texture, Gui};
 use crate::api::abstractions::*;
 use crate::api::bq::process_imgbuf;
+use crate::api::export;
 use crate::api::render::*;
 use crate::api::rest::{detect_remotely, rgb_image_to_jpeg_buffer};
 use crate::api::video_file;
@@ -136,6 +137,63 @@ impl Gui {
         self.video_processing_receiver = None;
     }
 
+    /// Decode the source video and regenerate thumbnails from already-cached
+    /// predictions (no model calls). Triggered automatically after picking a
+    /// video whose sidecar `_predictions.json` was loaded by `PredVideo::new_simple`
+    /// so playback works right away instead of being gated behind a re-Analyse.
+    pub(super) fn start_video_thumbnail_regen(&mut self) {
+        let Some(pv) = self.video_pred.as_ref() else { return; };
+        if pv.processed_count() == 0 {
+            return;
+        }
+        let Some(path_str) = pv.file_path.to_str().map(|s| s.to_string()) else { return; };
+        let cached_frames: Vec<Option<AIOutputs>> = pv.frames.clone();
+
+        self.video_state.is_processing = true;
+        self.video_state.progress_bar = 0.0;
+        self.video_thumbnails.clear();
+        self.video_last_displayed_frame = None;
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<AnalysisFrame>();
+        self.video_processing_receiver = Some(rx);
+
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.video_state.cancel_sender = Some(cancel_tx);
+
+        let fresh = video_file::VideofileProcessor::new(&path_str);
+        *self.video_file_processor.lock().unwrap() = Some(fresh);
+        let processor = Arc::clone(&self.video_file_processor);
+
+        tokio::spawn(async move {
+            loop {
+                if cancel_rx.try_recv().is_ok() {
+                    break;
+                }
+                let next = {
+                    let mut guard = processor.lock().unwrap();
+                    guard.as_mut().and_then(|p| p.next())
+                };
+                let (frame_idx, img) = match next {
+                    Some(item) => item,
+                    None => break,
+                };
+                let Some(Some(aio)) = cached_frames.get(frame_idx as usize) else { continue; };
+                let thumb = thumbnail_with_overlay(&img, aio);
+                let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
+                if tx
+                    .send(AnalysisFrame {
+                        frame_idx,
+                        aioutput: aio.clone(),
+                        thumbnail_jpeg: jpeg,
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+    }
+
     pub(super) fn video_handle_results(&mut self, ui: &egui::Ui) {
         let mut messages: Vec<AnalysisFrame> = Vec::new();
         let mut channel_closed = false;
@@ -244,16 +302,22 @@ impl Gui {
 
     pub(super) fn export_video_predictions_json(&mut self) {
         let Some(pv) = self.video_pred.as_ref() else { return; };
+        let display = pv
+            .predictions_file_path()
+            .ok()
+            .and_then(|p| p.to_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| "predictions.json".to_string());
         let pv_clone = pv.clone();
         tokio::spawn(async move {
             let _ = pv_clone.write_pred_video_to_file().await;
         });
-        self.process_done();
+        self.process_done_at(display);
     }
 
     pub(super) fn export_video_annotated(&mut self) {
         let Some(pv) = self.video_pred.as_ref() else { return; };
-        let output_path = video_file::get_output_path(pv.file_path.to_str().unwrap_or(""));
+        let output_path = export::prepare_export_video(&pv.file_path);
+        self.video_export_path = output_path.to_str().map(|s| s.to_string());
         let pv_clone = pv.clone();
         let (tx, rx) = std::sync::mpsc::channel::<ExportProgress>();
         self.video_export_receiver = Some(rx);
@@ -304,9 +368,14 @@ impl Gui {
             self.video_export_receiver = None;
             self.video_state.progress_bar = 0.0;
             if ok {
-                self.process_done();
+                if let Some(path) = self.video_export_path.take() {
+                    self.process_done_at(path);
+                } else {
+                    self.process_done();
+                }
             } else {
                 self.process_error();
+                self.video_export_path = None;
             }
         }
         ui.request_repaint();
@@ -326,12 +395,6 @@ impl Gui {
             ui.heading(self.t(Key::analysis));
         });
         ui.separator();
-
-        if let Some(pv) = self.video_pred.as_ref() {
-            if let Some(name) = pv.file_path.file_name().and_then(|n| n.to_str()) {
-                ui.label(name);
-            }
-        }
 
         ui.vertical_centered(|ui| {
             ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
@@ -419,11 +482,45 @@ impl Gui {
 
     // ---------- main video-player UI ----------
 
+    fn draw_video_header(&self, ui: &mut egui::Ui) {
+        let Some(pv) = self.video_pred.as_ref() else { return; };
+        let name = pv
+            .file_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("(unknown)");
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new(name).strong());
+            if pv.processed_count() > 0 {
+                ui.separator();
+                let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} / {} frames analysed",
+                        pv.processed_count(),
+                        total.max(1),
+                    ))
+                    .weak()
+                    .small(),
+                );
+            } else {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new("not analysed")
+                        .weak()
+                        .small(),
+                );
+            }
+        });
+        ui.add_space(4.0);
+    }
+
     pub(super) fn ui_video(&mut self, ui: &mut egui::Ui) {
         let Some(n_frames) = self.video_pred.as_ref().map(|p| p.n_frames) else { return; };
         if n_frames == 0 {
             return;
         }
+        self.draw_video_header(ui);
         let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
         let last_frame = n_frames.saturating_sub(1);
         // Playback only makes sense once we have at least one analysed frame

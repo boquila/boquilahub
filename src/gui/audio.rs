@@ -1,4 +1,4 @@
-use super::{imgbuf_to_texture, Gui};
+use super::{imgbuf_to_texture, Gui, Mode, OpenDialog};
 use crate::api::abstractions::*;
 use crate::api::audio::AudioData;
 use crate::api::bq::{process_audio, Modality};
@@ -45,14 +45,6 @@ impl Gui {
             });
             ui.separator();
 
-            if let Some(path) = &self.audio_file_path {
-                ui.label(
-                    path.file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("(unknown)")
-                );
-            }
-
             ui.vertical_centered(|ui| {
                 if !self.audio_state.is_processing {
                     if ui
@@ -70,6 +62,62 @@ impl Gui {
                     }
                 }
             });
+
+            ui.add_space(8.0);
+
+            let has_predictions = self
+                .pred_audio
+                .as_ref()
+                .map(|p| p.wasprocessed)
+                .unwrap_or(false);
+            if has_predictions && !self.audio_state.is_processing {
+                ui.vertical_centered(|ui| {
+                    if ui
+                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
+                        .clicked()
+                    {
+                        self.dialog = OpenDialog::Export;
+                    }
+                });
+            }
+
+            self.audio_export_dialog(ui);
+        }
+    }
+
+    fn audio_export_dialog(&mut self, ui: &egui::Ui) {
+        if self.dialog != OpenDialog::Export || self.mode != Mode::Audio {
+            return;
+        }
+        let mut close = false;
+        let mut export = false;
+        egui::Window::new(self.t(Key::export))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                if ui.button(self.t(Key::export_predictions)).clicked() {
+                    export = true;
+                    close = true;
+                }
+                if ui.button(self.t(Key::cancel)).clicked() {
+                    close = true;
+                }
+            });
+        if export {
+            if let Some(pred) = self.pred_audio.clone() {
+                let display = pred
+                    .predictions_file_path()
+                    .ok()
+                    .and_then(|p| p.to_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "predictions.json".to_string());
+                tokio::spawn(async move {
+                    let _ = pred.write_pred_audio_to_file().await;
+                });
+                self.process_done_at(display);
+            }
+        }
+        if close {
+            self.dialog = OpenDialog::None;
         }
     }
 
@@ -117,12 +165,43 @@ impl Gui {
         self.audio_play_start = None;
     }
 
+    fn draw_audio_header(&self, ui: &mut egui::Ui) {
+        let Some(pred) = self.pred_audio.as_ref() else { return; };
+        let name = pred
+            .file_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("(unknown)");
+        ui.horizontal_wrapped(|ui| {
+            ui.label(egui::RichText::new(name).strong());
+            if !pred.wasprocessed {
+                ui.separator();
+                ui.label(
+                    egui::RichText::new("not analysed")
+                        .weak()
+                        .small(),
+                );
+            } else if let Some(preds) = pred.audio_predictions() {
+                ui.separator();
+                let n = preds.len();
+                let noun = if n == 1 { "segment" } else { "segments" };
+                ui.label(
+                    egui::RichText::new(format!("{} {}", n, noun)).strong(),
+                );
+            }
+        });
+        ui.add_space(4.0);
+    }
+
     pub(super) fn audio_handle_results(&mut self) {
         if let Some(rx) = &self.audio_result_receiver {
             if let Ok(result) = rx.try_recv() {
                 match result {
-                    Ok(AIOutputs::AudioClassification(preds)) => {
-                        self.audio_predictions = Some(preds);
+                    Ok(aio @ AIOutputs::AudioClassification(_)) => {
+                        if let Some(pred) = self.pred_audio.as_mut() {
+                            pred.aioutput = Some(aio);
+                            pred.wasprocessed = true;
+                        }
                     }
                     _ => {
                         self.process_error();
@@ -138,6 +217,8 @@ impl Gui {
 
     pub(super) fn ui_audio(&mut self, ui: &mut egui::Ui) {
         if self.audio_data.is_some() {
+            self.draw_audio_header(ui);
+
             let duration =
                 self.audio_data.as_ref().unwrap().duration().max(0.1);
 
@@ -247,8 +328,9 @@ impl Gui {
             }
 
             let window_preds: Vec<AudioProb> = self
-                .audio_predictions
+                .pred_audio
                 .as_ref()
+                .and_then(|p| p.audio_predictions())
                 .map(|preds| {
                     preds
                         .iter()

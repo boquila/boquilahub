@@ -85,7 +85,6 @@ pub enum Key {
     model_hub_url,
     export_predictions,
     export_imgs_with_predictions,
-    copy_with_classification,
     input_url,
     example,
     freq,
@@ -116,6 +115,8 @@ pub enum Key {
     width_,
     height_,
     export_video_with_predictions,
+    saved_to,
+    saved_next_to_originals,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -551,17 +552,6 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::VI => "Xuất kết quả (.jpg)",
             Lang::NK => "Izvezi slike sa predviđanjima (.jpg)",
         },
-        Key::copy_with_classification => match lang {
-            Lang::EN => "Copy and separate in folders according to classification",
-            Lang::ES => "Copiar y separar en carpetas según clasificación",
-            Lang::FR => "Copier et séparer dans des dossiers selon la classification",
-            Lang::DE => "Kopieren und nach Klassifizierung in Ordner trennen",
-            Lang::ZH => "根据结果将数据复制到不同文件夹",
-            Lang::JA => "分類に応じてフォルダにコピー・振り分け",
-            Lang::PT => "Copiar e separar em pastas por classificação",
-            Lang::VI => "Sao chép và phân loại theo từng thu mục",
-            Lang::NK => "Kopiraj i razvrstaj u foldere prema klasifikaciji",
-        },
         Key::input_url => match lang {
             Lang::EN => "Add the URL",
             Lang::ES => "Ingresa la dirección URL",
@@ -759,6 +749,28 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "Exportar vídeo com previsões (.mp4)",
             Lang::VI => "Xuất video kèm dự đoán (.mp4)",
             Lang::NK => "Izvezi video sa predviđanjima (.mp4)",
+        },
+        Key::saved_to => match lang {
+            Lang::EN => "Saved to",
+            Lang::ES => "Guardado en",
+            Lang::FR => "Enregistré dans",
+            Lang::DE => "Gespeichert in",
+            Lang::ZH => "已保存至",
+            Lang::JA => "保存先",
+            Lang::PT => "Guardado em",
+            Lang::VI => "Đã lưu tại",
+            Lang::NK => "Sačuvano u",
+        },
+        Key::saved_next_to_originals => match lang {
+            Lang::EN => "Saved next to each source file",
+            Lang::ES => "Guardado junto a cada archivo original",
+            Lang::FR => "Enregistré à côté de chaque fichier d'origine",
+            Lang::DE => "Neben jeder Originaldatei gespeichert",
+            Lang::ZH => "已保存到每个源文件旁边",
+            Lang::JA => "各元ファイルの隣に保存しました",
+            Lang::PT => "Guardado ao lado de cada ficheiro original",
+            Lang::VI => "Đã lưu cạnh từng tệp gốc",
+            Lang::NK => "Sačuvano pored svake originalne datoteke",
         },
     }
 }
