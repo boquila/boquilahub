@@ -456,9 +456,12 @@ impl Gui {
             // Plot fills the remaining space. Texture is sized to
             // match the rendered plot so it stays sharp at any size.
             let avail = ui.available_size_before_wrap();
-            let plot_w = avail.x.max(600.0);
-            let plot_h = (avail.y - 4.0).max(320.0);
-            let target_tex_w = (plot_w as usize).clamp(400, 4096);
+            // Floors are the smallest sizes that still keep tick labels
+            // readable; below this the plot was overflowing narrow windows
+            // because the mins exceeded `avail.x`/`avail.y`.
+            let plot_w = avail.x.max(360.0);
+            let plot_h = (avail.y - 4.0).max(220.0);
+            let target_tex_w = (plot_w as usize).clamp(360, 4096);
             // ~72% of the plot height is the spectrogram itself
             // (the rest is the label strip + time axis).
             let target_tex_h =

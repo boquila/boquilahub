@@ -287,8 +287,14 @@ impl Gui {
         );
 
         let avail = ui.available_size_before_wrap();
-        let side_gap = if show_side_panel { 12.0 } else { 0.0 };
-        let side_w = if show_side_panel {
+        // Below this width, side-by-side leaves the preview too cramped — drop
+        // the classification panel under it instead.
+        const STACK_BELOW_WIDTH: f32 = 720.0;
+        let stack_side = show_side_panel && avail.x < STACK_BELOW_WIDTH;
+        let beside_side = show_side_panel && !stack_side;
+
+        let side_gap = if beside_side { 12.0 } else { 0.0 };
+        let side_w = if beside_side {
             SIDE_PANEL_W.min((avail.x * 0.32).max(180.0))
         } else {
             0.0
@@ -296,8 +302,14 @@ impl Gui {
         let preview_w = (avail.x - side_w - side_gap).max(200.0);
         let echo_strip_h: f32 = if has_spatial_output { 30.0 } else { 0.0 };
         let echo_strip_gap: f32 = if has_spatial_output { 6.0 } else { 0.0 };
-        let preview_h =
-            (avail.y - 8.0 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H);
+        // When stacking, the preview keeps the lion's share and the
+        // classification panel takes the rest — central panel scrolls if
+        // its content needs more than that.
+        let preview_h = if stack_side {
+            (avail.y * 0.62 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H)
+        } else {
+            (avail.y - 8.0 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H)
+        };
 
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -307,9 +319,13 @@ impl Gui {
                     ui.add_space(echo_strip_gap);
                     draw_echo_strip(ui, echo.as_ref(), echo_strip_h, preview_w);
                 }
+                if stack_side {
+                    ui.add_space(8.0);
+                    self.draw_classification_panel(ui);
+                }
             });
 
-            if show_side_panel {
+            if beside_side {
                 ui.add_space(side_gap);
                 ui.vertical(|ui| {
                     ui.set_max_width(side_w);
