@@ -275,6 +275,13 @@ impl Gui {
                 .map(|a| !a.is_empty())
                 .unwrap_or(false);
         let show_side_panel = is_classification && has_non_empty_output;
+        let has_spatial_output = matches!(
+            self.selected_files[i].aioutput.as_ref(),
+            Some(AIOutputs::ObjectDetection(b)) if !b.is_empty()
+        ) || matches!(
+            self.selected_files[i].aioutput.as_ref(),
+            Some(AIOutputs::Segmentation(s)) if !s.is_empty()
+        );
 
         let avail = ui.available_size_before_wrap();
         let side_gap = if show_side_panel { 12.0 } else { 0.0 };
@@ -284,12 +291,19 @@ impl Gui {
             0.0
         };
         let preview_w = (avail.x - side_w - side_gap).max(200.0);
-        let preview_h = (avail.y - 8.0).max(MIN_PREVIEW_H);
+        let echo_strip_h: f32 = if has_spatial_output { 30.0 } else { 0.0 };
+        let echo_strip_gap: f32 = if has_spatial_output { 6.0 } else { 0.0 };
+        let preview_h =
+            (avail.y - 8.0 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H);
 
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_max_width(preview_w);
-                self.draw_image_preview(ui, preview_w, preview_h);
+                let echo = self.draw_image_preview(ui, preview_w, preview_h);
+                if has_spatial_output {
+                    ui.add_space(echo_strip_gap);
+                    draw_echo_strip(ui, echo.as_ref(), echo_strip_h, preview_w);
+                }
             });
 
             if show_side_panel {
@@ -354,7 +368,9 @@ impl Gui {
         });
 
         if n > 1 {
-            let slider_w = (ui.available_width() - 16.0).max(200.0);
+            // Leave room for the slider's trailing value editor (~70px) plus
+            // padding — without this it gets clipped off the right edge.
+            let slider_w = (ui.available_width() - 110.0).max(180.0);
             ui.spacing_mut().slider_width = slider_w;
             ui.add(egui::Slider::new(&mut new_index, 1..=n).text(""));
         }
@@ -370,9 +386,8 @@ impl Gui {
         ui: &mut egui::Ui,
         max_w: f32,
         max_h: f32,
-    ) {
+    ) -> Option<HoverEcho> {
         let Some(tex) = self.img_state.texture.clone() else {
-            // Placeholder while the texture isn't ready yet.
             let (rect, _) = ui.allocate_exact_size(
                 egui::vec2(max_w, max_h.min(MIN_PREVIEW_H)),
                 egui::Sense::hover(),
@@ -383,18 +398,18 @@ impl Gui {
                 egui::Color32::from_rgb(228, 230, 234)
             };
             ui.painter().rect_filled(rect, 8.0, bg);
-            return;
+            return None;
         };
 
         let tex_size = tex.size_vec2();
         if tex_size.x < 1.0 || tex_size.y < 1.0 {
-            return;
+            return None;
         }
         let scale = (max_w / tex_size.x).min(max_h / tex_size.y).min(1.0);
         let disp_w = (tex_size.x * scale).max(1.0);
         let disp_h = (tex_size.y * scale).max(1.0);
 
-        ui.vertical_centered(|ui| {
+        ui.vertical_centered(|ui| -> Option<HoverEcho> {
             let img_resp = ui.add(
                 egui::Image::new(&tex)
                     .max_size(egui::vec2(disp_w, disp_h))
@@ -407,15 +422,19 @@ impl Gui {
             if predimg.wasprocessed {
                 match predimg.aioutput.as_ref() {
                     Some(aio) if !aio.is_empty() => {
-                        draw_image_overlay(ui, &img_resp, aio, tex_size);
+                        draw_image_overlay(ui, &img_resp, aio, tex_size)
                     }
                     Some(_) => {
                         draw_empty_predictions_chip(ui, &img_resp);
+                        None
                     }
-                    None => {}
+                    None => None,
                 }
+            } else {
+                None
             }
-        });
+        })
+        .inner
     }
 
     fn draw_classification_panel(&self, ui: &mut egui::Ui) {
@@ -440,6 +459,17 @@ impl Gui {
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
 
+            // Cap rows so a 1000-class model doesn't render 1000 bars + galleys
+            // every frame. Always show at least 3 for context.
+            const MAX_ROWS: usize = 20;
+            const MIN_PROB_VISIBLE: f32 = 0.005;
+            let signal_count = ranked
+                .iter()
+                .position(|p| p.prob < MIN_PROB_VISIBLE)
+                .unwrap_or(ranked.len());
+            let visible = signal_count.min(MAX_ROWS).max(3).min(ranked.len());
+            let hidden = ranked.len().saturating_sub(visible);
+
             let dark = ui.visuals().dark_mode;
             let track_color = if dark {
                 egui::Color32::from_rgba_unmultiplied(255, 255, 255, 20)
@@ -448,7 +478,7 @@ impl Gui {
             };
             let bar_h: f32 = 22.0;
 
-            for (rank, p) in ranked.iter().enumerate() {
+            for (rank, p) in ranked.iter().take(visible).enumerate() {
                 let c = class_color(p.class_id);
                 let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
 
@@ -504,61 +534,177 @@ impl Gui {
 
                 ui.add_space(4.0);
             }
+
+            if hidden > 0 {
+                ui.add_space(2.0);
+                ui.label(
+                    egui::RichText::new(format!("…and {} more", hidden))
+                        .weak()
+                        .small(),
+                );
+            }
         });
     }
 }
 
 // ---------- free helpers ----------
 
+#[derive(Clone)]
+struct HoverEcho {
+    class_id: u32,
+    label: String,
+    prob: f32,
+    refined: Option<(String, f32)>,
+    width_px: i32,
+    height_px: i32,
+    is_segment: bool,
+}
+
+impl HoverEcho {
+    fn from_bbox(b: &XYXYc, is_segment: bool) -> Self {
+        let refined = b
+            .extra_cls
+            .as_ref()
+            .and_then(|c| c.top())
+            .map(|p| (p.label.clone(), p.prob));
+        Self {
+            class_id: bbox_color_id(b),
+            label: b.label.clone(),
+            prob: b.xyxy.prob,
+            refined,
+            width_px: (b.xyxy.x2 - b.xyxy.x1).max(0.0).round() as i32,
+            height_px: (b.xyxy.y2 - b.xyxy.y1).max(0.0).round() as i32,
+            is_segment,
+        }
+    }
+}
+
+fn draw_echo_strip(
+    ui: &mut egui::Ui,
+    echo: Option<&HoverEcho>,
+    strip_h: f32,
+    width: f32,
+) {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(width, strip_h),
+        egui::Sense::hover(),
+    );
+    let Some(e) = echo else {
+        // Reserve the space silently — info pops in when the user hovers,
+        // otherwise the strip is invisible.
+        return;
+    };
+
+    let painter = ui.painter_at(rect);
+    let dark = ui.visuals().dark_mode;
+    let bg = if dark {
+        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+    } else {
+        egui::Color32::from_rgba_unmultiplied(0, 0, 0, 8)
+    };
+    painter.rect_filled(rect, 6.0, bg);
+
+    let pad = 10.0;
+    let cy = rect.center().y;
+    let font_main = egui::FontId::proportional(13.0);
+    let font_small = egui::FontId::proportional(11.5);
+
+    let main_color = if dark {
+        egui::Color32::from_gray(245)
+    } else {
+        egui::Color32::from_gray(20)
+    };
+    let weak_color = if dark {
+        egui::Color32::from_gray(170)
+    } else {
+        egui::Color32::from_gray(110)
+    };
+
+    let c = class_color(e.class_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+
+    let chip = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + pad + 6.0, cy),
+        egui::vec2(12.0, 12.0),
+    );
+    painter.rect_filled(chip, 2.5, color);
+
+    let mut x = chip.right() + 10.0;
+
+    let main_text = format!("{}  {:.0}%", e.label, e.prob * 100.0);
+    let g_main = painter.layout_no_wrap(
+        main_text,
+        font_main.clone(),
+        egui::Color32::PLACEHOLDER,
+    );
+    painter.galley(
+        egui::pos2(x, cy - g_main.size().y / 2.0),
+        g_main.clone(),
+        main_color,
+    );
+    x += g_main.size().x;
+
+    if let Some((r_label, r_prob)) = &e.refined {
+        let sep = painter.layout_no_wrap(
+            "  →  ".into(),
+            font_main.clone(),
+            egui::Color32::PLACEHOLDER,
+        );
+        painter.galley(
+            egui::pos2(x, cy - sep.size().y / 2.0),
+            sep.clone(),
+            weak_color,
+        );
+        x += sep.size().x;
+
+        let r_text = format!("{}  {:.0}%", r_label, r_prob * 100.0);
+        let g_ref = painter.layout_no_wrap(
+            r_text,
+            font_main.clone(),
+            egui::Color32::PLACEHOLDER,
+        );
+        painter.galley(
+            egui::pos2(x, cy - g_ref.size().y / 2.0),
+            g_ref.clone(),
+            main_color,
+        );
+        x += g_ref.size().x;
+    }
+
+    let tail_text = if e.is_segment {
+        format!("  ·  {} × {} px  ·  segment", e.width_px, e.height_px)
+    } else {
+        format!("  ·  {} × {} px", e.width_px, e.height_px)
+    };
+    let g_tail = painter.layout_no_wrap(
+        tail_text,
+        font_small,
+        egui::Color32::PLACEHOLDER,
+    );
+    if x + g_tail.size().x < rect.right() - pad {
+        painter.galley(
+            egui::pos2(x, cy - g_tail.size().y / 2.0),
+            g_tail,
+            weak_color,
+        );
+    }
+}
+
 fn summary_line(aio: &AIOutputs) -> Option<String> {
     match aio {
         AIOutputs::ObjectDetection(b) if b.is_empty() => Some("no detections".into()),
         AIOutputs::ObjectDetection(b) => {
-            let top = b.iter().max_by(|a, c| {
-                a.xyxy
-                    .prob
-                    .partial_cmp(&c.xyxy.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })?;
             let noun = if b.len() == 1 { "detection" } else { "detections" };
-            Some(format!(
-                "{} {}  ·  top: {} {:.0}%",
-                b.len(),
-                noun,
-                top.label,
-                top.xyxy.prob * 100.0
-            ))
+            Some(format!("{} {}", b.len(), noun))
         }
         AIOutputs::Segmentation(s) if s.is_empty() => Some("no segments".into()),
         AIOutputs::Segmentation(s) => {
-            let top = s.iter().max_by(|a, c| {
-                a.bbox
-                    .xyxy
-                    .prob
-                    .partial_cmp(&c.bbox.xyxy.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })?;
             let noun = if s.len() == 1 { "segment" } else { "segments" };
-            Some(format!(
-                "{} {}  ·  top: {} {:.0}%",
-                s.len(),
-                noun,
-                top.bbox.label,
-                top.bbox.xyxy.prob * 100.0
-            ))
+            Some(format!("{} {}", s.len(), noun))
         }
-        AIOutputs::Classification(p) => {
-            let top = p.iter().max_by(|a, c| {
-                a.prob
-                    .partial_cmp(&c.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })?;
-            Some(format!(
-                "classification  ·  {} {:.0}%",
-                top.label,
-                top.prob * 100.0
-            ))
-        }
+        // Classification: the side panel is the source of truth — singling out
+        // a "top" class in the header is misleading when probabilities are noisy.
+        AIOutputs::Classification(_) => None,
         AIOutputs::AudioClassification(_) => None,
     }
 }
@@ -585,10 +731,10 @@ fn draw_image_overlay(
     img_resp: &egui::Response,
     aio: &AIOutputs,
     original_size: egui::Vec2,
-) {
+) -> Option<HoverEcho> {
     let rect = img_resp.rect;
     if rect.width() < 1.0 || rect.height() < 1.0 {
-        return;
+        return None;
     }
     let scale = egui::vec2(
         rect.width() / original_size.x.max(1.0),
@@ -605,9 +751,7 @@ fn draw_image_overlay(
                     &painter,
                     rect,
                     bbox_screen_rect(b, rect.min, scale),
-                    bbox_color_id(b),
-                    &b.label,
-                    b.xyxy.prob,
+                    b,
                     Some(idx) == hovered,
                     false,
                 );
@@ -617,6 +761,7 @@ fn draw_image_overlay(
                     bbox_tooltip_ui(ui, &bboxes[idx]);
                 });
             }
+            hovered.map(|idx| HoverEcho::from_bbox(&bboxes[idx], false))
         }
         AIOutputs::Segmentation(segs) => {
             let hovered = pick_hovered_seg(segs, hover_pos, rect.min, scale);
@@ -625,9 +770,7 @@ fn draw_image_overlay(
                     &painter,
                     rect,
                     bbox_screen_rect(&s.bbox, rect.min, scale),
-                    bbox_color_id(&s.bbox),
-                    &s.bbox.label,
-                    s.bbox.xyxy.prob,
+                    &s.bbox,
                     Some(idx) == hovered,
                     true,
                 );
@@ -637,14 +780,16 @@ fn draw_image_overlay(
                     seg_tooltip_ui(ui, &segs[idx]);
                 });
             }
+            hovered.map(|idx| HoverEcho::from_bbox(&segs[idx].bbox, true))
         }
         AIOutputs::Classification(probs) => {
             draw_classification_ribbon(&painter, rect, probs);
             img_resp.clone().on_hover_ui_at_pointer(|ui| {
                 classification_tooltip_ui(ui, probs);
             });
+            None
         }
-        AIOutputs::AudioClassification(_) => {}
+        AIOutputs::AudioClassification(_) => None,
     }
 }
 
@@ -700,13 +845,11 @@ fn draw_box_with_label(
     painter: &egui::Painter,
     clip: egui::Rect,
     r: egui::Rect,
-    class_id: u32,
-    label: &str,
-    prob: f32,
+    b: &XYXYc,
     hovered: bool,
     is_segment: bool,
 ) {
-    let c = class_color(class_id);
+    let c = class_color(bbox_color_id(b));
     let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
 
     if is_segment {
@@ -723,7 +866,10 @@ fn draw_box_with_label(
         egui::StrokeKind::Inside,
     );
 
-    let text = format!("{}  {:.0}%", label, prob * 100.0);
+    // Mirror render::str_label — two lines when extra_cls refined this
+    // detection so the refined class+confidence are always visible on the
+    // image (not just in a hover tooltip).
+    let text = label_text(b);
     let font = egui::FontId::proportional(12.0);
     let galley = painter.layout_no_wrap(text, font, egui::Color32::WHITE);
     let label_w = galley.size().x + 8.0;
@@ -737,7 +883,7 @@ fn draw_box_with_label(
         };
         let bg = egui::Rect::from_min_size(
             egui::pos2(r.min.x, y),
-            egui::vec2(label_w.min(r.width().max(label_w)), label_h),
+            egui::vec2(label_w, label_h),
         );
         painter.rect_filled(bg, 2.0, color);
         painter.galley(
@@ -745,6 +891,14 @@ fn draw_box_with_label(
             galley,
             egui::Color32::WHITE,
         );
+    }
+}
+
+fn label_text(b: &XYXYc) -> String {
+    let base = format!("{}  {:.0}%", b.label, b.xyxy.prob * 100.0);
+    match b.extra_cls.as_ref().and_then(|c| c.top()) {
+        Some(p) => format!("{}\n{}  {:.0}%", base, p.label, p.prob * 100.0),
+        None => base,
     }
 }
 
