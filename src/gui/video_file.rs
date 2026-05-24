@@ -530,11 +530,12 @@ impl Gui {
 
     fn draw_video_header(&self, ui: &mut egui::Ui) {
         let Some(pv) = self.video_pred.as_ref() else { return; };
+        let unknown = self.t(Key::unknown_file);
         let name = pv
             .file_path
             .file_name()
             .and_then(|s| s.to_str())
-            .unwrap_or("(unknown)");
+            .unwrap_or(unknown);
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(name).strong());
             if pv.processed_count() > 0 {
@@ -542,9 +543,10 @@ impl Gui {
                 let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
                 ui.label(
                     egui::RichText::new(format!(
-                        "{} / {} frames analysed",
+                        "{} / {} {}",
                         pv.processed_count(),
                         total.max(1),
+                        self.t(Key::frames_analysed),
                     ))
                     .weak()
                     .small(),
@@ -552,7 +554,7 @@ impl Gui {
             } else {
                 ui.separator();
                 ui.label(
-                    egui::RichText::new("not analysed")
+                    egui::RichText::new(self.t(Key::not_analysed))
                         .weak()
                         .small(),
                 );
@@ -635,16 +637,16 @@ impl Gui {
         ui.add_enabled_ui(controls_active, |ui| {
             ui.horizontal(|ui| {
                 if self.video_playing {
-                    if ui.button("⏸").on_hover_text("Pause").clicked() {
+                    if ui.button("⏸").on_hover_text(self.t(Key::pause)).clicked() {
                         self.stop_video_playback();
                     }
-                } else if ui.button("▶").on_hover_text("Play").clicked() {
+                } else if ui.button("▶").on_hover_text(self.t(Key::play)).clicked() {
                     let start = if playhead >= last_frame { 0 } else { playhead };
                     self.start_video_playback(start);
                 }
                 if ui
                     .button("⏮")
-                    .on_hover_text("Previous analysed frame")
+                    .on_hover_text(self.t(Key::prev_analysed_frame))
                     .clicked()
                 {
                     if let Some(prev) = prev_analysed_frame(self.video_pred.as_ref(), playhead) {
@@ -655,7 +657,7 @@ impl Gui {
                 }
                 if ui
                     .button("⏭")
-                    .on_hover_text("Next analysed frame")
+                    .on_hover_text(self.t(Key::next_analysed_frame))
                     .clicked()
                 {
                     if let Some(next) = next_analysed_frame(self.video_pred.as_ref(), playhead) {
@@ -666,10 +668,10 @@ impl Gui {
                 }
 
                 ui.add_space(8.0);
-                let suffix = if self.video_state.is_processing {
-                    "  ·  analysing…"
+                let suffix: String = if self.video_state.is_processing {
+                    format!("  ·  {}", self.t(Key::analysing))
                 } else {
-                    ""
+                    String::new()
                 };
                 ui.label(format!(
                     "{}{}",
@@ -815,8 +817,9 @@ impl Gui {
                 );
 
                 let pv = self.video_pred.as_ref();
+                let lang = &self.lang;
                 response.clone().on_hover_ui_at_pointer(|ui| {
-                    tooltip_ui(ui, pv, frame, secs);
+                    tooltip_ui(ui, pv, frame, secs, lang);
                 });
             }
         } else {
@@ -992,13 +995,19 @@ fn build_strip_segments(
     segments
 }
 
-fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) {
+fn tooltip_ui(
+    ui: &mut egui::Ui,
+    pv: Option<&PredVideo>,
+    frame: u64,
+    secs: f64,
+    lang: &Lang,
+) {
     ui.label(
         egui::RichText::new(format!("{}  ·  frame {}", format_time(secs), frame)).strong(),
     );
     let Some(pv) = pv else { return; };
     let Some(nearest) = pv.last_processed_at_or_before(frame) else {
-        ui.label(egui::RichText::new("(not analysed)").weak());
+        ui.label(egui::RichText::new(translate(Key::not_analysed_parens, lang)).weak());
         return;
     };
     let Some(aio) = pv.frames.get(nearest as usize).and_then(|f| f.as_ref()) else { return; };
@@ -1006,13 +1015,13 @@ fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) 
     match aio {
         AIOutputs::ObjectDetection(bboxes) => {
             if bboxes.is_empty() {
-                ui.label(egui::RichText::new("(no detections)").weak());
+                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
                 return;
             }
             ui.separator();
             let n = bboxes.len();
-            let header = if n == 1 { "1 detection".into() } else { format!("{} detections", n) };
-            ui.label(egui::RichText::new(header).strong());
+            let noun = if n == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
             let mut bs: Vec<&XYXYc> = bboxes.iter().collect();
             bs.sort_by(|a, b| {
                 b.xyxy.prob.partial_cmp(&a.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal)
@@ -1021,18 +1030,18 @@ fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) 
                 tooltip_row(ui, b.xyxy.class_id, &b.label, b.xyxy.prob);
             }
             if n > 6 {
-                ui.label(egui::RichText::new(format!("…and {} more", n - 6)).weak());
+                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
             }
         }
         AIOutputs::Segmentation(segs) => {
             if segs.is_empty() {
-                ui.label(egui::RichText::new("(no detections)").weak());
+                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
                 return;
             }
             ui.separator();
             let n = segs.len();
-            let header = if n == 1 { "1 segment".into() } else { format!("{} segments", n) };
-            ui.label(egui::RichText::new(header).strong());
+            let noun = if n == 1 { translate(Key::segment, lang) } else { translate(Key::segments, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
             let mut ss: Vec<&SEGc> = segs.iter().collect();
             ss.sort_by(|a, b| {
                 b.bbox
@@ -1045,16 +1054,16 @@ fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) 
                 tooltip_row(ui, s.bbox.xyxy.class_id, &s.bbox.label, s.bbox.xyxy.prob);
             }
             if n > 6 {
-                ui.label(egui::RichText::new(format!("…and {} more", n - 6)).weak());
+                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
             }
         }
         AIOutputs::Classification(probs) => {
             if probs.is_empty() {
-                ui.label(egui::RichText::new("(no classification)").weak());
+                ui.label(egui::RichText::new(translate(Key::no_classification, lang)).weak());
                 return;
             }
             ui.separator();
-            ui.label(egui::RichText::new("Classification").strong());
+            ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
             let mut ps: Vec<&Prob> = probs.iter().collect();
             ps.sort_by(|a, b| {
                 b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal)
@@ -1064,12 +1073,16 @@ fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) 
             }
             if probs.len() > 6 {
                 ui.label(
-                    egui::RichText::new(format!("…and {} more", probs.len() - 6)).weak(),
+                    egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
                 );
             }
         }
         AIOutputs::AudioClassification(_) => {}
     }
+}
+
+fn and_more(n: usize, lang: &Lang) -> String {
+    translate(Key::and_more_fmt, lang).replace("{}", &n.to_string())
 }
 
 fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {

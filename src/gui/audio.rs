@@ -167,17 +167,18 @@ impl Gui {
 
     fn draw_audio_header(&self, ui: &mut egui::Ui) {
         let Some(pred) = self.pred_audio.as_ref() else { return; };
+        let unknown = self.t(Key::unknown_file);
         let name = pred
             .file_path
             .file_name()
             .and_then(|s| s.to_str())
-            .unwrap_or("(unknown)");
+            .unwrap_or(unknown);
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(name).strong());
             if !pred.wasprocessed {
                 ui.separator();
                 ui.label(
-                    egui::RichText::new("not analysed")
+                    egui::RichText::new(self.t(Key::not_analysed))
                         .weak()
                         .small(),
                 );
@@ -281,7 +282,7 @@ impl Gui {
                 }
                 if ui
                     .button("⏮")
-                    .on_hover_text("Reset playhead to start")
+                    .on_hover_text(self.t(Key::reset_playhead))
                     .clicked()
                 {
                     self.stop_playback();
@@ -289,8 +290,8 @@ impl Gui {
                 }
                 ui.separator();
                 if ui
-                    .button("Fit")
-                    .on_hover_text("Fit view to whole audio")
+                    .button(self.t(Key::fit))
+                    .on_hover_text(self.t(Key::fit_view_hint))
                     .clicked()
                 {
                     self.audio_view_range = (0.0, duration);

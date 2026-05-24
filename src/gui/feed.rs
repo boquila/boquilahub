@@ -335,7 +335,7 @@ impl Gui {
                     ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=90));
                 });
                 ui.add_space(6.0);
-                ui.label("Cache (s)");
+                ui.label(self.t(Key::cache_secs));
                 ui.style_mut().spacing.slider_width = 120.0;
                 ui.add(egui::Slider::new(
                     &mut self.feed_buffer_max_secs,
@@ -352,19 +352,23 @@ impl Gui {
                 // "Analyze" only when there's an AI to run. The plain
                 // "watch live" path lives in the central-panel Live button.
                 if self.can_run_image_ai() {
+                    let analyze_label = format!("▶ {}", self.t(Key::analyze));
                     if ui
-                        .add_sized([120.0, 36.0], egui::Button::new("▶ Analyze"))
-                        .on_hover_text("Stream the feed and run AI on every Nth frame")
+                        .add_sized([120.0, 36.0], egui::Button::new(analyze_label))
+                        .on_hover_text(self.t(Key::stream_feed_hint))
                         .clicked()
                     {
                         self.start_feed_analysis(true);
                     }
                 }
-            } else if ui
-                .add_sized([120.0, 36.0], egui::Button::new("⏸ Pause"))
-                .clicked()
-            {
-                self.cancel_feed_analysis();
+            } else {
+                let pause_label = format!("⏸ {}", self.t(Key::pause));
+                if ui
+                    .add_sized([120.0, 36.0], egui::Button::new(pause_label))
+                    .clicked()
+                {
+                    self.cancel_feed_analysis();
+                }
             }
         });
 
@@ -400,9 +404,9 @@ impl Gui {
             .resizable(false)
             .show(ui, |ui| {
                 ui.add_enabled_ui(has_ai_at_current, |ui| {
-                    let resp = ui.button("Export current frame (.json)");
+                    let resp = ui.button(self.t(Key::export_current_frame_json));
                     let resp = if !has_ai_at_current {
-                        resp.on_disabled_hover_text("This frame has no AI data")
+                        resp.on_disabled_hover_text(self.t(Key::frame_no_ai_data))
                     } else {
                         resp
                     };
@@ -411,7 +415,7 @@ impl Gui {
                         close = true;
                     }
                 });
-                if ui.button("Export current frame (.png)").clicked() {
+                if ui.button(self.t(Key::export_current_frame_png)).clicked() {
                     export_png = true;
                     close = true;
                 }
@@ -516,17 +520,17 @@ impl Gui {
 
         ui.horizontal(|ui| {
             if ui
-                .button("Live")
-                .on_hover_text("Start (or snap to) the live stream")
+                .button(self.t(Key::live))
+                .on_hover_text(self.t(Key::live_hint))
                 .clicked()
             {
                 clicked_live = true;
             }
-            if ui.button("⏮").on_hover_text("Previous cached frame").clicked() {
+            if ui.button("⏮").on_hover_text(self.t(Key::prev_cached_frame)).clicked() {
                 step_to = playhead.and_then(|p| prev_feed_frame(&self.feed_buffer, p));
             }
             ui.add_enabled_ui(next_step.is_some(), |ui| {
-                if ui.button("⏭").on_hover_text("Next cached frame").clicked() {
+                if ui.button("⏭").on_hover_text(self.t(Key::next_cached_frame)).clicked() {
                     step_to = next_step;
                 }
             });
@@ -683,8 +687,9 @@ impl Gui {
             let t = ((hover_pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
             let target = oldest_idx + (t * span) as u64;
             let nearest = self.nearest_feed_frame_idx(target);
+            let lang = &self.lang;
             response.clone().on_hover_ui_at_pointer(|ui| {
-                feed_tooltip_ui(ui, &self.feed_buffer, nearest);
+                feed_tooltip_ui(ui, &self.feed_buffer, nearest, lang);
             });
         }
 
@@ -919,7 +924,12 @@ fn build_feed_strip_segments(
     segments
 }
 
-fn feed_tooltip_ui(ui: &mut egui::Ui, buf: &VecDeque<FeedFrame>, target: Option<u64>) {
+fn feed_tooltip_ui(
+    ui: &mut egui::Ui,
+    buf: &VecDeque<FeedFrame>,
+    target: Option<u64>,
+    lang: &Lang,
+) {
     let Some(target_idx) = target else { return; };
     let Some(frame) = buf.iter().find(|f| f.frame_idx == target_idx) else { return; };
     ui.label(
@@ -931,19 +941,19 @@ fn feed_tooltip_ui(ui: &mut egui::Ui, buf: &VecDeque<FeedFrame>, target: Option<
         .strong(),
     );
     let Some(aio) = frame.aioutput.as_ref() else {
-        ui.label(egui::RichText::new("(no AI)").weak());
+        ui.label(egui::RichText::new(translate(Key::no_ai, lang)).weak());
         return;
     };
     match aio {
         AIOutputs::ObjectDetection(bs) => {
             if bs.is_empty() {
-                ui.label(egui::RichText::new("(no detections)").weak());
+                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
                 return;
             }
             ui.separator();
             let n = bs.len();
-            let header = if n == 1 { "1 detection".into() } else { format!("{} detections", n) };
-            ui.label(egui::RichText::new(header).strong());
+            let noun = if n == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
             let mut sorted: Vec<&XYXYc> = bs.iter().collect();
             sorted.sort_by(|a, b| {
                 b.xyxy
@@ -955,18 +965,18 @@ fn feed_tooltip_ui(ui: &mut egui::Ui, buf: &VecDeque<FeedFrame>, target: Option<
                 tooltip_row(ui, b.xyxy.class_id, &b.label, b.xyxy.prob);
             }
             if n > 6 {
-                ui.label(egui::RichText::new(format!("…and {} more", n - 6)).weak());
+                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
             }
         }
         AIOutputs::Segmentation(ss) => {
             if ss.is_empty() {
-                ui.label(egui::RichText::new("(no detections)").weak());
+                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
                 return;
             }
             ui.separator();
             let n = ss.len();
-            let header = if n == 1 { "1 segment".into() } else { format!("{} segments", n) };
-            ui.label(egui::RichText::new(header).strong());
+            let noun = if n == 1 { translate(Key::segment, lang) } else { translate(Key::segments, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
             let mut sorted: Vec<&SEGc> = ss.iter().collect();
             sorted.sort_by(|a, b| {
                 b.bbox
@@ -979,16 +989,16 @@ fn feed_tooltip_ui(ui: &mut egui::Ui, buf: &VecDeque<FeedFrame>, target: Option<
                 tooltip_row(ui, s.bbox.xyxy.class_id, &s.bbox.label, s.bbox.xyxy.prob);
             }
             if n > 6 {
-                ui.label(egui::RichText::new(format!("…and {} more", n - 6)).weak());
+                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
             }
         }
         AIOutputs::Classification(probs) => {
             if probs.is_empty() {
-                ui.label(egui::RichText::new("(no classification)").weak());
+                ui.label(egui::RichText::new(translate(Key::no_classification, lang)).weak());
                 return;
             }
             ui.separator();
-            ui.label(egui::RichText::new("Classification").strong());
+            ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
             let mut sorted: Vec<&Prob> = probs.iter().collect();
             sorted.sort_by(|a, b| {
                 b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal)
@@ -998,12 +1008,16 @@ fn feed_tooltip_ui(ui: &mut egui::Ui, buf: &VecDeque<FeedFrame>, target: Option<
             }
             if probs.len() > 6 {
                 ui.label(
-                    egui::RichText::new(format!("…and {} more", probs.len() - 6)).weak(),
+                    egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
                 );
             }
         }
         AIOutputs::AudioClassification(_) => {}
     }
+}
+
+fn and_more(n: usize, lang: &Lang) -> String {
+    translate(Key::and_more_fmt, lang).replace("{}", &n.to_string())
 }
 
 fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {

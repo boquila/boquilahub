@@ -350,13 +350,13 @@ impl Gui {
             if n > 1 {
                 let prev_enabled = new_index > 1;
                 ui.add_enabled_ui(prev_enabled, |ui| {
-                    if ui.button("⏮").on_hover_text("Previous image").clicked() {
+                    if ui.button("⏮").on_hover_text(self.t(Key::prev_image)).clicked() {
                         new_index = new_index.saturating_sub(1).max(1);
                     }
                 });
                 let next_enabled = new_index < n;
                 ui.add_enabled_ui(next_enabled, |ui| {
-                    if ui.button("⏭").on_hover_text("Next image").clicked() {
+                    if ui.button("⏭").on_hover_text(self.t(Key::next_image)).clicked() {
                         new_index = (new_index + 1).min(n);
                     }
                 });
@@ -367,7 +367,7 @@ impl Gui {
                 .file_path
                 .file_name()
                 .and_then(|s| s.to_str())
-                .unwrap_or("(unknown)");
+                .unwrap_or(self.t(Key::unknown_file));
             ui.label(egui::RichText::new(name).strong());
             if n > 1 {
                 ui.label(
@@ -377,7 +377,7 @@ impl Gui {
 
             if predimg.wasprocessed {
                 if let Some(aio) = predimg.aioutput.as_ref() {
-                    if let Some(summary) = summary_line(aio) {
+                    if let Some(summary) = summary_line(aio, &self.lang) {
                         ui.separator();
                         ui.label(egui::RichText::new(summary).strong());
                     }
@@ -385,7 +385,7 @@ impl Gui {
             } else {
                 ui.separator();
                 ui.label(
-                    egui::RichText::new("not analysed")
+                    egui::RichText::new(self.t(Key::not_analysed))
                         .weak()
                         .small(),
                 );
@@ -396,11 +396,9 @@ impl Gui {
                 let resp = ui
                     .add_enabled(
                         !self.img_state.is_processing,
-                        egui::Button::new("↻ Analyze this image"),
+                        egui::Button::new(self.t(Key::analyze_this_image)),
                     )
-                    .on_hover_text(
-                        "Run the selected AI on just this image. Useful for re-running with a different model.",
-                    );
+                    .on_hover_text(self.t(Key::analyze_this_image_hint));
                 if resp.clicked() {
                     analyze_this = true;
                 }
@@ -471,9 +469,10 @@ impl Gui {
                         aio,
                         tex_size,
                         &self.mask_textures,
+                        &self.lang,
                     ),
                     Some(_) => {
-                        draw_empty_predictions_chip(ui, &img_resp);
+                        draw_empty_predictions_chip(ui, &img_resp, &self.lang);
                         None
                     }
                     None => None,
@@ -492,12 +491,12 @@ impl Gui {
             _ => return,
         };
         if probs.is_empty() {
-            ui.label(egui::RichText::new("no predictions").weak());
+            ui.label(egui::RichText::new(self.t(Key::no_predictions_lower)).weak());
             return;
         }
 
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new("Predictions").heading());
+            ui.label(egui::RichText::new(self.t(Key::predictions)).heading());
             ui.add_space(4.0);
 
             let mut ranked: Vec<&Prob> = probs.iter().collect();
@@ -586,7 +585,7 @@ impl Gui {
             if hidden > 0 {
                 ui.add_space(2.0);
                 ui.label(
-                    egui::RichText::new(format!("…and {} more", hidden))
+                    egui::RichText::new(and_more(hidden, &self.lang))
                         .weak()
                         .small(),
                 );
@@ -738,16 +737,28 @@ fn draw_echo_strip(
     }
 }
 
-fn summary_line(aio: &AIOutputs) -> Option<String> {
+fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
     match aio {
-        AIOutputs::ObjectDetection(b) if b.is_empty() => Some("no detections".into()),
+        AIOutputs::ObjectDetection(b) if b.is_empty() => {
+            Some(translate(Key::no_detections, lang).into())
+        }
         AIOutputs::ObjectDetection(b) => {
-            let noun = if b.len() == 1 { "detection" } else { "detections" };
+            let noun = if b.len() == 1 {
+                translate(Key::detection, lang)
+            } else {
+                translate(Key::detections, lang)
+            };
             Some(format!("{} {}", b.len(), noun))
         }
-        AIOutputs::Segmentation(s) if s.is_empty() => Some("no segments".into()),
+        AIOutputs::Segmentation(s) if s.is_empty() => {
+            Some(translate(Key::no_segments, lang).into())
+        }
         AIOutputs::Segmentation(s) => {
-            let noun = if s.len() == 1 { "segment" } else { "segments" };
+            let noun = if s.len() == 1 {
+                translate(Key::segment, lang)
+            } else {
+                translate(Key::segments, lang)
+            };
             Some(format!("{} {}", s.len(), noun))
         }
         // Classification: the side panel is the source of truth — singling out
@@ -755,6 +766,10 @@ fn summary_line(aio: &AIOutputs) -> Option<String> {
         AIOutputs::Classification(_) => None,
         AIOutputs::AudioClassification(_) => None,
     }
+}
+
+fn and_more(n: usize, lang: &Lang) -> String {
+    translate(Key::and_more_fmt, lang).replace("{}", &n.to_string())
 }
 
 fn bbox_screen_rect(
@@ -780,6 +795,7 @@ fn draw_image_overlay(
     aio: &AIOutputs,
     original_size: egui::Vec2,
     mask_textures: &[egui::TextureHandle],
+    lang: &Lang,
 ) -> Option<HoverEcho> {
     let rect = img_resp.rect;
     if rect.width() < 1.0 || rect.height() < 1.0 {
@@ -806,7 +822,7 @@ fn draw_image_overlay(
             }
             if let Some(idx) = hovered {
                 img_resp.clone().on_hover_ui_at_pointer(|ui| {
-                    bbox_tooltip_ui(ui, &bboxes[idx]);
+                    bbox_tooltip_ui(ui, &bboxes[idx], lang);
                 });
             }
             hovered.map(|idx| HoverEcho::from_bbox(&bboxes[idx], false))
@@ -840,7 +856,7 @@ fn draw_image_overlay(
             }
             if let Some(idx) = hovered {
                 img_resp.clone().on_hover_ui_at_pointer(|ui| {
-                    seg_tooltip_ui(ui, &segs[idx]);
+                    seg_tooltip_ui(ui, &segs[idx], lang);
                 });
             }
             hovered.map(|idx| HoverEcho::from_bbox(&segs[idx].bbox, true))
@@ -848,7 +864,7 @@ fn draw_image_overlay(
         AIOutputs::Classification(probs) => {
             draw_classification_ribbon(&painter, rect, probs);
             img_resp.clone().on_hover_ui_at_pointer(|ui| {
-                classification_tooltip_ui(ui, probs);
+                classification_tooltip_ui(ui, probs, lang);
             });
             None
         }
@@ -1037,9 +1053,9 @@ fn draw_classification_ribbon(
     }
 }
 
-fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response) {
+fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response, lang: &Lang) {
     let painter = ui.painter_at(img_resp.rect);
-    let text = "no predictions";
+    let text = translate(Key::no_predictions_lower, lang);
     let galley = painter.layout_no_wrap(
         text.into(),
         egui::FontId::proportional(13.0),
@@ -1059,7 +1075,7 @@ fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response) {
     );
 }
 
-fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc) {
+fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc, lang: &Lang) {
     let cls_id = bbox_color_id(b);
     let c = class_color(cls_id);
     let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
@@ -1067,7 +1083,11 @@ fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc) {
         ui.label(egui::RichText::new("■").color(color).monospace());
         ui.label(egui::RichText::new(&b.label).strong());
     });
-    ui.label(format!("{:.0}% confidence", b.xyxy.prob * 100.0));
+    ui.label(format!(
+        "{:.0}{}",
+        b.xyxy.prob * 100.0,
+        translate(Key::confidence_pct, lang)
+    ));
     let w = (b.xyxy.x2 - b.xyxy.x1).max(0.0).round() as i32;
     let h = (b.xyxy.y2 - b.xyxy.y1).max(0.0).round() as i32;
     ui.label(
@@ -1079,7 +1099,7 @@ fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc) {
     if let Some(extras) = b.extra_cls.as_ref() {
         if !extras.is_empty() {
             ui.separator();
-            ui.label(egui::RichText::new("Refined").strong());
+            ui.label(egui::RichText::new(translate(Key::refined, lang)).strong());
             let mut sorted: Vec<&Prob> = extras.iter().collect();
             sorted.sort_by(|a, b| {
                 b.prob
@@ -1093,7 +1113,7 @@ fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc) {
     }
 }
 
-fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc) {
+fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc, lang: &Lang) {
     let cls_id = bbox_color_id(&s.bbox);
     let c = class_color(cls_id);
     let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
@@ -1101,12 +1121,16 @@ fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc) {
         ui.label(egui::RichText::new("■").color(color).monospace());
         ui.label(egui::RichText::new(&s.bbox.label).strong());
         ui.label(
-            egui::RichText::new("· segment")
+            egui::RichText::new(format!("· {}", translate(Key::segment, lang)))
                 .weak()
                 .small(),
         );
     });
-    ui.label(format!("{:.0}% confidence", s.bbox.xyxy.prob * 100.0));
+    ui.label(format!(
+        "{:.0}{}",
+        s.bbox.xyxy.prob * 100.0,
+        translate(Key::confidence_pct, lang)
+    ));
     let w = (s.bbox.xyxy.x2 - s.bbox.xyxy.x1).max(0.0).round() as i32;
     let h = (s.bbox.xyxy.y2 - s.bbox.xyxy.y1).max(0.0).round() as i32;
     ui.label(
@@ -1123,7 +1147,7 @@ fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc) {
     if let Some(extras) = s.bbox.extra_cls.as_ref() {
         if !extras.is_empty() {
             ui.separator();
-            ui.label(egui::RichText::new("Refined").strong());
+            ui.label(egui::RichText::new(translate(Key::refined, lang)).strong());
             let mut sorted: Vec<&Prob> = extras.iter().collect();
             sorted.sort_by(|a, b| {
                 b.prob
@@ -1137,12 +1161,12 @@ fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc) {
     }
 }
 
-fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob]) {
+fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob], lang: &Lang) {
     if probs.is_empty() {
-        ui.label(egui::RichText::new("(no classification)").weak());
+        ui.label(egui::RichText::new(translate(Key::no_classification, lang)).weak());
         return;
     }
-    ui.label(egui::RichText::new("Classification").strong());
+    ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
     let mut sorted: Vec<&Prob> = probs.iter().collect();
     sorted.sort_by(|a, b| {
         b.prob
@@ -1154,7 +1178,7 @@ fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob]) {
     }
     if probs.len() > 6 {
         ui.label(
-            egui::RichText::new(format!("…and {} more", probs.len() - 6)).weak(),
+            egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
         );
     }
 }
