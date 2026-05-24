@@ -38,51 +38,88 @@ impl Gui {
     }
 
     pub(super) fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.audio_data.is_some() && (self.is_audio_model() || !self.ep_selected.is_local()) {
-            ui.vertical_centered(|ui| {
-                ui.heading(self.t(Key::audio_file));
-                ui.heading(self.t(Key::analysis));
-            });
-            ui.separator();
+        if self.selected_audios.is_empty()
+            || !(self.is_audio_model() || !self.ep_selected.is_local())
+        {
+            return;
+        }
+        ui.vertical_centered(|ui| {
+            ui.heading(self.t(Key::audio_file));
+            ui.heading(self.t(Key::analysis));
+        });
+        ui.separator();
 
-            ui.vertical_centered(|ui| {
-                if !self.audio_state.is_processing {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
-                        .clicked()
-                    {
+        ui.vertical_centered(|ui| {
+            if !self.audio_state.is_processing {
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::analyze)))
+                    .clicked()
+                {
+                    if self.selected_audios.get_progress() == 0.0 {
                         self.start_audio_analysis();
-                    }
-                } else {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
-                        .clicked()
-                    {
-                        self.audio_state.cancel();
+                    } else {
+                        self.dialog = OpenDialog::ProcessAll;
                     }
                 }
+            } else if ui
+                .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::cancel)))
+                .clicked()
+            {
+                self.audio_state.cancel();
+                self.audio_processing_receiver = None;
+            }
+        });
+
+        ui.add(
+            egui::ProgressBar::new(self.audio_state.progress_bar)
+                .show_percentage()
+                .animate(self.audio_state.is_processing),
+        );
+
+        ui.add_space(8.0);
+
+        let has_any_predictions = self.selected_audios.iter().any(|p| p.wasprocessed);
+        if has_any_predictions && !self.audio_state.is_processing {
+            ui.vertical_centered(|ui| {
+                if ui
+                    .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
+                    .clicked()
+                {
+                    self.dialog = OpenDialog::Export;
+                }
             });
+        }
 
-            ui.add_space(8.0);
+        self.audio_export_dialog(ui);
+        self.process_all_dialog_audio(ui);
+    }
 
-            let has_predictions = self
-                .pred_audio
-                .as_ref()
-                .map(|p| p.wasprocessed)
-                .unwrap_or(false);
-            if has_predictions && !self.audio_state.is_processing {
-                ui.vertical_centered(|ui| {
-                    if ui
-                        .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::export)))
-                        .clicked()
-                    {
-                        self.dialog = OpenDialog::Export;
+    fn process_all_dialog_audio(&mut self, ui: &egui::Ui) {
+        if self.dialog != OpenDialog::ProcessAll || self.mode != Mode::Audio {
+            return;
+        }
+        egui::Window::new(self.t(Key::process_everything))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(self.t(Key::yes)).clicked() {
+                        self.process_all_audios = true;
+                        self.start_audio_analysis();
+                        self.dialog = OpenDialog::None;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::no_only_missing_data)).clicked() {
+                        self.process_all_audios = false;
+                        self.start_audio_analysis();
+                        self.dialog = OpenDialog::None;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.dialog = OpenDialog::None;
                     }
                 });
-            }
-
-            self.audio_export_dialog(ui);
-        }
+            });
     }
 
     fn audio_export_dialog(&mut self, ui: &egui::Ui) {
@@ -104,16 +141,22 @@ impl Gui {
                 }
             });
         if export {
-            if let Some(pred) = self.pred_audio.clone() {
-                let display = pred
-                    .predictions_file_path()
-                    .ok()
-                    .and_then(|p| p.to_str().map(|s| s.to_string()))
-                    .unwrap_or_else(|| "predictions.json".to_string());
+            // Match the image flow: write every processed file's sidecar JSON
+            // in one go. Each spawn is independent — no need to gate on the
+            // others — and the "Done" toast points to the on-disk location.
+            let mut wrote_any = false;
+            for pred in self.selected_audios.clone() {
+                if !pred.wasprocessed {
+                    continue;
+                }
+                wrote_any = true;
                 tokio::spawn(async move {
                     let _ = pred.write_pred_audio_to_file().await;
                 });
-                self.process_done_at(display);
+            }
+            if wrote_any {
+                let msg = self.t(Key::saved_next_to_originals).to_string();
+                self.process_done_with(msg);
             }
         }
         if close {
@@ -121,12 +164,18 @@ impl Gui {
         }
     }
 
-    pub(super) fn start_audio_analysis(&mut self) {
+    pub(super) fn start_single_audio_analysis(&mut self, target: usize) {
+        if target >= self.selected_audios.len() || self.audio_state.is_processing {
+            return;
+        }
+        self.selected_audios[target].reset();
         self.audio_state.is_processing = true;
-        let (tx, rx) = std::sync::mpsc::channel();
-        self.audio_result_receiver = Some(rx);
+        self.audio_state.progress_bar = self.selected_audios.get_progress();
 
-        let audio = self.audio_data.as_ref().unwrap().clone();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.audio_processing_receiver = Some(rx);
+
+        let path = self.selected_audios[target].file_path.clone();
         let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
         self.audio_state.cancel_sender = Some(cancel_tx);
 
@@ -134,8 +183,54 @@ impl Gui {
             if cancel_rx.try_recv().is_ok() {
                 return;
             }
-            let result = tokio::task::spawn_blocking(move || process_audio(&audio)).await;
-            let _ = tx.send(result);
+            let result = tokio::task::spawn_blocking(move || {
+                let audio = AudioData::from_file(&path).ok()?.to_mono();
+                Some(process_audio(&audio))
+            })
+            .await
+            .ok()
+            .flatten();
+            if let Some(out) = result {
+                let _ = tx.send((target, out));
+            }
+        });
+    }
+
+    pub(super) fn start_audio_analysis(&mut self) {
+        self.audio_state.is_processing = true;
+        if self.process_all_audios {
+            self.selected_audios.iter_mut().for_each(|p| p.reset());
+        }
+        self.audio_state.progress_bar = self.selected_audios.get_progress();
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.audio_processing_receiver = Some(rx);
+
+        let copy_preds = self.selected_audios.clone();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.audio_state.cancel_sender = Some(cancel_tx);
+
+        tokio::spawn(async move {
+            for (i, pred) in copy_preds.iter().enumerate() {
+                if pred.wasprocessed {
+                    continue;
+                }
+                if cancel_rx.try_recv().is_ok() {
+                    break;
+                }
+                let path = pred.file_path.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    let audio = AudioData::from_file(&path).ok()?.to_mono();
+                    Some(process_audio(&audio))
+                })
+                .await
+                .ok()
+                .flatten();
+                let Some(out) = result else { continue; };
+                if tx.send((i, out)).is_err() {
+                    break;
+                }
+            }
         });
     }
 
@@ -165,16 +260,39 @@ impl Gui {
         self.audio_play_start = None;
     }
 
-    fn draw_audio_header(&self, ui: &mut egui::Ui) {
-        let Some(pred) = self.pred_audio.as_ref() else { return; };
-        let unknown = self.t(Key::unknown_file);
-        let name = pred
-            .file_path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(unknown);
+    fn draw_audio_header(&mut self, ui: &mut egui::Ui, n: usize) {
+        let mut new_index = self.audio_texture_n;
+        let can_analyze = self.is_audio_model() || !self.ep_selected.is_local();
+        let mut analyze_this = false;
+
         ui.horizontal_wrapped(|ui| {
+            if n > 1 {
+                let prev_enabled = new_index > 1;
+                ui.add_enabled_ui(prev_enabled, |ui| {
+                    if ui.button("⏮").on_hover_text(self.t(Key::prev_image)).clicked() {
+                        new_index = new_index.saturating_sub(1).max(1);
+                    }
+                });
+                let next_enabled = new_index < n;
+                ui.add_enabled_ui(next_enabled, |ui| {
+                    if ui.button("⏭").on_hover_text(self.t(Key::next_image)).clicked() {
+                        new_index = (new_index + 1).min(n);
+                    }
+                });
+                ui.separator();
+            }
+            let pred = &self.selected_audios[new_index - 1];
+            let name = pred
+                .file_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(self.t(Key::unknown_file));
             ui.label(egui::RichText::new(name).strong());
+            if n > 1 {
+                ui.label(
+                    egui::RichText::new(format!("·  {} / {}", new_index, n)).weak(),
+                );
+            }
             if !pred.wasprocessed {
                 ui.separator();
                 ui.label(
@@ -183,36 +301,102 @@ impl Gui {
                         .small(),
                 );
             }
+            if can_analyze {
+                ui.separator();
+                let resp = ui
+                    .add_enabled(
+                        !self.audio_state.is_processing,
+                        egui::Button::new(self.t(Key::analyze_this_image)),
+                    )
+                    .on_hover_text(self.t(Key::analyze_this_image_hint));
+                if resp.clicked() {
+                    analyze_this = true;
+                }
+            }
         });
+
+        if n > 1 {
+            let slider_w = (ui.available_width() - 110.0).max(180.0);
+            ui.spacing_mut().slider_width = slider_w;
+            ui.add(egui::Slider::new(&mut new_index, 1..=n).text(""));
+        }
+
+        if new_index != self.audio_texture_n {
+            self.audio_texture_n = new_index;
+            if self.load_current_audio().is_err() {
+                self.process_error();
+            }
+        }
+
+        if analyze_this {
+            self.start_single_audio_analysis(new_index - 1);
+        }
+
         ui.add_space(4.0);
     }
 
-    pub(super) fn audio_handle_results(&mut self) {
-        if let Some(rx) = &self.audio_result_receiver {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(aio @ AIOutputs::AudioClassification(_)) => {
-                        if let Some(pred) = self.pred_audio.as_mut() {
-                            pred.aioutput = Some(aio);
-                            pred.wasprocessed = true;
-                        }
-                    }
-                    _ => {
-                        self.process_error();
-                    }
-                }
-                self.audio_state.is_processing = false;
-                self.audio_state.texture = None;
-                self.audio_result_receiver = None;
-                self.process_done();
+    pub(super) fn audio_handle_results(&mut self, ui: &egui::Ui) {
+        let Some(rx) = self.audio_processing_receiver.as_mut() else { return; };
+
+        let mut updates = Vec::new();
+        loop {
+            match rx.try_recv() {
+                Ok(item) => updates.push(item),
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
             }
         }
+
+        let current_idx = self.audio_texture_n.saturating_sub(1);
+        let mut touched_current = false;
+        for (i, aio) in updates {
+            if matches!(aio, AIOutputs::AudioClassification(_)) {
+                if let Some(slot) = self.selected_audios.get_mut(i) {
+                    slot.aioutput = Some(aio);
+                    slot.wasprocessed = true;
+                    if i == current_idx {
+                        touched_current = true;
+                    }
+                }
+            } else {
+                self.process_error();
+            }
+        }
+
+        // Repaint the spectrogram of the currently-selected file when its
+        // own predictions just landed, so the class strip / colours refresh
+        // without the user needing to navigate away and back.
+        if touched_current {
+            self.audio_state.texture = None;
+        }
+
+        if self.selected_audios.iter().all(|p| p.wasprocessed) {
+            self.audio_state.is_processing = false;
+            self.audio_processing_receiver = None;
+            self.process_done();
+        }
+
+        self.audio_state.progress_bar = self.selected_audios.get_progress();
+        ui.ctx().request_repaint();
     }
 
     pub(super) fn ui_audio(&mut self, ui: &mut egui::Ui) {
-        if self.audio_data.is_some() {
-            self.draw_audio_header(ui);
+        if self.selected_audios.is_empty() {
+            return;
+        }
+        let n = self.selected_audios.len();
+        if self.audio_texture_n < 1 {
+            self.audio_texture_n = 1;
+        }
+        if self.audio_texture_n > n {
+            self.audio_texture_n = n;
+        }
 
+        self.draw_audio_header(ui, n);
+
+        // Header may have switched files — if the new selection failed to
+        // decode (or hasn't loaded yet) we don't have anything to draw.
+        if self.audio_data.is_some() {
             let duration =
                 self.audio_data.as_ref().unwrap().duration().max(0.1);
 
@@ -324,8 +508,8 @@ impl Gui {
             }
 
             let window_preds: Vec<AudioProb> = self
-                .pred_audio
-                .as_ref()
+                .selected_audios
+                .get(self.audio_texture_n.saturating_sub(1))
                 .and_then(|p| p.audio_predictions())
                 .map(|preds| {
                     preds
@@ -409,7 +593,7 @@ impl Gui {
             }
         }
 
-        self.audio_handle_results();
+        self.audio_handle_results(ui);
     }
 }
 

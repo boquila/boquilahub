@@ -111,14 +111,16 @@ struct Gui {
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
     selected_files: Vec<PredImg>,
-    pred_audio: Option<PredAudio>,
+    selected_audios: Vec<PredAudio>,
+    // AudioData is heavy (hours of float samples). We only keep it for the
+    // currently displayed audio file — switching invalidates and reloads.
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
     audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
     audio_tex_dims: Option<(usize, usize)>,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
-    audio_result_receiver: Option<std::sync::mpsc::Receiver<Result<AIOutputs, tokio::task::JoinError>>>,
+    audio_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     audio_playing: bool,
     audio_play_start: Option<Instant>,
     audio_play_start_pos: f64,
@@ -144,8 +146,9 @@ struct Gui {
     feed_playhead_frame: Option<u64>,
     feed_last_displayed_frame: Option<u64>,
 
-    // Video pipeline state.
-    video_pred: Option<PredVideo>,
+    // Video pipeline state. Thumbnails + decoder are only ever for the
+    // currently displayed video; switching wipes them and rebuilds lazily.
+    selected_videos: Vec<PredVideo>,
     video_thumbnails: HashMap<u64, Vec<u8>>,
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
     video_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<AnalysisFrame>>,
@@ -178,6 +181,8 @@ struct Gui {
     feed_step_frame: usize,
 
     image_texture_n: usize,
+    audio_texture_n: usize,
+    video_texture_n: usize,
 
     // Enums (size depends on variants, but typically 1-8 bytes)
     lang: Lang,
@@ -188,6 +193,7 @@ struct Gui {
     isapi_deployed: bool,
     save_img_from_feed: bool,
     process_all_imgs: bool,
+    process_all_audios: bool,
     show_config: ShowConfig,
     dialog: OpenDialog,
     img_state: State,
@@ -262,10 +268,13 @@ impl Gui {
             ais: ais,
             ais_cls_only: classify_ais,
             image_texture_n: 1,
+            audio_texture_n: 1,
+            video_texture_n: 1,
             video_step_frame: 3,
             feed_step_frame: 3,
             feed_buffer_max_secs: feed::FEED_BUFFER_DEFAULT_SECS,
             process_all_imgs: true,
+            process_all_audios: true,
             ..Default::default()
         }
     }
@@ -444,10 +453,6 @@ impl Gui {
                     self.show_ai_cls = false;
                     self.ai_cls_selected = None;
                     GlobalBQ::Second.clear();
-                    if self.audio_data.is_none() {
-                        self.audio_data = None;
-                        self.pred_audio = None;
-                    }
                     // Mel params may differ for the new audio model — invalidate cache.
                     self.audio_full_mel = None;
                     self.audio_mel_meta = None;
@@ -640,31 +645,70 @@ impl Gui {
                     if let Some(folder_path) = rfd::FileDialog::new().pick_folder() {
                         match fs::read_dir(&folder_path) {
                             Ok(entries) => {
-                                let image_files: Vec<PathBuf> = entries
-                                    .filter_map(|entry| entry.ok())
-                                    .map(|entry| entry.path())
-                                    .filter(|path| path.is_file())
-                                    .filter(|path| {
-                                        path.extension()
-                                            .and_then(|ext| ext.to_str())
-                                            .map(|ext_str| {
-                                                formats::IMAGE_FORMATS.iter().any(|&format| {
-                                                    ext_str.eq_ignore_ascii_case(format)
-                                                })
-                                            })
-                                            .unwrap_or(false)
-                                    })
-                                    .collect();
+                                let (image_files, audio_files, video_files) =
+                                    partition_media_in_dir(entries);
+
+                                let had_any = !image_files.is_empty()
+                                    || !audio_files.is_empty()
+                                    || !video_files.is_empty();
 
                                 if !image_files.is_empty() {
                                     self.selected_files = image_files
                                         .into_iter()
-                                        .map(|path: PathBuf| PredImg::new_simple(path))
+                                        .map(PredImg::new_simple)
                                         .collect();
                                     self.image_texture_n = 1;
                                     self.paint(ui, 0);
-                                    self.mode = Mode::Image;
-                                    self.img_state.progress_bar = self.selected_files.get_progress()
+                                    self.img_state.progress_bar =
+                                        self.selected_files.get_progress();
+                                }
+
+                                if !audio_files.is_empty() {
+                                    self.selected_audios = audio_files
+                                        .into_iter()
+                                        .map(PredAudio::new_simple)
+                                        .collect();
+                                    self.audio_texture_n = 1;
+                                    self.audio_state.progress_bar =
+                                        self.selected_audios.get_progress();
+                                    let _ = self.load_current_audio();
+                                }
+
+                                if !video_files.is_empty() {
+                                    let mut probed: Vec<PredVideo> = Vec::new();
+                                    for path in video_files {
+                                        let path_str = path.to_string_lossy().to_string();
+                                        if let Ok(probe) =
+                                            VideofileProcessor::probe(&path_str)
+                                        {
+                                            probed.push(PredVideo::new_simple(
+                                                path,
+                                                probe.width,
+                                                probe.height,
+                                                probe.fps,
+                                                probe.n_frames,
+                                            ));
+                                        }
+                                    }
+                                    if !probed.is_empty() {
+                                        self.selected_videos = probed;
+                                        self.video_texture_n = 1;
+                                        self.load_current_video(ui);
+                                    }
+                                }
+
+                                // Pick a sensible default mode. Image wins when
+                                // present (matches the prior single-modality
+                                // behaviour); otherwise fall back to whichever
+                                // modality the folder actually contained.
+                                if had_any {
+                                    if !self.selected_files.is_empty() {
+                                        self.mode = Mode::Image;
+                                    } else if !self.selected_videos.is_empty() {
+                                        self.mode = Mode::Video;
+                                    } else if !self.selected_audios.is_empty() {
+                                        self.mode = Mode::Audio;
+                                    }
                                 }
                             }
                             Err(_e) => {
@@ -700,61 +744,30 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::video_file)))
                     .clicked()
                 {
-                    if let Some(path) = rfd::FileDialog::new()
+                    if let Some(paths) = rfd::FileDialog::new()
                         .add_filter("Video", &formats::VIDEO_FORMATS)
-                        .pick_file()
+                        .pick_files()
                     {
-                        let path_str = path.to_string_lossy().to_string();
-                        match VideofileProcessor::probe(&path_str) {
-                            Ok(probe) => {
-                                // Cap the preview to a sane width before the
-                                // RGB→RGBA copy + GPU upload. 1080p sources
-                                // are untouched; 4K (33 MB at full res) drops
-                                // to ~8 MB, and the preview panel is rarely
-                                // wider than this anyway.
-                                const PREVIEW_MAX_W: u32 = 1920;
-                                let display_rgb = if probe.first_frame.width() > PREVIEW_MAX_W {
-                                    let h = (probe.first_frame.height() as f32
-                                        * PREVIEW_MAX_W as f32
-                                        / probe.first_frame.width() as f32)
-                                        as u32;
-                                    image::imageops::resize(
-                                        &probe.first_frame,
-                                        PREVIEW_MAX_W,
-                                        h.max(1),
-                                        image::imageops::FilterType::Triangle,
-                                    )
-                                } else {
-                                    probe.first_frame
-                                };
-                                self.video_state.texture = imgbuf_to_texture(
-                                    &image::DynamicImage::ImageRgb8(display_rgb).to_rgba8(),
-                                    ui,
-                                );
-                                let pred_video = PredVideo::new_simple(
-                                    path.clone(),
+                        let mut probed: Vec<PredVideo> = Vec::new();
+                        for path in paths {
+                            let path_str = path.to_string_lossy().to_string();
+                            if let Ok(probe) = VideofileProcessor::probe(&path_str) {
+                                probed.push(PredVideo::new_simple(
+                                    path,
                                     probe.width,
                                     probe.height,
                                     probe.fps,
                                     probe.n_frames,
-                                );
-                                self.video_pred = Some(pred_video);
-                                self.video_thumbnails.clear();
-                                // Leave the streaming decoder unbuilt — the
-                                // analysis path lazy-creates one when the user
-                                // clicks Analyse (via `needs_fresh_decoder`).
-                                // This saves a second ffmpeg open + a thread
-                                // spawn at file-pick time.
-                                self.video_file_processor = Arc::new(Mutex::new(None));
-                                self.mode = Mode::Video;
-                                self.video_state.progress_bar = 0.0;
-                                self.video_playhead_frame = Some(0);
-                                self.video_last_displayed_frame = None;
-                                self.video_playing = false;
+                                ));
                             }
-                            Err(_) => {
-                                self.process_error();
-                            }
+                        }
+                        if probed.is_empty() {
+                            self.process_error();
+                        } else {
+                            self.selected_videos = probed;
+                            self.video_texture_n = 1;
+                            self.mode = Mode::Video;
+                            self.load_current_video(ui);
                         }
                     }
                 }
@@ -776,34 +789,20 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::audio_file)))
                     .clicked()
                 {
-                    if let Some(path) = rfd::FileDialog::new()
+                    if let Some(paths) = rfd::FileDialog::new()
                         .add_filter("Audio", &formats::AUDIO_FORMATS)
-                        .pick_file()
+                        .pick_files()
                     {
-                        match AudioData::from_file(&path) {
-                            Ok(audio_data) => {
-                                let mono = audio_data.to_mono();
-                                let dur = mono.duration();
-                                self.audio_data = Some(mono);
-                                self.pred_audio = Some(PredAudio::new_simple(path));
-                                self.audio_full_mel = None;
-                                self.audio_mel_meta = None;
-                                self.audio_tex_dims = None;
-                                self.audio_view_range = (0.0, dur.max(0.1));
-                                self.audio_view_range_dirty = true;
-                                self.audio_state.texture = None;
-                                self.audio_playhead = None;
-                                self.audio_playing = false;
-                                self.audio_play_start = None;
-                                self.audio_play_start_pos = 0.0;
-                                self.audio_player = None;
-                                self.audio_stream = None;
-                                self.mode = Mode::Audio;
-                                self.audio_state.progress_bar = 0.0;
-                            }
-                            Err(_) => {
-                                self.process_error();
-                            }
+                        self.selected_audios = paths
+                            .into_iter()
+                            .map(PredAudio::new_simple)
+                            .collect();
+                        self.audio_texture_n = 1;
+                        self.mode = Mode::Audio;
+                        self.audio_state.progress_bar = self.selected_audios.get_progress();
+                        if let Err(()) = self.load_current_audio() {
+                            self.process_error();
+                            self.selected_audios.clear();
                         }
                     }
                 }
@@ -812,6 +811,99 @@ impl Gui {
         // Feed url dialog
         if self.dialog == OpenDialog::FeedUrl {
             self.feed_input_dialog(ui);
+        }
+    }
+
+    /// Load (decode) the AudioData for the currently-selected audio file and
+    /// reset all derived view state (mel, texture, view range, playhead). The
+    /// returned `Ok(())` / `Err(())` reflects whether the file could be opened.
+    pub(super) fn load_current_audio(&mut self) -> Result<(), ()> {
+        self.stop_playback();
+        self.audio_data = None;
+        self.audio_full_mel = None;
+        self.audio_mel_meta = None;
+        self.audio_tex_dims = None;
+        self.audio_state.texture = None;
+        self.audio_playhead = None;
+        self.audio_play_start = None;
+        self.audio_play_start_pos = 0.0;
+
+        let Some(pred) = self
+            .selected_audios
+            .get(self.audio_texture_n.saturating_sub(1))
+        else {
+            self.audio_view_range = (0.0, 0.1);
+            self.audio_view_range_dirty = true;
+            return Ok(());
+        };
+
+        match AudioData::from_file(&pred.file_path) {
+            Ok(audio) => {
+                let mono = audio.to_mono();
+                let dur = mono.duration();
+                self.audio_data = Some(mono);
+                self.audio_view_range = (0.0, dur.max(0.1));
+                self.audio_view_range_dirty = true;
+                Ok(())
+            }
+            Err(_) => Err(()),
+        }
+    }
+
+    pub(super) fn current_video(&self) -> Option<&PredVideo> {
+        self.selected_videos.get(self.video_texture_n.saturating_sub(1))
+    }
+
+    pub(super) fn current_video_mut(&mut self) -> Option<&mut PredVideo> {
+        let idx = self.video_texture_n.saturating_sub(1);
+        self.selected_videos.get_mut(idx)
+    }
+
+    /// Load (well, "open") the currently-selected video: rebuild the preview
+    /// texture from the first frame, drop any cached thumbnails / decoder, and
+    /// reset playback state. Like `paint()` for images, this is the seam where
+    /// switching videos becomes cheap regardless of how many are loaded.
+    pub(super) fn load_current_video(&mut self, ui: &egui::Ui) {
+        self.stop_video_playback();
+        self.video_thumbnails.clear();
+        *self.video_file_processor.lock().unwrap() = None;
+        self.video_processing_receiver = None;
+        self.video_state.texture = None;
+        self.video_last_displayed_frame = None;
+        self.video_playhead_frame = Some(0);
+
+        let Some(pv) = self
+            .selected_videos
+            .get(self.video_texture_n.saturating_sub(1))
+        else {
+            self.video_state.progress_bar = 0.0;
+            return;
+        };
+
+        self.video_state.progress_bar = pv.get_progress();
+
+        let path_str = pv.file_path.to_string_lossy().to_string();
+        if let Ok(probe) = VideofileProcessor::probe(&path_str) {
+            // Cap the preview width before the RGB→RGBA copy + GPU upload, as
+            // we did at file-pick time — 4K frames burn ~33 MB at full res.
+            const PREVIEW_MAX_W: u32 = 1920;
+            let display_rgb = if probe.first_frame.width() > PREVIEW_MAX_W {
+                let h = (probe.first_frame.height() as f32
+                    * PREVIEW_MAX_W as f32
+                    / probe.first_frame.width() as f32) as u32;
+                image::imageops::resize(
+                    &probe.first_frame,
+                    PREVIEW_MAX_W,
+                    h.max(1),
+                    image::imageops::FilterType::Triangle,
+                )
+            } else {
+                probe.first_frame
+            };
+            self.video_state.texture = imgbuf_to_texture(
+                &image::DynamicImage::ImageRgb8(display_rgb).to_rgba8(),
+                ui,
+            );
         }
     }
 
@@ -922,9 +1014,9 @@ impl eframe::App for Gui {
 
         egui::CentralPanel::default().show_inside(main_ui, |ui| {
             let cond1 = self.selected_files.len() >= 1;
-            let cond2 = self.video_pred.is_some();
+            let cond2 = !self.selected_videos.is_empty();
             let cond3 = self.feed_url.is_some();
-            let cond4 = self.pred_audio.is_some();
+            let cond4 = !self.selected_audios.is_empty();
             // it has a mode AND another
             let img_mode = cond1 && (cond2 || cond3 || cond4);
             let video_mode = cond2 && (cond1 || cond3 || cond4);
@@ -988,4 +1080,41 @@ enum Mode {
     Video,
     Feed,
     Audio,
+}
+
+/// Bucket a directory's files into (images, audio, video) by extension. Each
+/// file lands in at most one bucket; order matches the source iterator so the
+/// resulting UI is stable across folder rescans.
+fn partition_media_in_dir(
+    entries: fs::ReadDir,
+) -> (Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>) {
+    let mut images = Vec::new();
+    let mut audios = Vec::new();
+    let mut videos = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+        if formats::IMAGE_FORMATS
+            .iter()
+            .any(|f| ext.eq_ignore_ascii_case(f))
+        {
+            images.push(path);
+        } else if formats::AUDIO_FORMATS
+            .iter()
+            .any(|f| ext.eq_ignore_ascii_case(f))
+        {
+            audios.push(path);
+        } else if formats::VIDEO_FORMATS
+            .iter()
+            .any(|f| ext.eq_ignore_ascii_case(f))
+        {
+            videos.push(path);
+        }
+    }
+    (images, audios, videos)
 }

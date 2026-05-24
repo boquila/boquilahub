@@ -236,6 +236,28 @@ impl PredAudio {
             _ => None,
         }
     }
+
+    pub fn reset(&mut self) {
+        self.wasprocessed = false;
+    }
+}
+
+pub trait PredAudioSugar {
+    fn count_processed(&self) -> usize;
+    fn get_progress(&self) -> f32;
+}
+
+impl PredAudioSugar for Vec<PredAudio> {
+    fn count_processed(&self) -> usize {
+        self.iter().filter(|a| a.wasprocessed).count()
+    }
+
+    fn get_progress(&self) -> f32 {
+        if self.is_empty() {
+            return 0.0;
+        }
+        self.count_processed() as f32 / self.len() as f32
+    }
 }
 
 /// A video that has been (or will be) analyzed frame by frame.

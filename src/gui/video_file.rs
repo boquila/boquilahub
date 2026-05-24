@@ -38,42 +38,50 @@ impl Gui {
             *self.video_file_processor.lock().unwrap() = None;
         }
 
-        // Re-analysis: wipe cache and re-open the decoder.
-        let needs_fresh_decoder = self
-            .video_pred
-            .as_ref()
-            .map(|p| p.wasprocessed)
-            .unwrap_or(false)
-            || self
+        let step_u32 = self.video_step_frame as u32;
+        let needs_fresh_decoder;
+        let path_for_decoder: Option<String>;
+        {
+            let already_processed = self
+                .current_video()
+                .map(|p| p.wasprocessed)
+                .unwrap_or(false);
+            let decoder_missing = self
                 .video_file_processor
                 .lock()
                 .ok()
                 .map(|g| g.is_none())
                 .unwrap_or(true);
+            needs_fresh_decoder = already_processed || decoder_missing;
+            path_for_decoder = self
+                .current_video()
+                .and_then(|p| p.file_path.to_str().map(str::to_owned));
+        }
 
-        if let Some(pv) = self.video_pred.as_mut() {
+        let mut wiped = false;
+        if let Some(pv) = self.current_video_mut() {
             if pv.wasprocessed {
                 pv.reset();
-                self.video_thumbnails.clear();
-                self.video_playhead_frame = Some(0);
-                self.video_last_displayed_frame = None;
+                wiped = true;
             }
-            pv.set_step(self.video_step_frame as u32);
+            pv.set_step(step_u32);
+        }
+        if wiped {
+            self.video_thumbnails.clear();
+            self.video_playhead_frame = Some(0);
+            self.video_last_displayed_frame = None;
         }
 
         if needs_fresh_decoder {
-            if let Some(pv) = self.video_pred.as_ref() {
-                if let Some(path) = pv.file_path.to_str() {
-                    let fresh = video_file::VideofileProcessor::new(path);
-                    *self.video_file_processor.lock().unwrap() = Some(fresh);
-                }
+            if let Some(path) = path_for_decoder {
+                let fresh = video_file::VideofileProcessor::new(&path);
+                *self.video_file_processor.lock().unwrap() = Some(fresh);
             }
         }
 
         self.video_state.is_processing = true;
         self.video_state.progress_bar = self
-            .video_pred
-            .as_ref()
+            .current_video()
             .map(|p| p.get_progress())
             .unwrap_or(0.0);
 
@@ -154,22 +162,26 @@ impl Gui {
         if self.video_processing_receiver.is_some() {
             return;
         }
-        let Some(pv) = self.video_pred.as_ref() else { return; };
-        if pv.n_frames == 0 {
-            return;
-        }
         let step = self.video_step_frame.max(1) as u64;
-        // Cheap done-check: if the last step-aligned frame is cached, the
-        // decoder reached EOF on a prior run. Avoids an O(n_frames/step)
-        // sweep on every UI tick once decoding is complete.
-        let last_keyframe = (pv.n_frames.saturating_sub(1) / step) * step;
-        if self.video_thumbnails.contains_key(&last_keyframe) {
-            return;
-        }
-        let Some(path_str) = pv.file_path.to_str().map(str::to_owned) else { return; };
+        let step_u32 = self.video_step_frame as u32;
+        let (path_str, predictions) = {
+            let Some(pv) = self.current_video() else { return; };
+            if pv.n_frames == 0 {
+                return;
+            }
+            // Cheap done-check: if the last step-aligned frame is cached, the
+            // decoder reached EOF on a prior run. Avoids an O(n_frames/step)
+            // sweep on every UI tick once decoding is complete.
+            let last_keyframe = (pv.n_frames.saturating_sub(1) / step) * step;
+            if self.video_thumbnails.contains_key(&last_keyframe) {
+                return;
+            }
+            let Some(path_str) = pv.file_path.to_str().map(str::to_owned) else { return; };
+            (path_str, pv.frames.clone())
+        };
 
-        if let Some(pv) = self.video_pred.as_mut() {
-            pv.set_step(self.video_step_frame as u32);
+        if let Some(pv) = self.current_video_mut() {
+            pv.set_step(step_u32);
         }
 
         // Always open a fresh decoder — a prior analysis may have left the
@@ -181,11 +193,6 @@ impl Gui {
         self.video_processing_receiver = Some(rx);
 
         let processor = Arc::clone(&self.video_file_processor);
-        let predictions: Vec<Option<AIOutputs>> = self
-            .video_pred
-            .as_ref()
-            .map(|pv| pv.frames.clone())
-            .unwrap_or_default();
         let empty_overlay = AIOutputs::ObjectDetection(Vec::new());
 
         tokio::spawn(async move {
@@ -245,7 +252,7 @@ impl Gui {
         let mut latest_idx: Option<u64> = None;
         for msg in messages {
             if is_analysis {
-                if let Some(pv) = self.video_pred.as_mut() {
+                if let Some(pv) = self.current_video_mut() {
                     pv.record(msg.frame_idx, msg.aioutput);
                 }
             }
@@ -267,7 +274,7 @@ impl Gui {
             }
         }
         if is_analysis {
-            if let Some(pv) = self.video_pred.as_ref() {
+            if let Some(pv) = self.current_video() {
                 self.video_state.progress_bar = pv.get_progress();
             }
         }
@@ -276,7 +283,7 @@ impl Gui {
             if is_analysis {
                 self.video_state.progress_bar = 1.0;
                 self.video_state.is_processing = false;
-                if let Some(pv) = self.video_pred.as_mut() {
+                if let Some(pv) = self.current_video_mut() {
                     pv.wasprocessed = true;
                 }
                 self.process_done();
@@ -292,12 +299,12 @@ impl Gui {
     // ---------- playback ----------
 
     pub(super) fn start_video_playback(&mut self, start_frame: u64) {
-        let Some(pv) = self.video_pred.as_ref() else { return; };
-        if pv.n_frames == 0 {
-            return;
-        }
+        let n_frames = match self.current_video() {
+            Some(pv) if pv.n_frames > 0 => pv.n_frames,
+            _ => return,
+        };
         self.video_play_start = Some(Instant::now());
-        self.video_play_start_frame = start_frame.min(pv.n_frames.saturating_sub(1));
+        self.video_play_start_frame = start_frame.min(n_frames.saturating_sub(1));
         self.video_playhead_frame = Some(self.video_play_start_frame);
         self.video_playing = true;
         self.video_last_displayed_frame = None;
@@ -312,7 +319,7 @@ impl Gui {
         if self.video_thumbnails.is_empty() {
             return None;
         }
-        let pv = self.video_pred.as_ref()?;
+        let pv = self.current_video()?;
         let step = pv.step.max(1) as u64;
         let mut candidate = (target / step) * step;
         loop {
@@ -349,7 +356,7 @@ impl Gui {
     // ---------- export ----------
 
     pub(super) fn export_video_predictions_json(&mut self) {
-        let Some(pv) = self.video_pred.as_ref() else { return; };
+        let Some(pv) = self.current_video() else { return; };
         let display = pv
             .predictions_file_path()
             .ok()
@@ -363,10 +370,11 @@ impl Gui {
     }
 
     pub(super) fn export_video_annotated(&mut self) {
-        let Some(pv) = self.video_pred.as_ref() else { return; };
-        let output_path = export::prepare_export_video(&pv.file_path);
+        let (pv_clone, output_path) = match self.current_video() {
+            Some(pv) => (pv.clone(), export::prepare_export_video(&pv.file_path)),
+            None => return,
+        };
         self.video_export_path = output_path.to_str().map(|s| s.to_string());
-        let pv_clone = pv.clone();
         let (tx, rx) = std::sync::mpsc::channel::<ExportProgress>();
         self.video_export_receiver = Some(rx);
         self.video_state.progress_bar = 0.0;
@@ -432,7 +440,7 @@ impl Gui {
     // ---------- left-panel widget (Analyze / Export buttons) ----------
 
     pub(super) fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_pred.is_none() || !self.can_run_image_ai() {
+        if self.selected_videos.is_empty() || !self.can_run_image_ai() {
             return;
         }
 
@@ -478,8 +486,7 @@ impl Gui {
         ui.add_space(8.0);
 
         let analysed_anything = self
-            .video_pred
-            .as_ref()
+            .current_video()
             .map(|pv| pv.processed_count() > 0)
             .unwrap_or(false);
 
@@ -528,16 +535,37 @@ impl Gui {
 
     // ---------- main video-player UI ----------
 
-    fn draw_video_header(&self, ui: &mut egui::Ui) {
-        let Some(pv) = self.video_pred.as_ref() else { return; };
-        let unknown = self.t(Key::unknown_file);
-        let name = pv
-            .file_path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or(unknown);
+    fn draw_video_header(&mut self, ui: &mut egui::Ui, n: usize) {
+        let mut new_index = self.video_texture_n;
+
         ui.horizontal_wrapped(|ui| {
+            if n > 1 {
+                let prev_enabled = new_index > 1;
+                ui.add_enabled_ui(prev_enabled, |ui| {
+                    if ui.button("⏮").on_hover_text(self.t(Key::prev_image)).clicked() {
+                        new_index = new_index.saturating_sub(1).max(1);
+                    }
+                });
+                let next_enabled = new_index < n;
+                ui.add_enabled_ui(next_enabled, |ui| {
+                    if ui.button("⏭").on_hover_text(self.t(Key::next_image)).clicked() {
+                        new_index = (new_index + 1).min(n);
+                    }
+                });
+                ui.separator();
+            }
+            let pv = &self.selected_videos[new_index - 1];
+            let name = pv
+                .file_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(self.t(Key::unknown_file));
             ui.label(egui::RichText::new(name).strong());
+            if n > 1 {
+                ui.label(
+                    egui::RichText::new(format!("·  {} / {}", new_index, n)).weak(),
+                );
+            }
             if pv.processed_count() > 0 {
                 ui.separator();
                 let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
@@ -560,21 +588,45 @@ impl Gui {
                 );
             }
         });
+
+        if n > 1 {
+            let slider_w = (ui.available_width() - 110.0).max(180.0);
+            ui.spacing_mut().slider_width = slider_w;
+            ui.add(egui::Slider::new(&mut new_index, 1..=n).text(""));
+        }
+
+        if new_index != self.video_texture_n {
+            self.video_texture_n = new_index;
+            self.load_current_video(ui);
+        }
+
         ui.add_space(4.0);
     }
 
     pub(super) fn ui_video(&mut self, ui: &mut egui::Ui) {
-        let Some(n_frames) = self.video_pred.as_ref().map(|p| p.n_frames) else { return; };
-        if n_frames == 0 {
+        if self.selected_videos.is_empty() {
             return;
         }
+        let n = self.selected_videos.len();
+        if self.video_texture_n < 1 {
+            self.video_texture_n = 1;
+        }
+        if self.video_texture_n > n {
+            self.video_texture_n = n;
+        }
+
         // The user picked a video — start decoding thumbnails so they can play
         // / scrub immediately. Idempotent: no-op if a worker is already running
         // or every step-aligned frame is already cached.
         self.start_video_preview();
 
-        self.draw_video_header(ui);
-        let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
+        self.draw_video_header(ui, n);
+
+        let Some(n_frames) = self.current_video().map(|p| p.n_frames) else { return; };
+        if n_frames == 0 {
+            return;
+        }
+        let fps = self.current_video().map(|p| p.fps).unwrap_or(30.0).max(0.1);
         let last_frame = n_frames.saturating_sub(1);
 
         if self.video_playing {
@@ -649,7 +701,7 @@ impl Gui {
                     .on_hover_text(self.t(Key::prev_analysed_frame))
                     .clicked()
                 {
-                    if let Some(prev) = prev_analysed_frame(self.video_pred.as_ref(), playhead) {
+                    if let Some(prev) = prev_analysed_frame(self.current_video(), playhead) {
                         self.stop_video_playback();
                         self.video_playhead_frame = Some(prev);
                         self.refresh_video_texture(ui, prev);
@@ -660,7 +712,7 @@ impl Gui {
                     .on_hover_text(self.t(Key::next_analysed_frame))
                     .clicked()
                 {
-                    if let Some(next) = next_analysed_frame(self.video_pred.as_ref(), playhead) {
+                    if let Some(next) = next_analysed_frame(self.current_video(), playhead) {
                         self.stop_video_playback();
                         self.video_playhead_frame = Some(next);
                         self.refresh_video_texture(ui, next);
@@ -757,7 +809,7 @@ impl Gui {
 
         // Predictions strip — dominant-class colour per pixel column, capped
         // at the last analysed frame so unanalysed columns stay plain.
-        if let Some(pv) = self.video_pred.as_ref() {
+        if let Some(pv) = self.current_video() {
             let strip_bg = if dark {
                 egui::Color32::from_gray(45)
             } else {
@@ -800,7 +852,7 @@ impl Gui {
             if let Some(hover_pos) = response.hover_pos() {
                 let t = ((hover_pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
                 let frame = (t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64;
-                let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
+                let fps = self.current_video().map(|p| p.fps).unwrap_or(30.0).max(0.1);
                 let secs = frame as f64 / fps;
 
                 let hover_color = if dark {
@@ -816,7 +868,7 @@ impl Gui {
                     egui::Stroke::new(1.0, hover_color),
                 );
 
-                let pv = self.video_pred.as_ref();
+                let pv = self.current_video();
                 let lang = &self.lang;
                 response.clone().on_hover_ui_at_pointer(|ui| {
                     tooltip_ui(ui, pv, frame, secs, lang);
