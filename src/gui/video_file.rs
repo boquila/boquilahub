@@ -82,7 +82,7 @@ impl Gui {
         self.video_state.is_processing = true;
         self.video_state.progress_bar = self
             .current_video()
-            .map(|p| p.get_progress())
+            .map(|p| p.frame_progress())
             .unwrap_or(0.0);
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<AnalysisFrame>();
@@ -275,7 +275,7 @@ impl Gui {
         }
         if is_analysis {
             if let Some(pv) = self.current_video() {
-                self.video_state.progress_bar = pv.get_progress();
+                self.video_state.progress_bar = pv.frame_progress();
             }
         }
         if channel_closed {
@@ -364,7 +364,7 @@ impl Gui {
             .unwrap_or_else(|| "predictions.json".to_string());
         let pv_clone = pv.clone();
         tokio::spawn(async move {
-            let _ = pv_clone.write_pred_video_to_file().await;
+            let _ = pv_clone.write_predictions();
         });
         self.process_done_at(display);
     }
@@ -539,33 +539,20 @@ impl Gui {
         let mut new_index = self.video_texture_n;
 
         ui.horizontal_wrapped(|ui| {
-            if n > 1 {
-                let prev_enabled = new_index > 1;
-                ui.add_enabled_ui(prev_enabled, |ui| {
-                    if ui.button("⏮").on_hover_text(self.t(Key::prev_image)).clicked() {
-                        new_index = new_index.saturating_sub(1).max(1);
-                    }
-                });
-                let next_enabled = new_index < n;
-                ui.add_enabled_ui(next_enabled, |ui| {
-                    if ui.button("⏭").on_hover_text(self.t(Key::next_image)).clicked() {
-                        new_index = (new_index + 1).min(n);
-                    }
-                });
-                ui.separator();
-            }
+            super::nav_prev_next(
+                ui,
+                &mut new_index,
+                n,
+                self.t(Key::prev_image),
+                self.t(Key::next_image),
+            );
             let pv = &self.selected_videos[new_index - 1];
             let name = pv
                 .file_path
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or(self.t(Key::unknown_file));
-            ui.label(egui::RichText::new(name).strong());
-            if n > 1 {
-                ui.label(
-                    egui::RichText::new(format!("·  {} / {}", new_index, n)).weak(),
-                );
-            }
+            super::nav_filename(ui, name, new_index, n);
             if pv.processed_count() > 0 {
                 ui.separator();
                 let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
@@ -589,11 +576,7 @@ impl Gui {
             }
         });
 
-        if n > 1 {
-            let slider_w = (ui.available_width() - 110.0).max(180.0);
-            ui.spacing_mut().slider_width = slider_w;
-            ui.add(egui::Slider::new(&mut new_index, 1..=n).text(""));
-        }
+        super::nav_slider(ui, &mut new_index, n);
 
         if new_index != self.video_texture_n {
             self.video_texture_n = new_index;

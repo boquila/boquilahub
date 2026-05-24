@@ -1,7 +1,5 @@
-use super::abstractions::{PredAudio, PredImg, PredVideo};
+use super::abstractions::PredImg;
 use anyhow::Result;
-use std::fs::File;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const EXPORT_DIR: &str = "export";
@@ -11,37 +9,6 @@ impl PredImg {
         let img_data = self.draw()?;
         let filename = prepare_export_img(&self.file_path);
         img_data.save(&filename)?;
-        Ok(())
-    }
-
-    // For file 'img.jpg', creates a file 'img_predictions.json' that contains the AI outputs
-    pub async fn write_pred_img_to_file(&self) -> Result<()> {
-        let output_path = self.predictions_file_path()?;
-        let mut file = File::create(&output_path)?;
-        let json_string = serde_json::to_string(&self.aioutput)?;
-        file.write_all(json_string.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl PredVideo {
-    // For file 'video.mp4', creates a file 'video_predictions.json' containing this PredVideo.
-    pub async fn write_pred_video_to_file(&self) -> Result<()> {
-        let output_path = self.predictions_file_path()?;
-        let mut file = File::create(&output_path)?;
-        let json_string = serde_json::to_string(self)?;
-        file.write_all(json_string.as_bytes())?;
-        Ok(())
-    }
-}
-
-impl PredAudio {
-    // For file 'sound.wav', creates a file 'sound_predictions.json' containing the AI outputs.
-    pub async fn write_pred_audio_to_file(&self) -> Result<()> {
-        let output_path = self.predictions_file_path()?;
-        let mut file = File::create(&output_path)?;
-        let json_string = serde_json::to_string(&self.aioutput)?;
-        file.write_all(json_string.as_bytes())?;
         Ok(())
     }
 }

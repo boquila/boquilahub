@@ -880,7 +880,7 @@ impl Gui {
             return;
         };
 
-        self.video_state.progress_bar = pv.get_progress();
+        self.video_state.progress_bar = pv.frame_progress();
 
         let path_str = pv.file_path.to_string_lossy().to_string();
         if let Ok(probe) = VideofileProcessor::probe(&path_str) {
@@ -1060,6 +1060,55 @@ impl eframe::App for Gui {
             });
         });
     }
+}
+
+// ---------- Multi-file navigation chrome (shared by image/audio/video headers) ----------
+
+/// Prev / next buttons + trailing separator. Mutates `index` in place so each
+/// caller observes the post-click value immediately (the per-modality status
+/// widgets are drawn after this and need the new index).
+pub(super) fn nav_prev_next(
+    ui: &mut egui::Ui,
+    index: &mut usize,
+    n: usize,
+    prev_hint: &str,
+    next_hint: &str,
+) {
+    if n <= 1 {
+        return;
+    }
+    ui.add_enabled_ui(*index > 1, |ui| {
+        if ui.button("⏮").on_hover_text(prev_hint).clicked() {
+            *index = index.saturating_sub(1).max(1);
+        }
+    });
+    ui.add_enabled_ui(*index < n, |ui| {
+        if ui.button("⏭").on_hover_text(next_hint).clicked() {
+            *index = (*index + 1).min(n);
+        }
+    });
+    ui.separator();
+}
+
+/// Filename in strong + " · i / n" counter when more than one file is loaded.
+pub(super) fn nav_filename(ui: &mut egui::Ui, name: &str, index: usize, n: usize) {
+    ui.label(egui::RichText::new(name).strong());
+    if n > 1 {
+        ui.label(egui::RichText::new(format!("·  {} / {}", index, n)).weak());
+    }
+}
+
+/// Wide slider for jumping to an arbitrary file. Caller is responsible for
+/// `horizontal_wrapped` containment — this is drawn below it, not inside it.
+pub(super) fn nav_slider(ui: &mut egui::Ui, index: &mut usize, n: usize) {
+    if n <= 1 {
+        return;
+    }
+    // Leave room for the slider's trailing value editor (~70px) plus padding —
+    // without this it gets clipped off the right edge.
+    let slider_w = (ui.available_width() - 110.0).max(180.0);
+    ui.spacing_mut().slider_width = slider_w;
+    ui.add(egui::Slider::new(index, 1..=n).text(""));
 }
 
 #[inline(always)]

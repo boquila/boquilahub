@@ -151,7 +151,7 @@ impl Gui {
                 }
                 wrote_any = true;
                 tokio::spawn(async move {
-                    let _ = pred.write_pred_audio_to_file().await;
+                    let _ = pred.write_predictions();
                 });
             }
             if wrote_any {
@@ -266,33 +266,20 @@ impl Gui {
         let mut analyze_this = false;
 
         ui.horizontal_wrapped(|ui| {
-            if n > 1 {
-                let prev_enabled = new_index > 1;
-                ui.add_enabled_ui(prev_enabled, |ui| {
-                    if ui.button("⏮").on_hover_text(self.t(Key::prev_image)).clicked() {
-                        new_index = new_index.saturating_sub(1).max(1);
-                    }
-                });
-                let next_enabled = new_index < n;
-                ui.add_enabled_ui(next_enabled, |ui| {
-                    if ui.button("⏭").on_hover_text(self.t(Key::next_image)).clicked() {
-                        new_index = (new_index + 1).min(n);
-                    }
-                });
-                ui.separator();
-            }
+            super::nav_prev_next(
+                ui,
+                &mut new_index,
+                n,
+                self.t(Key::prev_image),
+                self.t(Key::next_image),
+            );
             let pred = &self.selected_audios[new_index - 1];
             let name = pred
                 .file_path
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or(self.t(Key::unknown_file));
-            ui.label(egui::RichText::new(name).strong());
-            if n > 1 {
-                ui.label(
-                    egui::RichText::new(format!("·  {} / {}", new_index, n)).weak(),
-                );
-            }
+            super::nav_filename(ui, name, new_index, n);
             if !pred.wasprocessed {
                 ui.separator();
                 ui.label(
@@ -315,11 +302,7 @@ impl Gui {
             }
         });
 
-        if n > 1 {
-            let slider_w = (ui.available_width() - 110.0).max(180.0);
-            ui.spacing_mut().slider_width = slider_w;
-            ui.add(egui::Slider::new(&mut new_index, 1..=n).text(""));
-        }
+        super::nav_slider(ui, &mut new_index, n);
 
         if new_index != self.audio_texture_n {
             self.audio_texture_n = new_index;

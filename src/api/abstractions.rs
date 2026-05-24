@@ -123,6 +123,79 @@ pub struct AudioConfig {
     pub top_db: f32,      // e.g. 80.0
 }
 
+/// For `input_path/file.ext`, returns `input_path/file_predictions.json`.
+/// Shared by every `Pred*` type so the sidecar layout stays uniform.
+pub fn sidecar_predictions_path(
+    input_path: &std::path::Path,
+) -> std::io::Result<std::path::PathBuf> {
+    let stem = input_path
+        .file_stem()
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path")
+        })?
+        .to_str()
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path")
+        })?;
+    Ok(input_path.with_file_name(format!("{}_predictions.json", stem)))
+}
+
+fn load_sidecar_aioutput(file_path: &std::path::Path) -> Option<AIOutputs> {
+    let path = sidecar_predictions_path(file_path).ok()?;
+    if !path.exists() {
+        return None;
+    }
+    AIOutputs::from_file(path).ok()
+}
+
+/// Shared shape for the three media prediction types. Lets the GUI talk to
+/// "any media file that has predictions attached" without caring whether it's
+/// an image, an audio clip, or a video.
+pub trait Pred {
+    fn file_path(&self) -> &std::path::Path;
+    fn is_processed(&self) -> bool;
+
+    /// JSON written to the sidecar `_predictions.json`. Image and audio dump
+    /// the bare `AIOutputs` (one prediction per file); video dumps the whole
+    /// `PredVideo` so frames-as-array + probe metadata round-trip.
+    fn predictions_json(&self) -> serde_json::Result<String>;
+
+    fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
+        sidecar_predictions_path(self.file_path())
+    }
+
+    /// Write the sidecar JSON next to the source file. Sync IO inside; the
+    /// existing GUI callers wrap it in `tokio::spawn` for fire-and-forget.
+    /// Serde errors are folded into `io::Error` so the trait stays free of
+    /// extra error-crate dependencies.
+    fn write_predictions(&self) -> std::io::Result<()> {
+        let path = self.predictions_file_path()?;
+        let json = self
+            .predictions_json()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        std::fs::write(path, json)
+    }
+}
+
+/// Vec-level operations every `Vec<impl Pred>` gets for free.
+pub trait PredListSugar {
+    fn count_processed(&self) -> usize;
+    fn get_progress(&self) -> f32;
+}
+
+impl<T: Pred> PredListSugar for Vec<T> {
+    fn count_processed(&self) -> usize {
+        self.iter().filter(|p| p.is_processed()).count()
+    }
+
+    fn get_progress(&self) -> f32 {
+        if self.is_empty() {
+            return 0.0;
+        }
+        self.count_processed() as f32 / self.len() as f32
+    }
+}
+
 #[derive(Clone)]
 pub struct PredImg {
     pub file_path: std::path::PathBuf,
@@ -132,52 +205,28 @@ pub struct PredImg {
 
 impl PredImg {
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        let aioutput = match Self::create_predictions_file_path(&file_path) {
-            Ok(path) if path.exists() => AIOutputs::from_file(path).ok(),
-            _ => None,
-        };
-        let wasprocessed = aioutput.is_some();
-
+        let aioutput = load_sidecar_aioutput(&file_path);
         PredImg {
-            file_path,
+            wasprocessed: aioutput.is_some(),
             aioutput,
-            wasprocessed,
+            file_path,
         }
     }
 
     pub fn reset(&mut self) {
         self.wasprocessed = false;
     }
-
-    /// Creates the predictions file path based on the input file path
-    /// For file 'img.jpg', creates path 'img_predictions.json'
-    fn create_predictions_file_path(input_path: impl AsRef<std::path::Path>) -> std::io::Result<std::path::PathBuf> {
-        let input_path = input_path.as_ref();
-        let file_stem = input_path
-            .file_stem()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path"))?
-            .to_str()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path"))?;
-        Ok(input_path.with_file_name(format!("{}_predictions.json", file_stem)))
-    }
-
-    pub fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
-        Self::create_predictions_file_path(&self.file_path)
-    }
 }
 
-pub trait PredImgSugar {
-    fn count_processed_images(&self) -> usize;
-    fn get_progress(&self) -> f32;
-}
-
-impl PredImgSugar for Vec<PredImg> {
-    fn count_processed_images(&self) -> usize {
-        self.iter().filter(|img| img.wasprocessed).count()
+impl Pred for PredImg {
+    fn file_path(&self) -> &std::path::Path {
+        &self.file_path
     }
-
-    fn get_progress(&self) -> f32 {
-        self.count_processed_images() as f32 / self.len() as f32
+    fn is_processed(&self) -> bool {
+        self.wasprocessed
+    }
+    fn predictions_json(&self) -> serde_json::Result<String> {
+        serde_json::to_string(&self.aioutput)
     }
 }
 
@@ -203,31 +252,16 @@ pub struct PredAudio {
 
 impl PredAudio {
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        let aioutput = match Self::create_predictions_file_path(&file_path) {
-            Ok(path) if path.exists() => AIOutputs::from_file(path).ok(),
-            _ => None,
-        };
-        let wasprocessed = aioutput.is_some();
-
+        let aioutput = load_sidecar_aioutput(&file_path);
         PredAudio {
-            file_path,
+            wasprocessed: aioutput.is_some(),
             aioutput,
-            wasprocessed,
+            file_path,
         }
     }
 
-    fn create_predictions_file_path(input_path: impl AsRef<std::path::Path>) -> std::io::Result<std::path::PathBuf> {
-        let input_path = input_path.as_ref();
-        let file_stem = input_path
-            .file_stem()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path"))?
-            .to_str()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path"))?;
-        Ok(input_path.with_file_name(format!("{}_predictions.json", file_stem)))
-    }
-
-    pub fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
-        Self::create_predictions_file_path(&self.file_path)
+    pub fn reset(&mut self) {
+        self.wasprocessed = false;
     }
 
     pub fn audio_predictions(&self) -> Option<&[AudioProb]> {
@@ -236,27 +270,17 @@ impl PredAudio {
             _ => None,
         }
     }
-
-    pub fn reset(&mut self) {
-        self.wasprocessed = false;
-    }
 }
 
-pub trait PredAudioSugar {
-    fn count_processed(&self) -> usize;
-    fn get_progress(&self) -> f32;
-}
-
-impl PredAudioSugar for Vec<PredAudio> {
-    fn count_processed(&self) -> usize {
-        self.iter().filter(|a| a.wasprocessed).count()
+impl Pred for PredAudio {
+    fn file_path(&self) -> &std::path::Path {
+        &self.file_path
     }
-
-    fn get_progress(&self) -> f32 {
-        if self.is_empty() {
-            return 0.0;
-        }
-        self.count_processed() as f32 / self.len() as f32
+    fn is_processed(&self) -> bool {
+        self.wasprocessed
+    }
+    fn predictions_json(&self) -> serde_json::Result<String> {
+        serde_json::to_string(&self.aioutput)
     }
 }
 
@@ -301,7 +325,7 @@ impl PredVideo {
         fps: f64,
         n_frames: u64,
     ) -> Self {
-        if let Ok(path) = Self::create_predictions_file_path(&file_path) {
+        if let Ok(path) = sidecar_predictions_path(&file_path) {
             if path.exists() {
                 if let Ok(file) = std::fs::File::open(&path) {
                     if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
@@ -314,17 +338,6 @@ impl PredVideo {
             }
         }
         Self::new(file_path, width, height, fps, n_frames)
-    }
-
-    fn create_predictions_file_path(
-        input_path: &std::path::Path,
-    ) -> std::io::Result<std::path::PathBuf> {
-        let stem = input_path
-            .file_stem()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path"))?
-            .to_str()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path"))?;
-        Ok(input_path.with_file_name(format!("{}_predictions.json", stem)))
     }
 
     pub fn reset(&mut self) {
@@ -378,9 +391,10 @@ impl PredVideo {
             .map(|i| i as u64)
     }
 
-    /// Fraction of *intended* work that's done (i.e. processed analyzed-frames over total
-    /// analyzed-frames according to `step`). Returns 0 when nothing should be processed.
-    pub fn get_progress(&self) -> f32 {
+    /// Fraction of *intended* frame-work that's done (i.e. processed
+    /// analyzed-frames over total analyzed-frames according to `step`).
+    /// Distinct from `Vec<PredVideo>::get_progress`, which counts whole videos.
+    pub fn frame_progress(&self) -> f32 {
         let step = self.step.max(1) as u64;
         let target = (0..self.n_frames).step_by(step as usize).count();
         if target == 0 {
@@ -388,10 +402,19 @@ impl PredVideo {
         }
         self.processed_count() as f32 / target as f32
     }
+}
 
-    /// For `image_path/myvideo.mp4`, returns `image_path/myvideo_predictions.json`.
-    pub fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
-        Self::create_predictions_file_path(&self.file_path)
+impl Pred for PredVideo {
+    fn file_path(&self) -> &std::path::Path {
+        &self.file_path
+    }
+    fn is_processed(&self) -> bool {
+        self.wasprocessed
+    }
+    fn predictions_json(&self) -> serde_json::Result<String> {
+        // Video round-trips the whole struct (frames-as-array + probe metadata),
+        // not just `aioutput` — that's the difference vs. PredImg / PredAudio.
+        serde_json::to_string(self)
     }
 }
 
