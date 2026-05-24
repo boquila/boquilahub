@@ -137,10 +137,10 @@ struct Gui {
     mask_textures: Vec<egui::TextureHandle>,
     feed_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<FeedFrame>>,
 
-    // Feed buffer + scrub state.
+    // Feed buffer + scrub state. `feed_playhead_frame == None` means "follow
+    // live"; otherwise the user is parked on a specific cached frame.
     feed_buffer: VecDeque<FeedFrame>,
     feed_buffer_max_secs: u32,
-    feed_started_at: Option<Instant>,
     feed_playhead_frame: Option<u64>,
     feed_last_displayed_frame: Option<u64>,
 

@@ -30,6 +30,14 @@ impl Gui {
     // ---------- analysis ----------
 
     pub(super) fn start_video_analysis(&mut self) {
+        // If a raw preview decode is running, tear it down — its decoder is
+        // already partway through the file, and reusing it here would skip
+        // every frame the preview already consumed.
+        if !self.video_state.is_processing && self.video_processing_receiver.is_some() {
+            self.video_processing_receiver = None;
+            *self.video_file_processor.lock().unwrap() = None;
+        }
+
         // Re-analysis: wipe cache and re-open the decoder.
         let needs_fresh_decoder = self
             .video_pred
@@ -137,6 +145,82 @@ impl Gui {
         self.video_processing_receiver = None;
     }
 
+    /// Decode-only worker: streams frames at the current step, builds thumbnails
+    /// (with overlays from any predictions already loaded — e.g. a sidecar JSON),
+    /// and pushes them through the same channel `start_video_analysis` uses.
+    /// No AI work, no `is_processing` flag — so playback controls stay live and
+    /// the user can play / scrub a freshly-loaded video without selecting a model.
+    pub(super) fn start_video_preview(&mut self) {
+        if self.video_processing_receiver.is_some() {
+            return;
+        }
+        let Some(pv) = self.video_pred.as_ref() else { return; };
+        if pv.n_frames == 0 {
+            return;
+        }
+        let step = self.video_step_frame.max(1) as u64;
+        // Cheap done-check: if the last step-aligned frame is cached, the
+        // decoder reached EOF on a prior run. Avoids an O(n_frames/step)
+        // sweep on every UI tick once decoding is complete.
+        let last_keyframe = (pv.n_frames.saturating_sub(1) / step) * step;
+        if self.video_thumbnails.contains_key(&last_keyframe) {
+            return;
+        }
+        let Some(path_str) = pv.file_path.to_str().map(str::to_owned) else { return; };
+
+        if let Some(pv) = self.video_pred.as_mut() {
+            pv.set_step(self.video_step_frame as u32);
+        }
+
+        // Always open a fresh decoder — a prior analysis may have left the
+        // processor exhausted, and seeking the existing one isn't supported.
+        *self.video_file_processor.lock().unwrap() =
+            Some(video_file::VideofileProcessor::new(&path_str));
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<AnalysisFrame>();
+        self.video_processing_receiver = Some(rx);
+
+        let processor = Arc::clone(&self.video_file_processor);
+        let predictions: Vec<Option<AIOutputs>> = self
+            .video_pred
+            .as_ref()
+            .map(|pv| pv.frames.clone())
+            .unwrap_or_default();
+        let empty_overlay = AIOutputs::ObjectDetection(Vec::new());
+
+        tokio::spawn(async move {
+            loop {
+                let next = {
+                    let mut guard = processor.lock().unwrap();
+                    guard.as_mut().and_then(|p| p.next())
+                };
+                let (frame_idx, img) = match next {
+                    Some(item) => item,
+                    None => break,
+                };
+                if frame_idx % step != 0 {
+                    continue;
+                }
+                let aio = predictions
+                    .get(frame_idx as usize)
+                    .and_then(|p| p.clone())
+                    .unwrap_or_else(|| empty_overlay.clone());
+                let thumb = thumbnail_with_overlay(&img, &aio);
+                let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
+                if tx
+                    .send(AnalysisFrame {
+                        frame_idx,
+                        aioutput: aio,
+                        thumbnail_jpeg: jpeg,
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+    }
+
     pub(super) fn video_handle_results(&mut self, ui: &egui::Ui) {
         let mut messages: Vec<AnalysisFrame> = Vec::new();
         let mut channel_closed = false;
@@ -156,30 +240,51 @@ impl Gui {
             return;
         }
 
+        let is_analysis = self.video_state.is_processing;
+
         let mut latest_idx: Option<u64> = None;
         for msg in messages {
-            if let Some(pv) = self.video_pred.as_mut() {
-                pv.record(msg.frame_idx, msg.aioutput);
+            if is_analysis {
+                if let Some(pv) = self.video_pred.as_mut() {
+                    pv.record(msg.frame_idx, msg.aioutput);
+                }
             }
             self.video_thumbnails
                 .insert(msg.frame_idx, msg.thumbnail_jpeg);
             latest_idx = Some(msg.frame_idx);
         }
         if let Some(idx) = latest_idx {
-            self.video_playhead_frame = Some(idx);
-            self.refresh_video_texture(ui, idx);
+            if !self.video_playing {
+                // Surface the newest frame when nothing else is driving the
+                // texture: during analysis this is the "watch it progress"
+                // affordance; during idle preview decode it just keeps the
+                // displayed frame near the playhead as thumbnails fill in.
+                if is_analysis {
+                    self.video_playhead_frame = Some(idx);
+                }
+                let target = self.video_playhead_frame.unwrap_or(idx);
+                self.refresh_video_texture(ui, target);
+            }
         }
-        if let Some(pv) = self.video_pred.as_ref() {
-            self.video_state.progress_bar = pv.get_progress();
+        if is_analysis {
+            if let Some(pv) = self.video_pred.as_ref() {
+                self.video_state.progress_bar = pv.get_progress();
+            }
         }
         if channel_closed {
-            self.video_state.progress_bar = 1.0;
-            self.video_state.is_processing = false;
             self.video_processing_receiver = None;
-            if let Some(pv) = self.video_pred.as_mut() {
-                pv.wasprocessed = true;
+            if is_analysis {
+                self.video_state.progress_bar = 1.0;
+                self.video_state.is_processing = false;
+                if let Some(pv) = self.video_pred.as_mut() {
+                    pv.wasprocessed = true;
+                }
+                self.process_done();
+            } else {
+                // Preview ran to EOF — drop the exhausted decoder so a later
+                // Analyse / replay rebuilds one rather than reusing a dead one.
+                *self.video_file_processor.lock().unwrap() = None;
             }
-            self.process_done();
         }
         ui.request_repaint();
     }
@@ -463,37 +568,22 @@ impl Gui {
         if n_frames == 0 {
             return;
         }
+        // The user picked a video — start decoding thumbnails so they can play
+        // / scrub immediately. Idempotent: no-op if a worker is already running
+        // or every step-aligned frame is already cached.
+        self.start_video_preview();
+
         self.draw_video_header(ui);
         let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
         let last_frame = n_frames.saturating_sub(1);
-        // Surface the player as soon as we have predictions to scrub through —
-        // even if there are no thumbnails yet (e.g. PredVideo loaded from a
-        // sidecar JSON). When thumbnails are missing the displayed frame is the
-        // first probed frame; the strip + seek bar still convey the prediction
-        // timeline. No background decode is started automatically — that would
-        // surprise the user with an expensive op they didn't ask for.
-        let has_cached_predictions = self
-            .video_pred
-            .as_ref()
-            .map(|p| p.processed_count() > 0)
-            .unwrap_or(false);
-        let has_playable_content = !self.video_thumbnails.is_empty() || has_cached_predictions;
-        // The user can only scrub / play through what's been analysed so far.
-        // While analysis is running, this grows; once it's complete, this is
-        // the last frame.
-        let scrub_limit = self
-            .video_pred
-            .as_ref()
-            .and_then(|p| p.max_processed_frame())
-            .unwrap_or(0);
 
         if self.video_playing {
             if let Some(start) = self.video_play_start {
                 let elapsed = start.elapsed().as_secs_f64();
                 let frame_now = self.video_play_start_frame as f64 + elapsed * fps;
-                let idx = (frame_now as u64).min(scrub_limit);
+                let idx = (frame_now as u64).min(last_frame);
                 self.video_playhead_frame = Some(idx);
-                if idx >= scrub_limit {
+                if idx >= last_frame {
                     self.stop_video_playback();
                 }
                 self.refresh_video_texture(ui, idx);
@@ -506,11 +596,7 @@ impl Gui {
         let seek_h: f32 = 14.0;
         let strip_h: f32 = 6.0;
         let gap: f32 = 6.0;
-        let bottom_chrome = if has_playable_content {
-            controls_h + seek_h + strip_h + gap * 2.0
-        } else {
-            24.0
-        };
+        let bottom_chrome = controls_h + seek_h + strip_h + gap * 2.0;
         let preview_h = (avail.y - bottom_chrome - 12.0).max(200.0);
 
         ui.vertical_centered(|ui| {
@@ -537,29 +623,15 @@ impl Gui {
 
         ui.add_space(gap);
 
-        if !has_playable_content {
-            ui.vertical_centered(|ui| {
-                let hint = if self.video_state.is_processing {
-                    "Analysing…"
-                } else {
-                    "Analyse the video to enable playback"
-                };
-                ui.label(egui::RichText::new(hint).color(ui.visuals().weak_text_color()));
-            });
-            self.video_handle_results(ui);
-            self.video_handle_export(ui);
-            return;
-        }
-
-        // While analysis (or an export) is running, lock the player so the user
-        // can't scrub / play / step into half-baked state.
+        // Lock the player only for destructive ops — analysis touches
+        // predictions, export writes a file. Raw preview decode doesn't lock.
         let controls_active = !self.video_state.is_processing
             && self.video_export_receiver.is_none();
         if !controls_active && self.video_playing {
             self.stop_video_playback();
         }
 
-        let playhead = self.video_playhead_frame.unwrap_or(0).min(scrub_limit);
+        let playhead = self.video_playhead_frame.unwrap_or(0).min(last_frame);
         let mut new_playhead: Option<u64> = None;
 
         ui.add_enabled_ui(controls_active, |ui| {
@@ -569,7 +641,7 @@ impl Gui {
                         self.stop_video_playback();
                     }
                 } else if ui.button("▶").on_hover_text("Play").clicked() {
-                    let start = if playhead >= scrub_limit { 0 } else { playhead };
+                    let start = if playhead >= last_frame { 0 } else { playhead };
                     self.start_video_playback(start);
                 }
                 if ui
@@ -589,11 +661,9 @@ impl Gui {
                     .clicked()
                 {
                     if let Some(next) = next_analysed_frame(self.video_pred.as_ref(), playhead) {
-                        if next <= scrub_limit {
-                            self.stop_video_playback();
-                            self.video_playhead_frame = Some(next);
-                            self.refresh_video_texture(ui, next);
-                        }
+                        self.stop_video_playback();
+                        self.video_playhead_frame = Some(next);
+                        self.refresh_video_texture(ui, next);
                     }
                 }
 
@@ -604,9 +674,8 @@ impl Gui {
                     ""
                 };
                 ui.label(format!(
-                    "{}  ·  analysed up to {}{}",
+                    "{}{}",
                     format_time_pair(playhead as f64 / fps, last_frame as f64 / fps),
-                    format_time(scrub_limit as f64 / fps),
                     suffix,
                 ));
                 ui.add_space(8.0);
@@ -617,8 +686,7 @@ impl Gui {
 
             ui.add_space(gap);
 
-            new_playhead =
-                self.draw_seek_bar(ui, n_frames, scrub_limit, seek_h, strip_h, playhead);
+            new_playhead = self.draw_seek_bar(ui, n_frames, seek_h, strip_h, playhead);
         });
 
         if let Some(idx) = new_playhead {
@@ -636,13 +704,10 @@ impl Gui {
     }
 
     /// Returns Some(frame_index) when the user clicks or drags on the bar.
-    /// `scrub_limit` is the highest frame the user is allowed to seek to —
-    /// anything past it is greyed out and ignored.
     fn draw_seek_bar(
         &self,
         ui: &mut egui::Ui,
         n_frames: u64,
-        scrub_limit: u64,
         seek_h: f32,
         strip_h: f32,
         playhead: u64,
@@ -671,10 +736,8 @@ impl Gui {
         );
 
         let max_idx = n_frames.saturating_sub(1).max(1) as f32;
-        let t_limit = (scrub_limit as f32 / max_idx).clamp(0.0, 1.0);
-        let limit_x = bar_rect.left() + bar_rect.width() * t_limit;
 
-        // Available (analysed) bar background.
+        // Bar background.
         let bar_bg = if dark {
             egui::Color32::from_gray(55)
         } else {
@@ -682,24 +745,9 @@ impl Gui {
         };
         p.rect_filled(bar_rect, 3.0, bar_bg);
 
-        // Locked tail (unanalysed) — clearly visually distinct so it reads
-        // as "you can't go here".
-        if limit_x < bar_rect.right() {
-            let locked_rect = egui::Rect::from_min_max(
-                egui::pos2(limit_x, bar_top),
-                egui::pos2(bar_rect.right(), bar_bottom),
-            );
-            let locked_color = if dark {
-                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 130)
-            } else {
-                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 70)
-            };
-            p.rect_filled(locked_rect, 3.0, locked_color);
-        }
-
-        // Played portion within the available range.
+        // Played portion.
         let t_played = playhead as f32 / max_idx;
-        let played_x = (bar_rect.left() + bar_rect.width() * t_played).min(limit_x);
+        let played_x = bar_rect.left() + bar_rect.width() * t_played;
         let played_rect = egui::Rect::from_min_max(
             bar_rect.left_top(),
             egui::pos2(played_x, bar_rect.bottom()),
@@ -711,11 +759,8 @@ impl Gui {
         };
         p.rect_filled(played_rect, 3.0, played_color);
 
-        // Predictions strip below — dominant-class colour per pixel column
-        // inside the analysed range; locked tail stays dim. Built as merged
-        // rectangles (one per contiguous same-class run) so a 1000px-wide bar
-        // costs ~tens of draw calls per repaint instead of 1000 line_segments
-        // + 1000 walk-back lookups.
+        // Predictions strip — dominant-class colour per pixel column, capped
+        // at the last analysed frame so unanalysed columns stay plain.
         if let Some(pv) = self.video_pred.as_ref() {
             let strip_bg = if dark {
                 egui::Color32::from_gray(45)
@@ -724,9 +769,10 @@ impl Gui {
             };
             p.rect_filled(strip_rect, 1.0, strip_bg);
 
+            let strip_limit = pv.max_processed_frame().unwrap_or(0);
             let n_cols = strip_rect.width().max(1.0) as usize;
             for (col_start, col_end, class_id) in
-                build_strip_segments(pv, scrub_limit, n_frames, n_cols)
+                build_strip_segments(pv, strip_limit, n_frames, n_cols)
             {
                 let c = class_color(class_id);
                 let x0 = strip_rect.left() + col_start as f32;
@@ -742,19 +788,6 @@ impl Gui {
             }
         }
 
-        // Limit marker — a vertical line where the user's freedom ends.
-        if limit_x < bar_rect.right() - 1.0 {
-            let limit_color = if dark {
-                egui::Color32::from_rgb(220, 220, 220)
-            } else {
-                egui::Color32::from_rgb(80, 80, 80)
-            };
-            p.line_segment(
-                [egui::pos2(limit_x, bar_top - 1.0), egui::pos2(limit_x, strip_bottom + 1.0)],
-                egui::Stroke::new(1.0, limit_color),
-            );
-        }
-
         // Playhead handle.
         let handle_color = if dark {
             egui::Color32::WHITE
@@ -767,42 +800,32 @@ impl Gui {
             handle_color,
         );
 
-        let enabled = ui.is_enabled();
-
-        // Hover tooltip with prediction details — only when interactive AND
-        // pointed at the analysed range. Hover line spans bar + strip so the
-        // eye can follow vertical → class colour underneath.
-        if enabled {
+        if ui.is_enabled() {
             if let Some(hover_pos) = response.hover_pos() {
-                if hover_pos.x <= limit_x {
-                    let t =
-                        ((hover_pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
-                    let frame = ((t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64)
-                        .min(scrub_limit);
-                    let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
-                    let secs = frame as f64 / fps;
+                let t = ((hover_pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
+                let frame = (t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64;
+                let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
+                let secs = frame as f64 / fps;
 
-                    let hover_color = if dark {
-                        egui::Color32::from_white_alpha(120)
-                    } else {
-                        egui::Color32::from_black_alpha(80)
-                    };
-                    p.line_segment(
-                        [
-                            egui::pos2(hover_pos.x, bar_top),
-                            egui::pos2(hover_pos.x, strip_bottom),
-                        ],
-                        egui::Stroke::new(1.0, hover_color),
-                    );
+                let hover_color = if dark {
+                    egui::Color32::from_white_alpha(120)
+                } else {
+                    egui::Color32::from_black_alpha(80)
+                };
+                p.line_segment(
+                    [
+                        egui::pos2(hover_pos.x, bar_top),
+                        egui::pos2(hover_pos.x, strip_bottom),
+                    ],
+                    egui::Stroke::new(1.0, hover_color),
+                );
 
-                    let pv = self.video_pred.as_ref();
-                    response.clone().on_hover_ui_at_pointer(|ui| {
-                        tooltip_ui(ui, pv, frame, secs);
-                    });
-                }
+                let pv = self.video_pred.as_ref();
+                response.clone().on_hover_ui_at_pointer(|ui| {
+                    tooltip_ui(ui, pv, frame, secs);
+                });
             }
         } else {
-            // Dim the whole bar so it visually reads as "locked".
             let dim = if dark {
                 egui::Color32::from_rgba_unmultiplied(0, 0, 0, 110)
             } else {
@@ -818,13 +841,10 @@ impl Gui {
             );
         }
 
-        // Click or drag → seek, clamped to the analysed range. `Response`
-        // already suppresses click/drag while the ui is disabled.
         if response.clicked() || response.dragged() {
             if let Some(pos) = response.interact_pointer_pos() {
                 let t = ((pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
-                let frame = ((t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64)
-                    .min(scrub_limit);
+                let frame = (t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64;
                 return Some(frame);
             }
         }

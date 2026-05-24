@@ -42,6 +42,43 @@ impl Gui {
 
     // ---------- analysis lifecycle ----------
 
+    pub(super) fn start_single_img_analysis(&mut self, target: usize) {
+        if target >= self.selected_files.len() || self.img_state.is_processing {
+            return;
+        }
+        self.selected_files[target].reset();
+        self.img_state.is_processing = true;
+
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.image_processing_receiver = Some(rx);
+
+        let predimg = self.selected_files[target].clone();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+        self.img_state.cancel_sender = Some(cancel_tx);
+
+        let api_endpoint = self.get_endpoint();
+        let is_remote = !self.ep_selected.is_local();
+        tokio::spawn(async move {
+            if cancel_rx.try_recv().is_ok() {
+                return;
+            }
+            let bbox = if is_remote {
+                let buffer = fs::read(&predimg.file_path).unwrap();
+                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                    Ok(result) => result,
+                    Err(_) => return,
+                }
+            } else {
+                let img = image::open(&predimg.file_path).unwrap().into_rgb8();
+                tokio::task::spawn_blocking(move || process_imgbuf(&img))
+                    .await
+                    .unwrap()
+            };
+
+            let _ = tx.send((target, bbox));
+        });
+    }
+
     pub(super) fn start_img_analysis(&mut self) {
         self.img_state.is_processing = true;
         if self.process_all_imgs {
@@ -308,6 +345,9 @@ impl Gui {
 
     fn draw_image_header(&mut self, ui: &mut egui::Ui, n: usize) {
         let mut new_index = self.image_texture_n;
+        let can_analyze = (self.ai_selected.is_some() && self.is_image_model())
+            || !self.ep_selected.is_local();
+        let mut analyze_this = false;
 
         ui.horizontal_wrapped(|ui| {
             if n > 1 {
@@ -353,6 +393,21 @@ impl Gui {
                         .small(),
                 );
             }
+
+            if can_analyze {
+                ui.separator();
+                let resp = ui
+                    .add_enabled(
+                        !self.img_state.is_processing,
+                        egui::Button::new("↻ Analyze this image"),
+                    )
+                    .on_hover_text(
+                        "Run the selected AI on just this image. Useful for re-running with a different model.",
+                    );
+                if resp.clicked() {
+                    analyze_this = true;
+                }
+            }
         });
 
         if n > 1 {
@@ -366,6 +421,10 @@ impl Gui {
         if new_index != self.image_texture_n {
             self.image_texture_n = new_index;
             self.paint(ui, new_index - 1);
+        }
+
+        if analyze_this {
+            self.start_single_img_analysis(new_index - 1);
         }
     }
 
