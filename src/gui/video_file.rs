@@ -664,8 +664,11 @@ impl Gui {
         };
         p.rect_filled(played_rect, 3.0, played_color);
 
-        // Predictions strip below — class colour per pixel column inside the
-        // analysed range; locked tail stays dim.
+        // Predictions strip below — dominant-class colour per pixel column
+        // inside the analysed range; locked tail stays dim. Built as merged
+        // rectangles (one per contiguous same-class run) so a 1000px-wide bar
+        // costs ~tens of draw calls per repaint instead of 1000 line_segments
+        // + 1000 walk-back lookups.
         if let Some(pv) = self.video_pred.as_ref() {
             let strip_bg = if dark {
                 egui::Color32::from_gray(45)
@@ -674,23 +677,21 @@ impl Gui {
             };
             p.rect_filled(strip_rect, 1.0, strip_bg);
 
-            let pixels = strip_rect.width().max(1.0) as i32;
-            let limit_col = ((scrub_limit as f64 / n_frames.saturating_sub(1).max(1) as f64)
-                * pixels as f64) as i32;
-            for col in 0..pixels.min(limit_col.max(0) + 1) {
-                let t = col as f64 / pixels as f64;
-                let frame = (t * n_frames.saturating_sub(1).max(1) as f64) as u64;
-                if let Some(aio) = pv.prediction_at(frame) {
-                    if let Some((cid, _, _)) = aio.dominant_prob() {
-                        let c = class_color(cid);
-                        let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
-                        let x = strip_rect.left() + col as f32;
-                        p.line_segment(
-                            [egui::pos2(x, strip_top), egui::pos2(x, strip_bottom)],
-                            egui::Stroke::new(1.0, color),
-                        );
-                    }
-                }
+            let n_cols = strip_rect.width().max(1.0) as usize;
+            for (col_start, col_end, class_id) in
+                build_strip_segments(pv, scrub_limit, n_frames, n_cols)
+            {
+                let c = class_color(class_id);
+                let x0 = strip_rect.left() + col_start as f32;
+                let x1 = strip_rect.left() + (col_end + 1) as f32;
+                p.rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(x0, strip_top),
+                        egui::pos2(x1, strip_bottom),
+                    ),
+                    0.0,
+                    egui::Color32::from_rgb(c[0], c[1], c[2]),
+                );
             }
         }
 
@@ -722,7 +723,8 @@ impl Gui {
         let enabled = ui.is_enabled();
 
         // Hover tooltip with prediction details — only when interactive AND
-        // pointed at the analysed range.
+        // pointed at the analysed range. Hover line spans bar + strip so the
+        // eye can follow vertical → class colour underneath.
         if enabled {
             if let Some(hover_pos) = response.hover_pos() {
                 if hover_pos.x <= limit_x {
@@ -741,14 +743,14 @@ impl Gui {
                     p.line_segment(
                         [
                             egui::pos2(hover_pos.x, bar_top),
-                            egui::pos2(hover_pos.x, bar_bottom),
+                            egui::pos2(hover_pos.x, strip_bottom),
                         ],
                         egui::Stroke::new(1.0, hover_color),
                     );
 
-                    let tooltip_text = hover_tooltip(self.video_pred.as_ref(), frame, secs);
+                    let pv = self.video_pred.as_ref();
                     response.clone().on_hover_ui_at_pointer(|ui| {
-                        ui.label(tooltip_text);
+                        tooltip_ui(ui, pv, frame, secs);
                     });
                 }
             }
@@ -880,50 +882,158 @@ fn current_top_label(pv: Option<&PredVideo>, frame: u64) -> Option<String> {
     Some(format!("{}  ·  {:.0}%", label, prob * 100.0))
 }
 
-fn hover_tooltip(pv: Option<&PredVideo>, frame: u64, secs: f64) -> String {
-    let mut lines = vec![format!("{}  ·  frame {}", format_time(secs), frame)];
-    let Some(pv) = pv else { return lines.join("\n"); };
-    let Some(aio) = pv.prediction_at(frame) else { return lines.join("\n"); };
+/// One contiguous run of same-dominant-class pixel columns inside the analysed
+/// range. `(col_start, col_end_inclusive, class_id)`.
+fn build_strip_segments(
+    pv: &PredVideo,
+    scrub_limit: u64,
+    n_frames: u64,
+    n_cols: usize,
+) -> Vec<(usize, usize, u32)> {
+    if n_frames == 0 || n_cols == 0 {
+        return Vec::new();
+    }
+    let max_idx = n_frames.saturating_sub(1).max(1) as f64;
+    let limit_col = ((scrub_limit as f64 / max_idx) * n_cols as f64) as usize;
+    let upper = n_cols.min(limit_col + 1);
 
-    let mut shown: Vec<String> = Vec::new();
+    let mut segments: Vec<(usize, usize, u32)> = Vec::new();
+    let mut current: Option<(usize, u32)> = None;
+    // Dedup repeated lookups: adjacent pixels usually map to the same frame
+    // (when n_cols > n_frames), or to the same nearest analysed frame (when
+    // step > 1). Either way we avoid most of the prediction_at walk-backs.
+    let mut last_frame: Option<u64> = None;
+    let mut last_class: Option<u32> = None;
+
+    for col in 0..upper {
+        let t = col as f64 / n_cols as f64;
+        let frame = (t * max_idx) as u64;
+        let class = if last_frame == Some(frame) {
+            last_class
+        } else {
+            last_frame = Some(frame);
+            let c = pv
+                .prediction_at(frame)
+                .and_then(|aio| aio.dominant_prob().map(|(cid, _, _)| cid));
+            last_class = c;
+            c
+        };
+        match (current, class) {
+            (Some((_, cur)), Some(c)) if cur == c => continue,
+            (Some((start, cur)), Some(c)) => {
+                segments.push((start, col - 1, cur));
+                current = Some((col, c));
+            }
+            (Some((start, cur)), None) => {
+                segments.push((start, col - 1, cur));
+                current = None;
+            }
+            (None, Some(c)) => current = Some((col, c)),
+            (None, None) => {}
+        }
+    }
+    if let Some((start, cur)) = current {
+        segments.push((start, upper.saturating_sub(1), cur));
+    }
+    segments
+}
+
+/// Build the hover tooltip body in-place. Mirrors `audio.rs` style:
+/// strong header (time + frame), weak/small "nearest analysed" hint when the
+/// cursor sits between analysed frames, then class-colour-coded rows for the
+/// top predictions of whichever `AIOutputs` variant the model produced.
+fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) {
+    ui.label(
+        egui::RichText::new(format!("{}  ·  frame {}", format_time(secs), frame)).strong(),
+    );
+    let Some(pv) = pv else { return; };
+    let Some(nearest) = pv.last_processed_at_or_before(frame) else {
+        ui.label(egui::RichText::new("(not analysed)").weak());
+        return;
+    };
+    if nearest != frame {
+        ui.label(
+            egui::RichText::new(format!("nearest analysed: frame {}", nearest))
+                .weak()
+                .small(),
+        );
+    }
+    let Some(aio) = pv.frames.get(nearest as usize).and_then(|f| f.as_ref()) else { return; };
+
     match aio {
         AIOutputs::ObjectDetection(bboxes) => {
+            if bboxes.is_empty() {
+                ui.label(egui::RichText::new("(no detections)").weak());
+                return;
+            }
+            ui.separator();
+            let n = bboxes.len();
+            let header = if n == 1 { "1 detection".into() } else { format!("{} detections", n) };
+            ui.label(egui::RichText::new(header).strong());
             let mut bs: Vec<&XYXYc> = bboxes.iter().collect();
             bs.sort_by(|a, b| {
                 b.xyxy.prob.partial_cmp(&a.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal)
             });
-            for b in bs.iter().take(5) {
-                shown.push(format!("  {} — {:.0}%", b.label, b.xyxy.prob * 100.0));
+            for b in bs.iter().take(6) {
+                tooltip_row(ui, b.xyxy.class_id, &b.label, b.xyxy.prob);
+            }
+            if n > 6 {
+                ui.label(egui::RichText::new(format!("…and {} more", n - 6)).weak());
             }
         }
         AIOutputs::Segmentation(segs) => {
-            let mut bs: Vec<&SEGc> = segs.iter().collect();
-            bs.sort_by(|a, b| {
+            if segs.is_empty() {
+                ui.label(egui::RichText::new("(no detections)").weak());
+                return;
+            }
+            ui.separator();
+            let n = segs.len();
+            let header = if n == 1 { "1 segment".into() } else { format!("{} segments", n) };
+            ui.label(egui::RichText::new(header).strong());
+            let mut ss: Vec<&SEGc> = segs.iter().collect();
+            ss.sort_by(|a, b| {
                 b.bbox
                     .xyxy
                     .prob
                     .partial_cmp(&a.bbox.xyxy.prob)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
-            for s in bs.iter().take(5) {
-                shown.push(format!("  {} — {:.0}%", s.bbox.label, s.bbox.xyxy.prob * 100.0));
+            for s in ss.iter().take(6) {
+                tooltip_row(ui, s.bbox.xyxy.class_id, &s.bbox.label, s.bbox.xyxy.prob);
+            }
+            if n > 6 {
+                ui.label(egui::RichText::new(format!("…and {} more", n - 6)).weak());
             }
         }
         AIOutputs::Classification(probs) => {
+            if probs.is_empty() {
+                ui.label(egui::RichText::new("(no classification)").weak());
+                return;
+            }
+            ui.separator();
+            ui.label(egui::RichText::new("Classification").strong());
             let mut ps: Vec<&Prob> = probs.iter().collect();
             ps.sort_by(|a, b| {
                 b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal)
             });
-            for p in ps.iter().take(5) {
-                shown.push(format!("  {} — {:.0}%", p.label, p.prob * 100.0));
+            for p in ps.iter().take(6) {
+                tooltip_row(ui, p.class_id, &p.label, p.prob);
+            }
+            if probs.len() > 6 {
+                ui.label(
+                    egui::RichText::new(format!("…and {} more", probs.len() - 6)).weak(),
+                );
             }
         }
         AIOutputs::AudioClassification(_) => {}
     }
-    if !shown.is_empty() {
-        lines.push(String::new());
-        lines.push("AI predictions:".into());
-        lines.extend(shown);
-    }
-    lines.join("\n")
+}
+
+fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
+    let c = class_color(class_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(format!("{} — {:.0}%", label, prob * 100.0));
+    });
 }
