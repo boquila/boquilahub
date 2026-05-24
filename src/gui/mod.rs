@@ -120,7 +120,6 @@ struct Gui {
     audio_tex_dims: Option<(usize, usize)>,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
-    audio_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     audio_playing: bool,
     audio_play_start: Option<Instant>,
     audio_play_start_pos: f64,
@@ -133,11 +132,9 @@ struct Gui {
     temp_str: String,
     temp_api_str: String,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
-    image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     // Per-segment alpha masks for the currently displayed image. Rebuilt in
     // `paint()` so we don't re-upload every frame.
     mask_textures: Vec<egui::TextureHandle>,
-    feed_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<FeedFrame>>,
 
     // Feed buffer + scrub state. `feed_playhead_frame == None` means "follow
     // live"; otherwise the user is parked on a specific cached frame.
@@ -151,7 +148,6 @@ struct Gui {
     selected_videos: Vec<PredVideo>,
     video_thumbnails: HashMap<u64, Vec<u8>>,
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
-    video_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<AnalysisFrame>>,
     video_export_receiver: Option<std::sync::mpsc::Receiver<ExportProgress>>,
     video_export_path: Option<String>,
     video_playhead_frame: Option<u64>,
@@ -196,25 +192,92 @@ struct Gui {
     process_all_audios: bool,
     show_config: ShowConfig,
     dialog: OpenDialog,
-    img_state: State,
-    video_state: State,
-    feed_state: State,
-    audio_state: State,
+    img_state: State<(usize, AIOutputs)>,
+    video_state: State<AnalysisFrame>,
+    feed_state: State<FeedFrame>,
+    audio_state: State<(usize, AIOutputs)>,
 }
 
-#[derive(Default)]
-struct State {
+/// One per modality (image/audio/video/feed). The receiver lives here so the
+/// channel-disconnect rule — "worker done iff `rx.try_recv() == Disconnected`" —
+/// is enforced in one place via `drain()`. Callers cannot accidentally check
+/// the wrong predicate (e.g. `selected_files.iter().all(wasprocessed)`, which
+/// stays false forever during single-item analysis in a batch).
+struct State<T> {
+    rx: Option<tokio::sync::mpsc::UnboundedReceiver<T>>,
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
     texture: Option<egui::TextureHandle>,
     is_processing: bool,
     progress_bar: f32,
 }
 
-impl State {
+impl<T> Default for State<T> {
+    fn default() -> Self {
+        Self {
+            rx: None,
+            cancel_sender: None,
+            texture: None,
+            is_processing: false,
+            progress_bar: 0.0,
+        }
+    }
+}
+
+impl<T> State<T> {
+    /// Begin a cancellable job. Returns `(tx, cancel_rx)` for the worker.
+    /// Sets `is_processing = true`.
+    fn start(&mut self) -> (
+        tokio::sync::mpsc::UnboundedSender<T>,
+        tokio::sync::oneshot::Receiver<()>,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
+        self.rx = Some(rx);
+        self.cancel_sender = Some(cancel_tx);
+        self.is_processing = true;
+        (tx, cancel_rx)
+    }
+
+    /// Begin a receive-only streaming job (no cancel channel, no
+    /// `is_processing` flag). The worker runs to EOF on its own.
+    fn start_streaming(&mut self) -> tokio::sync::mpsc::UnboundedSender<T> {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.rx = Some(rx);
+        tx
+    }
+
+    /// Drain available messages. Returns `(messages, channel_closed)`.
+    /// `channel_closed = true` is the only authoritative "worker done" signal.
+    fn drain(&mut self) -> (Vec<T>, bool) {
+        let Some(rx) = self.rx.as_mut() else { return (Vec::new(), false); };
+        let mut out = Vec::new();
+        loop {
+            match rx.try_recv() {
+                Ok(item) => out.push(item),
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => return (out, false),
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => return (out, true),
+            }
+        }
+    }
+
+    /// Whether any worker (analysis or streaming) is delivering messages.
+    fn is_active(&self) -> bool {
+        self.rx.is_some()
+    }
+
+    /// Natural completion: drop the receiver and clear `is_processing`.
+    fn finish(&mut self) {
+        self.rx = None;
+        self.is_processing = false;
+    }
+
+    /// User-initiated cancel (also doubles as "abandon" for streaming jobs
+    /// where the cancel sender is None — the take() is a no-op).
     fn cancel(&mut self) {
         if let Some(cancel_tx) = self.cancel_sender.take() {
             let _ = cancel_tx.send(());
         }
+        self.rx = None;
         self.is_processing = false;
     }
 }
@@ -867,7 +930,7 @@ impl Gui {
         self.stop_video_playback();
         self.video_thumbnails.clear();
         *self.video_file_processor.lock().unwrap() = None;
-        self.video_processing_receiver = None;
+        self.video_state.cancel();
         self.video_state.texture = None;
         self.video_last_displayed_frame = None;
         self.video_playhead_frame = Some(0);

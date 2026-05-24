@@ -66,7 +66,6 @@ impl Gui {
                 .clicked()
             {
                 self.audio_state.cancel();
-                self.audio_processing_receiver = None;
             }
         });
 
@@ -169,15 +168,10 @@ impl Gui {
             return;
         }
         self.selected_audios[target].reset();
-        self.audio_state.is_processing = true;
         self.audio_state.progress_bar = self.selected_audios.get_progress();
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.audio_processing_receiver = Some(rx);
-
+        let (tx, mut cancel_rx) = self.audio_state.start();
         let path = self.selected_audios[target].file_path.clone();
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.audio_state.cancel_sender = Some(cancel_tx);
 
         tokio::spawn(async move {
             if cancel_rx.try_recv().is_ok() {
@@ -197,18 +191,13 @@ impl Gui {
     }
 
     pub(super) fn start_audio_analysis(&mut self) {
-        self.audio_state.is_processing = true;
         if self.process_all_audios {
             self.selected_audios.iter_mut().for_each(|p| p.reset());
         }
         self.audio_state.progress_bar = self.selected_audios.get_progress();
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.audio_processing_receiver = Some(rx);
-
+        let (tx, mut cancel_rx) = self.audio_state.start();
         let copy_preds = self.selected_audios.clone();
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.audio_state.cancel_sender = Some(cancel_tx);
 
         tokio::spawn(async move {
             for (i, pred) in copy_preds.iter().enumerate() {
@@ -319,21 +308,7 @@ impl Gui {
     }
 
     pub(super) fn audio_handle_results(&mut self, ui: &egui::Ui) {
-        let Some(rx) = self.audio_processing_receiver.as_mut() else { return; };
-
-        let mut updates = Vec::new();
-        let mut channel_closed = false;
-        loop {
-            match rx.try_recv() {
-                Ok(item) => updates.push(item),
-                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                    channel_closed = true;
-                    break;
-                }
-            }
-        }
-
+        let (updates, closed) = self.audio_state.drain();
         let current_idx = self.audio_texture_n.saturating_sub(1);
         let mut touched_current = false;
         for (i, aio) in updates {
@@ -357,13 +332,8 @@ impl Gui {
             self.audio_state.texture = None;
         }
 
-        // The worker drops `tx` when it finishes (single-file done, batch done,
-        // cancelled, or errored), so a disconnected channel is the only reliable
-        // "done" signal. `all().wasprocessed` would stay false forever after a
-        // single-file analysis in a multi-file batch, leaving the UI stuck.
-        if channel_closed {
-            self.audio_state.is_processing = false;
-            self.audio_processing_receiver = None;
+        if closed {
+            self.audio_state.finish();
             self.process_done();
         }
 

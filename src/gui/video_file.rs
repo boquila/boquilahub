@@ -10,7 +10,7 @@ use image::{ImageBuffer, Rgb};
 use std::sync::Arc;
 use std::time::Instant;
 
-const THUMB_W: u32 = 480;
+const THUMB_W: u32 = 1280;
 
 /// One analysed frame, posted from the worker task back to the UI thread.
 pub(super) struct AnalysisFrame {
@@ -33,8 +33,8 @@ impl Gui {
         // If a raw preview decode is running, tear it down — its decoder is
         // already partway through the file, and reusing it here would skip
         // every frame the preview already consumed.
-        if !self.video_state.is_processing && self.video_processing_receiver.is_some() {
-            self.video_processing_receiver = None;
+        if !self.video_state.is_processing && self.video_state.is_active() {
+            self.video_state.cancel();
             *self.video_file_processor.lock().unwrap() = None;
         }
 
@@ -79,17 +79,12 @@ impl Gui {
             }
         }
 
-        self.video_state.is_processing = true;
         self.video_state.progress_bar = self
             .current_video()
             .map(|p| p.frame_progress())
             .unwrap_or(0.0);
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<AnalysisFrame>();
-        self.video_processing_receiver = Some(rx);
-
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.video_state.cancel_sender = Some(cancel_tx);
+        let (tx, mut cancel_rx) = self.video_state.start();
 
         let processor = Arc::clone(&self.video_file_processor);
         let api_endpoint = self.get_endpoint();
@@ -150,7 +145,6 @@ impl Gui {
 
     pub(super) fn cancel_video_processing(&mut self) {
         self.video_state.cancel();
-        self.video_processing_receiver = None;
     }
 
     /// Decode-only worker: streams frames at the current step, builds thumbnails
@@ -159,7 +153,7 @@ impl Gui {
     /// No AI work, no `is_processing` flag — so playback controls stay live and
     /// the user can play / scrub a freshly-loaded video without selecting a model.
     pub(super) fn start_video_preview(&mut self) {
-        if self.video_processing_receiver.is_some() {
+        if self.video_state.is_active() {
             return;
         }
         let step = self.video_step_frame.max(1) as u64;
@@ -189,8 +183,7 @@ impl Gui {
         *self.video_file_processor.lock().unwrap() =
             Some(video_file::VideofileProcessor::new(&path_str));
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<AnalysisFrame>();
-        self.video_processing_receiver = Some(rx);
+        let tx = self.video_state.start_streaming();
 
         let processor = Arc::clone(&self.video_file_processor);
         let empty_overlay = AIOutputs::ObjectDetection(Vec::new());
@@ -229,21 +222,8 @@ impl Gui {
     }
 
     pub(super) fn video_handle_results(&mut self, ui: &egui::Ui) {
-        let mut messages: Vec<AnalysisFrame> = Vec::new();
-        let mut channel_closed = false;
-        if let Some(rx) = &mut self.video_processing_receiver {
-            loop {
-                match rx.try_recv() {
-                    Ok(msg) => messages.push(msg),
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                        channel_closed = true;
-                        break;
-                    }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                }
-            }
-        }
-        if messages.is_empty() && !channel_closed {
+        let (messages, closed) = self.video_state.drain();
+        if messages.is_empty() && !closed {
             return;
         }
 
@@ -278,11 +258,9 @@ impl Gui {
                 self.video_state.progress_bar = pv.frame_progress();
             }
         }
-        if channel_closed {
-            self.video_processing_receiver = None;
+        if closed {
             if is_analysis {
                 self.video_state.progress_bar = 1.0;
-                self.video_state.is_processing = false;
                 if let Some(pv) = self.current_video_mut() {
                     pv.wasprocessed = true;
                 }
@@ -292,6 +270,7 @@ impl Gui {
                 // Analyse / replay rebuilds one rather than reusing a dead one.
                 *self.video_file_processor.lock().unwrap() = None;
             }
+            self.video_state.finish();
         }
         ui.request_repaint();
     }
@@ -636,9 +615,18 @@ impl Gui {
 
         ui.vertical_centered(|ui| {
             if let Some(tex) = self.video_state.texture.clone() {
+                // Fit the available area while keeping aspect ratio. `max_height`
+                // alone never upscales past the cached thumbnail's native size,
+                // so a 1280×720 cache on a 2K screen would look tiny without
+                // this explicit scale calc.
+                let s = tex.size_vec2();
+                let scale =
+                    (avail.x / s.x.max(1.0)).min(preview_h / s.y.max(1.0));
+                let disp =
+                    egui::vec2((s.x * scale).max(1.0), (s.y * scale).max(1.0));
                 ui.add(
                     egui::Image::new(&tex)
-                        .max_height(preview_h)
+                        .fit_to_exact_size(disp)
                         .corner_radius(8.0),
                 );
             } else {

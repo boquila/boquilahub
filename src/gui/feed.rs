@@ -108,16 +108,12 @@ impl Gui {
         let started_at = Instant::now()
             .checked_sub(resume_elapsed)
             .unwrap_or_else(Instant::now);
-        self.feed_state.is_processing = true;
         // ▶ always snaps to live, regardless of where the playhead was
         // sitting from the previous scrub.
         self.feed_playhead_frame = None;
         self.feed_last_displayed_frame = None;
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<FeedFrame>();
-        self.feed_processing_receiver = Some(rx);
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.feed_state.cancel_sender = Some(cancel_tx);
+        let (tx, mut cancel_rx) = self.feed_state.start();
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
@@ -185,24 +181,10 @@ impl Gui {
 
     pub(super) fn cancel_feed_analysis(&mut self) {
         self.feed_state.cancel();
-        self.feed_processing_receiver = None;
     }
 
     pub(super) fn feed_handle_results(&mut self, ui: &egui::Ui) {
-        let mut incoming: Vec<FeedFrame> = Vec::new();
-        let mut channel_closed = false;
-        if let Some(rx) = &mut self.feed_processing_receiver {
-            loop {
-                match rx.try_recv() {
-                    Ok(msg) => incoming.push(msg),
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                        channel_closed = true;
-                        break;
-                    }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                }
-            }
-        }
+        let (incoming, closed) = self.feed_state.drain();
 
         if !incoming.is_empty() {
             let save_each = self.save_img_from_feed;
@@ -246,9 +228,8 @@ impl Gui {
             }
         }
 
-        if channel_closed {
-            self.feed_state.is_processing = false;
-            self.feed_processing_receiver = None;
+        if closed {
+            self.feed_state.finish();
         }
 
         if self.feed_state.is_processing {

@@ -47,14 +47,9 @@ impl Gui {
             return;
         }
         self.selected_files[target].reset();
-        self.img_state.is_processing = true;
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.image_processing_receiver = Some(rx);
-
+        let (tx, mut cancel_rx) = self.img_state.start();
         let predimg = self.selected_files[target].clone();
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.img_state.cancel_sender = Some(cancel_tx);
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
@@ -80,18 +75,13 @@ impl Gui {
     }
 
     pub(super) fn start_img_analysis(&mut self) {
-        self.img_state.is_processing = true;
         if self.process_all_imgs {
             self.selected_files
                 .iter_mut()
                 .for_each(|pred_img| pred_img.reset());
         }
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.image_processing_receiver = Some(rx);
-
+        let (tx, mut cancel_rx) = self.img_state.start();
         let copy_predigms = self.selected_files.clone();
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.img_state.cancel_sender = Some(cancel_tx);
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
@@ -124,21 +114,7 @@ impl Gui {
     }
 
     pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
-        let Some(rx) = self.image_processing_receiver.as_mut() else { return; };
-
-        let mut updates = Vec::new();
-        let mut channel_closed = false;
-        loop {
-            match rx.try_recv() {
-                Ok(item) => updates.push(item),
-                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                    channel_closed = true;
-                    break;
-                }
-            }
-        }
-
+        let (updates, closed) = self.img_state.drain();
         for (i, bbox) in updates {
             self.selected_files[i].aioutput = Some(bbox);
             self.selected_files[i].wasprocessed = true;
@@ -146,16 +122,9 @@ impl Gui {
                 self.paint(ui, i);
             }
         }
-
-        // The worker drops `tx` when it finishes (single-file done, batch done,
-        // cancelled, or errored), so a disconnected channel is the only reliable
-        // "done" signal. `all().wasprocessed` would stay false forever after a
-        // single-file analysis in a multi-file batch, leaving the UI stuck.
-        if channel_closed {
-            self.img_state.is_processing = false;
-            self.image_processing_receiver = None;
+        if closed {
+            self.img_state.finish();
         }
-
         self.img_state.progress_bar = self.selected_files.get_progress();
         ui.request_repaint();
     }
@@ -220,7 +189,6 @@ impl Gui {
                     .clicked()
             {
                 self.img_state.cancel();
-                self.image_processing_receiver = None;
             }
         });
 
