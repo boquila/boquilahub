@@ -725,8 +725,6 @@ impl Gui {
                                     probe.fps,
                                     probe.n_frames,
                                 );
-                                let has_cached_predictions = pred_video.wasprocessed
-                                    && pred_video.processed_count() > 0;
                                 self.video_pred = Some(pred_video);
                                 self.video_thumbnails.clear();
                                 // Leave the streaming decoder unbuilt — the
@@ -740,12 +738,6 @@ impl Gui {
                                 self.video_playhead_frame = Some(0);
                                 self.video_last_displayed_frame = None;
                                 self.video_playing = false;
-                                // Sidecar predictions were loaded — decode the
-                                // video once to populate thumbnails so playback
-                                // works without re-running the model.
-                                if has_cached_predictions {
-                                    self.start_video_thumbnail_regen();
-                                }
                             }
                             Err(_) => {
                                 self.process_error();

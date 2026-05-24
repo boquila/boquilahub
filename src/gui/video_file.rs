@@ -137,63 +137,6 @@ impl Gui {
         self.video_processing_receiver = None;
     }
 
-    /// Decode the source video and regenerate thumbnails from already-cached
-    /// predictions (no model calls). Triggered automatically after picking a
-    /// video whose sidecar `_predictions.json` was loaded by `PredVideo::new_simple`
-    /// so playback works right away instead of being gated behind a re-Analyse.
-    pub(super) fn start_video_thumbnail_regen(&mut self) {
-        let Some(pv) = self.video_pred.as_ref() else { return; };
-        if pv.processed_count() == 0 {
-            return;
-        }
-        let Some(path_str) = pv.file_path.to_str().map(|s| s.to_string()) else { return; };
-        let cached_frames: Vec<Option<AIOutputs>> = pv.frames.clone();
-
-        self.video_state.is_processing = true;
-        self.video_state.progress_bar = 0.0;
-        self.video_thumbnails.clear();
-        self.video_last_displayed_frame = None;
-
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<AnalysisFrame>();
-        self.video_processing_receiver = Some(rx);
-
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.video_state.cancel_sender = Some(cancel_tx);
-
-        let fresh = video_file::VideofileProcessor::new(&path_str);
-        *self.video_file_processor.lock().unwrap() = Some(fresh);
-        let processor = Arc::clone(&self.video_file_processor);
-
-        tokio::spawn(async move {
-            loop {
-                if cancel_rx.try_recv().is_ok() {
-                    break;
-                }
-                let next = {
-                    let mut guard = processor.lock().unwrap();
-                    guard.as_mut().and_then(|p| p.next())
-                };
-                let (frame_idx, img) = match next {
-                    Some(item) => item,
-                    None => break,
-                };
-                let Some(Some(aio)) = cached_frames.get(frame_idx as usize) else { continue; };
-                let thumb = thumbnail_with_overlay(&img, aio);
-                let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
-                if tx
-                    .send(AnalysisFrame {
-                        frame_idx,
-                        aioutput: aio.clone(),
-                        thumbnail_jpeg: jpeg,
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-    }
-
     pub(super) fn video_handle_results(&mut self, ui: &egui::Ui) {
         let mut messages: Vec<AnalysisFrame> = Vec::new();
         let mut channel_closed = false;
@@ -523,11 +466,18 @@ impl Gui {
         self.draw_video_header(ui);
         let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
         let last_frame = n_frames.saturating_sub(1);
-        // Playback only makes sense once we have at least one analysed frame
-        // (that's where the displayable thumbnails come from). Until then we
-        // show the first frame statically — no scrub bar, no play button —
-        // so the user isn't lured into clicking controls that can't respond.
-        let has_playable_content = !self.video_thumbnails.is_empty();
+        // Surface the player as soon as we have predictions to scrub through —
+        // even if there are no thumbnails yet (e.g. PredVideo loaded from a
+        // sidecar JSON). When thumbnails are missing the displayed frame is the
+        // first probed frame; the strip + seek bar still convey the prediction
+        // timeline. No background decode is started automatically — that would
+        // surprise the user with an expensive op they didn't ask for.
+        let has_cached_predictions = self
+            .video_pred
+            .as_ref()
+            .map(|p| p.processed_count() > 0)
+            .unwrap_or(false);
+        let has_playable_content = !self.video_thumbnails.is_empty() || has_cached_predictions;
         // The user can only scrub / play through what's been analysed so far.
         // While analysis is running, this grows; once it's complete, this is
         // the last frame.
