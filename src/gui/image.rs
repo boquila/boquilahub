@@ -179,9 +179,7 @@ impl Gui {
     // ---------- left-panel widget (Analyze / Export) ----------
 
     pub(super) fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.is_empty()
-            || !(self.is_image_model() || !self.ep_selected.is_local())
-        {
+        if self.selected_files.is_empty() || !self.can_run_image_ai() {
             return;
         }
 
@@ -345,8 +343,7 @@ impl Gui {
 
     fn draw_image_header(&mut self, ui: &mut egui::Ui, n: usize) {
         let mut new_index = self.image_texture_n;
-        let can_analyze = (self.ai_selected.is_some() && self.is_image_model())
-            || !self.ep_selected.is_local();
+        let can_analyze = self.can_run_image_ai();
         let mut analyze_this = false;
 
         ui.horizontal_wrapped(|ui| {

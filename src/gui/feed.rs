@@ -121,7 +121,7 @@ impl Gui {
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
-        let has_ai = run_ai && self.feed_can_run_ai();
+        let has_ai = run_ai && self.can_run_image_ai();
         let step = self.feed_step_frame.max(1);
 
         tokio::spawn(async move {
@@ -181,14 +181,6 @@ impl Gui {
                 }
             }
         });
-    }
-
-    fn feed_can_run_ai(&self) -> bool {
-        if !self.ep_selected.is_local() {
-            self.api_server_url.is_some()
-        } else {
-            self.ai_selected.is_some() && self.is_image_model()
-        }
     }
 
     pub(super) fn cancel_feed_analysis(&mut self) {
@@ -359,7 +351,7 @@ impl Gui {
             if !self.feed_state.is_processing {
                 // "Analyze" only when there's an AI to run. The plain
                 // "watch live" path lives in the central-panel Live button.
-                if self.feed_can_run_ai() {
+                if self.can_run_image_ai() {
                     if ui
                         .add_sized([120.0, 36.0], egui::Button::new("▶ Analyze"))
                         .on_hover_text("Stream the feed and run AI on every Nth frame")

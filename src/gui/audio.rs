@@ -181,13 +181,6 @@ impl Gui {
                         .weak()
                         .small(),
                 );
-            } else if let Some(preds) = pred.audio_predictions() {
-                ui.separator();
-                let n = preds.len();
-                let noun = if n == 1 { "segment" } else { "segments" };
-                ui.label(
-                    egui::RichText::new(format!("{} {}", n, noun)).strong(),
-                );
             }
         });
         ui.add_space(4.0);
@@ -648,7 +641,6 @@ fn render_audio_plot(
             });
             if !hits.is_empty() {
                 lines.push(String::new());
-                lines.push(String::from("AI predictions here:"));
                 for (label, prob, s, e) in hits.iter().take(6) {
                     lines.push(format!(
                         "  {} — {:.0}%  ({:.2}–{:.2}s)",

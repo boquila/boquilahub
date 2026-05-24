@@ -313,6 +313,14 @@ impl Gui {
         !self.is_audio_model()
     }
 
+    fn can_run_image_ai(&self) -> bool {
+        if self.ep_selected.is_local() {
+            self.ai_selected.is_some() && self.is_image_model()
+        } else {
+            self.api_server_url.is_some()
+        }
+    }
+
     fn show_timed_message(
         time: &mut Option<std::time::Instant>,
         ui: &mut egui::Ui,

@@ -432,9 +432,7 @@ impl Gui {
     // ---------- left-panel widget (Analyze / Export buttons) ----------
 
     pub(super) fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        let has_video = self.video_pred.is_some();
-        let is_image_capable_ep = self.is_image_model() || !self.ep_selected.is_local();
-        if !has_video || !is_image_capable_ep {
+        if self.video_pred.is_none() || !self.can_run_image_ai() {
             return;
         }
 
@@ -678,10 +676,6 @@ impl Gui {
                     format_time_pair(playhead as f64 / fps, last_frame as f64 / fps),
                     suffix,
                 ));
-                ui.add_space(8.0);
-                if let Some(label) = current_top_label(self.video_pred.as_ref(), playhead) {
-                    ui.label(egui::RichText::new(label).strong());
-                }
             });
 
             ui.add_space(gap);
@@ -942,13 +936,6 @@ fn next_analysed_frame(pv: Option<&PredVideo>, current: u64) -> Option<u64> {
     None
 }
 
-fn current_top_label(pv: Option<&PredVideo>, frame: u64) -> Option<String> {
-    let pv = pv?;
-    let aio = pv.prediction_at(frame)?;
-    let (_, label, prob) = aio.dominant_prob()?;
-    Some(format!("{}  ·  {:.0}%", label, prob * 100.0))
-}
-
 /// One contiguous run of same-dominant-class pixel columns inside the analysed
 /// range. `(col_start, col_end_inclusive, class_id)`.
 fn build_strip_segments(
@@ -1005,10 +992,6 @@ fn build_strip_segments(
     segments
 }
 
-/// Build the hover tooltip body in-place. Mirrors `audio.rs` style:
-/// strong header (time + frame), weak/small "nearest analysed" hint when the
-/// cursor sits between analysed frames, then class-colour-coded rows for the
-/// top predictions of whichever `AIOutputs` variant the model produced.
 fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) {
     ui.label(
         egui::RichText::new(format!("{}  ·  frame {}", format_time(secs), frame)).strong(),
@@ -1018,13 +1001,6 @@ fn tooltip_ui(ui: &mut egui::Ui, pv: Option<&PredVideo>, frame: u64, secs: f64) 
         ui.label(egui::RichText::new("(not analysed)").weak());
         return;
     };
-    if nearest != frame {
-        ui.label(
-            egui::RichText::new(format!("nearest analysed: frame {}", nearest))
-                .weak()
-                .small(),
-        );
-    }
     let Some(aio) = pv.frames.get(nearest as usize).and_then(|f| f.as_ref()) else { return; };
 
     match aio {
