@@ -127,8 +127,16 @@ impl Gui {
         let Some(rx) = self.image_processing_receiver.as_mut() else { return; };
 
         let mut updates = Vec::new();
-        while let Ok((i, bbox)) = rx.try_recv() {
-            updates.push((i, bbox));
+        let mut channel_closed = false;
+        loop {
+            match rx.try_recv() {
+                Ok(item) => updates.push(item),
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    channel_closed = true;
+                    break;
+                }
+            }
         }
 
         for (i, bbox) in updates {
@@ -139,7 +147,11 @@ impl Gui {
             }
         }
 
-        if self.selected_files.iter().all(|f| f.wasprocessed) {
+        // The worker drops `tx` when it finishes (single-file done, batch done,
+        // cancelled, or errored), so a disconnected channel is the only reliable
+        // "done" signal. `all().wasprocessed` would stay false forever after a
+        // single-file analysis in a multi-file batch, leaving the UI stuck.
+        if channel_closed {
             self.img_state.is_processing = false;
             self.image_processing_receiver = None;
         }

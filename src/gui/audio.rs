@@ -322,11 +322,15 @@ impl Gui {
         let Some(rx) = self.audio_processing_receiver.as_mut() else { return; };
 
         let mut updates = Vec::new();
+        let mut channel_closed = false;
         loop {
             match rx.try_recv() {
                 Ok(item) => updates.push(item),
                 Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    channel_closed = true;
+                    break;
+                }
             }
         }
 
@@ -353,7 +357,11 @@ impl Gui {
             self.audio_state.texture = None;
         }
 
-        if self.selected_audios.iter().all(|p| p.wasprocessed) {
+        // The worker drops `tx` when it finishes (single-file done, batch done,
+        // cancelled, or errored), so a disconnected channel is the only reliable
+        // "done" signal. `all().wasprocessed` would stay false forever after a
+        // single-file analysis in a multi-file batch, leaving the UI stuck.
+        if channel_closed {
             self.audio_state.is_processing = false;
             self.audio_processing_receiver = None;
             self.process_done();
