@@ -504,58 +504,76 @@ impl Gui {
             return;
         }
 
-        // Controls row + seek bar — only rendered once playback is meaningful.
+        // While analysis (or an export) is running, lock the player so the user
+        // can't scrub / play / step into half-baked state.
+        let controls_active = !self.video_state.is_processing
+            && self.video_export_receiver.is_none();
+        if !controls_active && self.video_playing {
+            self.stop_video_playback();
+        }
+
         let playhead = self.video_playhead_frame.unwrap_or(0).min(scrub_limit);
-        ui.horizontal(|ui| {
-            if self.video_playing {
-                if ui.button("⏸").on_hover_text("Pause").clicked() {
-                    self.stop_video_playback();
-                }
-            } else if ui.button("▶").on_hover_text("Play").clicked() {
-                let start = if playhead >= scrub_limit { 0 } else { playhead };
-                self.start_video_playback(start);
-            }
-            if ui
-                .button("⏮")
-                .on_hover_text("Previous analysed frame")
-                .clicked()
-            {
-                if let Some(prev) = prev_analysed_frame(self.video_pred.as_ref(), playhead) {
-                    self.stop_video_playback();
-                    self.video_playhead_frame = Some(prev);
-                    self.refresh_video_texture(ui, prev);
-                }
-            }
-            if ui
-                .button("⏭")
-                .on_hover_text("Next analysed frame")
-                .clicked()
-            {
-                if let Some(next) = next_analysed_frame(self.video_pred.as_ref(), playhead) {
-                    if next <= scrub_limit {
+        let mut new_playhead: Option<u64> = None;
+
+        ui.add_enabled_ui(controls_active, |ui| {
+            ui.horizontal(|ui| {
+                if self.video_playing {
+                    if ui.button("⏸").on_hover_text("Pause").clicked() {
                         self.stop_video_playback();
-                        self.video_playhead_frame = Some(next);
-                        self.refresh_video_texture(ui, next);
+                    }
+                } else if ui.button("▶").on_hover_text("Play").clicked() {
+                    let start = if playhead >= scrub_limit { 0 } else { playhead };
+                    self.start_video_playback(start);
+                }
+                if ui
+                    .button("⏮")
+                    .on_hover_text("Previous analysed frame")
+                    .clicked()
+                {
+                    if let Some(prev) = prev_analysed_frame(self.video_pred.as_ref(), playhead) {
+                        self.stop_video_playback();
+                        self.video_playhead_frame = Some(prev);
+                        self.refresh_video_texture(ui, prev);
                     }
                 }
-            }
+                if ui
+                    .button("⏭")
+                    .on_hover_text("Next analysed frame")
+                    .clicked()
+                {
+                    if let Some(next) = next_analysed_frame(self.video_pred.as_ref(), playhead) {
+                        if next <= scrub_limit {
+                            self.stop_video_playback();
+                            self.video_playhead_frame = Some(next);
+                            self.refresh_video_texture(ui, next);
+                        }
+                    }
+                }
 
-            ui.add_space(8.0);
-            // Show analysed / total so the user understands the limit.
-            ui.label(format!(
-                "{}  ·  analysed up to {}",
-                format_time_pair(playhead as f64 / fps, last_frame as f64 / fps),
-                format_time(scrub_limit as f64 / fps),
-            ));
-            ui.add_space(8.0);
-            if let Some(label) = current_top_label(self.video_pred.as_ref(), playhead) {
-                ui.label(egui::RichText::new(label).strong());
-            }
+                ui.add_space(8.0);
+                let suffix = if self.video_state.is_processing {
+                    "  ·  analysing…"
+                } else {
+                    ""
+                };
+                ui.label(format!(
+                    "{}  ·  analysed up to {}{}",
+                    format_time_pair(playhead as f64 / fps, last_frame as f64 / fps),
+                    format_time(scrub_limit as f64 / fps),
+                    suffix,
+                ));
+                ui.add_space(8.0);
+                if let Some(label) = current_top_label(self.video_pred.as_ref(), playhead) {
+                    ui.label(egui::RichText::new(label).strong());
+                }
+            });
+
+            ui.add_space(gap);
+
+            new_playhead =
+                self.draw_seek_bar(ui, n_frames, scrub_limit, seek_h, strip_h, playhead);
         });
 
-        ui.add_space(gap);
-
-        let new_playhead = self.draw_seek_bar(ui, n_frames, scrub_limit, seek_h, strip_h, playhead);
         if let Some(idx) = new_playhead {
             let was_playing = self.video_playing;
             self.stop_video_playback();
@@ -701,33 +719,58 @@ impl Gui {
             handle_color,
         );
 
-        // Hover tooltip with prediction details — only over the analysed range.
-        if let Some(hover_pos) = response.hover_pos() {
-            if hover_pos.x <= limit_x {
-                let t = ((hover_pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
-                let frame = ((t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64)
-                    .min(scrub_limit);
-                let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
-                let secs = frame as f64 / fps;
+        let enabled = ui.is_enabled();
 
-                let hover_color = if dark {
-                    egui::Color32::from_white_alpha(120)
-                } else {
-                    egui::Color32::from_black_alpha(80)
-                };
-                p.line_segment(
-                    [egui::pos2(hover_pos.x, bar_top), egui::pos2(hover_pos.x, bar_bottom)],
-                    egui::Stroke::new(1.0, hover_color),
-                );
+        // Hover tooltip with prediction details — only when interactive AND
+        // pointed at the analysed range.
+        if enabled {
+            if let Some(hover_pos) = response.hover_pos() {
+                if hover_pos.x <= limit_x {
+                    let t =
+                        ((hover_pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
+                    let frame = ((t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64)
+                        .min(scrub_limit);
+                    let fps = self.video_pred.as_ref().map(|p| p.fps).unwrap_or(30.0).max(0.1);
+                    let secs = frame as f64 / fps;
 
-                let tooltip_text = hover_tooltip(self.video_pred.as_ref(), frame, secs);
-                response.clone().on_hover_ui_at_pointer(|ui| {
-                    ui.label(tooltip_text);
-                });
+                    let hover_color = if dark {
+                        egui::Color32::from_white_alpha(120)
+                    } else {
+                        egui::Color32::from_black_alpha(80)
+                    };
+                    p.line_segment(
+                        [
+                            egui::pos2(hover_pos.x, bar_top),
+                            egui::pos2(hover_pos.x, bar_bottom),
+                        ],
+                        egui::Stroke::new(1.0, hover_color),
+                    );
+
+                    let tooltip_text = hover_tooltip(self.video_pred.as_ref(), frame, secs);
+                    response.clone().on_hover_ui_at_pointer(|ui| {
+                        ui.label(tooltip_text);
+                    });
+                }
             }
+        } else {
+            // Dim the whole bar so it visually reads as "locked".
+            let dim = if dark {
+                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 110)
+            } else {
+                egui::Color32::from_rgba_unmultiplied(255, 255, 255, 130)
+            };
+            p.rect_filled(
+                egui::Rect::from_min_max(
+                    egui::pos2(rect.left(), bar_top - 1.0),
+                    egui::pos2(rect.right(), strip_bottom + 1.0),
+                ),
+                3.0,
+                dim,
+            );
         }
 
-        // Click or drag → seek, clamped to the analysed range.
+        // Click or drag → seek, clamped to the analysed range. `Response`
+        // already suppresses click/drag while the ui is disabled.
         if response.clicked() || response.dragged() {
             if let Some(pos) = response.interact_pointer_pos() {
                 let t = ((pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
