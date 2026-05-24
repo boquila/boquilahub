@@ -239,8 +239,8 @@ impl PredVideo {
             if path.exists() {
                 if let Ok(file) = std::fs::File::open(&path) {
                     if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
-                        // Always trust the on-disk path the user just opened in case
-                        // the file moved since the predictions were saved.
+                        // Trust the caller-supplied path in case the video moved
+                        // since the predictions were saved.
                         cached.file_path = file_path;
                         return cached;
                     }
@@ -273,7 +273,6 @@ impl PredVideo {
     }
 
     /// Most recent analyzed frame index at or before `frame_idx`, if any.
-    /// The "sticky" prediction the user sees on a non-analyzed frame.
     pub fn last_processed_at_or_before(&self, frame_idx: u64) -> Option<u64> {
         let step = self.step.max(1) as u64;
         let mut candidate = if step <= 1 { frame_idx } else { (frame_idx / step) * step };
@@ -303,6 +302,14 @@ impl PredVideo {
 
     pub fn processed_count(&self) -> usize {
         self.frames.iter().filter(|f| f.is_some()).count()
+    }
+
+    /// Highest analyzed frame index, or `None` if nothing has been analyzed yet.
+    pub fn max_processed_frame(&self) -> Option<u64> {
+        self.frames
+            .iter()
+            .rposition(|f| f.is_some())
+            .map(|i| i as u64)
     }
 
     /// Fraction of *intended* work that's done (i.e. processed analyzed-frames over total
@@ -365,9 +372,8 @@ impl AIOutputs {
         Ok(deserialized)
     }
 
-    /// `(class_id, label, prob)` for the single best prediction in this output —
-    /// used to colour the video timeline strip. `None` for empty outputs or for
-    /// audio classification (which doesn't apply to video).
+    /// `(class_id, label, prob)` for the single best prediction in this output.
+    /// `None` for empty outputs or for audio classification.
     pub fn dominant_prob(&self) -> Option<(u32, &str, f32)> {
         match self {
             AIOutputs::Classification(probs) => probs
