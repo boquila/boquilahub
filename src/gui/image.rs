@@ -19,6 +19,7 @@ impl Gui {
         let Ok(loaded) = image::open(&predimg.file_path) else { return; };
         let img = loaded.into_rgba8();
         self.img_state.texture = imgbuf_to_texture(&img, ui);
+        self.mask_textures = build_mask_textures(predimg, ui);
     }
 
     fn draw_gui(&self, predimg: &PredImg) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
@@ -421,9 +422,13 @@ impl Gui {
 
             if predimg.wasprocessed {
                 match predimg.aioutput.as_ref() {
-                    Some(aio) if !aio.is_empty() => {
-                        draw_image_overlay(ui, &img_resp, aio, tex_size)
-                    }
+                    Some(aio) if !aio.is_empty() => draw_image_overlay(
+                        ui,
+                        &img_resp,
+                        aio,
+                        tex_size,
+                        &self.mask_textures,
+                    ),
                     Some(_) => {
                         draw_empty_predictions_chip(ui, &img_resp);
                         None
@@ -731,6 +736,7 @@ fn draw_image_overlay(
     img_resp: &egui::Response,
     aio: &AIOutputs,
     original_size: egui::Vec2,
+    mask_textures: &[egui::TextureHandle],
 ) -> Option<HoverEcho> {
     let rect = img_resp.rect;
     if rect.width() < 1.0 || rect.height() < 1.0 {
@@ -753,7 +759,6 @@ fn draw_image_overlay(
                     bbox_screen_rect(b, rect.min, scale),
                     b,
                     Some(idx) == hovered,
-                    false,
                 );
             }
             if let Some(idx) = hovered {
@@ -765,14 +770,29 @@ fn draw_image_overlay(
         }
         AIOutputs::Segmentation(segs) => {
             let hovered = pick_hovered_seg(segs, hover_pos, rect.min, scale);
+            let uv = egui::Rect::from_min_max(
+                egui::pos2(0.0, 0.0),
+                egui::pos2(1.0, 1.0),
+            );
             for (idx, s) in segs.iter().enumerate() {
+                let bbox_rect = bbox_screen_rect(&s.bbox, rect.min, scale);
+
+                // Paint the alpha mask (40 % class-colour over masked pixels)
+                // so the segmented shape is visible, not just the bbox.
+                // A second pass on hover brightens the masked area.
+                if let Some(tex) = mask_textures.get(idx) {
+                    painter.image(tex.id(), bbox_rect, uv, egui::Color32::WHITE);
+                    if Some(idx) == hovered {
+                        painter.image(tex.id(), bbox_rect, uv, egui::Color32::WHITE);
+                    }
+                }
+
                 draw_box_with_label(
                     &painter,
                     rect,
-                    bbox_screen_rect(&s.bbox, rect.min, scale),
+                    bbox_rect,
                     &s.bbox,
                     Some(idx) == hovered,
-                    true,
                 );
             }
             if let Some(idx) = hovered {
@@ -847,16 +867,9 @@ fn draw_box_with_label(
     r: egui::Rect,
     b: &XYXYc,
     hovered: bool,
-    is_segment: bool,
 ) {
     let c = class_color(bbox_color_id(b));
     let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
-
-    if is_segment {
-        let fill_alpha = if hovered { 90 } else { 50 };
-        let fill = egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], fill_alpha);
-        painter.rect_filled(r, 2.0, fill);
-    }
 
     let stroke_w = if hovered { 3.0 } else { 1.8 };
     painter.rect_stroke(
@@ -900,6 +913,43 @@ fn label_text(b: &XYXYc) -> String {
         Some(p) => format!("{}\n{}  {:.0}%", base, p.label, p.prob * 100.0),
         None => base,
     }
+}
+
+/// Upload one RGBA texture per segmentation mask. Each pixel is the segment's
+/// class colour at 40% alpha where the mask bit is set, fully transparent
+/// otherwise — matches `render::draw_seg_from_imgbuf`'s blend factor so the
+/// on-screen look mirrors the burned-in export.
+pub(super) fn build_mask_textures(
+    predimg: &PredImg,
+    ui: &egui::Ui,
+) -> Vec<egui::TextureHandle> {
+    let Some(AIOutputs::Segmentation(segs)) = predimg.aioutput.as_ref() else {
+        return Vec::new();
+    };
+    const MASK_ALPHA: u8 = 102; // ≈ 0.4 × 255
+    segs.iter()
+        .enumerate()
+        .map(|(idx, s)| {
+            let w = s.mask.width;
+            let h = s.mask.height;
+            let c = class_color(bbox_color_id(&s.bbox));
+            let mut pixels = Vec::with_capacity(w * h * 4);
+            for bit in s.mask.data.iter() {
+                if *bit {
+                    pixels.extend_from_slice(&[c[0], c[1], c[2], MASK_ALPHA]);
+                } else {
+                    pixels.extend_from_slice(&[0, 0, 0, 0]);
+                }
+            }
+            let color_img =
+                egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
+            ui.ctx().load_texture(
+                format!("seg_mask_{idx}"),
+                color_img,
+                egui::TextureOptions::NEAREST,
+            )
+        })
+        .collect()
 }
 
 fn draw_classification_ribbon(

@@ -135,6 +135,9 @@ struct Gui {
     temp_api_str: String,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
+    // Per-segment alpha masks for the currently displayed image. Rebuilt in
+    // `paint()` so we don't re-upload every frame.
+    mask_textures: Vec<egui::TextureHandle>,
     feed_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(AIOutputs, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
 
