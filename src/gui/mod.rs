@@ -1,4 +1,5 @@
 mod audio;
+mod video_file;
 
 use super::{api::*, localization::*};
 use abstractions::*;
@@ -11,11 +12,13 @@ use render::*;
 use rest::{
     check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
 };
+use std::collections::HashMap;
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use video_file::VideofileProcessor;
+use crate::api::video_file::VideofileProcessor;
+use crate::gui::video_file::{AnalysisFrame, ExportProgress};
 
 pub fn run_gui() {
     let native_options = eframe::NativeOptions {
@@ -108,7 +111,6 @@ struct Gui {
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
     selected_files: Vec<PredImg>,
-    video_file_path: Option<PathBuf>,
     audio_file_path: Option<PathBuf>,
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
@@ -133,9 +135,18 @@ struct Gui {
     image_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<(usize, AIOutputs)>>,
     feed_processing_receiver:
         Option<tokio::sync::mpsc::UnboundedReceiver<(AIOutputs, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
-    video_processing_receiver:
-        Option<tokio::sync::mpsc::UnboundedReceiver<(u64, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
+
+    // Video pipeline state.
+    video_pred: Option<PredVideo>,
+    video_thumbnails: HashMap<u64, Vec<u8>>,
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
+    video_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<AnalysisFrame>>,
+    video_export_receiver: Option<std::sync::mpsc::Receiver<ExportProgress>>,
+    video_playhead_frame: Option<u64>,
+    video_playing: bool,
+    video_play_start: Option<Instant>,
+    video_play_start_frame: u64,
+    video_last_displayed_frame: Option<u64>,
 
     // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
     done_time: Option<Instant>,
@@ -153,8 +164,6 @@ struct Gui {
     ep_selected: Ep,
     video_step_frame: usize,
     feed_step_frame: usize,
-    current_frame: u64,
-    total_frames: Option<u64>,
 
     image_texture_n: usize,
 
@@ -683,22 +692,29 @@ impl Gui {
                         .add_filter("Video", &formats::VIDEO_FORMATS)
                         .pick_file()
                     {
-                        match VideofileProcessor::first_frame(path.clone().to_str().unwrap()) {
+                        let path_str = path.to_string_lossy().to_string();
+                        match VideofileProcessor::first_frame(&path_str) {
                             Ok(frame) => {
                                 self.video_state.texture = imgbuf_to_texture(
                                     &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
                                     ui,
                                 );
-                                self.video_file_path = Some(path);
-                                let processor = Some(VideofileProcessor::new(
-                                    &self.video_file_path.clone().unwrap().to_str().unwrap(),
-                                ))
-                                .unwrap();
-                                self.total_frames = Some(processor.get_n_frames());
+                                let processor = VideofileProcessor::new(&path_str);
+                                let pred_video = PredVideo::new_simple(
+                                    path.clone(),
+                                    processor.width(),
+                                    processor.height(),
+                                    processor.fps(),
+                                    processor.get_n_frames(),
+                                );
+                                self.video_pred = Some(pred_video);
+                                self.video_thumbnails.clear();
                                 self.video_file_processor = Arc::new(Mutex::new(Some(processor)));
                                 self.mode = Mode::Video;
-                                self.current_frame = 0;
                                 self.video_state.progress_bar = 0.0;
+                                self.video_playhead_frame = Some(0);
+                                self.video_last_displayed_frame = None;
+                                self.video_playing = false;
                             }
                             Err(_) => {
                                 self.process_error();
@@ -1032,133 +1048,6 @@ impl Gui {
         }
     }
 
-    fn start_video_analysis(&mut self) {
-        self.video_state.is_processing = true;
-        // Async processing: Video
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.video_processing_receiver = Some(rx);
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.video_state.cancel_sender = Some(cancel_tx);
-
-        let processor = Arc::clone(&self.video_file_processor);
-        let n = self.total_frames.unwrap();
-        let current = self.current_frame;
-
-        let api_endpoint = self.get_endpoint();
-        let is_remote = !self.ep_selected.is_local();
-        let step: usize = self.video_step_frame;
-        let mut cached_aioutput: Option<AIOutputs> = None;
-
-        tokio::spawn(async move {
-            for i in current..=n {
-                if cancel_rx.try_recv().is_ok() {
-                    break;
-                }
-
-                let data = processor.lock().unwrap().as_mut().unwrap().next();
-
-                match data {
-                    Some((time, mut img)) => {
-                        // Only process if frequency says so
-                        if i % step as u64 == 0 {
-                            let aioutput;
-                            if is_remote {
-                                let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await
-                                {
-                                    Ok(result) => aioutput = result,
-                                    Err(_) => break,
-                                }
-                            } else {
-                                match tokio::task::spawn_blocking(move || {
-                                    let result = process_imgbuf(&img);
-                                    (img, result) // return img back alongside the result
-                                })
-                                .await
-                                {
-                                    Ok((returned_img, result)) => {
-                                        img = returned_img;
-                                        aioutput = result;
-                                    }
-                                    Err(_) => break,
-                                }
-                            }
-                            cached_aioutput = Some(aioutput);
-                        }
-
-                        if let Some(ref aioutput) = cached_aioutput {
-                            draw_aioutput(&mut img, aioutput);
-                        }
-
-                        // Process final image
-                        processor
-                            .lock()
-                            .unwrap()
-                            .as_mut()
-                            .unwrap()
-                            .encode(&img, time);
-
-                        let final_img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-
-                        if tx.send((i, final_img)).is_err() {
-                            break;
-                        }
-                    }
-                    None => {
-                        let _ = processor.lock().unwrap().as_mut().unwrap().encoder.finish();
-                        break;
-                    }
-                }
-            }
-        });
-    }
-
-    fn video_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.video_file_path.is_some() && (self.is_image_model() || !self.ep_selected.is_local()) {
-            ui.vertical_centered(|ui| {
-                ui.heading(self.t(Key::video_file));
-                ui.heading(self.t(Key::analysis));
-
-                ui.separator();
-
-                ui.add_enabled_ui(!self.video_state.is_processing, |ui| {
-                    if ui.button("⚙").clicked() {
-                        self.show_config.video = !self.show_config.video;
-                    }
-                    if self.show_config.video {
-                        ui.label(self.t(Key::freq));
-                        ui.style_mut().spacing.slider_width = 125.0;
-                        ui.add(egui::Slider::new(&mut self.video_step_frame, 1..=90));
-                        ui.add_space(8.0);
-                    }
-                });
-
-                if !self.video_state.is_processing {
-                    if ui.button("▶").clicked() {
-                        self.start_video_analysis();
-                    }
-                } else {
-                    if ui.button("⏸").clicked() {
-                        self.cancel_video_processing();
-                    }
-                }
-            });
-            // Progress Bar: Video
-            if self.video_file_path.is_some() {
-                ui.add(
-                    egui::ProgressBar::new(self.video_state.progress_bar)
-                        .show_percentage()
-                        .animate(self.video_state.is_processing),
-                );
-            }
-        }
-    }
-
-    fn cancel_video_processing(&mut self) {
-        self.video_state.cancel();
-        self.video_processing_receiver = None;
-    }
-
     fn start_feed_analysis(&mut self) {
         self.feed_state.is_processing = true;
         // Async processing: Video
@@ -1278,45 +1167,6 @@ impl Gui {
         }
     }
 
-    fn video_handle_results(&mut self, ui: &egui::Ui) {
-        if let Some(rx) = &mut self.video_processing_receiver {
-            let mut updates = Vec::new();
-            let mut channel_closed = false;
-            loop {
-                match rx.try_recv() {
-                    Ok(img) => updates.push(img),
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                        channel_closed = true;
-                        break;
-                    }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                }
-            }
-
-            for (i, img) in updates {
-                self.video_state.texture = imgbuf_to_texture(&img, ui);
-                self.video_state.progress_bar = (i + 1) as f32 / self.total_frames.unwrap() as f32;
-                self.current_frame = i;
-            }
-
-            if channel_closed {
-                self.video_state.progress_bar = 1.0;
-                self.video_state.is_processing = false;
-                self.video_processing_receiver = None;
-                let _ = self
-                    .video_file_processor
-                    .lock()
-                    .unwrap()
-                    .as_mut()
-                    .unwrap()
-                    .encoder
-                    .finish();
-            }
-
-            ui.request_repaint();
-        }
-    }
-
     fn feed_handle_results(&mut self, ui: &egui::Ui) {
         if let Some(rx) = &mut self.feed_processing_receiver {
             let mut updates = Vec::new();
@@ -1407,7 +1257,7 @@ impl eframe::App for Gui {
 
         egui::CentralPanel::default().show_inside(main_ui, |ui| {
             let cond1 = self.selected_files.len() >= 1;
-            let cond2 = self.video_file_path.is_some();
+            let cond2 = self.video_pred.is_some();
             let cond3 = self.feed_url.is_some();
             let cond4 = self.audio_file_path.is_some();
             // it has a mode AND another
@@ -1464,15 +1314,7 @@ impl eframe::App for Gui {
                     self.img_handle_results(ui);
                 }
                 Mode::Video => {
-                    if let Some(texture) = &self.video_state.texture {
-                        ui.add(
-                            egui::Image::new(texture)
-                                .max_height(800.0)
-                                .corner_radius(10.0),
-                        );
-                    }
-
-                    self.video_handle_results(ui);
+                    self.ui_video(ui);
                 }
                 Mode::Feed => {
                     if let Some(texture) = &self.feed_state.texture {

@@ -115,6 +115,7 @@ pub enum Key {
     window,
     width_,
     height_,
+    export_video_with_predictions,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -747,6 +748,17 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "altura",
             Lang::VI => "chiều cao",
             Lang::NK => "visina",
+        },
+        Key::export_video_with_predictions => match lang {
+            Lang::EN => "Export video with predictions (.mp4)",
+            Lang::ES => "Exportar video con predicciones (.mp4)",
+            Lang::FR => "Exporter la vidéo avec prédictions (.mp4)",
+            Lang::DE => "Video mit Vorhersagen exportieren (.mp4)",
+            Lang::ZH => "导出含识别结果的视频（.mp4）",
+            Lang::JA => "予測付き動画をエクスポート（.mp4）",
+            Lang::PT => "Exportar vídeo com previsões (.mp4)",
+            Lang::VI => "Xuất video kèm dự đoán (.mp4)",
+            Lang::NK => "Izvezi video sa predviđanjima (.mp4)",
         },
     }
 }

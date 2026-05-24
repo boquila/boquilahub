@@ -194,6 +194,134 @@ impl AudioProbSugar for Vec<AudioProb> {
     }
 }
 
+/// A video that has been (or will be) analyzed frame by frame.
+///
+/// `frames[i]` is the prediction for frame `i`:
+/// - `None`              → that frame was skipped (we only analyze every `step` frames).
+/// - `Some(aioutput)`    → that frame was analyzed; the output may itself be empty.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PredVideo {
+    pub file_path: std::path::PathBuf,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,
+    pub n_frames: u64,
+    pub step: u32,
+    pub frames: Vec<Option<AIOutputs>>,
+    pub wasprocessed: bool,
+}
+
+impl PredVideo {
+    pub fn new(file_path: std::path::PathBuf, width: u32, height: u32, fps: f64, n_frames: u64) -> Self {
+        Self {
+            file_path,
+            width,
+            height,
+            fps,
+            n_frames,
+            step: 1,
+            frames: vec![None; n_frames as usize],
+            wasprocessed: false,
+        }
+    }
+
+    /// If a sidecar `_predictions.json` already exists for this video, load it
+    /// and return a fully-populated `PredVideo`. Otherwise build a fresh one
+    /// using the probed `width` / `height` / `fps` / `n_frames`.
+    pub fn new_simple(
+        file_path: std::path::PathBuf,
+        width: u32,
+        height: u32,
+        fps: f64,
+        n_frames: u64,
+    ) -> Self {
+        if let Ok(path) = Self::create_predictions_file_path(&file_path) {
+            if path.exists() {
+                if let Ok(file) = std::fs::File::open(&path) {
+                    if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
+                        // Always trust the on-disk path the user just opened in case
+                        // the file moved since the predictions were saved.
+                        cached.file_path = file_path;
+                        return cached;
+                    }
+                }
+            }
+        }
+        Self::new(file_path, width, height, fps, n_frames)
+    }
+
+    fn create_predictions_file_path(
+        input_path: &std::path::Path,
+    ) -> std::io::Result<std::path::PathBuf> {
+        let stem = input_path
+            .file_stem()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path"))?
+            .to_str()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path"))?;
+        Ok(input_path.with_file_name(format!("{}_predictions.json", stem)))
+    }
+
+    pub fn reset(&mut self) {
+        for slot in self.frames.iter_mut() {
+            *slot = None;
+        }
+        self.wasprocessed = false;
+    }
+
+    pub fn set_step(&mut self, step: u32) {
+        self.step = step.max(1);
+    }
+
+    /// Most recent analyzed frame index at or before `frame_idx`, if any.
+    /// The "sticky" prediction the user sees on a non-analyzed frame.
+    pub fn last_processed_at_or_before(&self, frame_idx: u64) -> Option<u64> {
+        let step = self.step.max(1) as u64;
+        let mut candidate = if step <= 1 { frame_idx } else { (frame_idx / step) * step };
+        loop {
+            if (candidate as usize) < self.frames.len()
+                && self.frames[candidate as usize].is_some()
+            {
+                return Some(candidate);
+            }
+            if candidate == 0 {
+                return None;
+            }
+            candidate = candidate.saturating_sub(1);
+        }
+    }
+
+    pub fn prediction_at(&self, frame_idx: u64) -> Option<&AIOutputs> {
+        self.last_processed_at_or_before(frame_idx)
+            .and_then(|i| self.frames.get(i as usize)?.as_ref())
+    }
+
+    pub fn record(&mut self, frame_idx: u64, aioutput: AIOutputs) {
+        if let Some(slot) = self.frames.get_mut(frame_idx as usize) {
+            *slot = Some(aioutput);
+        }
+    }
+
+    pub fn processed_count(&self) -> usize {
+        self.frames.iter().filter(|f| f.is_some()).count()
+    }
+
+    /// Fraction of *intended* work that's done (i.e. processed analyzed-frames over total
+    /// analyzed-frames according to `step`). Returns 0 when nothing should be processed.
+    pub fn get_progress(&self) -> f32 {
+        let step = self.step.max(1) as u64;
+        let target = (0..self.n_frames).step_by(step as usize).count();
+        if target == 0 {
+            return 0.0;
+        }
+        self.processed_count() as f32 / target as f32
+    }
+
+    /// For `image_path/myvideo.mp4`, returns `image_path/myvideo_predictions.json`.
+    pub fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
+        Self::create_predictions_file_path(&self.file_path)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct XYXYc {
     pub xyxy: XYXY,
@@ -232,9 +360,38 @@ impl AIOutputs {
         }
     }
 
-    pub fn from_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {    
+    pub fn from_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {
         let deserialized: AIOutputs = serde_json::from_reader(std::fs::File::open(input_path)?)?;
         Ok(deserialized)
+    }
+
+    /// `(class_id, label, prob)` for the single best prediction in this output —
+    /// used to colour the video timeline strip. `None` for empty outputs or for
+    /// audio classification (which doesn't apply to video).
+    pub fn dominant_prob(&self) -> Option<(u32, &str, f32)> {
+        match self {
+            AIOutputs::Classification(probs) => probs
+                .iter()
+                .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|p| (p.class_id, p.label.as_str(), p.prob)),
+            AIOutputs::ObjectDetection(bboxes) => bboxes
+                .iter()
+                .max_by(|a, b| {
+                    a.xyxy.prob.partial_cmp(&b.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|b| (b.xyxy.class_id, b.label.as_str(), b.xyxy.prob)),
+            AIOutputs::Segmentation(segs) => segs
+                .iter()
+                .max_by(|a, b| {
+                    a.bbox
+                        .xyxy
+                        .prob
+                        .partial_cmp(&b.bbox.xyxy.prob)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|s| (s.bbox.xyxy.class_id, s.bbox.label.as_str(), s.bbox.xyxy.prob)),
+            AIOutputs::AudioClassification(_) => None,
+        }
     }
 }
 

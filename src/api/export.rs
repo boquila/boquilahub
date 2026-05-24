@@ -1,5 +1,5 @@
 use crate::api::abstractions::{AudioProbSugar, ProbSugar};
-use super::abstractions::{AIOutputs, PredImg};
+use super::abstractions::{AIOutputs, PredImg, PredVideo};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::fs::File;
@@ -76,6 +76,17 @@ impl PredImg {
         let output_path = self.predictions_file_path()?;
         let mut file = File::create(&output_path)?;
         let json_string = serde_json::to_string(&self.aioutput)?;
+        file.write_all(json_string.as_bytes())?;
+        Ok(())
+    }
+}
+
+impl PredVideo {
+    // For file 'video.mp4', creates a file 'video_predictions.json' containing this PredVideo.
+    pub async fn write_pred_video_to_file(&self) -> Result<()> {
+        let output_path = self.predictions_file_path()?;
+        let mut file = File::create(&output_path)?;
+        let json_string = serde_json::to_string(self)?;
         file.write_all(json_string.as_bytes())?;
         Ok(())
     }
