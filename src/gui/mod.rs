@@ -1,4 +1,5 @@
 mod audio;
+mod feed;
 #[path = "image.rs"]
 mod image_view;
 mod video_file;
@@ -7,19 +8,16 @@ use super::{api::*, localization::*};
 use abstractions::*;
 use crate::api::audio::AudioData;
 use bq::*;
-use image::{ImageBuffer, Rgba};
 use models::Task;
 use processing::post::PostProcessing;
-use render::*;
-use rest::{
-    check_boquila_hub_api, detect_remotely, get_ipv4_address, rgb_image_to_jpeg_buffer, run_api,
-};
-use std::collections::HashMap;
+use rest::{check_boquila_hub_api, get_ipv4_address, run_api};
+use std::collections::{HashMap, VecDeque};
 use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::api::video_file::VideofileProcessor;
+use crate::gui::feed::FeedFrame;
 use crate::gui::video_file::{AnalysisFrame, ExportProgress};
 
 pub fn run_gui() {
@@ -137,8 +135,14 @@ struct Gui {
     // Per-segment alpha masks for the currently displayed image. Rebuilt in
     // `paint()` so we don't re-upload every frame.
     mask_textures: Vec<egui::TextureHandle>,
-    feed_processing_receiver:
-        Option<tokio::sync::mpsc::UnboundedReceiver<(AIOutputs, ImageBuffer<Rgba<u8>, Vec<u8>>)>>,
+    feed_processing_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<FeedFrame>>,
+
+    // Feed buffer + scrub state.
+    feed_buffer: VecDeque<FeedFrame>,
+    feed_buffer_max_secs: u32,
+    feed_started_at: Option<Instant>,
+    feed_playhead_frame: Option<u64>,
+    feed_last_displayed_frame: Option<u64>,
 
     // Video pipeline state.
     video_pred: Option<PredVideo>,
@@ -260,6 +264,7 @@ impl Gui {
             image_texture_n: 1,
             video_step_frame: 3,
             feed_step_frame: 3,
+            feed_buffer_max_secs: feed::FEED_BUFFER_DEFAULT_SECS,
             process_all_imgs: true,
             ..Default::default()
         }
@@ -802,47 +807,6 @@ impl Gui {
         }
     }
 
-    fn feed_input_dialog(&mut self, ui: &egui::Ui) {
-        egui::Window::new(self.t(Key::input_url))
-            .collapsible(false)
-            .resizable(false)
-            .show(ui, |ui| {
-                ui.text_edit_singleline(&mut self.temp_str);
-                ui.horizontal(|ui| {
-                    if ui.button(self.t(Key::ok)).clicked() {
-                        let url = self.temp_str.clone();
-                        match stream::Feed::new(&url) {
-                            Ok(mut feed) => match feed.next() {
-                                Some(frame) => {
-                                    self.feed_state.texture = imgbuf_to_texture(
-                                        &image::DynamicImage::ImageRgb8(frame).to_rgba8(),
-                                        ui,
-                                    );
-                                    self.feed_url = Some(url);
-                                    self.mode = Mode::Feed;
-                                    if self.video_state.is_processing {
-                                        self.cancel_video_processing();
-                                    }
-                                }
-                                None => {
-                                    self.process_error();
-                                }
-                            },
-                            Err(_e) => {
-                                self.process_error();
-                            }
-                        }
-                        self.dialog = OpenDialog::None;
-                    }
-                    ui.add_space(8.0);
-                    if ui.button(self.t(Key::cancel)).clicked() {
-                        self.dialog = OpenDialog::None;
-                        self.feed_url = None
-                    }
-                });
-            });
-    }
-
     fn input_api_url_dialog(&mut self, ui: &egui::Ui) {
         if self.dialog == OpenDialog::ApiServer {
             egui::Window::new(self.t(Key::input_url))
@@ -878,117 +842,6 @@ impl Gui {
         }
     }
 
-    fn start_feed_analysis(&mut self) {
-        self.feed_state.is_processing = true;
-        // Async processing: Video
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.feed_processing_receiver = Some(rx);
-        let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
-        self.feed_state.cancel_sender = Some(cancel_tx);
-
-        let mut feed = stream::Feed::new(&self.feed_url.clone().unwrap()).unwrap();
-
-        let api_endpoint = self.get_endpoint();
-        let is_remote = !self.ep_selected.is_local();
-        let step: usize = self.feed_step_frame;
-        tokio::spawn(async move {
-            let mut frame_counter = 0;
-            loop {
-                if cancel_rx.try_recv().is_ok() {
-                    break;
-                }
-
-                if let Some(mut img) = feed.next() {
-                    frame_counter = frame_counter + 1;
-
-                    if frame_counter % step == 0 {
-                        let aioutput: AIOutputs = if is_remote {
-                            let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                            match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
-                                Ok(result) => result,
-                                Err(_) => break,
-                            }
-                        } else {
-                            match tokio::task::spawn_blocking(move || {
-                                let result = process_imgbuf(&img);
-                                (img, result)
-                            })
-                            .await
-                            {
-                                Ok((returned_img, result)) => {
-                                    img = returned_img;
-                                    result
-                                }
-                                Err(_) => break,
-                            }
-                        };
-
-                        draw_aioutput(&mut img, &aioutput);
-                        let img = image::DynamicImage::ImageRgb8(img).to_rgba8();
-                        if tx.send((aioutput, img)).is_err() {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    fn feed_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.feed_url.is_some() && (self.is_image_model() || !self.ep_selected.is_local()) {
-            ui.vertical_centered(|ui| {
-                ui.heading(self.t(Key::camera_feed));
-                ui.heading(self.t(Key::analysis));
-
-                ui.separator();
-                ui.add_space(8.0);
-
-                if ui.button("⚙").clicked() {
-                    self.show_config.feed = !self.show_config.feed;
-                }
-
-                if self.show_config.feed {
-                    ui.label(self.t(Key::export_obs));
-                    ui.checkbox(&mut self.save_img_from_feed, "");
-                    ui.add_space(8.0);
-                    ui.add_enabled_ui(!self.feed_state.is_processing, |ui| {
-                        ui.label(self.t(Key::freq));
-                        ui.style_mut().spacing.slider_width = 120.0;
-                        ui.add(egui::Slider::new(&mut self.feed_step_frame, 1..=90));
-                        ui.add_space(8.0);
-                    });
-                }
-                if !self.feed_state.is_processing {
-                    if ui.button("▶").clicked() {
-                        self.start_feed_analysis();
-                    }
-                } else {
-                    if ui.button("⏸").clicked() {
-                        self.feed_state.cancel();
-                    }
-                }
-            });
-        }
-    }
-
-    fn feed_handle_results(&mut self, ui: &egui::Ui) {
-        if let Some(rx) = &mut self.feed_processing_receiver {
-            let mut updates = Vec::new();
-            while let Ok(img) = rx.try_recv() {
-                updates.push(img);
-            }
-
-            for (aioutput, img) in updates {
-                self.feed_state.texture = imgbuf_to_texture(&img, ui);
-                if self.save_img_from_feed && !aioutput.is_empty() {
-                    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-                    let _ = img.save(format!("export/feed/{}.png", timestamp));
-                }
-            }
-
-            ui.request_repaint();
-        }
-    }
 }
 
 impl eframe::App for Gui {
@@ -1098,15 +951,7 @@ impl eframe::App for Gui {
                     self.ui_video(ui);
                 }
                 Mode::Feed => {
-                    if let Some(texture) = &self.feed_state.texture {
-                        ui.add(
-                            egui::Image::new(texture)
-                                .max_height(800.0)
-                                .corner_radius(10.0),
-                        );
-                    }
-
-                    self.feed_handle_results(ui);
+                    self.ui_feed(ui);
                 }
                 Mode::Audio => {
                     self.ui_audio(ui);
