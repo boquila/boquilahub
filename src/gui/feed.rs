@@ -930,7 +930,7 @@ fn feed_tooltip_ui(
     match aio {
         AIOutputs::ObjectDetection(bs) => {
             if bs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
                 return;
             }
             ui.separator();
@@ -953,7 +953,7 @@ fn feed_tooltip_ui(
         }
         AIOutputs::Segmentation(ss) => {
             if ss.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
                 return;
             }
             ui.separator();
@@ -977,7 +977,7 @@ fn feed_tooltip_ui(
         }
         AIOutputs::Classification(probs) => {
             if probs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_classification, lang)).weak());
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
                 return;
             }
             ui.separator();

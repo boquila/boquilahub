@@ -468,7 +468,7 @@ impl Gui {
             _ => return,
         };
         if probs.is_empty() {
-            ui.label(egui::RichText::new(self.t(Key::no_predictions_lower)).weak());
+            ui.label(egui::RichText::new(self.t(Key::no_predictions)).weak());
             return;
         }
 
@@ -717,7 +717,7 @@ fn draw_echo_strip(
 fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
     match aio {
         AIOutputs::ObjectDetection(b) if b.is_empty() => {
-            Some(translate(Key::no_detections, lang).into())
+            Some(translate(Key::no_predictions, lang).into())
         }
         AIOutputs::ObjectDetection(b) => {
             let noun = if b.len() == 1 {
@@ -728,7 +728,7 @@ fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
             Some(format!("{} {}", b.len(), noun))
         }
         AIOutputs::Segmentation(s) if s.is_empty() => {
-            Some(translate(Key::no_segments, lang).into())
+            Some(translate(Key::no_predictions, lang).into())
         }
         AIOutputs::Segmentation(s) => {
             let noun = if s.len() == 1 {
@@ -1032,7 +1032,7 @@ fn draw_classification_ribbon(
 
 fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response, lang: &Lang) {
     let painter = ui.painter_at(img_resp.rect);
-    let text = translate(Key::no_predictions_lower, lang);
+    let text = translate(Key::no_predictions, lang);
     let galley = painter.layout_no_wrap(
         text.into(),
         egui::FontId::proportional(13.0),
@@ -1140,7 +1140,7 @@ fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc, lang: &Lang) {
 
 fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob], lang: &Lang) {
     if probs.is_empty() {
-        ui.label(egui::RichText::new(translate(Key::no_classification, lang)).weak());
+        ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
         return;
     }
     ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());

@@ -1044,7 +1044,7 @@ fn tooltip_ui(
     match aio {
         AIOutputs::ObjectDetection(bboxes) => {
             if bboxes.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
                 return;
             }
             ui.separator();
@@ -1064,7 +1064,7 @@ fn tooltip_ui(
         }
         AIOutputs::Segmentation(segs) => {
             if segs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_detections_parens, lang)).weak());
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
                 return;
             }
             ui.separator();
@@ -1088,7 +1088,7 @@ fn tooltip_ui(
         }
         AIOutputs::Classification(probs) => {
             if probs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_classification, lang)).weak());
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
                 return;
             }
             ui.separator();
