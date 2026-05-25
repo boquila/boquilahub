@@ -302,6 +302,7 @@ impl Gui {
 
         ui.vertical_centered(|ui| {
             ui.heading(self.t(Key::camera_feed));
+            ui.heading(self.t(Key::analysis));
         });
         ui.separator();
 

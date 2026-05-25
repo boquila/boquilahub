@@ -376,12 +376,10 @@ impl Gui {
 
             if can_analyze {
                 ui.separator();
-                let resp = ui
-                    .add_enabled(
-                        !self.img_state.is_processing,
-                        egui::Button::new(self.t(Key::analyze_this_image)),
-                    )
-                    .on_hover_text(self.t(Key::analyze_this_image_hint));
+                let resp = ui.add_enabled(
+                    !self.img_state.is_processing,
+                    egui::Button::new(self.t(Key::analyze)),
+                );
                 if resp.clicked() {
                     analyze_this = true;
                 }
