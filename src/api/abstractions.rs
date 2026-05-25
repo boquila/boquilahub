@@ -315,29 +315,54 @@ impl PredVideo {
         }
     }
 
-    /// If a sidecar `_predictions.json` already exists for this video, load it
-    /// and return a fully-populated `PredVideo`. Otherwise build a fresh one
-    /// using the probed `width` / `height` / `fps` / `n_frames`.
-    pub fn new_simple(
-        file_path: std::path::PathBuf,
-        width: u32,
-        height: u32,
-        fps: f64,
-        n_frames: u64,
-    ) -> Self {
+    /// Cheap constructor: stores the path and loads a sidecar
+    /// `_predictions.json` if one exists (same shape as `PredImg::new_simple`
+    /// / `PredAudio::new_simple`). The ffmpeg probe is deferred to
+    /// [`Self::hydrate`] so picking 100 videos doesn't pay a 100x
+    /// ffmpeg-init cost upfront.
+    pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         if let Ok(path) = sidecar_predictions_path(&file_path) {
             if path.exists() {
                 if let Ok(file) = std::fs::File::open(&path) {
                     if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
-                        // Trust the caller-supplied path in case the video moved
-                        // since the predictions were saved.
+                        // Trust the caller-supplied path in case the video
+                        // moved since the predictions were saved.
                         cached.file_path = file_path;
                         return cached;
                     }
                 }
             }
         }
-        Self::new(file_path, width, height, fps, n_frames)
+        Self {
+            file_path,
+            width: 0,
+            height: 0,
+            fps: 0.0,
+            n_frames: 0,
+            step: 1,
+            frames: Vec::new(),
+            wasprocessed: false,
+        }
+    }
+
+    /// True once metadata has been filled (sidecar load or `hydrate`). Used
+    /// as the cheap "should I probe?" check.
+    pub fn is_hydrated(&self) -> bool {
+        self.n_frames != 0 || !self.frames.is_empty()
+    }
+
+    /// Fill in probe metadata + allocate `frames`. No-op if already hydrated
+    /// (sidecar already loaded it, or a prior open did). Called the first
+    /// time the user navigates to this video.
+    pub fn hydrate(&mut self, width: u32, height: u32, fps: f64, n_frames: u64) {
+        if self.is_hydrated() {
+            return;
+        }
+        self.width = width;
+        self.height = height;
+        self.fps = fps;
+        self.n_frames = n_frames;
+        self.frames = vec![None; n_frames as usize];
     }
 
     pub fn reset(&mut self) {

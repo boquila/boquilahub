@@ -738,26 +738,12 @@ impl Gui {
                                 }
 
                                 if !video_files.is_empty() {
-                                    let mut probed: Vec<PredVideo> = Vec::new();
-                                    for path in video_files {
-                                        let path_str = path.to_string_lossy().to_string();
-                                        if let Ok(probe) =
-                                            VideofileProcessor::probe(&path_str)
-                                        {
-                                            probed.push(PredVideo::new_simple(
-                                                path,
-                                                probe.width,
-                                                probe.height,
-                                                probe.fps,
-                                                probe.n_frames,
-                                            ));
-                                        }
-                                    }
-                                    if !probed.is_empty() {
-                                        self.selected_videos = probed;
-                                        self.video_texture_n = 1;
-                                        self.load_current_video(ui);
-                                    }
+                                    self.selected_videos = video_files
+                                        .into_iter()
+                                        .map(PredVideo::new_simple)
+                                        .collect();
+                                    self.video_texture_n = 1;
+                                    self.load_current_video(ui);
                                 }
 
                                 // Pick a sensible default mode. Image wins when
@@ -811,23 +797,11 @@ impl Gui {
                         .add_filter("Video", &formats::VIDEO_FORMATS)
                         .pick_files()
                     {
-                        let mut probed: Vec<PredVideo> = Vec::new();
-                        for path in paths {
-                            let path_str = path.to_string_lossy().to_string();
-                            if let Ok(probe) = VideofileProcessor::probe(&path_str) {
-                                probed.push(PredVideo::new_simple(
-                                    path,
-                                    probe.width,
-                                    probe.height,
-                                    probe.fps,
-                                    probe.n_frames,
-                                ));
-                            }
-                        }
-                        if probed.is_empty() {
-                            self.process_error();
-                        } else {
-                            self.selected_videos = probed;
+                        if !paths.is_empty() {
+                            self.selected_videos = paths
+                                .into_iter()
+                                .map(PredVideo::new_simple)
+                                .collect();
                             self.video_texture_n = 1;
                             self.mode = Mode::Video;
                             self.load_current_video(ui);
@@ -935,18 +909,24 @@ impl Gui {
         self.video_last_displayed_frame = None;
         self.video_playhead_frame = Some(0);
 
-        let Some(pv) = self
+        let idx = self.video_texture_n.saturating_sub(1);
+        let Some(path_str) = self
             .selected_videos
-            .get(self.video_texture_n.saturating_sub(1))
+            .get(idx)
+            .map(|pv| pv.file_path.to_string_lossy().to_string())
         else {
             self.video_state.progress_bar = 0.0;
             return;
         };
 
-        self.video_state.progress_bar = pv.frame_progress();
-
-        let path_str = pv.file_path.to_string_lossy().to_string();
         if let Ok(probe) = VideofileProcessor::probe(&path_str) {
+            if let Some(pv) = self.selected_videos.get_mut(idx) {
+                // First open for this video — fill in metadata + frames vec
+                // (or load the sidecar if there is one). No-op on subsequent
+                // navigations back to this same video.
+                pv.hydrate(probe.width, probe.height, probe.fps, probe.n_frames);
+            }
+
             // Cap the preview width before the RGB→RGBA copy + GPU upload, as
             // we did at file-pick time — 4K frames burn ~33 MB at full res.
             const PREVIEW_MAX_W: u32 = 1920;
@@ -968,6 +948,12 @@ impl Gui {
                 ui,
             );
         }
+
+        self.video_state.progress_bar = self
+            .selected_videos
+            .get(idx)
+            .map(|pv| pv.frame_progress())
+            .unwrap_or(0.0);
     }
 
     fn input_api_url_dialog(&mut self, ui: &egui::Ui) {
