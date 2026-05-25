@@ -522,8 +522,8 @@ impl Gui {
                 ui,
                 &mut new_index,
                 n,
-                self.t(Key::prev_image),
-                self.t(Key::next_image),
+                self.t(Key::prev),
+                self.t(Key::next),
             );
             let pv = &self.selected_videos[new_index - 1];
             let name = pv
@@ -669,7 +669,7 @@ impl Gui {
                 }
                 if ui
                     .button("⏮")
-                    .on_hover_text(self.t(Key::prev_analysed_frame))
+                    .on_hover_text(self.t(Key::prev))
                     .clicked()
                 {
                     if let Some(prev) = prev_analysed_frame(self.current_video(), playhead) {
@@ -680,7 +680,7 @@ impl Gui {
                 }
                 if ui
                     .button("⏭")
-                    .on_hover_text(self.t(Key::next_analysed_frame))
+                    .on_hover_text(self.t(Key::next))
                     .clicked()
                 {
                     if let Some(next) = next_analysed_frame(self.current_video(), playhead) {

@@ -347,8 +347,8 @@ impl Gui {
                 ui,
                 &mut new_index,
                 n,
-                self.t(Key::prev_image),
-                self.t(Key::next_image),
+                self.t(Key::prev),
+                self.t(Key::next),
             );
             let predimg = &self.selected_files[new_index - 1];
             let name = predimg

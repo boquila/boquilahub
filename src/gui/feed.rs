@@ -507,11 +507,11 @@ impl Gui {
             {
                 clicked_live = true;
             }
-            if ui.button("⏮").on_hover_text(self.t(Key::prev_cached_frame)).clicked() {
+            if ui.button("⏮").on_hover_text(self.t(Key::prev)).clicked() {
                 step_to = playhead.and_then(|p| prev_feed_frame(&self.feed_buffer, p));
             }
             ui.add_enabled_ui(next_step.is_some(), |ui| {
-                if ui.button("⏭").on_hover_text(self.t(Key::next_cached_frame)).clicked() {
+                if ui.button("⏭").on_hover_text(self.t(Key::next)).clicked() {
                     step_to = next_step;
                 }
             });
