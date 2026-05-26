@@ -30,6 +30,19 @@ fn fast_resize(
     ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
 }
 
+fn fast_resize_bilinear(
+    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    new_width: u32,
+    new_height: u32,
+) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+    let mut dst_image = fir::images::Image::new(new_width, new_height, fir::PixelType::U8x3);
+    let mut resizer = fir::Resizer::new();
+    let options = fir::ResizeOptions::new()
+        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::Bilinear));
+    resizer.resize(img, &mut dst_image, &options).unwrap();
+    ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
+}
+
 pub fn imgbuf_to_input_array(
     batch_size: usize,
     input_depth: usize,
@@ -73,6 +86,35 @@ pub fn imgbuf_to_input_array(
         }
     }
     (input, img_width, img_height)
+}
+
+// OpenAI CLIP normalisation — also used by BioCLIP and most OpenCLIP forks.
+const CLIP_MEAN: [f32; 3] = [0.48145466, 0.4578275, 0.40821073];
+const CLIP_STD: [f32; 3] = [0.26862954, 0.26130258, 0.27577711];
+
+pub fn imgbuf_to_clip_input(
+    input_height: u32,
+    input_width: u32,
+    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+) -> Array<f32, Ix4> {
+    let resized = fast_resize_bilinear(img, input_width, input_height);
+    let (h, w) = (input_height as usize, input_width as usize);
+    let mut input = Array::zeros((1, 3, h, w));
+    let input_slice = input.as_slice_mut().unwrap();
+
+    for (x, y, pixel) in resized.enumerate_pixels() {
+        let (x, y) = (x as usize, y as usize);
+        let [r, g, b] = pixel.0;
+        let r = (r as f32 * SCALE - CLIP_MEAN[0]) / CLIP_STD[0];
+        let g = (g as f32 * SCALE - CLIP_MEAN[1]) / CLIP_STD[1];
+        let b = (b as f32 * SCALE - CLIP_MEAN[2]) / CLIP_STD[2];
+
+        let idx = y * w + x;
+        input_slice[idx] = r;
+        input_slice[h * w + idx] = g;
+        input_slice[2 * h * w + idx] = b;
+    }
+    input
 }
 
 pub fn slice_image(

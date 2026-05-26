@@ -340,6 +340,7 @@ impl Yolo {
                 let segc_vec = self.process_seg_output((output0, output1), img_width, img_height);
                 return AIOutputs::Segmentation(segc_vec);
             }
+            Task::Embed => unreachable!("Yolo does not support Task::Embed"),
         }
     }
 }

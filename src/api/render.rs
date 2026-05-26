@@ -125,6 +125,7 @@ pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOu
             draw_cls_from_imgbuf(img, probs);
         }
         AIOutputs::AudioClassification(_) => {}
+        AIOutputs::Embed(_) => {}
     }
 }
 

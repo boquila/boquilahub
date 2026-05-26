@@ -469,6 +469,7 @@ pub enum AIOutputs {
     Classification(Vec<Prob>),
     Segmentation(Vec<SEGc>),
     AudioClassification(Vec<AudioProb>),
+    Embed(Embedding),
 }
 
 impl AIOutputs {
@@ -477,7 +478,8 @@ impl AIOutputs {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
             AIOutputs::Classification(probs) => probs.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
-            AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
+            AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty(),
+            AIOutputs::Embed(emb) => emb.values.is_empty(),
         }
     }
 
@@ -511,6 +513,29 @@ impl AIOutputs {
                 })
                 .map(|s| (s.bbox.xyxy.class_id, s.bbox.label.as_str(), s.bbox.xyxy.prob)),
             AIOutputs::AudioClassification(_) => None,
+            AIOutputs::Embed(_) => None,
+        }
+    }
+}
+
+impl Embedding {
+    pub fn cosine(&self, other: &Embedding) -> f32 {
+        if self.values.len() != other.values.len() {
+            return 0.0;
+        }
+        let mut dot = 0.0f32;
+        let mut na = 0.0f32;
+        let mut nb = 0.0f32;
+        for (a, b) in self.values.iter().zip(other.values.iter()) {
+            dot += a * b;
+            na += a * a;
+            nb += b * b;
+        }
+        let denom = na.sqrt() * nb.sqrt();
+        if denom <= f32::EPSILON {
+            0.0
+        } else {
+            dot / denom
         }
     }
 }
@@ -538,3 +563,29 @@ pub struct AvailableModel {
     pub description: String,
     pub download_link: String,
 }
+
+/// `values` is row-major `[H*W, D]`, per-token L2-normalised. `h = w = 1`
+/// for pooled outputs; otherwise patch tokens.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Embedding {
+    pub values: Vec<f32>,
+    pub model: String,
+    pub h: u32,
+    pub w: u32,
+}
+
+impl Embedding {
+    pub fn square(values: Vec<f32>, model: String, side: u32) -> Self {
+        Self { values, model, h: side, w: side }
+    }
+
+    pub fn pooled(values: Vec<f32>, model: String) -> Self {
+        Self { values, model, h: 1, w: 1 }
+    }
+
+    pub fn d(&self) -> usize {
+        let cells = (self.h as usize) * (self.w as usize);
+        if cells == 0 { 0 } else { self.values.len() / cells }
+    }
+}
+

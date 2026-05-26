@@ -151,6 +151,7 @@ pub enum Key {
     buffer_label,
     audio_processing,
     frame_label,
+    embedding,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -1179,6 +1180,17 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::PT => "quadro",
             Lang::VI => "khung",
             Lang::NK => "kadar",
+        },
+        Key::embedding => match lang {
+            Lang::EN => "embedding",
+            Lang::ES => "embedding",
+            Lang::FR => "embedding",
+            Lang::DE => "Embedding",
+            Lang::ZH => "嵌入",
+            Lang::JA => "埋め込み",
+            Lang::PT => "embedding",
+            Lang::VI => "embedding",
+            Lang::NK => "embedding",
         },
     }
 }
