@@ -783,7 +783,9 @@ fn scale_aioutput(aio: &AIOutputs, sx: f32, sy: f32) -> AIOutputs {
                 .collect();
             AIOutputs::Segmentation(scaled)
         }
-        AIOutputs::Classification(_) | AIOutputs::AudioClassification(_) => aio.clone(),
+        AIOutputs::Classification(_)
+        | AIOutputs::AudioClassification(_)
+        | AIOutputs::Embed(_) => aio.clone(),
     }
 }
 
@@ -997,6 +999,7 @@ fn feed_tooltip_ui(
             }
         }
         AIOutputs::AudioClassification(_) => {}
+        AIOutputs::Embed(_) => {}
     }
 }
 

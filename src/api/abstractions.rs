@@ -469,6 +469,7 @@ pub enum AIOutputs {
     Classification(Vec<Prob>),
     Segmentation(Vec<SEGc>),
     AudioClassification(Vec<AudioProb>),
+    Embed(Embedding),
 }
 
 impl AIOutputs {
@@ -477,7 +478,8 @@ impl AIOutputs {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
             AIOutputs::Classification(probs) => probs.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
-            AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty()
+            AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty(),
+            AIOutputs::Embed(emb) => emb.values.is_empty(),
         }
     }
 
@@ -511,6 +513,32 @@ impl AIOutputs {
                 })
                 .map(|s| (s.bbox.xyxy.class_id, s.bbox.label.as_str(), s.bbox.xyxy.prob)),
             AIOutputs::AudioClassification(_) => None,
+            AIOutputs::Embed(_) => None,
+        }
+    }
+}
+
+impl Embedding {
+    /// L2-normalised cosine similarity. Both vectors must come from the
+    /// same model (caller checks `model` tag); returns 0.0 on mismatched
+    /// lengths or zero-norm input.
+    pub fn cosine(&self, other: &Embedding) -> f32 {
+        if self.values.len() != other.values.len() {
+            return 0.0;
+        }
+        let mut dot = 0.0f32;
+        let mut na = 0.0f32;
+        let mut nb = 0.0f32;
+        for (a, b) in self.values.iter().zip(other.values.iter()) {
+            dot += a * b;
+            na += a * a;
+            nb += b * b;
+        }
+        let denom = na.sqrt() * nb.sqrt();
+        if denom <= f32::EPSILON {
+            0.0
+        } else {
+            dot / denom
         }
     }
 }
@@ -537,4 +565,10 @@ pub struct AvailableModel {
     pub name: String,
     pub description: String,
     pub download_link: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Embedding {
+    pub values: Vec<f32>,
+    pub model: String,
 }
