@@ -1,6 +1,6 @@
 use super::*;
 use crate::api::{
-    abstractions::{AIOutputs, AudioProb},
+    abstractions::{AIOutputs, AudioProb, Prob},
     audio::AudioData,
     processing::{
         inference::inference,
@@ -38,13 +38,14 @@ pub struct ResNet18 {
 
 impl ResNet18 {
     pub fn new(
-        classes: Vec<String>,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
+        metadata: AIMetadata,
         session: Session,
         config: ModelConfig,
-        audio_config: AudioConfig
     ) -> Result<Self, Error> {
+        let Some(audio_config) = metadata.audio_config else {
+            bail!("ResNet18 requires audio_config in metadata");
+        };
+
         let (batch_size, channel, input_height, input_width) = match &session.inputs[0].input_type {
             ValueType::Tensor { dimensions, .. } => (
                 dimensions[0] as i32,
@@ -69,7 +70,7 @@ impl ResNet18 {
         let output_name: String = session.outputs[0].name.clone();
 
         Ok(ResNet18 {
-            classes,
+            classes: metadata.classes,
             batch_size,
             channel,
             input_width,
@@ -78,11 +79,11 @@ impl ResNet18 {
             output_width,
             output_height,
             output_name,
-            task,
-            post_processing,
+            task: metadata.task,
+            post_processing: metadata.post_processing,
             session,
             config,
-            audio_config
+            audio_config,
         })
     }
 }
@@ -147,20 +148,33 @@ impl ResNet18 {
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
-        for (j, &logit) in output.iter().take(batch_indices.len()).enumerate() {
-            let global_i = batch_indices[j];
-            let prob = 1.0 / (1.0 + (-logit).exp());
+        for (j, &global_i) in batch_indices.iter().enumerate() {
             let start = global_i as f32 * self.audio_config.stride;
             let end = start + self.audio_config.window_size;
-            let class_id = if prob >= self.config.confidence_threshold { 1 } else { 0 };
-            all_probs.push(AudioProb {
-                start,
-                end,
-                class_id,
-                prob,
-                positive: class_id == 1,
-                label: self.classes[class_id as usize].clone(),
-            });
+
+            let prediction = if self.post_processing.contains(&PostProcessing::BinaryClassification) {
+                let logit = output[[0, j]];
+                let p_pos = 1.0 / (1.0 + (-logit).exp());
+                let (class_id, prob) = if p_pos >= self.config.confidence_threshold {
+                    (1u32, p_pos)
+                } else {
+                    (0u32, 1.0 - p_pos)
+                };
+                let label = self.classes[class_id as usize].clone();
+                Prob::new(label, prob, class_id)
+            } else {
+                let num_classes = self.output_height as usize;
+                let mut probs: Vec<Prob> = (0..num_classes)
+                    .map(|c| Prob::new(self.classes[c].clone(), output[[c, j]], c as u32))
+                    .collect();
+                probs.logits_to_probs();
+                probs
+                    .into_iter()
+                    .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap())
+                    .unwrap()
+            };
+
+            all_probs.push(AudioProb { start, end, prediction });
         }
     }
 }

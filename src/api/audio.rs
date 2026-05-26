@@ -27,24 +27,24 @@ impl AudioData {
             .audio()?;
 
         let source_rate = decoder.rate();
-        let mut resampler = decoder.resampler(
-            Sample::F32(SampleType::Packed),
-            decoder.channel_layout(),
-            source_rate,
-        )?;
 
         let mut samples: Vec<f32> = Vec::new();
+        // Built lazily from the first decoded frame's actual props. Some
+        // containers (notably PCM WAVs) leave the decoder's channel_layout /
+        // sample_format unset pre-decode; initialising the resampler from
+        // those guesses then bails with "Input changed" on the first frame.
+        let mut resampler: Option<ffmpeg::software::resampling::Context> = None;
 
         for (stream, packet) in ictx.packets() {
             if stream.index() != stream_index {
                 continue;
             }
             decoder.send_packet(&packet)?;
-            Self::collect_decoded(&mut decoder, &mut resampler, &mut samples)?;
+            Self::collect_decoded(&mut decoder, &mut resampler, &mut samples, source_rate)?;
         }
 
         decoder.send_eof()?;
-        Self::collect_decoded(&mut decoder, &mut resampler, &mut samples)?;
+        Self::collect_decoded(&mut decoder, &mut resampler, &mut samples, source_rate)?;
 
         Ok(Self {
             samples,
@@ -55,16 +55,39 @@ impl AudioData {
 
     fn collect_decoded(
         decoder: &mut ffmpeg::decoder::Audio,
-        resampler: &mut ffmpeg::software::resampling::Context,
+        resampler: &mut Option<ffmpeg::software::resampling::Context>,
         samples: &mut Vec<f32>,
+        target_rate: u32,
     ) -> Result<(), ffmpeg::Error> {
         let mut decoded = ffmpeg::frame::Audio::empty();
         while decoder.receive_frame(&mut decoded).is_ok() {
+            let canonical_layout = ffmpeg::ChannelLayout::default(decoder.channels() as i32);
+            // libswresample compares the frame's layout to the configured one
+            // via `av_channel_layout_compare`, which is sensitive to
+            // order=UNSPEC vs NATIVE even when the channel count matches.
+            // Pin the frame's layout to the canonical NATIVE-order default so
+            // we never see a spurious "Input changed" on the first frame.
+            decoded.set_channel_layout(canonical_layout);
+            if resampler.is_none() {
+                *resampler = Some(ffmpeg::software::resampling::Context::get(
+                    decoded.format(),
+                    canonical_layout,
+                    decoded.rate(),
+                    Sample::F32(SampleType::Packed),
+                    canonical_layout,
+                    target_rate,
+                )?);
+            }
+            let r = resampler.as_mut().unwrap();
             let mut resampled = ffmpeg::frame::Audio::empty();
-            resampler.run(&decoded, &mut resampled)?;
+            r.run(&decoded, &mut resampled)?;
+            // data(0) returns the full SIMD-aligned linesize buffer, which is
+            // longer than the actual sample data. Slice it to the real length
+            // (samples × channels × 4 bytes for packed f32) to avoid reading
+            // uninitialised padding as audio.
+            let real_bytes = resampled.samples() * decoder.channels() as usize * 4;
             samples.extend(
-                resampled
-                    .data(0)
+                resampled.data(0)[..real_bytes]
                     .chunks_exact(4)
                     .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])),
             );

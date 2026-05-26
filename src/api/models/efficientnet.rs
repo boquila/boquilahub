@@ -1,6 +1,6 @@
 use crate::api::{
-    abstractions::{AIOutputs, ModelConfig, ProbSpace},
-    bq::init_geofence_data,
+    abstractions::{AIOutputs, ModelConfig, Prob, ProbSugar},
+    bq::{init_geofence_data, AIMetadata},
     models::Task,
     processing::{
         inference::inference,
@@ -34,9 +34,7 @@ pub struct EfficientNetV2 {
 
 impl EfficientNetV2 {
     pub fn new(
-        classes: Vec<String>,
-        task: Task,
-        post_processing: Vec<PostProcessing>,
+        metadata: AIMetadata,
         session: Session,
         config: ModelConfig,
     ) -> Result<Self, Error> {
@@ -77,12 +75,12 @@ impl EfficientNetV2 {
 
         let output_name: String = session.outputs[0].name.clone();
 
-        if post_processing.contains(&PostProcessing::GeoFence) {
+        if metadata.post_processing.contains(&PostProcessing::GeoFence) {
             init_geofence_data()?;
         }
 
         Ok(EfficientNetV2 {
-            classes,
+            classes: metadata.classes,
             batch_size,
             channel,
             input_width,
@@ -91,8 +89,8 @@ impl EfficientNetV2 {
             output_width,
             output_height,
             output_name,
-            task,
-            post_processing,
+            task: metadata.task,
+            post_processing: metadata.post_processing,
             session,
             config,
             input_format,
@@ -113,7 +111,7 @@ impl EfficientNetV2 {
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let output = extract_output(&outputs, &self.output_name);
 
-        let mut probs: ProbSpace = process_class_output(None, &self.classes, &output);
+        let mut probs: Vec<Prob> = process_class_output(None, &self.classes, &output);
         probs.logits_to_probs();
 
         if self.post_processing.contains(&PostProcessing::GeoFence) {
@@ -124,7 +122,7 @@ impl EfficientNetV2 {
             );
             apply_label_rollup(&mut probs, self.config.confidence_threshold);
         } else {
-            probs = probs.filter(self.config.confidence_threshold);
+            probs.retain(|p| p.prob >= self.config.confidence_threshold);
         }
 
         AIOutputs::Classification(probs)

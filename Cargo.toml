@@ -29,16 +29,13 @@ rfd = "0.17.2" # File dialogs
 clap = { version = "4.6.0", features = ["derive"] }
 sys-locale = "0.3.2"
 rayon = "1.12.0"
-embed-resource = "3.0.9"
 bitvec = { version = "1.0.1", features = ["serde"] }
 anyhow = "1.0.102"
 fast_image_resize = { version = "=6.0.0", features = ["image"] }
 ratatui = "0.30.0"
 realfft = "3.4"
 rodio = { version = "0.22", default-features = false, features = ["playback"] }
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser", "wincon"] }
+egui_plot = "0.35.0"
 
 [profile.release]
 lto = true
@@ -46,12 +43,9 @@ strip = true
 codegen-units = 1
 opt-level = 3
 
-[profile.prerelease]
-inherits = "release"
-lto = false
-strip = false 
-codegen-units = 16
-incremental = true
-
-[build-dependencies]
+# Winslop
+[target.'cfg(windows)'.build-dependencies]
 embed-resource = "3.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser", "wincon"] }

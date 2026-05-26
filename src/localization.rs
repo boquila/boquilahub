@@ -8,11 +8,12 @@ pub enum Lang {
     JA,
     PT,
     VI,
+    NK,
 }
 
 impl Default for Lang {
     fn default() -> Self {
-        let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
+        let locale = sys_locale::get_locale().unwrap_or_default();
         let lang_code = locale.get(0..2).unwrap_or("en");
         Self::from_str(lang_code)
     }
@@ -29,6 +30,7 @@ impl Lang {
             "ja" => Lang::JA,
             "pt" => Lang::PT,
             "vi" => Lang::VI,
+            "bs" | "hr" | "sr" => Lang::NK,
             _ => Lang::EN,
         }
     }
@@ -41,7 +43,7 @@ impl Lang {
     }
 }
 
-pub const LANGUAGES: [(Lang, &'static str); 8] = [
+pub const LANGUAGES: [(Lang, &'static str); 9] = [
     (Lang::EN, "English"),
     (Lang::ES, "Español"),
     (Lang::FR, "Français"),
@@ -50,6 +52,7 @@ pub const LANGUAGES: [(Lang, &'static str); 8] = [
     (Lang::JA, "日本語"),
     (Lang::PT, "Português"),
     (Lang::VI, "Tiếng Việt"),
+    (Lang::NK, "Naški"),
 ];
 
 #[allow(non_camel_case_types)]
@@ -82,7 +85,6 @@ pub enum Key {
     model_hub_url,
     export_predictions,
     export_imgs_with_predictions,
-    copy_with_classification,
     input_url,
     example,
     freq,
@@ -93,8 +95,6 @@ pub enum Key {
     confidence_level,
     overlap_filter,
     region_filter,
-    select_architecture,
-    model_have_no_architecture,
     yes,
     no_only_missing_data,
     process_everything,
@@ -114,6 +114,43 @@ pub enum Key {
     window,
     width_,
     height_,
+    export_video_with_predictions,
+    saved_to,
+    saved_next_to_originals,
+    unknown_file,
+    not_analysed,
+    not_analysed_parens,
+    predictions,
+    classification,
+    refined,
+    detection,
+    detections,
+    segment,
+    segments,
+    no_ai,
+    and_more_fmt,
+    confidence_pct,
+    analysing,
+    reset_playhead,
+    fit,
+    fit_view_hint,
+    cache_secs,
+    stream_feed_hint,
+    pause,
+    live,
+    live_hint,
+    prev,
+    next,
+    export_current_frame_json,
+    export_current_frame_png,
+    frame_no_ai_data,
+    play,
+    frames_analysed,
+    view_label,
+    span_label,
+    buffer_label,
+    audio_processing,
+    frame_label,
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
@@ -127,6 +164,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "AIを選択",
             Lang::PT => "IA",
             Lang::VI => "Lựa chọn AI",
+            Lang::NK => "AI",
         },
         Key::select_2nd_ai => match lang {
             Lang::EN => "Classification AI",
@@ -137,6 +175,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "分類AI",
             Lang::PT => "IA de classificação",
             Lang::VI => "AI phân loại",
+            Lang::NK => "AI za klasifikaciju",
         },
         Key::deployed_api_allows => match lang {
             Lang::EN => "Allows devices on your local network to connect to this BoquilaHUB instance and use your computer for processing",
@@ -147,6 +186,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "ローカルネットワーク上のデバイスがこのBoquilaHUBインスタンスに接続し、あなたのコンピュータを処理に使用できるようにします",
             Lang::PT => "Permite que dispositivos na sua rede local se conectem a esta instância do BoquilaHUB e usem o seu computador para processamento",
             Lang::VI => "Cho phép các thiết bị trong mạng cục bộ kết nối với BoquilaHUB này và sử dụng máy tính của bạn để xử lý",
+            Lang::NK => "Omogućava uređajima na vašoj lokalnoj mreži da se povežu na ovu BoquilaHUB instancu i koriste vaš računar za obradu",
         }
         Key::yes => match lang {
             Lang::EN => "Yes",
@@ -157,6 +197,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "はい",
             Lang::PT => "Sim",
             Lang::VI => "Đồng ý",
+            Lang::NK => "Da",
         },
         Key::no_only_missing_data => match lang {
             Lang::EN => "No, only missing data",
@@ -167,6 +208,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "いいえ、不足しているデータのみ",
             Lang::PT => "Não, apenas os dados em falta",
             Lang::VI => "Không, chỉ khi dữ liệu bị thiếu",
+            Lang::NK => "Ne, samo nedostajuće podatke",
         },
         Key::process_everything => match lang {
             Lang::EN => "Process everything?",
@@ -176,16 +218,9 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "处理所有内容？",
             Lang::JA => "すべて処理しますか？",
             Lang::PT => "Processar tudo?",
-            Lang::VI => "Xử lí mọi thứ?"
+            Lang::VI => "Xử lí mọi thứ?",
+            Lang::NK => "Obraditi sve?",
         },
-        Key::select_architecture => match lang {
-            Lang::VI => "Lựa chọn kiến trúc của mô hình",
-            _ => "Select model architecture",
-        },
-        Key::model_have_no_architecture => match lang {
-            Lang::VI => "Mô hình này không hỗ trợ kiến trúc được lựa chọn. Vui lòng chọn kiến trúc phù hợp:",
-            _ => "This model doesn't have an architecture specified. Please select the appropriate architecture:",
-        }
         Key::confidence_level => match lang {
             Lang::EN => "Confidence",
             Lang::ES => "Confianza",
@@ -194,7 +229,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "置信度",
             Lang::JA => "信頼度",
             Lang::PT => "Confiança",
-            Lang::VI => "Độ tin cậy của mô hình"
+            Lang::VI => "Độ tin cậy của mô hình",
+            Lang::NK => "Pouzdanost",
         },
         Key::overlap_filter => match lang {
             Lang::EN => "Overlap Filter",
@@ -205,6 +241,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "重複フィルター",
             Lang::PT => "Filtro de Sobreposição",
             Lang::VI => "Bộ lọc trùng lặp",
+            Lang::NK => "Filter preklapanja",
         },
         Key::region_filter => match lang {
             Lang::EN => "Region (ISO 3166-1 alpha-3)",
@@ -215,6 +252,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "地域 (ISO 3166-1 alpha-3)",
             Lang::PT => "Região (ISO 3166-1 alpha-3)",
             Lang::VI => "Mã quốc gia (ISO 3166-1 alpha-3)",
+            Lang::NK => "Region (ISO 3166-1 alpha-3)",
         },
         Key::configure_ai => match lang {
             Lang::EN => "Configure AI",
@@ -224,7 +262,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "配置AI",
             Lang::JA => "AIを設定",
             Lang::PT => "Configurar IA",
-            Lang::VI => "Cấu hình AI"
+            Lang::VI => "Cấu hình AI",
+            Lang::NK => "Podesi AI",
         },
         Key::add_classification_model_to_complement => match lang {
             Lang::EN => "Add a classification AI to complement the current model",
@@ -234,7 +273,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "添加分类AI以补充当前模型",
             Lang::JA => "現在のモデルを補完する分類AIを追加",
             Lang::PT => "Adicionar uma IA de classificação para complementar o modelo atual",
-            Lang::VI => "Bổ sung một mô hình AI phân loại để hỗ trợ mô hình hiện tại"
+            Lang::VI => "Bổ sung một mô hình AI phân loại để hỗ trợ mô hình hiện tại",
+            Lang::NK => "Dodaj AI za klasifikaciju da dopuni trenutni model",
         },
         Key::select_ep => match lang {
             Lang::EN => "Processor",
@@ -245,6 +285,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "プロセッサーを選択",
             Lang::PT => "Processador",
             Lang::VI => "Chọn bộ xử lí",
+            Lang::NK => "Procesor",
         },
         Key::setup => match lang {
             Lang::EN => "Setup",
@@ -255,6 +296,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "セットアップ",
             Lang::PT => "Configuração",
             Lang::VI => "Thiết lập mô hình",
+            Lang::NK => "Podešavanje",
         },
         Key::no_predictions => match lang {
             Lang::EN => "No predictions",
@@ -264,7 +306,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "没有预测",
             Lang::JA => "予測なし",
             Lang::PT => "Sem previsões",
-            Lang::VI => "Không tìm thấy kết quả dự đoán"
+            Lang::VI => "Không tìm thấy kết quả dự đoán",
+            Lang::NK => "Nema predviđanja",
         },
         Key::deploy => match lang {
             Lang::EN => "Deploy",
@@ -274,7 +317,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "部署",
             Lang::JA => "デプロイ",
             Lang::PT => "Implantar",
-            Lang::VI => "Triển khai"
+            Lang::VI => "Triển khai",
+            Lang::NK => "Pokreni",
         },
         Key::deployed_api => match lang {
             Lang::EN => "Deployed API",
@@ -284,7 +328,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "已部署API",
             Lang::JA => "デプロイ済みAPI",
             Lang::PT => "API implantada",
-            Lang::VI => "Triển khai API"
+            Lang::VI => "Triển khai API",
+            Lang::NK => "Pokrenuti API",
         },
         Key::select_your_data => match lang {
             Lang::EN => "Select your data",
@@ -294,7 +339,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "选取数据",
             Lang::JA => "データを選択",
             Lang::PT => "Selecionar os seus dados",
-            Lang::VI => "Chọn dữ liệu của bạn"
+            Lang::VI => "Chọn dữ liệu của bạn",
+            Lang::NK => "Izaberi podatke",
         },
         Key::folder => match lang {
             Lang::EN => "Folder",
@@ -304,7 +350,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "文件夹",
             Lang::JA => "フォルダ",
             Lang::PT => "Pasta",
-            Lang::VI => "Thư mục"
+            Lang::VI => "Thư mục",
+            Lang::NK => "Folder",
         },
         Key::image => match lang {
             Lang::EN => "Image",
@@ -314,7 +361,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "图片",
             Lang::JA => "画像",
             Lang::PT => "Imagem",
-            Lang::VI => "Hình ảnh"
+            Lang::VI => "Hình ảnh",
+            Lang::NK => "Slika",
         },
         Key::video_file => match lang {
             Lang::EN => "Video",
@@ -324,7 +372,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频",
             Lang::JA => "ビデオ",
             Lang::PT => "Vídeo",
-            Lang::VI => "Video"
+            Lang::VI => "Video",
+            Lang::NK => "Video",
         },
         Key::camera_feed => match lang {
             Lang::EN => "Feed",
@@ -334,7 +383,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频流",
             Lang::JA => "カメラフィード",
             Lang::PT => "Transmissão",
-            Lang::VI => "Nguồn khác"
+            Lang::VI => "Nguồn khác",
+            Lang::NK => "Kamera",
         },
         Key::about => match lang {
             Lang::EN => "About",
@@ -344,7 +394,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "关于",
             Lang::JA => "情報",
             Lang::PT => "Sobre",
-            Lang::VI => "Thông tin"
+            Lang::VI => "Thông tin",
+            Lang::NK => "Info",
         },
         Key::idiom => match lang {
             Lang::EN => "Language",
@@ -354,7 +405,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "语言",
             Lang::JA => "言語",
             Lang::PT => "Idioma",
-            Lang::VI => "Ngôn ngữ"
+            Lang::VI => "Ngôn ngữ",
+            Lang::NK => "Jezik",
         },
         Key::models => match lang {
             Lang::EN => "Models",
@@ -364,7 +416,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "模型",
             Lang::JA => "モデル",
             Lang::PT => "Modelos",
-            Lang::VI => "Mô hình"
+            Lang::VI => "Mô hình",
+            Lang::NK => "Modeli",
         },
         Key::source_code => match lang {
             Lang::EN => "Source code",
@@ -374,7 +427,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "源代码",
             Lang::JA => "ソースコード",
             Lang::PT => "Código-fonte",
-            Lang::VI => "Mã nguồn"
+            Lang::VI => "Mã nguồn",
+            Lang::NK => "Izvorni kod",
         },
         Key::analyze => match lang {
             Lang::EN => "Analyze",
@@ -384,7 +438,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "开始分析",
             Lang::JA => "解析する",
             Lang::PT => "Analisar",
-            Lang::VI => "Xử lí"
+            Lang::VI => "Xử lí",
+            Lang::NK => "Analiziraj",
         },
         Key::export => match lang {
             Lang::EN => "Export",
@@ -394,7 +449,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出",
             Lang::JA => "エクスポート",
             Lang::PT => "Exportar",
-            Lang::VI => "Xuất kết quả"
+            Lang::VI => "Xuất kết quả",
+            Lang::NK => "Izvezi",
         },
         Key::analysis => match lang {
             Lang::EN => "Analysis",
@@ -404,7 +460,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "分析",
             Lang::JA => "解析",
             Lang::PT => "Análise",
-            Lang::VI => "Phân tích"
+            Lang::VI => "Phân tích",
+            Lang::NK => "Analiza",
         },
         Key::cancel => match lang {
             Lang::EN => "Cancel",
@@ -414,7 +471,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "取消",
             Lang::JA => "キャンセル",
             Lang::PT => "Cancelar",
-            Lang::VI => "Hủy bỏ"
+            Lang::VI => "Hủy bỏ",
+            Lang::NK => "Otkaži",
         },
         Key::ok => match lang {
             Lang::EN => "OK",
@@ -424,7 +482,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "确定",
             Lang::JA => "OK",
             Lang::PT => "OK",
-            Lang::VI => "OK"
+            Lang::VI => "OK",
+            Lang::NK => "OK",
         },
         
         Key::done => match lang {
@@ -435,7 +494,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "✅ 已完成",
             Lang::JA => "✅ 完了",
             Lang::PT => "✅ Concluído",
-            Lang::VI => "✅ Hoàn tất"
+            Lang::VI => "✅ Hoàn tất",
+            Lang::NK => "✅ Gotovo",
         },
         Key::error_ocurred => match lang {
             Lang::EN => "Error occurred",
@@ -445,7 +505,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "发生错误",
             Lang::JA => "エラーが発生しました",
             Lang::PT => "Ocorreu um erro",
-            Lang::VI => "Đã có lỗi xảy ra"
+            Lang::VI => "Đã có lỗi xảy ra",
+            Lang::NK => "Došlo je do greške",
         },
         Key::model_hub => match lang {
             Lang::EN => "Model HUB",
@@ -456,6 +517,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "モデルハブ",
             Lang::PT => "Central de Modelos",
             Lang::VI => "Model Hub",
+            Lang::NK => "Model HUB",
         },
         Key::api => match lang {
             _ => "API",
@@ -468,7 +530,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "图片处理中",
             Lang::JA => "画像を処理中",
             Lang::PT => "Processando imagens",
-            Lang::VI => "Xử lí hình ảnh"
+            Lang::VI => "Xử lí hình ảnh",
+            Lang::NK => "Obrada slika",
         },
         Key::video_processing => match lang {
             Lang::EN => "Video processing",
@@ -478,7 +541,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频处理中",
             Lang::JA => "ビデオ処理中",
             Lang::PT => "Processando vídeo",
-            Lang::VI => "Xử lí video"
+            Lang::VI => "Xử lí video",
+            Lang::NK => "Obrada videa",
         },
         Key::feed_processing => match lang {
             Lang::EN => "Feed processing",
@@ -488,7 +552,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "视频流处理中",
             Lang::JA => "フィード処理中",
             Lang::PT => "Processando transmissão",
-            Lang::VI => "Xử lí dữ liệu khác"
+            Lang::VI => "Xử lí dữ liệu khác",
+            Lang::NK => "Obrada prenosa",
         },
         Key::model_hub_url => match lang {
             Lang::EN => "https://boquila.org/hub",
@@ -507,7 +572,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出识别结果（.json）",
             Lang::JA => "予測をエクスポート（.json）",
             Lang::PT => "Exportar previsões (.json)",
-            Lang::VI => "Xuất kết quả (.json)"
+            Lang::VI => "Xuất kết quả (.json)",
+            Lang::NK => "Izvezi predviđanja (.json)",
         },
         Key::export_imgs_with_predictions => match lang {
             Lang::EN => "Export images with predictions (.jpg)",
@@ -517,17 +583,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出含识别结果的图片（.jpg）",
             Lang::JA => "予測付き画像をエクスポート（.jpg）",
             Lang::PT => "Exportar imagens com previsões (.jpg)",
-            Lang::VI => "Xuất kết quả (.jpg)"
-        },
-        Key::copy_with_classification => match lang {
-            Lang::EN => "Copy and separate in folders according to classification",
-            Lang::ES => "Copiar y separar en carpetas según clasificación",
-            Lang::FR => "Copier et séparer dans des dossiers selon la classification",
-            Lang::DE => "Kopieren und nach Klassifizierung in Ordner trennen",
-            Lang::ZH => "根据结果将数据复制到不同文件夹",
-            Lang::JA => "分類に応じてフォルダにコピー・振り分け",
-            Lang::PT => "Copiar e separar em pastas por classificação",
-            Lang::VI => "Sao chép và phân loại theo từng thu mục"
+            Lang::VI => "Xuất kết quả (.jpg)",
+            Lang::NK => "Izvezi slike sa predviđanjima (.jpg)",
         },
         Key::input_url => match lang {
             Lang::EN => "Add the URL",
@@ -537,7 +594,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "输入视频流地址（URL）",
             Lang::JA => "URLを追加",
             Lang::PT => "Adicionar o URL",
-            Lang::VI => "Nhập URL"
+            Lang::VI => "Nhập URL",
+            Lang::NK => "Unesi URL",
         },
         Key::example => match lang {
             Lang::EN => "Example",
@@ -547,7 +605,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "示例",
             Lang::JA => "例",
             Lang::PT => "Exemplo",
-            Lang::VI => "Mẫu"
+            Lang::VI => "Mẫu",
+            Lang::NK => "Primer",
         },
         Key::freq => match lang {
             Lang::EN => "Frequency",
@@ -557,7 +616,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "频率",
             Lang::JA => "頻度",
             Lang::PT => "Frequência",
-            Lang::VI => "Tần suất"
+            Lang::VI => "Tần suất",
+            Lang::NK => "Frekvencija",
         },
         Key::export_obs => match lang {
             Lang::EN => "Export detections",
@@ -567,7 +627,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "导出检测",
             Lang::JA => "検出をエクスポート",
             Lang::PT => "Exportar detecções",
-            Lang::VI => "Trích xuất kết quả phát hiện"
+            Lang::VI => "Trích xuất kết quả phát hiện",
+            Lang::NK => "Izvezi detekcije",
         },
         Key::no_api_running => match lang {
             Lang::EN => "No API running",
@@ -578,6 +639,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "APIが実行されていません",
             Lang::PT => "Nenhuma API em execução",
             Lang::VI => "Chưa có API nào đang chạy",
+            Lang::NK => "Nema pokrenutog API-ja",
         },
         Key::select_model_and_deploy => match lang {
             Lang::EN => "Select a model and deploy",
@@ -588,6 +650,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "モデルを選択してデプロイ",
             Lang::PT => "Selecione um modelo e implante",
             Lang::VI => "Chọn mô hình và triển khai",
+            Lang::NK => "Izaberi model i pokreni",
         },
         Key::api_live => match lang {
             Lang::EN => "● API Live",
@@ -598,6 +661,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "● API稼働中",
             Lang::PT => "● API ativa",
             Lang::VI => "● API đang chạy",
+            Lang::NK => "● API aktivan",
         },
         Key::deploy_api => match lang {
             Lang::EN => "Deploy API",
@@ -608,6 +672,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "APIをデプロイ",
             Lang::PT => "Implantar API",
             Lang::VI => "Triển khai API",
+            Lang::NK => "Pokreni API",
         },
         Key::nav_hint => match lang {
             Lang::EN => "nav",
@@ -618,6 +683,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "移動",
             Lang::PT => "nav",
             Lang::VI => "di chuyển",
+            Lang::NK => "kretanje",
         },
         Key::select_hint => match lang {
             Lang::EN => "select",
@@ -628,6 +694,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "選択",
             Lang::PT => "escolher",
             Lang::VI => "chọn",
+            Lang::NK => "izaberi",
         },
         Key::loaded => match lang {
             Lang::EN => "Loaded",
@@ -638,6 +705,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "読み込み済み",
             Lang::PT => "Carregado",
             Lang::VI => "Đã tải",
+            Lang::NK => "Učitano",
         },
         Key::focus_deploy_to_reveal_ip => match lang {
             Lang::EN => "▸ focus Deploy to reveal IP",
@@ -648,6 +716,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::JA => "▸ デプロイを選択してIPを表示",
             Lang::PT => "▸ foque em Implantar para ver o IP",
             Lang::VI => "▸ chọn Triển khai để xem IP",
+            Lang::NK => "▸ fokusiraj Pokreni da prikažeš IP",
         },
         Key::audio_file => match lang {
             Lang::EN => "Audio",
@@ -657,7 +726,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "音频",
             Lang::JA => "オーディオ",
             Lang::PT => "Áudio",
-            Lang::VI => "Âm thanh"
+            Lang::VI => "Âm thanh",
+            Lang::NK => "Audio",
         },
         Key::position => match lang {
             Lang::EN => "position (s)",
@@ -667,7 +737,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "位置 (秒)",
             Lang::JA => "位置 (秒)",
             Lang::PT => "posição (s)",
-            Lang::VI => "vị trí (giây)"
+            Lang::VI => "vị trí (giây)",
+            Lang::NK => "pozicija (s)",
         },
         Key::window => match lang {
             Lang::EN => "window (s)",
@@ -677,7 +748,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "窗口 (秒)",
             Lang::JA => "ウィンドウ (秒)",
             Lang::PT => "janela (s)",
-            Lang::VI => "cửa sổ (giây)"
+            Lang::VI => "cửa sổ (giây)",
+            Lang::NK => "prozor (s)",
         },
         Key::width_ => match lang {
             Lang::EN => "width",
@@ -687,7 +759,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "宽度",
             Lang::JA => "幅",
             Lang::PT => "largura",
-            Lang::VI => "chiều rộng"
+            Lang::VI => "chiều rộng",
+            Lang::NK => "širina",
         },
         Key::height_ => match lang {
             Lang::EN => "height",
@@ -697,7 +770,415 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::ZH => "高度",
             Lang::JA => "高さ",
             Lang::PT => "altura",
-            Lang::VI => "chiều cao"
+            Lang::VI => "chiều cao",
+            Lang::NK => "visina",
+        },
+        Key::export_video_with_predictions => match lang {
+            Lang::EN => "Export video with predictions (.mp4)",
+            Lang::ES => "Exportar video con predicciones (.mp4)",
+            Lang::FR => "Exporter la vidéo avec prédictions (.mp4)",
+            Lang::DE => "Video mit Vorhersagen exportieren (.mp4)",
+            Lang::ZH => "导出含识别结果的视频（.mp4）",
+            Lang::JA => "予測付き動画をエクスポート（.mp4）",
+            Lang::PT => "Exportar vídeo com previsões (.mp4)",
+            Lang::VI => "Xuất video kèm dự đoán (.mp4)",
+            Lang::NK => "Izvezi video sa predviđanjima (.mp4)",
+        },
+        Key::saved_to => match lang {
+            Lang::EN => "Saved to",
+            Lang::ES => "Guardado en",
+            Lang::FR => "Enregistré dans",
+            Lang::DE => "Gespeichert in",
+            Lang::ZH => "已保存至",
+            Lang::JA => "保存先",
+            Lang::PT => "Guardado em",
+            Lang::VI => "Đã lưu tại",
+            Lang::NK => "Sačuvano u",
+        },
+        Key::saved_next_to_originals => match lang {
+            Lang::EN => "Saved next to each source file",
+            Lang::ES => "Guardado junto a cada archivo original",
+            Lang::FR => "Enregistré à côté de chaque fichier d'origine",
+            Lang::DE => "Neben jeder Originaldatei gespeichert",
+            Lang::ZH => "已保存到每个源文件旁边",
+            Lang::JA => "各元ファイルの隣に保存しました",
+            Lang::PT => "Guardado ao lado de cada ficheiro original",
+            Lang::VI => "Đã lưu cạnh từng tệp gốc",
+            Lang::NK => "Sačuvano pored svake originalne datoteke",
+        },
+        Key::unknown_file => match lang {
+            Lang::EN => "(unknown)",
+            Lang::ES => "(desconocido)",
+            Lang::FR => "(inconnu)",
+            Lang::DE => "(unbekannt)",
+            Lang::ZH => "（未知）",
+            Lang::JA => "（不明）",
+            Lang::PT => "(desconhecido)",
+            Lang::VI => "(không xác định)",
+            Lang::NK => "(nepoznato)",
+        },
+        Key::not_analysed => match lang {
+            Lang::EN => "not analysed",
+            Lang::ES => "sin analizar",
+            Lang::FR => "non analysé",
+            Lang::DE => "nicht analysiert",
+            Lang::ZH => "未分析",
+            Lang::JA => "未解析",
+            Lang::PT => "não analisado",
+            Lang::VI => "chưa phân tích",
+            Lang::NK => "neanalizirano",
+        },
+        Key::not_analysed_parens => match lang {
+            Lang::EN => "(not analysed)",
+            Lang::ES => "(sin analizar)",
+            Lang::FR => "(non analysé)",
+            Lang::DE => "(nicht analysiert)",
+            Lang::ZH => "（未分析）",
+            Lang::JA => "（未解析）",
+            Lang::PT => "(não analisado)",
+            Lang::VI => "(chưa phân tích)",
+            Lang::NK => "(neanalizirano)",
+        },
+        Key::predictions => match lang {
+            Lang::EN => "Predictions",
+            Lang::ES => "Predicciones",
+            Lang::FR => "Prédictions",
+            Lang::DE => "Vorhersagen",
+            Lang::ZH => "预测",
+            Lang::JA => "予測",
+            Lang::PT => "Previsões",
+            Lang::VI => "Dự đoán",
+            Lang::NK => "Predviđanja",
+        },
+        Key::classification => match lang {
+            Lang::EN => "Classification",
+            Lang::ES => "Clasificación",
+            Lang::FR => "Classification",
+            Lang::DE => "Klassifikation",
+            Lang::ZH => "分类",
+            Lang::JA => "分類",
+            Lang::PT => "Classificação",
+            Lang::VI => "Phân loại",
+            Lang::NK => "Klasifikacija",
+        },
+        Key::refined => match lang {
+            Lang::EN => "Refined",
+            Lang::ES => "Refinado",
+            Lang::FR => "Affiné",
+            Lang::DE => "Verfeinert",
+            Lang::ZH => "精细分类",
+            Lang::JA => "詳細分類",
+            Lang::PT => "Refinado",
+            Lang::VI => "Tinh chỉnh",
+            Lang::NK => "Profinjeno",
+        },
+        Key::detection => match lang {
+            Lang::EN => "detection",
+            Lang::ES => "detección",
+            Lang::FR => "détection",
+            Lang::DE => "Erkennung",
+            Lang::ZH => "检测",
+            Lang::JA => "検出",
+            Lang::PT => "detecção",
+            Lang::VI => "phát hiện",
+            Lang::NK => "detekcija",
+        },
+        Key::detections => match lang {
+            Lang::EN => "detections",
+            Lang::ES => "detecciones",
+            Lang::FR => "détections",
+            Lang::DE => "Erkennungen",
+            Lang::ZH => "检测",
+            Lang::JA => "検出",
+            Lang::PT => "detecções",
+            Lang::VI => "phát hiện",
+            Lang::NK => "detekcije",
+        },
+        Key::segment => match lang {
+            Lang::EN => "segment",
+            Lang::ES => "segmento",
+            Lang::FR => "segment",
+            Lang::DE => "Segment",
+            Lang::ZH => "分段",
+            Lang::JA => "セグメント",
+            Lang::PT => "segmento",
+            Lang::VI => "phân đoạn",
+            Lang::NK => "segment",
+        },
+        Key::segments => match lang {
+            Lang::EN => "segments",
+            Lang::ES => "segmentos",
+            Lang::FR => "segments",
+            Lang::DE => "Segmente",
+            Lang::ZH => "分段",
+            Lang::JA => "セグメント",
+            Lang::PT => "segmentos",
+            Lang::VI => "phân đoạn",
+            Lang::NK => "segmenti",
+        },
+        Key::no_ai => match lang {
+            Lang::EN => "(no AI)",
+            Lang::ES => "(sin IA)",
+            Lang::FR => "(sans IA)",
+            Lang::DE => "(keine KI)",
+            Lang::ZH => "（无AI）",
+            Lang::JA => "（AIなし）",
+            Lang::PT => "(sem IA)",
+            Lang::VI => "(không có AI)",
+            Lang::NK => "(bez AI)",
+        },
+        Key::and_more_fmt => match lang {
+            Lang::EN => "…and {} more",
+            Lang::ES => "…y {} más",
+            Lang::FR => "…et {} de plus",
+            Lang::DE => "…und {} weitere",
+            Lang::ZH => "…还有 {} 个",
+            Lang::JA => "…他 {} 件",
+            Lang::PT => "…e mais {}",
+            Lang::VI => "…và {} nữa",
+            Lang::NK => "…i još {}",
+        },
+        Key::confidence_pct => match lang {
+            Lang::EN => "% confidence",
+            Lang::ES => "% de confianza",
+            Lang::FR => "% de confiance",
+            Lang::DE => "% Konfidenz",
+            Lang::ZH => "% 置信度",
+            Lang::JA => "% の信頼度",
+            Lang::PT => "% de confiança",
+            Lang::VI => "% độ tin cậy",
+            Lang::NK => "% pouzdanost",
+        },
+        Key::analysing => match lang {
+            Lang::EN => "analysing…",
+            Lang::ES => "analizando…",
+            Lang::FR => "analyse en cours…",
+            Lang::DE => "wird analysiert…",
+            Lang::ZH => "正在分析…",
+            Lang::JA => "解析中…",
+            Lang::PT => "a analisar…",
+            Lang::VI => "đang phân tích…",
+            Lang::NK => "analiziram…",
+        },
+        Key::reset_playhead => match lang {
+            Lang::EN => "Reset playhead to start",
+            Lang::ES => "Reiniciar al inicio",
+            Lang::FR => "Réinitialiser au début",
+            Lang::DE => "Position auf Anfang setzen",
+            Lang::ZH => "重置到开始",
+            Lang::JA => "再生位置を先頭に戻す",
+            Lang::PT => "Reiniciar ao início",
+            Lang::VI => "Đặt lại về đầu",
+            Lang::NK => "Vrati na početak",
+        },
+        Key::fit => match lang {
+            Lang::EN => "Fit",
+            Lang::ES => "Ajustar",
+            Lang::FR => "Ajuster",
+            Lang::DE => "Anpassen",
+            Lang::ZH => "适应",
+            Lang::JA => "全体表示",
+            Lang::PT => "Ajustar",
+            Lang::VI => "Vừa khung",
+            Lang::NK => "Uklopi",
+        },
+        Key::fit_view_hint => match lang {
+            Lang::EN => "Fit view to whole audio",
+            Lang::ES => "Ajustar vista a todo el audio",
+            Lang::FR => "Ajuster la vue à tout l'audio",
+            Lang::DE => "Ansicht auf gesamtes Audio anpassen",
+            Lang::ZH => "适应整个音频视图",
+            Lang::JA => "オーディオ全体を表示",
+            Lang::PT => "Ajustar vista ao áudio completo",
+            Lang::VI => "Hiển thị toàn bộ âm thanh",
+            Lang::NK => "Uklopi prikaz na cijeli audio",
+        },
+        Key::cache_secs => match lang {
+            Lang::EN => "Cache (s)",
+            Lang::ES => "Caché (s)",
+            Lang::FR => "Cache (s)",
+            Lang::DE => "Cache (s)",
+            Lang::ZH => "缓存 (秒)",
+            Lang::JA => "キャッシュ (秒)",
+            Lang::PT => "Cache (s)",
+            Lang::VI => "Bộ đệm (giây)",
+            Lang::NK => "Keš (s)",
+        },
+        Key::stream_feed_hint => match lang {
+            Lang::EN => "Stream the feed and run AI on every Nth frame",
+            Lang::ES => "Transmitir y ejecutar IA cada N cuadros",
+            Lang::FR => "Diffuser et exécuter l'IA toutes les N images",
+            Lang::DE => "Stream übertragen und KI auf jedes N-te Bild anwenden",
+            Lang::ZH => "传输视频流并每隔N帧运行AI",
+            Lang::JA => "ストリーミングしてNフレームごとにAIを実行",
+            Lang::PT => "Transmitir e executar IA a cada N quadros",
+            Lang::VI => "Truyền nguồn và chạy AI mỗi N khung hình",
+            Lang::NK => "Prenosi i pokreni AI svakih N kadrova",
+        },
+        Key::pause => match lang {
+            Lang::EN => "Pause",
+            Lang::ES => "Pausar",
+            Lang::FR => "Pause",
+            Lang::DE => "Pause",
+            Lang::ZH => "暂停",
+            Lang::JA => "一時停止",
+            Lang::PT => "Pausar",
+            Lang::VI => "Tạm dừng",
+            Lang::NK => "Pauza",
+        },
+        Key::live => match lang {
+            Lang::EN => "Live",
+            Lang::ES => "En vivo",
+            Lang::FR => "Direct",
+            Lang::DE => "Live",
+            Lang::ZH => "实时",
+            Lang::JA => "ライブ",
+            Lang::PT => "Ao vivo",
+            Lang::VI => "Trực tiếp",
+            Lang::NK => "Uživo",
+        },
+        Key::live_hint => match lang {
+            Lang::EN => "Start (or snap to) the live stream",
+            Lang::ES => "Iniciar (o saltar a) la transmisión en vivo",
+            Lang::FR => "Démarrer (ou aller à) le flux en direct",
+            Lang::DE => "Live-Stream starten (oder dorthin springen)",
+            Lang::ZH => "开始（或跳至）实时直播",
+            Lang::JA => "ライブストリームを開始 (またはジャンプ)",
+            Lang::PT => "Iniciar (ou saltar para) a transmissão ao vivo",
+            Lang::VI => "Bắt đầu (hoặc nhảy tới) phát trực tiếp",
+            Lang::NK => "Pokreni (ili skoči na) uživo prenos",
+        },
+        Key::prev => match lang {
+            Lang::EN => "Previous",
+            Lang::ES => "Anterior",
+            Lang::FR => "Précédent",
+            Lang::DE => "Zurück",
+            Lang::ZH => "上一个",
+            Lang::JA => "前へ",
+            Lang::PT => "Anterior",
+            Lang::VI => "Trước",
+            Lang::NK => "Prethodno",
+        },
+        Key::next => match lang {
+            Lang::EN => "Next",
+            Lang::ES => "Siguiente",
+            Lang::FR => "Suivant",
+            Lang::DE => "Weiter",
+            Lang::ZH => "下一个",
+            Lang::JA => "次へ",
+            Lang::PT => "Próximo",
+            Lang::VI => "Sau",
+            Lang::NK => "Sljedeće",
+        },
+        Key::export_current_frame_json => match lang {
+            Lang::EN => "Export current frame (.json)",
+            Lang::ES => "Exportar cuadro actual (.json)",
+            Lang::FR => "Exporter l'image actuelle (.json)",
+            Lang::DE => "Aktuelles Bild exportieren (.json)",
+            Lang::ZH => "导出当前帧 (.json)",
+            Lang::JA => "現在のフレームをエクスポート (.json)",
+            Lang::PT => "Exportar quadro atual (.json)",
+            Lang::VI => "Xuất khung hình hiện tại (.json)",
+            Lang::NK => "Izvezi trenutni kadar (.json)",
+        },
+        Key::export_current_frame_png => match lang {
+            Lang::EN => "Export current frame (.png)",
+            Lang::ES => "Exportar cuadro actual (.png)",
+            Lang::FR => "Exporter l'image actuelle (.png)",
+            Lang::DE => "Aktuelles Bild exportieren (.png)",
+            Lang::ZH => "导出当前帧 (.png)",
+            Lang::JA => "現在のフレームをエクスポート (.png)",
+            Lang::PT => "Exportar quadro atual (.png)",
+            Lang::VI => "Xuất khung hình hiện tại (.png)",
+            Lang::NK => "Izvezi trenutni kadar (.png)",
+        },
+        Key::frame_no_ai_data => match lang {
+            Lang::EN => "This frame has no AI data",
+            Lang::ES => "Este cuadro no tiene datos de IA",
+            Lang::FR => "Cette image n'a pas de données IA",
+            Lang::DE => "Dieses Bild hat keine KI-Daten",
+            Lang::ZH => "此帧没有AI数据",
+            Lang::JA => "このフレームにはAIデータがありません",
+            Lang::PT => "Este quadro não tem dados de IA",
+            Lang::VI => "Khung hình này không có dữ liệu AI",
+            Lang::NK => "Ovaj kadar nema AI podatke",
+        },
+        Key::play => match lang {
+            Lang::EN => "Play",
+            Lang::ES => "Reproducir",
+            Lang::FR => "Lecture",
+            Lang::DE => "Wiedergabe",
+            Lang::ZH => "播放",
+            Lang::JA => "再生",
+            Lang::PT => "Reproduzir",
+            Lang::VI => "Phát",
+            Lang::NK => "Pusti",
+        },
+        Key::frames_analysed => match lang {
+            Lang::EN => "frames analysed",
+            Lang::ES => "cuadros analizados",
+            Lang::FR => "images analysées",
+            Lang::DE => "Bilder analysiert",
+            Lang::ZH => "已分析帧",
+            Lang::JA => "フレーム解析済み",
+            Lang::PT => "quadros analisados",
+            Lang::VI => "khung hình đã phân tích",
+            Lang::NK => "analiziranih kadrova",
+        },
+        Key::view_label => match lang {
+            Lang::EN => "view",
+            Lang::ES => "vista",
+            Lang::FR => "vue",
+            Lang::DE => "Ansicht",
+            Lang::ZH => "视图",
+            Lang::JA => "表示",
+            Lang::PT => "vista",
+            Lang::VI => "khung nhìn",
+            Lang::NK => "prikaz",
+        },
+        Key::span_label => match lang {
+            Lang::EN => "span",
+            Lang::ES => "rango",
+            Lang::FR => "intervalle",
+            Lang::DE => "Bereich",
+            Lang::ZH => "范围",
+            Lang::JA => "範囲",
+            Lang::PT => "intervalo",
+            Lang::VI => "khoảng",
+            Lang::NK => "raspon",
+        },
+        Key::buffer_label => match lang {
+            Lang::EN => "buffer",
+            Lang::ES => "búfer",
+            Lang::FR => "tampon",
+            Lang::DE => "Puffer",
+            Lang::ZH => "缓冲",
+            Lang::JA => "バッファ",
+            Lang::PT => "buffer",
+            Lang::VI => "bộ đệm",
+            Lang::NK => "bafer",
+        },
+        Key::audio_processing => match lang {
+            Lang::EN => "Audio processing",
+            Lang::ES => "Procesamiento de audio",
+            Lang::FR => "Traitement audio",
+            Lang::DE => "Audioverarbeitung",
+            Lang::ZH => "音频处理中",
+            Lang::JA => "オーディオ処理中",
+            Lang::PT => "Processando áudio",
+            Lang::VI => "Xử lí âm thanh",
+            Lang::NK => "Obrada zvuka",
+        },
+        Key::frame_label => match lang {
+            Lang::EN => "frame",
+            Lang::ES => "cuadro",
+            Lang::FR => "image",
+            Lang::DE => "Bild",
+            Lang::ZH => "帧",
+            Lang::JA => "フレーム",
+            Lang::PT => "quadro",
+            Lang::VI => "khung",
+            Lang::NK => "kadar",
         },
     }
 }

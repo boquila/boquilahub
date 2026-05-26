@@ -1,4 +1,4 @@
-use crate::api::abstractions::{BitMatrix, ProbSpace, XYXY};
+use crate::api::abstractions::{BitMatrix, Prob, XYXY};
 use bitvec::vec::BitVec;
 use ndarray::{Array, Array2, ArrayBase, Dim, IxDyn, IxDynImpl, OwnedRepr};
 use ort::session::SessionOutputs;
@@ -11,6 +11,9 @@ pub enum PostProcessing {
     GeoFence,
     Rollup,
     Ensemble,
+    Sigmoid,
+    Softmax,
+    BinaryClassification,
     None,
 }
 
@@ -21,6 +24,9 @@ impl From<&str> for PostProcessing {
             "rollup" => PostProcessing::Rollup,
             "geofence" | "geo_fence" | "geo-fence" => PostProcessing::GeoFence,
             "ensemble" | "ensemble_classification" => PostProcessing::Ensemble,
+            "sigmoid" => PostProcessing::Sigmoid,
+            "softmax" => PostProcessing::Softmax,
+            "binary" | "binary_classification" => PostProcessing::BinaryClassification,
             _ => PostProcessing::None, // default fallback
         }
     }
@@ -117,24 +123,15 @@ pub fn process_class_output(
     conf: Option<f32>,
     classes: &[String],
     output: &Array<f32, IxDyn>,
-) -> ProbSpace {
-    let mut indexed_scores: Vec<(usize, f32)> = output
+) -> Vec<Prob> {
+    let mut probs: Vec<Prob> = output
         .iter()
         .enumerate()
         .filter(|(_, &score)| conf.map_or(true, |c| score >= c))
-        .map(|(i, &score)| (i, score))
+        .map(|(i, &score)| Prob::new(classes[i].clone(), score, i as u32))
         .collect();
-
-    indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-    let probs: Vec<f32> = indexed_scores.iter().map(|(_, prob)| *prob).collect();
-    let classes_ids: Vec<u32> = indexed_scores.iter().map(|(idx, _)| *idx as u32).collect();
-    let classes_out: Vec<String> = classes_ids
-        .iter()
-        .map(|&idx| classes[idx as usize].clone())
-        .collect();
-
-    ProbSpace::new(classes_out, probs, classes_ids)
+    probs.sort_by(|a, b| b.prob.partial_cmp(&a.prob).unwrap());
+    probs
 }
 
 #[derive(Debug)]
@@ -229,136 +226,101 @@ impl<'a> SpeciesRecord<'a> {
 }
 
 pub fn apply_geofence_filter(
-    probs: &mut ProbSpace,
+    probs: &mut Vec<Prob>,
     geofence_data: &HashMap<String, Vec<String>>,
     target_country: &str,
 ) {
-    if !target_country.is_empty() {
-        probs.classes.iter_mut().for_each(|class| {
-            let mut record = SpeciesRecord::new(class).unwrap();
-            loop {
-                let taxonomic_string = record.to_taxonomic_string();
-                if let Some(countries) = geofence_data.get(&taxonomic_string) {
-                    if countries.contains(&target_country.to_string()) {
-                        break;
-                    }
-                }
-                if record.roll_up().is_err() {
+    if target_country.is_empty() {
+        return;
+    }
+    for p in probs.iter_mut() {
+        let mut record = SpeciesRecord::new(&p.label).unwrap();
+        loop {
+            let taxonomic_string = record.to_taxonomic_string();
+            if let Some(countries) = geofence_data.get(&taxonomic_string) {
+                if countries.contains(&target_country.to_string()) {
                     break;
                 }
             }
-            *class = record.get_line();
-        });
+            if record.roll_up().is_err() {
+                break;
+            }
+        }
+        p.label = record.get_line();
     }
 }
 
-pub fn apply_label_rollup(probs: &mut ProbSpace, confidence_threshold: f32) {
-    let record_confidence_pairs: Vec<(SpeciesRecord, f32, u32)> = probs
-        .classes
+pub fn apply_label_rollup(probs: &mut Vec<Prob>, confidence_threshold: f32) {
+    let record_pairs: Vec<(SpeciesRecord, f32, u32)> = probs
         .iter()
-        .zip(probs.probs.iter())
-        .zip(probs.classes_ids.iter())
-        .filter_map(|((class_name, &confidence), &class_id)| {
-            SpeciesRecord::new(class_name)
+        .filter_map(|p| {
+            SpeciesRecord::new(&p.label)
                 .ok()
-                .map(|record| (record, confidence, class_id))
+                .map(|record| (record, p.prob, p.class_id))
         })
         .collect();
 
-    // Find the highest confidence record (for fallback)
-    let (best_record, best_confidence, best_class_id) = record_confidence_pairs
+    let (best_record, best_confidence, best_class_id) = record_pairs
         .iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
         .map(|(record, conf, id)| (record, *conf, *id))
         .unwrap();
 
-    // Check if the best prediction already meets the threshold
     if best_confidence >= confidence_threshold {
-        let name = format_species_name(&best_record);
-        probs.classes = vec![name];
-        probs.probs = vec![best_confidence];
-        probs.classes_ids = vec![best_class_id];
+        let name = format_species_name(best_record);
+        *probs = vec![Prob::new(name, best_confidence, best_class_id)];
         return;
     }
 
-    // Build consensus at each taxonomic level and track the best overall
     let taxonomic_levels = ["species", "genus", "family", "order", "class"];
-    let mut best_rollup: Option<(String, f32, u32)> = None;
+    let mut best_rollup: Option<Prob> = None;
 
     for level in taxonomic_levels {
-        let mut level_totals: HashMap<String, (f32, Vec<u32>)> = HashMap::new();
-
-        // Aggregate confidence by taxonomic group at this level
-        for (record, confidence, class_id) in &record_confidence_pairs {
+        let mut level_totals: HashMap<String, f32> = HashMap::new();
+        for (record, confidence, _) in &record_pairs {
             if let Some(taxon_name) = get_taxon_at_level(record, level) {
-                let entry = level_totals.entry(taxon_name).or_insert((0.0, Vec::new()));
-                entry.0 += confidence;
-                entry.1.push(*class_id);
+                *level_totals.entry(taxon_name).or_insert(0.0) += confidence;
             }
         }
 
-        // Find the highest confidence group at this level
-        if let Some((best_taxon, (total_confidence, _))) = level_totals
+        let Some((best_taxon, total_confidence)) = level_totals
             .iter()
-            .max_by(|a, b| a.1 .0.partial_cmp(&b.1 .0).unwrap())
-        {
-            // If this meets threshold, return immediately
-            if *total_confidence >= confidence_threshold {
-                let rolled_up_name = format_taxonomic_name(level, best_taxon);
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .map(|(t, c)| (t.clone(), *c))
+        else {
+            continue;
+        };
 
-                // Use the class_id from the highest individual confidence within this group
-                let best_class_id_in_group = record_confidence_pairs
-                    .iter()
-                    .filter(|(record, _, _)| {
-                        get_taxon_at_level(record, level)
-                            .map_or(false, |taxon| &taxon == best_taxon)
-                    })
-                    .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-                    .map(|(_, _, id)| *id)
-                    .unwrap_or(best_class_id);
+        let class_id_in_group = record_pairs
+            .iter()
+            .filter(|(record, _, _)| {
+                get_taxon_at_level(record, level).map_or(false, |t| t == best_taxon)
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .map(|(_, _, id)| *id)
+            .unwrap_or(best_class_id);
 
-                probs.classes = vec![rolled_up_name];
-                probs.probs = vec![*total_confidence];
-                probs.classes_ids = vec![best_class_id_in_group];
-                return;
-            }
+        let name = format_taxonomic_name(level, &best_taxon);
 
-            // Track the best rollup even if it doesn't meet threshold
-            let rolled_up_name = format_taxonomic_name(level, best_taxon);
-            let best_class_id_in_group = record_confidence_pairs
-                .iter()
-                .filter(|(record, _, _)| {
-                    get_taxon_at_level(record, level).map_or(false, |taxon| &taxon == best_taxon)
-                })
-                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-                .map(|(_, _, id)| *id)
-                .unwrap_or(best_class_id);
+        if total_confidence >= confidence_threshold {
+            *probs = vec![Prob::new(name, total_confidence, class_id_in_group)];
+            return;
+        }
 
-            // Update best_rollup if this is better
-            if best_rollup
-                .as_ref()
-                .map_or(true, |(_, conf, _)| total_confidence > conf)
-            {
-                best_rollup = Some((rolled_up_name, *total_confidence, best_class_id_in_group));
-            }
+        if best_rollup.as_ref().map_or(true, |r| total_confidence > r.prob) {
+            best_rollup = Some(Prob::new(name, total_confidence, class_id_in_group));
         }
     }
 
-    // Return the best rollup found, or the best individual prediction if no rollup is better
-    if let Some((name, confidence, class_id)) = best_rollup {
-        if confidence > best_confidence {
-            probs.classes = vec![name];
-            probs.probs = vec![confidence];
-            probs.classes_ids = vec![class_id];
+    if let Some(rollup) = best_rollup {
+        if rollup.prob > best_confidence {
+            *probs = vec![rollup];
             return;
         }
     }
 
-    // Fallback to best individual prediction
-    let name = format_species_name(&best_record);
-    probs.classes = vec![name];
-    probs.probs = vec![best_confidence];
-    probs.classes_ids = vec![best_class_id];
+    let name = format_species_name(best_record);
+    *probs = vec![Prob::new(name, best_confidence, best_class_id)];
 }
 
 fn get_taxon_at_level(record: &SpeciesRecord, level: &str) -> Option<String> {

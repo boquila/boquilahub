@@ -1,5 +1,4 @@
 use crate::api::utils::{rgb_frame_to_imgbuf, SendScaler};
-use chrono::Local;
 use ffmpeg_next as ffmpeg;
 use image::{ImageBuffer, Rgb};
 use std::iter::Iterator;
@@ -96,11 +95,4 @@ impl Iterator for Feed {
 
         None
     }
-}
-
-pub fn save_frame(frame: &ImageBuffer<Rgb<u8>, Vec<u8>>) {
-    let now = Local::now();
-    let date_str = now.format("%Y-%m-%d_%H-%M-%S.%3f").to_string();
-    let filename = format!("output_feed/detection_{}.jpg", date_str);
-    let _ = frame.save(filename);
 }
