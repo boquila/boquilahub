@@ -94,12 +94,10 @@ impl Dinov3 {
             values.extend(token.iter().map(|&v| v / norm));
         }
 
-        AIOutputs::Embed(Embedding {
+        AIOutputs::Embed(Embedding::square(
             values,
-            model: self.model_name.clone(),
-            h: self.grid_side,
-            w: self.grid_side,
-            d: self.embed_dim,
-        })
+            self.model_name.clone(),
+            self.grid_side,
+        ))
     }
 }

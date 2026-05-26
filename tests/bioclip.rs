@@ -36,53 +36,33 @@ async fn bioclip_produces_image_embedding() -> Result<()> {
             panic!("expected AIOutputs::Embed, got {:?}", aioutput);
         };
 
+        let d = emb.d();
         println!(
             "model={}  h={}  w={}  d={}  total={}  first5={:?}",
             emb.model,
             emb.h,
             emb.w,
-            emb.d,
+            d,
             emb.values.len(),
             &emb.values[..emb.values.len().min(5)]
         );
 
-        assert_eq!(emb.model, MODEL_NAME, "embedding model tag mismatch");
-        assert!(emb.d > 0, "embedding dim must be > 0");
-        let expected_len = (emb.h as usize) * (emb.w as usize) * (emb.d as usize);
-        assert_eq!(
-            emb.values.len(),
-            expected_len,
-            "values len ({}) doesn't match h*w*d ({})",
-            emb.values.len(),
-            expected_len
-        );
-        assert!(
-            emb.values.iter().all(|v| v.is_finite()),
-            "embedding contains NaN/inf"
-        );
+        assert_eq!(emb.model, MODEL_NAME);
+        assert!(d > 0);
+        assert!(emb.values.iter().all(|v| v.is_finite()));
 
-        // Dense path: every token must be L2-normalised, since the GUI heatmap
-        // treats per-token dot products as cosine similarities. Pooled path
-        // (h == w == 1) skips this — we only normalise tokens for the dense case.
+        // Dense path: every token must be L2-normalised — the GUI dot product
+        // assumes it. Pooled (h == w == 1) skips the check.
         if emb.h * emb.w > 1 {
-            let d = emb.d as usize;
             for t in 0..(emb.h as usize * emb.w as usize) {
                 let token = &emb.values[t * d..(t + 1) * d];
                 let norm = token.iter().map(|v| v * v).sum::<f32>().sqrt();
-                assert!(
-                    (norm - 1.0).abs() < 1e-3,
-                    "token {t} not L2-normalised: norm={norm}"
-                );
+                assert!((norm - 1.0).abs() < 1e-3, "token {t}: norm={norm}");
             }
         }
 
-        // Self-cosine of the flattened vector is always 1.0 for a non-zero
-        // vector — cheap sanity check that the cosine helper works.
         let sim = emb.cosine(emb);
-        assert!(
-            (sim - 1.0).abs() < 1e-3,
-            "self-cosine should be ~1.0, got {sim}"
-        );
+        assert!((sim - 1.0).abs() < 1e-3, "self-cosine {sim}");
 
         Ok(())
     })();

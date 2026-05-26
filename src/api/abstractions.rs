@@ -572,6 +572,20 @@ pub struct Embedding {
     pub model: String,
     pub h: u32,
     pub w: u32,
-    pub d: u32,
+}
+
+impl Embedding {
+    pub fn square(values: Vec<f32>, model: String, side: u32) -> Self {
+        Self { values, model, h: side, w: side }
+    }
+
+    pub fn pooled(values: Vec<f32>, model: String) -> Self {
+        Self { values, model, h: 1, w: 1 }
+    }
+
+    pub fn d(&self) -> usize {
+        let cells = (self.h as usize) * (self.w as usize);
+        if cells == 0 { 0 } else { self.values.len() / cells }
+    }
 }
 

@@ -94,12 +94,11 @@ impl Clip {
             values.extend(token.iter().map(|&v| v / norm));
         }
 
-        AIOutputs::Embed(Embedding {
-            values,
-            model: self.model_name.clone(),
-            h: self.grid_h,
-            w: self.grid_w,
-            d: self.embed_dim,
+        let model = self.model_name.clone();
+        AIOutputs::Embed(if self.grid_h == 1 && self.grid_w == 1 {
+            Embedding::pooled(values, model)
+        } else {
+            Embedding::square(values, model, self.grid_h)
         })
     }
 }

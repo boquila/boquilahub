@@ -741,7 +741,13 @@ fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
         // a "top" class in the header is misleading when probabilities are noisy.
         AIOutputs::Classification(_) => None,
         AIOutputs::AudioClassification(_) => None,
-        AIOutputs::Embed(emb) => Some(format!("embedding · {}×{}×{}", emb.h, emb.w, emb.d)),
+        AIOutputs::Embed(emb) => Some(format!(
+            "{} · {}×{}×{}",
+            translate(Key::embedding, lang),
+            emb.h,
+            emb.w,
+            emb.d()
+        )),
     }
 }
 
@@ -847,7 +853,7 @@ fn draw_image_overlay(
         }
         AIOutputs::AudioClassification(_) => None,
         AIOutputs::Embed(emb) => {
-            draw_embed_overlay(ui, &painter, img_resp, emb);
+            draw_embed_overlay(ui, &painter, img_resp, emb, lang);
             None
         }
     }
@@ -858,17 +864,22 @@ fn draw_embed_overlay(
     painter: &egui::Painter,
     img_resp: &egui::Response,
     emb: &Embedding,
+    lang: &Lang,
 ) {
     let rect = img_resp.rect;
+    let h = emb.h as usize;
+    let w = emb.w as usize;
+    let d = emb.d();
     let dims_chip = format!(
-        "embedding · {} · {}×{}×{}",
-        emb.model, emb.h, emb.w, emb.d
+        "{} · {} · {}×{}×{}",
+        translate(Key::embedding, lang),
+        emb.model,
+        h,
+        w,
+        d
     );
     draw_corner_chip(painter, rect, &dims_chip);
 
-    let h = emb.h as usize;
-    let w = emb.w as usize;
-    let d = emb.d as usize;
     if h * w <= 1 || d == 0 || emb.values.len() < h * w * d {
         return;
     }
@@ -899,49 +910,45 @@ fn draw_embed_overlay(
     }
     let range = (smax - smin).max(1e-6);
 
-    painter.rect_filled(
-        rect,
-        0.0,
-        egui::Color32::from_rgba_unmultiplied(0, 0, 0, 153),
-    );
-
-    // Squared contrast on the normalised score so only strongly-similar
-    // patches stay visibly bright; anchor itself is left transparent and
-    // marked by the cyan border below.
+    // Squared on the normalised score amplifies contrast — only strongly-
+    // similar patches stay bright. Magma drives both colour and alpha.
     let mut pixels: Vec<u8> = Vec::with_capacity(n * 4);
     for t in 0..n {
-        if t == anchor_idx {
-            pixels.extend_from_slice(&[255, 255, 255, 0]);
-            continue;
-        }
         let norm = ((s[t] - smin) / range).clamp(0.0, 1.0);
-        let alpha = (norm * norm * 0.8 * 255.0).round() as u8;
-        pixels.extend_from_slice(&[255, 255, 255, alpha]);
+        let amplified = norm * norm;
+        let [r, g, b] = magma(amplified);
+        let alpha = (25.0 + amplified * 220.0).round() as u8;
+        pixels.extend_from_slice(&[r, g, b, alpha]);
     }
     let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
     let tex = ui.ctx().load_texture(
-        "embed_spotlight",
+        "embed_heatmap",
         color_img,
         egui::TextureOptions::NEAREST,
     );
     let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
     painter.image(tex.id(), rect, uv, egui::Color32::WHITE);
+}
 
-    let cell_w = rect.width() / w as f32;
-    let cell_h = rect.height() / h as f32;
-    let anchor_rect = egui::Rect::from_min_size(
-        egui::pos2(
-            rect.min.x + aj as f32 * cell_w,
-            rect.min.y + ai as f32 * cell_h,
-        ),
-        egui::vec2(cell_w, cell_h),
-    );
-    painter.rect_stroke(
-        anchor_rect,
-        0.0,
-        egui::Stroke::new(2.0, egui::Color32::from_rgb(0, 230, 255)),
-        egui::StrokeKind::Inside,
-    );
+fn magma(t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    const STOPS: [[u8; 3]; 5] = [
+        [0, 0, 4],
+        [80, 18, 123],
+        [183, 55, 121],
+        [251, 136, 97],
+        [252, 253, 191],
+    ];
+    let scaled = t * 4.0;
+    let seg = (scaled.floor() as usize).min(3);
+    let local = scaled - seg as f32;
+    let a = STOPS[seg];
+    let b = STOPS[seg + 1];
+    [
+        (a[0] as f32 + (b[0] as f32 - a[0] as f32) * local).round() as u8,
+        (a[1] as f32 + (b[1] as f32 - a[1] as f32) * local).round() as u8,
+        (a[2] as f32 + (b[2] as f32 - a[2] as f32) * local).round() as u8,
+    ]
 }
 
 fn draw_corner_chip(painter: &egui::Painter, rect: egui::Rect, text: &str) {
