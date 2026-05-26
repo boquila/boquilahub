@@ -910,11 +910,15 @@ fn draw_embed_overlay(
     }
     let range = (smax - smin).max(1e-6);
 
+    // Squared on the normalised score amplifies contrast — only strongly-
+    // similar patches stay bright. Magma drives both colour and alpha.
     let mut pixels: Vec<u8> = Vec::with_capacity(n * 4);
     for t in 0..n {
         let norm = ((s[t] - smin) / range).clamp(0.0, 1.0);
-        let [r, g, b] = magma(norm);
-        pixels.extend_from_slice(&[r, g, b, 255]);
+        let amplified = norm * norm;
+        let [r, g, b] = magma(amplified);
+        let alpha = (25.0 + amplified * 220.0).round() as u8;
+        pixels.extend_from_slice(&[r, g, b, alpha]);
     }
     let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
     let tex = ui.ctx().load_texture(

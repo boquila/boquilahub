@@ -1,10 +1,7 @@
 use crate::api::{
     abstractions::{AIOutputs, Embedding, ModelConfig},
     bq::AIMetadata,
-    processing::{
-        inference::inference,
-        pre::{imgbuf_to_input_array, TensorFormat},
-    },
+    processing::{inference::inference, pre::imgbuf_to_clip_input},
 };
 use anyhow::{bail, Error, Result};
 use image::{ImageBuffer, Rgb};
@@ -62,14 +59,7 @@ impl Clip {
     }
 
     pub fn run_image(&self, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-        let (input, _w, _h) = imgbuf_to_input_array(
-            1,
-            3,
-            self.input_height,
-            self.input_width,
-            img,
-            &TensorFormat::NCHW,
-        );
+        let input = imgbuf_to_clip_input(self.input_height, self.input_width, img);
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let tensor = outputs[self.output_name.as_str()]
             .try_extract_tensor::<f32>()
