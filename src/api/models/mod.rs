@@ -1,9 +1,11 @@
 pub mod clip;
+pub mod dinov3;
 pub mod efficientnet;
 pub mod perch;
 pub mod resnet18;
 pub mod yolo;
 use crate::api::models::clip::Clip;
+use crate::api::models::dinov3::Dinov3;
 use crate::api::models::perch::PerchV2;
 use crate::api::models::resnet18::ResNet18;
 use super::{audio::AudioData, abstractions::*, bq::AIMetadata, processing::post::PostProcessing};
@@ -51,6 +53,7 @@ pub enum Model {
     ResNet18(ResNet18),
     PerchV2(PerchV2),
     Clip(Clip),
+    Dinov3(Dinov3),
 }
 
 pub enum AIInput<'a> {
@@ -66,6 +69,7 @@ impl Model {
             Model::ResNet18(inner) => &mut inner.config,
             Model::PerchV2(inner) => &mut inner.config,
             Model::Clip(inner) => &mut inner.config,
+            Model::Dinov3(inner) => &mut inner.config,
         }
     }
 }
@@ -83,6 +87,7 @@ impl Model {
             "resnet18" => Ok(Model::ResNet18(ResNet18::new(metadata, session, config)?)),
             "perch_v2" | "perch" | "perch2" => Ok(Model::PerchV2(PerchV2::new(metadata, session, config)?)),
             "clip" => Ok(Model::Clip(Clip::new(metadata, session, config)?)),
+            "dinov3" => Ok(Model::Dinov3(Dinov3::new(metadata, session, config)?)),
             arch => Err(anyhow!("Unsupported model architecture: {}", arch)),
         }
     }
@@ -94,6 +99,7 @@ impl Model {
             (Model::ResNet18(m), AIInput::Audio(audio)) => m.run_audio(audio),
             (Model::PerchV2(m), AIInput::Audio(audio)) => m.run_audio(audio),
             (Model::Clip(m), AIInput::Image(img)) => m.run_image(img),
+            (Model::Dinov3(m), AIInput::Image(img)) => m.run_image(img),
             _ => panic!("wrong input type for this model architecture"),
         }
     }

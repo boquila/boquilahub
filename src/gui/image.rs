@@ -270,10 +270,6 @@ impl Gui {
             self.selected_files[i].aioutput.as_ref(),
             Some(AIOutputs::Classification(_))
         );
-        let is_embedding = matches!(
-            self.selected_files[i].aioutput.as_ref(),
-            Some(AIOutputs::Embed(_))
-        );
         let has_non_empty_output = self.selected_files[i].wasprocessed
             && self
                 .selected_files[i]
@@ -281,7 +277,7 @@ impl Gui {
                 .as_ref()
                 .map(|a| !a.is_empty())
                 .unwrap_or(false);
-        let show_side_panel = (is_classification || is_embedding) && has_non_empty_output;
+        let show_side_panel = is_classification && has_non_empty_output;
         let has_spatial_output = matches!(
             self.selected_files[i].aioutput.as_ref(),
             Some(AIOutputs::ObjectDetection(b)) if !b.is_empty()
@@ -325,11 +321,7 @@ impl Gui {
                 }
                 if stack_side {
                     ui.add_space(8.0);
-                    if is_classification {
-                        self.draw_classification_panel(ui);
-                    } else if is_embedding {
-                        self.draw_embedding_panel(ui);
-                    }
+                    self.draw_classification_panel(ui);
                 }
             });
 
@@ -337,11 +329,7 @@ impl Gui {
                 ui.add_space(side_gap);
                 ui.vertical(|ui| {
                     ui.set_max_width(side_w);
-                    if is_classification {
-                        self.draw_classification_panel(ui);
-                    } else if is_embedding {
-                        self.draw_embedding_panel(ui);
-                    }
+                    self.draw_classification_panel(ui);
                 });
             }
         });
@@ -580,164 +568,6 @@ impl Gui {
         });
     }
 
-    fn draw_embedding_panel(&mut self, ui: &mut egui::Ui) {
-        let i = self.image_texture_n - 1;
-        let current = match self.selected_files.get(i).and_then(|p| p.aioutput.as_ref()) {
-            Some(AIOutputs::Embed(emb)) if !emb.values.is_empty() => emb.clone(),
-            _ => return,
-        };
-
-        // Same-model embeddings from the other selected files, sorted by
-        // descending similarity. Cosine on raw values is fine; CLIP-style
-        // embeddings aren't required to be unit-normalised on disk.
-        let mut others: Vec<(usize, Embedding, f32, String)> = Vec::new();
-        for (j, p) in self.selected_files.iter().enumerate() {
-            if j == i {
-                continue;
-            }
-            if let Some(AIOutputs::Embed(emb)) = p.aioutput.as_ref() {
-                if emb.model == current.model && !emb.values.is_empty() {
-                    let sim = current.cosine(emb);
-                    let name = p
-                        .file_path
-                        .file_name()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("?")
-                        .to_string();
-                    others.push((j, emb.clone(), sim, name));
-                }
-            }
-        }
-        others.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-
-        ui.label(egui::RichText::new("Embedding").heading());
-        ui.label(
-            egui::RichText::new(format!("{} · {} dims", current.model, current.values.len()))
-                .weak()
-                .small(),
-        );
-        ui.add_space(6.0);
-
-        // Allocate rects first so we can resolve a single `hovered_dim` against
-        // every grid before painting (highlight must reach all grids, not just
-        // the one under the cursor).
-        let avail_w = ui.available_width().max(120.0);
-        let main_cell = ((avail_w - 4.0) / EMBED_GRID_COLS as f32)
-            .floor()
-            .clamp(4.0, 10.0);
-        let main_w = main_cell * EMBED_GRID_COLS as f32;
-        let main_h = main_cell * EMBED_GRID_ROWS as f32;
-
-        let main_rect = ui
-            .vertical_centered(|ui| {
-                let (rect, _) = ui.allocate_exact_size(
-                    egui::vec2(main_w, main_h),
-                    egui::Sense::hover(),
-                );
-                rect
-            })
-            .inner;
-
-        // Reserve a status line directly under the main grid; painted last.
-        ui.add_space(2.0);
-        let status_rect = ui
-            .vertical_centered(|ui| {
-                let (rect, _) =
-                    ui.allocate_exact_size(egui::vec2(main_w, 14.0), egui::Sense::hover());
-                rect
-            })
-            .inner;
-
-        let mut mini_rects: Vec<egui::Rect> = Vec::with_capacity(others.len());
-        let mut clicked: Option<usize> = None;
-        let dark = ui.visuals().dark_mode;
-
-        if !others.is_empty() {
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new("Cross-image").strong());
-            ui.add_space(2.0);
-
-            let mini_cell: f32 = 2.5;
-            let mini_w = mini_cell * EMBED_GRID_COLS as f32;
-            let mini_h = mini_cell * EMBED_GRID_ROWS as f32;
-
-            for (j, _emb, sim, name) in &others {
-                ui.horizontal(|ui| {
-                    let (rect, resp) = ui.allocate_exact_size(
-                        egui::vec2(mini_w, mini_h),
-                        egui::Sense::click(),
-                    );
-                    if resp.clicked() {
-                        clicked = Some(*j);
-                    }
-                    mini_rects.push(rect);
-
-                    ui.vertical(|ui| {
-                        let label = egui::RichText::new(name).small();
-                        let label = if resp.hovered() { label.strong() } else { label };
-                        ui.label(label);
-
-                        let bar_w = ui.available_width().max(60.0);
-                        let bar_h: f32 = 10.0;
-                        let (bar_rect, _) = ui.allocate_exact_size(
-                            egui::vec2(bar_w, bar_h),
-                            egui::Sense::hover(),
-                        );
-                        paint_sim_bar(ui.painter_at(bar_rect), bar_rect, *sim, dark);
-                    });
-                });
-                ui.add_space(3.0);
-            }
-        }
-
-        // Single hover-detection pass across all grids.
-        let hover_pos = ui.input(|i| i.pointer.hover_pos());
-        let mut hovered_dim: Option<usize> = None;
-        if let Some(pos) = hover_pos {
-            hovered_dim = dim_at_pos(main_rect, pos);
-            if hovered_dim.is_none() {
-                for r in &mini_rects {
-                    if let Some(d) = dim_at_pos(*r, pos) {
-                        hovered_dim = Some(d);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Paint pass: main grid + every mini-grid use the same hovered_dim, so
-        // the same cell lights up in all of them at once.
-        paint_embed_grid(
-            ui.painter_at(main_rect),
-            main_rect,
-            &current.values,
-            hovered_dim,
-        );
-        for (rect, (_, emb, _, _)) in mini_rects.iter().zip(others.iter()) {
-            paint_embed_grid(ui.painter_at(*rect), *rect, &emb.values, hovered_dim);
-        }
-
-        // Status line: hovered dim + raw value from the *current* image, so the
-        // reader sees what the highlighted cell means.
-        if let Some(d) = hovered_dim {
-            if d < current.values.len() {
-                let painter = ui.painter_at(status_rect);
-                let text = format!("dim {} · {:+.3}", d, current.values[d]);
-                painter.text(
-                    status_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    text,
-                    egui::FontId::proportional(11.0),
-                    ui.visuals().text_color(),
-                );
-            }
-        }
-
-        if let Some(j) = clicked {
-            self.image_texture_n = j + 1;
-            self.paint(ui, j);
-        }
-    }
 }
 
 // ---------- free helpers ----------
@@ -911,7 +741,7 @@ fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
         // a "top" class in the header is misleading when probabilities are noisy.
         AIOutputs::Classification(_) => None,
         AIOutputs::AudioClassification(_) => None,
-        AIOutputs::Embed(emb) => Some(format!("embedding · {} dims", emb.values.len())),
+        AIOutputs::Embed(emb) => Some(format!("embedding · {}×{}×{}", emb.h, emb.w, emb.d)),
     }
 }
 
@@ -1016,8 +846,124 @@ fn draw_image_overlay(
             None
         }
         AIOutputs::AudioClassification(_) => None,
-        AIOutputs::Embed(_) => None,
+        AIOutputs::Embed(emb) => {
+            draw_embed_overlay(ui, &painter, img_resp, emb);
+            None
+        }
     }
+}
+
+fn draw_embed_overlay(
+    ui: &egui::Ui,
+    painter: &egui::Painter,
+    img_resp: &egui::Response,
+    emb: &Embedding,
+) {
+    let rect = img_resp.rect;
+    let dims_chip = format!(
+        "embedding · {} · {}×{}×{}",
+        emb.model, emb.h, emb.w, emb.d
+    );
+    draw_corner_chip(painter, rect, &dims_chip);
+
+    let h = emb.h as usize;
+    let w = emb.w as usize;
+    let d = emb.d as usize;
+    if h * w <= 1 || d == 0 || emb.values.len() < h * w * d {
+        return;
+    }
+
+    let Some(pos) = img_resp.hover_pos() else {
+        return;
+    };
+    let local_x = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 0.999_99);
+    let local_y = ((pos.y - rect.min.y) / rect.height()).clamp(0.0, 0.999_99);
+    let aj = (local_x * w as f32) as usize;
+    let ai = (local_y * h as f32) as usize;
+    let anchor_idx = ai * w + aj;
+    let anchor = &emb.values[anchor_idx * d..(anchor_idx + 1) * d];
+
+    let n = h * w;
+    let mut s = vec![0.0f32; n];
+    let mut smin = f32::INFINITY;
+    let mut smax = f32::NEG_INFINITY;
+    for t in 0..n {
+        let token = &emb.values[t * d..(t + 1) * d];
+        let mut dot = 0.0f32;
+        for k in 0..d {
+            dot += token[k] * anchor[k];
+        }
+        s[t] = dot;
+        smin = smin.min(dot);
+        smax = smax.max(dot);
+    }
+    let range = (smax - smin).max(1e-6);
+
+    painter.rect_filled(
+        rect,
+        0.0,
+        egui::Color32::from_rgba_unmultiplied(0, 0, 0, 153),
+    );
+
+    // Squared contrast on the normalised score so only strongly-similar
+    // patches stay visibly bright; anchor itself is left transparent and
+    // marked by the cyan border below.
+    let mut pixels: Vec<u8> = Vec::with_capacity(n * 4);
+    for t in 0..n {
+        if t == anchor_idx {
+            pixels.extend_from_slice(&[255, 255, 255, 0]);
+            continue;
+        }
+        let norm = ((s[t] - smin) / range).clamp(0.0, 1.0);
+        let alpha = (norm * norm * 0.8 * 255.0).round() as u8;
+        pixels.extend_from_slice(&[255, 255, 255, alpha]);
+    }
+    let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
+    let tex = ui.ctx().load_texture(
+        "embed_spotlight",
+        color_img,
+        egui::TextureOptions::NEAREST,
+    );
+    let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+    painter.image(tex.id(), rect, uv, egui::Color32::WHITE);
+
+    let cell_w = rect.width() / w as f32;
+    let cell_h = rect.height() / h as f32;
+    let anchor_rect = egui::Rect::from_min_size(
+        egui::pos2(
+            rect.min.x + aj as f32 * cell_w,
+            rect.min.y + ai as f32 * cell_h,
+        ),
+        egui::vec2(cell_w, cell_h),
+    );
+    painter.rect_stroke(
+        anchor_rect,
+        0.0,
+        egui::Stroke::new(2.0, egui::Color32::from_rgb(0, 230, 255)),
+        egui::StrokeKind::Inside,
+    );
+}
+
+fn draw_corner_chip(painter: &egui::Painter, rect: egui::Rect, text: &str) {
+    let galley = painter.layout_no_wrap(
+        text.into(),
+        egui::FontId::proportional(12.0),
+        egui::Color32::WHITE,
+    );
+    let pad = 8.0;
+    let chip_h = 22.0;
+    let chip_w = galley.size().x + 14.0;
+    let bg = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180);
+    let chip = egui::Rect::from_min_size(
+        egui::pos2(rect.min.x + pad, rect.min.y + pad),
+        egui::vec2(chip_w, chip_h),
+    );
+    painter.rect_filled(chip, 10.0, bg);
+    painter.galley(
+        chip.min + egui::vec2(7.0, (chip_h - galley.size().y) / 2.0),
+        galley,
+        egui::Color32::WHITE,
+    );
 }
 
 fn pick_hovered_bbox(
@@ -1340,141 +1286,3 @@ fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
     });
 }
 
-// ---------- Embedding visualisation ----------
-
-const EMBED_GRID_COLS: usize = 32;
-const EMBED_GRID_ROWS: usize = 24;
-
-fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
-    let v = a as f32 + (b as f32 - a as f32) * t.clamp(0.0, 1.0);
-    v.round().clamp(0.0, 255.0) as u8
-}
-
-/// Diverging colormap: -1 → blue, 0 → light grey, +1 → red.
-fn embed_color(t: f32) -> egui::Color32 {
-    let t = t.clamp(-1.0, 1.0);
-    if t >= 0.0 {
-        egui::Color32::from_rgb(
-            lerp_u8(245, 220, t),
-            lerp_u8(245, 50, t),
-            lerp_u8(245, 50, t),
-        )
-    } else {
-        let t = -t;
-        egui::Color32::from_rgb(
-            lerp_u8(245, 50, t),
-            lerp_u8(245, 80, t),
-            lerp_u8(245, 220, t),
-        )
-    }
-}
-
-/// Map a pointer position inside `rect` to a dim index in `[0, COLS*ROWS)`.
-/// Returns `None` if the pointer is outside the rect.
-fn dim_at_pos(rect: egui::Rect, pos: egui::Pos2) -> Option<usize> {
-    if !rect.contains(pos) {
-        return None;
-    }
-    let cell_w = rect.width() / EMBED_GRID_COLS as f32;
-    let cell_h = rect.height() / EMBED_GRID_ROWS as f32;
-    if cell_w <= 0.0 || cell_h <= 0.0 {
-        return None;
-    }
-    let col = ((pos.x - rect.min.x) / cell_w)
-        .floor()
-        .clamp(0.0, (EMBED_GRID_COLS - 1) as f32) as usize;
-    let row = ((pos.y - rect.min.y) / cell_h)
-        .floor()
-        .clamp(0.0, (EMBED_GRID_ROWS - 1) as f32) as usize;
-    Some(row * EMBED_GRID_COLS + col)
-}
-
-fn paint_embed_grid(
-    painter: egui::Painter,
-    rect: egui::Rect,
-    values: &[f32],
-    hovered_dim: Option<usize>,
-) {
-    let total = (EMBED_GRID_COLS * EMBED_GRID_ROWS).min(values.len());
-    if total == 0 {
-        return;
-    }
-    let max_abs = values.iter().fold(0.0f32, |a, &v| a.max(v.abs())).max(1e-6);
-    let cell_w = rect.width() / EMBED_GRID_COLS as f32;
-    let cell_h = rect.height() / EMBED_GRID_ROWS as f32;
-    for d in 0..total {
-        let col = d % EMBED_GRID_COLS;
-        let row = d / EMBED_GRID_COLS;
-        let cell = egui::Rect::from_min_size(
-            egui::pos2(
-                rect.min.x + col as f32 * cell_w,
-                rect.min.y + row as f32 * cell_h,
-            ),
-            egui::vec2(cell_w, cell_h),
-        );
-        painter.rect_filled(cell, 0.0, embed_color(values[d] / max_abs));
-        if hovered_dim == Some(d) {
-            painter.rect_stroke(
-                cell,
-                0.0,
-                egui::Stroke::new(1.5, egui::Color32::BLACK),
-                egui::StrokeKind::Outside,
-            );
-            painter.rect_stroke(
-                cell,
-                0.0,
-                egui::Stroke::new(0.8, egui::Color32::WHITE),
-                egui::StrokeKind::Inside,
-            );
-        }
-    }
-    painter.rect_stroke(
-        rect,
-        0.0,
-        egui::Stroke::new(1.0, egui::Color32::from_gray(120)),
-        egui::StrokeKind::Inside,
-    );
-}
-
-/// Cosine similarity bar. Sign-coloured (red for positive, blue for negative)
-/// so anti-correlated pairs read differently from merely-similar pairs.
-fn paint_sim_bar(painter: egui::Painter, rect: egui::Rect, sim: f32, dark: bool) {
-    let track = if dark {
-        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 20)
-    } else {
-        egui::Color32::from_rgba_unmultiplied(0, 0, 0, 18)
-    };
-    painter.rect_filled(rect, 2.5, track);
-
-    let t = sim.clamp(-1.0, 1.0);
-    let fill_w = rect.width() * t.abs();
-    let fill_rect = egui::Rect::from_min_size(
-        rect.min,
-        egui::vec2(fill_w.max(1.0), rect.height()),
-    );
-    let fill_color = if t >= 0.0 {
-        egui::Color32::from_rgb(180, 60, 60)
-    } else {
-        egui::Color32::from_rgb(60, 90, 200)
-    };
-    painter.rect_filled(fill_rect, 2.5, fill_color);
-
-    let text_color = if dark {
-        egui::Color32::from_gray(220)
-    } else {
-        egui::Color32::from_gray(40)
-    };
-    let galley = painter.layout_no_wrap(
-        format!("{:+.2}", t),
-        egui::FontId::proportional(11.0),
-        text_color,
-    );
-    painter.galley(
-        egui::pos2(
-            rect.right() - galley.size().x - 3.0,
-            rect.center().y - galley.size().y / 2.0,
-        ),
-        galley,
-        text_color,
-    );
-}

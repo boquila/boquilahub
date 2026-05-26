@@ -519,9 +519,6 @@ impl AIOutputs {
 }
 
 impl Embedding {
-    /// L2-normalised cosine similarity. Both vectors must come from the
-    /// same model (caller checks `model` tag); returns 0.0 on mismatched
-    /// lengths or zero-norm input.
     pub fn cosine(&self, other: &Embedding) -> f32 {
         if self.values.len() != other.values.len() {
             return 0.0;
@@ -567,8 +564,14 @@ pub struct AvailableModel {
     pub download_link: String,
 }
 
+/// `values` is row-major `[H*W, D]`, per-token L2-normalised. `h = w = 1`
+/// for pooled outputs; otherwise patch tokens.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Embedding {
     pub values: Vec<f32>,
     pub model: String,
+    pub h: u32,
+    pub w: u32,
+    pub d: u32,
 }
+
