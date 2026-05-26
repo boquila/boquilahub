@@ -1,6 +1,7 @@
 /// Here we run supported models and check that they always work
 /// eg. no index out of bounds, no wrong pre or post-processing.
 use anyhow::Result;
+use boquilahub::api::audio::AudioData;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
@@ -8,8 +9,9 @@ use boquilahub::api::bq::*;
 async fn test_models() -> Result<()> {
     let listmodels = BQModel::get_list_from_api().await?;
     let img = image::open("tests/assets/img.jpg")?.to_rgb8();
+    let audio = AudioData::from_file("tests/assets/bird.mp3")?;
     let n = listmodels.len();
-    
+
     for model in listmodels {
         let filename = format!("{}.bq", model.name);
         println!("Testing inference with model: {}...", model.name);
@@ -22,9 +24,12 @@ async fn test_models() -> Result<()> {
             std::fs::write(&path, bytes)?;
         }
 
-        // Test inference
+        let metadata = BQModel::from_file_to_metadata(&path)?;
         GlobalBQ::First.set_model(&model_path, Ep::Cpu, None)?;
-        process_imgbuf(&img);
+        match metadata.modality {
+            Modality::Image => { process_imgbuf(&img); }
+            Modality::Audio => { process_audio(&audio); }
+        }
 
         if should_download {
             std::fs::remove_file(&path)?;
