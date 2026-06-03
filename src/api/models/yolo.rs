@@ -341,6 +341,7 @@ impl Yolo {
                 return AIOutputs::Segmentation(segc_vec);
             }
             Task::Embed => unreachable!("Yolo does not support Task::Embed"),
+            Task::PointDetect => unreachable!("Yolo does not support Task::PointDetect"),
         }
     }
 }

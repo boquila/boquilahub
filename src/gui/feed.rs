@@ -783,6 +783,18 @@ fn scale_aioutput(aio: &AIOutputs, sx: f32, sy: f32) -> AIOutputs {
                 .collect();
             AIOutputs::Segmentation(scaled)
         }
+        AIOutputs::PointDetection(points) => {
+            let scaled: Vec<XYc> = points
+                .iter()
+                .map(|p| {
+                    let mut np = p.clone();
+                    np.xy.x *= sx;
+                    np.xy.y *= sy;
+                    np
+                })
+                .collect();
+            AIOutputs::PointDetection(scaled)
+        }
         AIOutputs::Classification(_)
         | AIOutputs::AudioClassification(_)
         | AIOutputs::Embed(_) => aio.clone(),
@@ -996,6 +1008,26 @@ fn feed_tooltip_ui(
                 ui.label(
                     egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
                 );
+            }
+        }
+        AIOutputs::PointDetection(ps) => {
+            if ps.is_empty() {
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
+                return;
+            }
+            ui.separator();
+            let n = ps.len();
+            let noun = if n == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
+            let mut sorted: Vec<&XYc> = ps.iter().collect();
+            sorted.sort_by(|a, b| {
+                b.xy.prob.partial_cmp(&a.xy.prob).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            for p in sorted.iter().take(6) {
+                tooltip_row(ui, p.xy.class_id, &p.label, p.xy.prob);
+            }
+            if n > 6 {
+                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
             }
         }
         AIOutputs::AudioClassification(_) => {}

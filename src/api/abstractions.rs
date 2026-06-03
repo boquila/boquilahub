@@ -528,6 +528,12 @@ impl AIOutputs {
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .map(|s| (s.bbox.xyxy.class_id, s.bbox.label.as_str(), s.bbox.xyxy.prob)),
+            AIOutputs::PointDetection(points) => points
+                .iter()
+                .max_by(|a, b| {
+                    a.xy.prob.partial_cmp(&b.xy.prob).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|p| (p.xy.class_id, p.label.as_str(), p.xy.prob)),
             AIOutputs::AudioClassification(_) => None,
             AIOutputs::Embed(_) => None,
         }

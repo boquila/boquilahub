@@ -284,6 +284,9 @@ impl Gui {
         ) || matches!(
             self.selected_files[i].aioutput.as_ref(),
             Some(AIOutputs::Segmentation(s)) if !s.is_empty()
+        ) || matches!(
+            self.selected_files[i].aioutput.as_ref(),
+            Some(AIOutputs::PointDetection(p)) if !p.is_empty()
         );
 
         let avail = ui.available_size_before_wrap();
@@ -600,6 +603,18 @@ impl HoverEcho {
             is_segment,
         }
     }
+
+    fn from_point(p: &XYc) -> Self {
+        Self {
+            class_id: p.xy.class_id,
+            label: p.label.clone(),
+            prob: p.xy.prob,
+            refined: None,
+            width_px: 0,
+            height_px: 0,
+            is_segment: false,
+        }
+    }
 }
 
 fn draw_echo_strip(
@@ -696,6 +711,9 @@ fn draw_echo_strip(
 
     let tail_text = if e.is_segment {
         format!("  ·  {} × {} px  ·  segment", e.width_px, e.height_px)
+    } else if e.width_px == 0 && e.height_px == 0 {
+        // Point detection — no box dimensions to report.
+        String::new()
     } else {
         format!("  ·  {} × {} px", e.width_px, e.height_px)
     };
@@ -736,6 +754,17 @@ fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
                 translate(Key::segments, lang)
             };
             Some(format!("{} {}", s.len(), noun))
+        }
+        AIOutputs::PointDetection(p) if p.is_empty() => {
+            Some(translate(Key::no_predictions, lang).into())
+        }
+        AIOutputs::PointDetection(p) => {
+            let noun = if p.len() == 1 {
+                translate(Key::detection, lang)
+            } else {
+                translate(Key::detections, lang)
+            };
+            Some(format!("{} {}", p.len(), noun))
         }
         // Classification: the side panel is the source of truth — singling out
         // a "top" class in the header is misleading when probabilities are noisy.
@@ -850,6 +879,24 @@ fn draw_image_overlay(
                 classification_tooltip_ui(ui, probs, lang);
             });
             None
+        }
+        AIOutputs::PointDetection(points) => {
+            let hovered = pick_hovered_point(points, hover_pos, rect.min, scale);
+            for (idx, p) in points.iter().enumerate() {
+                draw_point_with_label(
+                    &painter,
+                    rect,
+                    point_screen_pos(p, rect.min, scale),
+                    p,
+                    Some(idx) == hovered,
+                );
+            }
+            if let Some(idx) = hovered {
+                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                    point_tooltip_ui(ui, &points[idx], lang);
+                });
+            }
+            hovered.map(|idx| HoverEcho::from_point(&points[idx]))
         }
         AIOutputs::AudioClassification(_) => None,
         AIOutputs::Embed(emb) => {
@@ -1073,6 +1120,72 @@ fn label_text(b: &XYXYc) -> String {
         Some(p) => format!("{}\n{}  {:.0}%", base, p.label, p.prob * 100.0),
         None => base,
     }
+}
+
+fn point_screen_pos(p: &XYc, origin: egui::Pos2, scale: egui::Vec2) -> egui::Pos2 {
+    egui::pos2(origin.x + p.xy.x * scale.x, origin.y + p.xy.y * scale.y)
+}
+
+fn pick_hovered_point(
+    points: &[XYc],
+    hover_pos: Option<egui::Pos2>,
+    origin: egui::Pos2,
+    scale: egui::Vec2,
+) -> Option<usize> {
+    let cursor = hover_pos?;
+    const HIT_RADIUS: f32 = 12.0;
+    let mut best: Option<(usize, f32)> = None;
+    for (idx, p) in points.iter().enumerate() {
+        let d2 = point_screen_pos(p, origin, scale).distance_sq(cursor);
+        if d2 <= HIT_RADIUS * HIT_RADIUS && best.map_or(true, |(_, bd)| d2 < bd) {
+            best = Some((idx, d2));
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
+fn draw_point_with_label(
+    painter: &egui::Painter,
+    clip: egui::Rect,
+    center: egui::Pos2,
+    p: &XYc,
+    hovered: bool,
+) {
+    let c = class_color(p.xy.class_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    let radius = if hovered { 7.0 } else { 5.0 };
+    painter.circle_filled(center, radius, color);
+    painter.circle_stroke(center, radius, egui::Stroke::new(1.5, egui::Color32::WHITE));
+
+    let text = format!("{}  {:.0}%", p.label, p.xy.prob * 100.0);
+    let galley = painter.layout_no_wrap(text, egui::FontId::proportional(12.0), egui::Color32::WHITE);
+    let label_w = galley.size().x + 8.0;
+    let label_h = galley.size().y + 4.0;
+    let x = (center.x - label_w / 2.0)
+        .max(clip.min.x)
+        .min((clip.max.x - label_w).max(clip.min.x));
+    let y = if center.y - radius - label_h >= clip.min.y {
+        center.y - radius - label_h
+    } else {
+        center.y + radius
+    };
+    let bg = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(label_w, label_h));
+    painter.rect_filled(bg, 2.0, color);
+    painter.galley(bg.min + egui::vec2(4.0, 2.0), galley, egui::Color32::WHITE);
+}
+
+fn point_tooltip_ui(ui: &mut egui::Ui, p: &XYc, lang: &Lang) {
+    let c = class_color(p.xy.class_id);
+    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(egui::RichText::new(&p.label).strong());
+    });
+    ui.label(format!(
+        "{:.0}{}",
+        p.xy.prob * 100.0,
+        translate(Key::confidence_pct, lang)
+    ));
 }
 
 /// Upload one RGBA texture per segmentation mask. Each pixel is the segment's

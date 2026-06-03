@@ -21,6 +21,7 @@ pub enum Task {
     Segment,
     Detect,
     Embed,
+    PointDetect
 }
 
 impl Task {
@@ -30,6 +31,7 @@ impl Task {
             Task::Segment => "segment",
             Task::Detect => "detect",
             Task::Embed => "embed",
+            Task::PointDetect => "point-detect",
         }
     }
 }
@@ -41,6 +43,7 @@ impl From<&str> for Task {
             "classify" => Task::Classify,
             "segment" => Task::Segment,
             "embed" => Task::Embed,
+            "point-detect" => Task::PointDetect,
             _ => Task::Detect, // Default to Detect if unknown
         }
     }

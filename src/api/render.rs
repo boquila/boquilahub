@@ -1,8 +1,8 @@
-use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, Prob, ProbSugar, SEGc, XYXYc};
+use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, Prob, ProbSugar, SEGc, XYXYc, XYc};
 use crate::localization::translate;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
-use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
+use imageproc::drawing::{draw_filled_circle_mut, draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
 use imageproc::rect::Rect;
 use std::sync::LazyLock;
 
@@ -108,6 +108,7 @@ const BBOX_COLORS: [Rgb<u8>; 88] = [
 const FONT_SCALE: f32 = 32.0;
 const CHAR_WIDTH: f32 = FONT_SCALE / 2.55;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
+const POINT_RADIUS: i32 = 6;
 pub const FONT_BYTES: &[u8] = include_bytes!("../../assets/NotoSansSC-Regular.ttf");
 static FONT: LazyLock<FontRef<'static>> =
     LazyLock::new(|| FontRef::try_from_slice(FONT_BYTES).expect("Failed to load font"));
@@ -123,6 +124,9 @@ pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOu
         }
         AIOutputs::Classification(probs) => {
             draw_cls_from_imgbuf(img, probs);
+        }
+        AIOutputs::PointDetection(points) => {
+            draw_points_from_imgbuf(img, points);
         }
         AIOutputs::AudioClassification(_) => {}
         AIOutputs::Embed(_) => {}
@@ -170,6 +174,36 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &[
             &text,
         );
     }
+}
+
+fn draw_points_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, points: &[XYc]) {
+    let font = &*FONT;
+
+    for point in points {
+        let cx = point.xy.x as i32;
+        let cy = point.xy.y as i32;
+        let color = point_color(point);
+        let text = format!("{} {:.2}", point.label, point.xy.prob);
+
+        draw_filled_circle_mut(img, (cx, cy), POINT_RADIUS, color);
+
+        let rect_height = FONT_SCALE as u32 + 4;
+        let label_y = (cy - POINT_RADIUS - rect_height as i32)
+            .max(0)
+            .min(img.height() as i32 - rect_height as i32);
+        let label_x = cx.clamp(0, (img.width() as i32 - 1).max(0));
+
+        draw_filled_rect_mut(
+            img,
+            Rect::at(label_x, label_y).of_size((text.len() as f32 * CHAR_WIDTH) as u32, rect_height),
+            color,
+        );
+        draw_multiline_text(img, WHITE, label_x, label_y, FONT_SCALE, &font, &text);
+    }
+}
+
+fn point_color(point: &XYc) -> Rgb<u8> {
+    BBOX_COLORS[point.xy.class_id as usize % BBOX_COLORS.len()]
 }
 
 fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: &[SEGc]) {
