@@ -499,8 +499,7 @@ impl Gui {
                 // '+' button, select a escond AI
                 if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
                 {
-                    let task = self.ais[self.ai_selected.unwrap()].task;
-                    if task == Task::Detect || task == Task::Segment {
+                    if self.ais[self.ai_selected.unwrap()].can_add_cls() {
                         if ui
                             .button("+")
                             .on_hover_text(self.t(Key::add_classification_model_to_complement))

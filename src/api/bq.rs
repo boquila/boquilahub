@@ -405,6 +405,10 @@ impl AIMetadata {
     pub fn get_path(&self) -> String {
         format!("models/{}.bq", self.name)
     }
+
+    pub fn can_add_cls(&self) -> bool {
+        self.task == Task::Detect || self.task == Task::Segment
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

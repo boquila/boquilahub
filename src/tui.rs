@@ -91,10 +91,7 @@ impl App {
         self.ai_selected.is_some()
             && !self.cls_active
             && !self.cls_ais.is_empty()
-            && self.ai_selected.map_or(false, |i| {
-                let t = self.ais[i].task;
-                t == Task::Detect || t == Task::Segment
-            })
+            && self.ai_selected.map_or(false, |i| self.ais[i].can_add_cls())
     }
     fn has_side_btn(&self) -> bool {
         match self.cur_row() {
