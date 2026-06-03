@@ -78,7 +78,7 @@ pub struct Cli {
     pub command: Option<Commands>,
 }
 
-pub async fn run_cli(command: Commands) {
+pub async fn run_cli(command: Commands) -> anyhow::Result<()>{
     match command {
         Commands::Serve(args) => {
             let ais: Vec<AIMetadata> = BQModel::get_list();
@@ -117,33 +117,22 @@ pub async fn run_cli(command: Commands) {
                 eprintln!("Error running API: {}", e);
             }
         }
-        Commands::List => {
-            let ais: Vec<AIMetadata> = BQModel::get_list();
-            print_ais_table(&ais);
-            std::process::exit(0);
-        }
+        Commands::List => print_ais_table(&BQModel::get_list()),
         Commands::Pull(args) => match pull(&args.model).await {
             Ok(_) => {}
             Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
         },
-        Commands::Gui => {
-            let _ = crate::gui::run_gui();
-        }
+        Commands::Gui => crate::gui::run_gui(),
         Commands::Tui { lang } => {
             let language = crate::localization::Lang::from_optional_str(lang.as_deref());
-            let _ = crate::tui::run_tui(language);
+            crate::tui::run_tui(language)?;
         }
         Commands::Bq { command } => match command {
-            BqCommands::Shape { name } => match BQModel::from_file_print_shape(&name) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
-            },
-            BqCommands::New { name } => match BQModel::create_bq_file(name) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
-            }
+            BqCommands::Shape { name } => BQModel::from_file_print_shape(&name)?,
+            BqCommands::New { name } => BQModel::create_bq_file(name)?
         },
     }
+    Ok(())
 }
 
 const ASCII_ART: &'static str = r#"

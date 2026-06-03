@@ -15,7 +15,7 @@ async fn main() {
                 return;
             }
 
-            run_cli(cli.command.expect("Could not run CLI")).await;
+            let _ = run_cli(cli.command.expect("Could not run CLI")).await;
         }
         Err(error) => error.exit(),
     }
