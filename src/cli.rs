@@ -92,6 +92,14 @@ pub async fn run_cli(command: Commands) {
             }
 
             if let Some(cls_name) = &args.model_cls {
+                if !model.can_add_cls() {
+                    panic!(
+                        "Model '{}' is a '{}' model, which can't use a complementary classification model. \
+                         Remove --model-cls, or use a detection or segmentation model as the primary one.",
+                        model.name,
+                        model.task.name()
+                    );
+                }
                 let cls = resolve_model(cls_name, &ais);
                 let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::Cuda, None);
             }
