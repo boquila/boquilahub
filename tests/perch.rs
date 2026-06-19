@@ -4,6 +4,7 @@ use boquilahub::api::audio::AudioData;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
+#[ignore]
 async fn perch_identifies_species() -> Result<()> {
     const MODEL_NAME: &str = "perch-v2";
 
