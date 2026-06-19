@@ -31,7 +31,7 @@ pub struct PullArgs {
 
 #[derive(Subcommand)]
 pub enum BqCommands {
-    /// Create a new .bq model. 
+    /// Create a new .bq model.
     /// Pass "name" to use "name.json" and "name.onnx" and create "name.bq"
     New { name: String },
 
@@ -52,7 +52,7 @@ pub enum Commands {
 
     /// Start the GUI, while keeping the terminal
     Gui,
-    
+
     /// Start the TUI
     Tui {
         /// Language override (en, es, fr, de, zh, ja, pt, vi)
