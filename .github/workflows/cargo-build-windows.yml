@@ -19,6 +19,9 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+        run: cargo xtask fetch
+
       - name: Test
         run: cargo test -- --nocapture
 

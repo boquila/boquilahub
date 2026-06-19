@@ -50,6 +50,7 @@ If you want to compile from source just have to
 ```shell
 git clone https://github.com/boquila/boquilahub/
 cd boquilahub
+cargo xtask fetch   # downloads ffmpeg + ONNX Runtime into deps/ (run once)
 cargo build --release
 ```
 

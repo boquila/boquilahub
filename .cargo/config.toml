@@ -1,3 +1,6 @@
+[alias]
+xtask = "run --package xtask --"
+
 [env]
-FFMPEG_DIR = { value = "deps/ffmpeg-8.1.1-full_build-shared", relative = true }
-ORT_LIB_PATH = { value = "deps/onnxruntime-win-x64-gpu-1.26.0/lib", relative = true }
+FFMPEG_DIR = { value = "deps/ffmpeg", relative = true }
+ORT_LIB_PATH = { value = "deps/onnxruntime/lib", relative = true }

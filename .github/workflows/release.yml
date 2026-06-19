@@ -42,9 +42,10 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev \
             libasound2-dev \
-            ffmpeg libavutil-dev libavcodec-dev libavformat-dev \
-            libswscale-dev libavdevice-dev libavfilter-dev libswresample-dev \
             p7zip-full
+
+      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+        run: cargo xtask fetch
 
       - name: Build release
         shell: bash
@@ -103,15 +104,11 @@ jobs:
           cp target/release/${{ matrix.artifact }} full/
           cp -r target/release/assets full/assets
           chmod +x full/${{ matrix.artifact }}
-          cp -a /usr/lib/x86_64-linux-gnu/libavcodec.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libavformat.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libavutil.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libavdevice.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libavfilter.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libswscale.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libswresample.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* full/
+          # ffmpeg + ONNX Runtime libs were copied next to the binary by build.rs.
+          cp -a target/release/libav*.so* full/
+          cp -a target/release/libsw*.so* full/
           cp -a target/release/libonnxruntime*.so* full/
+          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* full/
           cp -r models full/models
           tar czf ${{ matrix.full_name }} -C full .
 
