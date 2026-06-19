@@ -3,6 +3,11 @@ use std::path::PathBuf;
 #[cfg(windows)]
 const FFMPEG_DIR: &str = "deps/ffmpeg-8.1.1-full_build-shared";
 
+#[cfg(windows)]
+const ORT_DIR: &str = "deps/onnxruntime-win-x64-gpu-1.26.0";
+#[cfg(target_os = "linux")]
+const ORT_DIR: &str = "deps/onnxruntime-linux-x64-gpu-1.26.0";
+
 pub fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let target_dir = out_dir.join("../../.."); // target/<profile>/, next to the binary
@@ -16,6 +21,9 @@ pub fn main() {
     #[cfg(target_os = "linux")]
     println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
 
+    #[cfg(any(windows, target_os = "linux"))]
+    ensure_onnxruntime(&target_dir);
+
     copy_geofence(&target_dir)
 }
 
@@ -26,7 +34,6 @@ fn copy_geofence(target_dir: &std::path::Path) {
         target_dir.join("assets/geofence.json"),
     )
     .unwrap();
-    println!("cargo:rerun-if-changed=assets/geofence.json");
 }
 
 fn add_icon(){
@@ -38,7 +45,6 @@ fn add_icon(){
 // Download FFmpeg 8.1.1 into deps/ if it's missing.
 #[cfg(windows)]
 fn ensure_ffmpeg(target_dir: &std::path::Path) {
-    println!("cargo:rerun-if-changed=deps");
     if std::path::Path::new(FFMPEG_DIR).exists() {
         return;
     }
@@ -77,7 +83,61 @@ fn copy_ffmpeg_dlls(target_dir: &std::path::Path) {
     }
 }
 
+// Download ONNX Runtime 1.26.0 (GPU) into deps/ if it's missing, then copy the
+// shared libraries next to the binary. TensorRT provider is skipped; CUDA is kept.
+#[cfg(any(windows, target_os = "linux"))]
+fn ensure_onnxruntime(target_dir: &std::path::Path) {
+    if !std::path::Path::new(ORT_DIR).exists() {
+        println!("cargo:warning=ONNX Runtime not found in deps/, downloading 1.26.0 ...");
+        std::fs::create_dir_all("deps").unwrap();
+        download_onnxruntime();
+        assert!(
+            std::path::Path::new(ORT_DIR).exists(),
+            "ONNX Runtime setup failed: {ORT_DIR} missing after download"
+        );
+    }
+    copy_onnxruntime_libs(target_dir);
+}
+
 #[cfg(windows)]
+fn download_onnxruntime() {
+    // curl.exe + tar.exe are built into Windows 10+, so no extra build-dependencies.
+    run("curl.exe", &["-L", "-o", "deps/onnxruntime.zip",
+        "https://github.com/microsoft/onnxruntime/releases/download/v1.26.0/onnxruntime-win-x64-gpu-1.26.0.zip"]);
+    run("tar.exe", &["-xf", "deps/onnxruntime.zip", "-C", "deps"]);
+    let _ = std::fs::remove_file("deps/onnxruntime.zip");
+}
+
+#[cfg(target_os = "linux")]
+fn download_onnxruntime() {
+    run("curl", &["-L", "-o", "deps/onnxruntime.tgz",
+        "https://github.com/microsoft/onnxruntime/releases/download/v1.26.0/onnxruntime-linux-x64-gpu-1.26.0.tgz"]);
+    run("tar", &["xzf", "deps/onnxruntime.tgz", "-C", "deps"]);
+    let _ = std::fs::remove_file("deps/onnxruntime.tgz");
+}
+
+// Copy the ONNX Runtime shared libs (skipping TensorRT) next to the binary.
+#[cfg(any(windows, target_os = "linux"))]
+fn copy_onnxruntime_libs(target_dir: &std::path::Path) {
+    #[cfg(windows)]
+    let ext = "dll";
+    #[cfg(target_os = "linux")]
+    let ext = "so";
+
+    for entry in std::fs::read_dir(format!("{ORT_DIR}/lib")).expect("read onnxruntime lib/") {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        // On Linux files look like libonnxruntime.so.1.26.0, so match on the name.
+        if name.contains(ext) && !name.contains("tensorrt") {
+            let dest = target_dir.join(&name);
+            if !dest.exists() {
+                std::fs::copy(&path, &dest).unwrap();
+            }
+        }
+    }
+}
+
+#[cfg(any(windows, target_os = "linux"))]
 fn run(cmd: &str, args: &[&str]) {
     let status = std::process::Command::new(cmd)
         .args(args)
