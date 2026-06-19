@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[cfg(windows)]
-const FFMPEG_DIR: &str = "deps/ffmpeg-7.1.1-full_build-shared";
+const FFMPEG_DIR: &str = "deps/ffmpeg-8.1.1-full_build-shared";
 
 pub fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
@@ -35,18 +35,18 @@ fn add_icon(){
         .unwrap();
 }
 
-// Download FFmpeg 7.1.1 into deps/ if it's missing.
+// Download FFmpeg 8.1.1 into deps/ if it's missing.
 #[cfg(windows)]
 fn ensure_ffmpeg(target_dir: &std::path::Path) {
-    println!("cargo:rerun-if-changed={FFMPEG_DIR}");
+    println!("cargo:rerun-if-changed=deps");
     if std::path::Path::new(FFMPEG_DIR).exists() {
         return;
     }
-    println!("cargo:warning=FFmpeg not found in deps/, downloading 7.1.1 ...");
+    println!("cargo:warning=FFmpeg not found in deps/, downloading 8.1.1 ...");
     std::fs::create_dir_all("deps").unwrap();
     // curl.exe + a standalone 7zr.exe, so there are no extra build-dependencies.
     run("curl.exe", &["-L", "-o", "deps/ffmpeg.7z",
-        "https://github.com/GyanD/codexffmpeg/releases/download/7.1.1/ffmpeg-7.1.1-full_build-shared.7z"]);
+        "https://github.com/GyanD/codexffmpeg/releases/download/8.1.1/ffmpeg-8.1.1-full_build-shared.7z"]);
     run(
         "curl.exe",
         &[

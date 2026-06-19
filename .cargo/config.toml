@@ -1,4 +1,2 @@
 [env]
-# Point ffmpeg-sys-next at the FFmpeg build vendored in deps/.
-# `relative = true` resolves the path against this config's directory (repo root).
-FFMPEG_DIR = { value = "deps/ffmpeg-7.1.1-full_build-shared", relative = true }
+FFMPEG_DIR = { value = "deps/ffmpeg-8.1.1-full_build-shared", relative = true }
