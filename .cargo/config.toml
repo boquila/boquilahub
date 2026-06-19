@@ -1,0 +1,7 @@
+[alias]
+xtask = "run --package xtask --"
+
+[env]
+FFMPEG_DIR = { value = "deps/ffmpeg", relative = true }
+ORT_LIB_PATH = { value = "deps/onnxruntime/lib", relative = true }
+ORT_DYLIB_PATH = { value = "deps/onnxruntime/lib/onnxruntime.dll", relative = true }

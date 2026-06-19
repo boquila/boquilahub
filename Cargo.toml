@@ -1,3 +1,7 @@
+[workspace]
+members = ["src/xtask"]
+resolver = "2"
+
 [package]
 name = "boquilahub"
 version = "0.4.0"
@@ -18,7 +22,7 @@ image = { version = "0.25.10", features = ["jpeg", "png"] }
 ndarray = "0.16.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-ort = { version = "=2.0.0-rc.9", features = ["cuda","load-dynamic"] }
+ort = { version = "=2.0.0-rc.9", default-features = false, features = ["ndarray","cuda","load-dynamic"] }
 axum = { version = "0.8.9", default-features = false, features = ["multipart", "http1", "tokio"] }
 tokio = { version = "1.51.1", features = ["rt-multi-thread", "macros", "sync", "net", "fs", "io-util"] }
 reqwest = { version = "0.13.2", features = ["json","blocking", "multipart"] }

@@ -13,26 +13,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
+      - name: Install system deps (ALSA for rodio)
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            ffmpeg \
-            libasound2-dev \
-            libavutil-dev \
-            libavcodec-dev \
-            libavformat-dev \
-            libswscale-dev \
-            libavdevice-dev \
-            libavfilter-dev \
-            libswresample-dev
-            
+          sudo apt-get install -y libasound2-dev
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+
+      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+        run: cargo xtask fetch
 
       - name: Test
         run: cargo test -- --nocapture

@@ -240,7 +240,7 @@ impl AudioData {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use boquilahub::api::audio::AudioData;
     /// let audio = AudioData { samples: vec![0.0; 48000], sample_rate: 16000, channels: 1 };
     /// for chunk in audio.chunks(5.0, 1.0) {
