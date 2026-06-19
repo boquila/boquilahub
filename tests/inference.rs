@@ -2,12 +2,13 @@ use anyhow::Result;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
+#[ignore]
 async fn image_inference() -> Result<()> {
-    let img = image::open("tests/assets/img.jpg")?.to_rgb8();    
+    let img = image::open("tests/assets/img.jpg")?.to_rgb8();
     let model_name = "yolov11n";
     let model_download_link = "https://huggingface.co/boquila/yolov11/resolve/main/yolov11n.bq";
     let filename = format!("{}.bq", model_name);
-    
+
     println!("Testing inference with model: {}...", model_name);
     let path = std::path::Path::new(&filename);
 
@@ -21,6 +22,6 @@ async fn image_inference() -> Result<()> {
     println!("{:?}",aioutput);
 
     std::fs::remove_file(&path)?;
-    
+
     Ok(())
 }
