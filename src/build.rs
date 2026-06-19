@@ -81,7 +81,6 @@ fn copy_ffmpeg_libs(target_dir: &std::path::Path) {
 }
 
 // Download ONNX Runtime 1.26.0 (GPU) into deps/ if it's missing. CUDA is kept;
-// the TensorRT provider is skipped at copy time.
 fn ensure_onnxruntime() {
     if std::path::Path::new(ORT_DIR).exists() {
         return;
