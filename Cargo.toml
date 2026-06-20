@@ -47,6 +47,10 @@ strip = true
 codegen-units = 1
 opt-level = 3
 
+[build-dependencies]
+font-subset = "0.1.0"
+ab_glyph = "0.2.32"
+
 # Winslop
 [target.'cfg(windows)'.build-dependencies]
 embed-resource = "3.0"
