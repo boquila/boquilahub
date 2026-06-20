@@ -1,3 +1,6 @@
+use ab_glyph::{Font as _, FontRef};
+use font_subset::FontReader;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 // Stable, normalized dep dirs produced by `cargo xtask fetch`.
@@ -9,6 +12,8 @@ pub fn main() {
     let target_dir = out_dir.join("../../.."); // target/<profile>/, next to the binary
 
     require_deps();
+
+    subset_font(&out_dir);
 
     #[cfg(windows)]
     {
@@ -36,6 +41,58 @@ fn require_deps() {
              Run `cargo xtask fetch` first to download ffmpeg + ONNX Runtime."
         );
     }
+}
+
+fn subset_font(out_dir: &Path) {
+    const FONT_SRC: &str = "assets/NotoSansSC-Regular.ttf";
+    const LOC_SRC: &str = "src/localization.rs";
+    const HANZI_SRC: &str = "assets/common-hanzi.txt";
+
+    println!("cargo:rerun-if-changed={FONT_SRC}");
+    println!("cargo:rerun-if-changed={LOC_SRC}");
+    println!("cargo:rerun-if-changed={HANZI_SRC}");
+
+    let mut wanted: BTreeSet<char> = BTreeSet::new();
+
+    // The source's chars are a superset of every string the UI can show.
+    wanted.extend(std::fs::read_to_string(LOC_SRC).unwrap().chars());
+
+    // Runtime text (filenames, model labels) isn't in the UI strings.
+    for &(lo, hi) in &[
+        (0x0020u32, 0x007E), // Basic Latin
+        (0x00A0, 0x024F),    // Latin-1 Supplement + Latin Extended-A/-B
+        (0x0300, 0x036F),    // Combining diacritics
+        (0x1E00, 0x1EFF),    // Latin Extended Additional (Vietnamese)
+        (0x2000, 0x206F),    // General punctuation
+        (0x3000, 0x303F),    // CJK symbols & punctuation
+        (0x3040, 0x30FF),    // Hiragana + Katakana
+        (0xFF00, 0xFFEF),    // Halfwidth & fullwidth forms
+    ] {
+        wanted.extend((lo..=hi).filter_map(char::from_u32));
+    }
+
+    match std::fs::read_to_string(HANZI_SRC) {
+        Ok(list) => wanted.extend(list.chars().filter(|c| !c.is_whitespace())),
+        Err(_) => println!(
+            "cargo:warning={HANZI_SRC} missing: font subset covers UI text only — \
+             Chinese filenames/model labels may render as boxes."
+        ),
+    }
+
+    // font-subset returns an error for any char the font lacks, so drop them first.
+    let bytes = std::fs::read(FONT_SRC).unwrap();
+    let face = FontRef::try_from_slice(&bytes).expect("parse source font");
+    wanted.retain(|&c| face.glyph_id(c).0 != 0);
+
+    let subset = FontReader::new(bytes.as_slice())
+        .expect("read source font")
+        .read()
+        .expect("parse source font")
+        .subset(&wanted)
+        .expect("subset font")
+        .to_opentype();
+
+    std::fs::write(out_dir.join("NotoSansSC-subset.ttf"), &subset).unwrap();
 }
 
 fn copy_geofence(target_dir: &Path) {

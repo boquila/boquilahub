@@ -108,7 +108,7 @@ const BBOX_COLORS: [Rgb<u8>; 88] = [
 const FONT_SCALE: f32 = 32.0;
 const CHAR_WIDTH: f32 = FONT_SCALE / 2.55;
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
-pub const FONT_BYTES: &[u8] = include_bytes!("../../assets/NotoSansSC-Regular.ttf");
+pub const FONT_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/NotoSansSC-subset.ttf"));
 static FONT: LazyLock<FontRef<'static>> =
     LazyLock::new(|| FontRef::try_from_slice(FONT_BYTES).expect("Failed to load font"));
 
