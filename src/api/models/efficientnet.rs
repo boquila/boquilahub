@@ -39,8 +39,8 @@ impl EfficientNetV2 {
         config: ModelConfig,
     ) -> Result<Self, Error> {
         let (batch_size, input_width, input_height, channel, input_format) =
-            match &session.inputs[0].input_type {
-                ValueType::Tensor { dimensions, .. } => {
+            match session.inputs()[0].dtype() {
+                ValueType::Tensor { shape: dimensions, .. } => {
                     if dimensions[1] < dimensions[2] {
                         (
                             dimensions[0] as i32,
@@ -64,16 +64,16 @@ impl EfficientNetV2 {
                 }
             };
 
-        let input_name = session.inputs[0].name.clone();
+        let input_name = session.inputs()[0].name().to_string();
 
-        let (output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => (dimensions[0] as u32, dimensions[1] as u32),
+        let (output_width, output_height) = match session.outputs()[0].dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => (dimensions[0] as u32, dimensions[1] as u32),
             _ => {
                 bail!("expected tensor output for EfficientNetV2");
             }
         };
 
-        let output_name: String = session.outputs[0].name.clone();
+        let output_name: String = session.outputs()[0].name().to_string();
 
         if metadata.post_processing.contains(&PostProcessing::GeoFence) {
             init_geofence_data()?;
