@@ -6,7 +6,7 @@ use super::processing::pre::slice_image;
 use anyhow::{bail, ensure, Context, Result};
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
-use ort::{execution_providers::CUDAExecutionProvider, session::Session};
+use ort::{ep::CUDA, session::Session};
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -14,6 +14,10 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
 use anyhow::Error;
+
+pub(crate) fn ort_err<E: std::fmt::Display>(e: E) -> anyhow::Error {
+    anyhow::anyhow!("{e}")
+}
 
 pub struct BQModel;
 
@@ -85,10 +89,10 @@ fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AIMetadata, usize
 
 impl BQModel {
     pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session> {
-        let mut builder = Session::builder()?
-            .with_optimization_level(GraphOptimizationLevel::Level3)?;
+        let mut builder = Session::builder().map_err(ort_err)?;
+        builder = builder.with_optimization_level(GraphOptimizationLevel::Level3).map_err(ort_err)?;
         if ep == Ep::Cuda {
-            builder = builder.with_execution_providers([CUDAExecutionProvider::default().build()])?;
+            builder = builder.with_execution_providers([CUDA::default().build()]).map_err(ort_err)?;
         }
         Ok(builder.commit_from_memory(model_data)?)
     }
@@ -163,10 +167,11 @@ impl BQModel {
             None => bail!("No file extension found"),
         };
 
-        let session = Session::builder()?.commit_from_memory(&model_data)?;
+        let mut builder = Session::builder().map_err(ort_err)?;
+        let session = builder.commit_from_memory(&model_data).map_err(ort_err)?;
 
-        println!("Inputs:\n{:?}", session.inputs);
-        println!("Outputs:\n{:?}", session.outputs);
+        println!("Inputs:\n{:?}", session.inputs());
+        println!("Outputs:\n{:?}", session.outputs());
 
         Ok(())
     }

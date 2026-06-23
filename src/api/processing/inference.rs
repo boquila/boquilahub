@@ -1,9 +1,13 @@
+use crate::api::bq::ort_err;
 use ndarray::{Array, Ix4};
 
 pub fn inference<'a>(
     session: &'a ort::session::Session,
     input: &'a Array<f32, Ix4>,
     input_name: &str,
-) -> anyhow::Result<ort::session::SessionOutputs<'a, 'a>> {
-    return Ok(session.run(ort::inputs![input_name => input.view()]?)?);
+) -> anyhow::Result<ort::session::SessionOutputs<'a>> {
+    // #[allow(mutable_transmutes)]
+    let session: &'a mut ort::session::Session = unsafe { std::mem::transmute(session) };
+    let input = ort::value::TensorRef::from_array_view(input.view()).map_err(ort_err)?;
+    Ok(session.run(ort::inputs![input_name => input]).map_err(ort_err)?)
 }
