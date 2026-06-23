@@ -27,17 +27,17 @@ impl Clip {
         session: Session,
         config: ModelConfig,
     ) -> Result<Self, Error> {
-        let (input_height, input_width) = match &session.inputs[0].input_type {
-            ValueType::Tensor { dimensions, .. } => {
+        let (input_height, input_width) = match &session.inputs()[0].dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => {
                 (dimensions[2] as u32, dimensions[3] as u32)
             }
             _ => bail!("expected tensor input for Clip"),
         };
 
-        let input_name = session.inputs[0].name.clone();
+        let input_name = session.inputs()[0].name().to_string();
 
-        let out_dims: Vec<i64> = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => dimensions.clone(),
+        let out_dims: Vec<i64> = match session.outputs()[0].dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => dimensions.to_vec(),
             _ => bail!("expected tensor output for Clip"),
         };
 
@@ -47,7 +47,7 @@ impl Clip {
             input_width,
             input_height,
             input_name,
-            output_name: session.outputs[0].name.clone(),
+            output_name: session.outputs()[0].name().to_string(),
             grid_h,
             grid_w,
             embed_dim,
@@ -62,7 +62,7 @@ impl Clip {
         let input = imgbuf_to_clip_input(self.input_height, self.input_width, img);
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let tensor = outputs[self.output_name.as_str()]
-            .try_extract_tensor::<f32>()
+            .try_extract_array::<f32>()
             .unwrap()
             .into_owned();
         let raw = tensor.as_slice().expect("non-contiguous embedding tensor");

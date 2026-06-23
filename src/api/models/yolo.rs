@@ -247,8 +247,8 @@ impl Yolo {
         config: ModelConfig,
     ) -> Result<Self, Error> {
         let (_batch_size, _input_depth, input_width, input_height) =
-            match &session.inputs[0].input_type {
-                ValueType::Tensor { dimensions, .. } => (
+            match &session.inputs()[0].dtype() {
+                ValueType::Tensor { shape: dimensions, .. } => (
                     dimensions[0] as u32,
                     dimensions[1] as u32,
                     dimensions[2] as u32,
@@ -259,8 +259,8 @@ impl Yolo {
                 }
             };
 
-        let (_output_n, output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => (
+        let (_output_n, output_width, output_height) = match &session.outputs()[0].dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => (
                 dimensions[0] as u32,
                 dimensions[1] as u32,
                 dimensions[2] as u32,
@@ -277,9 +277,9 @@ impl Yolo {
                 (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
             };
 
-        let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs.get(1) {
-            match &output.output_type {
-                ValueType::Tensor { dimensions, .. } => (
+        let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs().get(1) {
+            match &output.dtype() {
+                ValueType::Tensor { shape: dimensions, .. } => (
                     dimensions[1] as u32,
                     dimensions[2] as u32,
                     dimensions[3] as u32,

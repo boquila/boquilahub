@@ -32,16 +32,16 @@ impl Dinov3 {
         session: Session,
         config: ModelConfig,
     ) -> Result<Self, Error> {
-        let input_name = session.inputs[0].name.clone();
+        let input_name = session.inputs()[0].name().to_string();
 
-        let output = session
-            .outputs
+        let output = &session
+            .outputs()
             .iter()
-            .find(|o| o.name == OUTPUT_NAME)
+            .find(|o| o.name() == OUTPUT_NAME)
             .with_context(|| format!("missing `{OUTPUT_NAME}` output"))?;
 
-        let embed_dim = match &output.output_type {
-            ValueType::Tensor { dimensions, .. } => {
+        let embed_dim = match &output.dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => {
                 let d = *dimensions.last().unwrap_or(&0);
                 if d <= 0 {
                     bail!("dinov3 output last dim must be static, got {d}");
@@ -73,7 +73,7 @@ impl Dinov3 {
         );
         let outputs = inference(&self.session, &input, &self.input_name).unwrap();
         let tensor = outputs[self.output_name.as_str()]
-            .try_extract_tensor::<f32>()
+            .try_extract_array::<f32>()
             .unwrap()
             .into_owned();
         let raw = tensor.as_slice().expect("non-contiguous dinov3 tensor");

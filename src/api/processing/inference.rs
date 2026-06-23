@@ -6,8 +6,10 @@ pub fn inference<'a>(
     input: &'a Array<f32, Ix4>,
     input_name: &str,
 ) -> anyhow::Result<ort::session::SessionOutputs<'a>> {
-    // #[allow(mutable_transmutes)]
+    let start = std::time::Instant::now();
+    #[allow(mutable_transmutes)]
     let session: &'a mut ort::session::Session = unsafe { std::mem::transmute(session) };
+    println!("Elapsed: {:?}", start.elapsed());
     let input = ort::value::TensorRef::from_array_view(input.view()).map_err(ort_err)?;
     Ok(session.run(ort::inputs![input_name => input]).map_err(ort_err)?)
 }

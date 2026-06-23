@@ -32,11 +32,11 @@ impl PerchV2 {
         // Perch has 4 output heads (embedding, spatial_embedding, spectrogram,
         // label). outputs[0] would land on "embedding" — wrong tensor.
         let label_output_name = session
-            .outputs
+            .outputs()
             .iter()
-            .find(|o| o.name == "label")
-            .map(|o| o.name.clone())
-            .unwrap_or_else(|| session.outputs[0].name.clone());
+            .find(|o| o.name() == "label")
+            .map(|o| o.name().to_string())
+            .unwrap_or_else(|| session.outputs()[0].name().to_string());
 
         let sr = audio_config.sample_rate as f64;
         let window_samples = (audio_config.window_size as f64 * sr).round() as usize;
@@ -44,7 +44,7 @@ impl PerchV2 {
 
         Ok(Self {
             classes: metadata.classes,
-            input_name: session.inputs[0].name.clone(),
+            input_name: session.inputs()[0].name().to_string(),
             session,
             config,
             audio_config,
@@ -68,12 +68,14 @@ impl PerchV2 {
                 data.resize(data.len() + (start + self.window_samples - end), 0.0);
             }
             let input = Array2::from_shape_vec((batch.len(), self.window_samples), data).unwrap();
-            let outputs = self
-                .session
-                .run(ort::inputs![&*self.input_name => input.view()].unwrap())
+            #[allow(mutable_transmutes)]
+            let session: &mut Session = unsafe { std::mem::transmute(&self.session) };
+            let input = ort::value::TensorRef::from_array_view(input.view()).unwrap();
+            let outputs = session
+                .run(ort::inputs![&*self.input_name => input])
                 .unwrap();
             let logits = outputs[&*self.label_output_name]
-                .try_extract_tensor::<f32>()
+                .try_extract_array::<f32>()
                 .unwrap()
                 .into_owned();
 

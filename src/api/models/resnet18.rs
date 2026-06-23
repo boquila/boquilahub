@@ -46,8 +46,8 @@ impl ResNet18 {
             bail!("ResNet18 requires audio_config in metadata");
         };
 
-        let (batch_size, channel, input_height, input_width) = match &session.inputs[0].input_type {
-            ValueType::Tensor { dimensions, .. } => (
+        let (batch_size, channel, input_height, input_width) = match session.inputs()[0].dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => (
                 dimensions[0] as i32,
                 dimensions[1] as u32,
                 dimensions[2] as u32,
@@ -58,16 +58,16 @@ impl ResNet18 {
             }
         };
 
-        let input_name = session.inputs[0].name.clone();
+        let input_name = session.inputs()[0].name().to_string();
 
-        let (output_width, output_height) = match &session.outputs[0].output_type {
-            ValueType::Tensor { dimensions, .. } => (dimensions[0] as i32, dimensions[1] as u32),
+        let (output_width, output_height) = match session.outputs()[0].dtype() {
+            ValueType::Tensor { shape: dimensions, .. } => (dimensions[0] as i32, dimensions[1] as u32),
             _ => {
                 bail!("expected tensor output for ResNet18");
             }
         };
 
-        let output_name: String = session.outputs[0].name.clone();
+        let output_name: String = session.outputs()[0].name().to_string();
 
         Ok(ResNet18 {
             classes: metadata.classes,
