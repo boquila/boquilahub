@@ -15,23 +15,12 @@ use super::api::{
 use super::localization::{translate, Key, Lang};
 
 // ── palette ──────────────────────────────────────────────────────────
-const BG_DARK: Color = Color::Rgb(13, 13, 18);
-const BG_SIDEBAR: Color = Color::Rgb(18, 18, 24);
-const BG_SURFACE: Color = Color::Rgb(26, 26, 34);
-const BG_ACTIVE: Color = Color::Rgb(35, 60, 45);
-const BG_STATUS: Color = Color::Rgb(20, 20, 28);
-const BG_POPUP: Color = Color::Rgb(22, 22, 30);
-
-const FG_DIM: Color = Color::Rgb(80, 95, 85);
-const FG_MUTED: Color = Color::Rgb(120, 140, 128);
-const FG_BRIGHT: Color = Color::Rgb(230, 245, 235);
-
 const ACCENT: Color = Color::Rgb(51, 218, 114);
-const ACCENT_DIM: Color = Color::Rgb(30, 120, 65);
-const BORDER: Color = Color::Rgb(38, 50, 42);
 
-fn s(fg: Color, bg: Color) -> Style { Style::default().fg(fg).bg(bg) }
 fn bold(fg: Color) -> Style { Style::default().fg(fg).add_modifier(Modifier::BOLD) }
+fn dim() -> Style { Style::default().add_modifier(Modifier::DIM) }
+fn accent() -> Style { Style::default().fg(ACCENT) }
+fn focus_bar() -> Style { Style::default().fg(ACCENT).add_modifier(Modifier::REVERSED) }
 fn centered(span: Span) -> Paragraph { Paragraph::new(span).alignment(Alignment::Center) }
 fn at(area: Rect, y: u16) -> Rect { Rect { y, height: 1, ..area } }
 
@@ -241,7 +230,6 @@ fn deploy_api(app: &mut App) {
 
 // ── drawing ──────────────────────────────────────────────────────────
 fn draw(frame: &mut Frame, app: &App) {
-    frame.render_widget(Block::default().style(Style::default().bg(BG_DARK)), frame.area());
     let [body, status] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
     let [sidebar, central] = Layout::horizontal([Constraint::Length(28), Constraint::Min(0)]).areas(body);
 
@@ -255,7 +243,7 @@ fn draw(frame: &mut Frame, app: &App) {
 }
 
 fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
-    let block = Block::default().borders(Borders::RIGHT).border_style(Style::default().fg(BORDER)).style(Style::default().bg(BG_SIDEBAR));
+    let block = Block::default().borders(Borders::RIGHT).border_style(dim());
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -267,7 +255,7 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
 
     // heading
     frame.render_widget(
-        Paragraph::new(Line::from(vec![Span::styled("◈ ", Style::default().fg(ACCENT)), Span::styled(app.t(Key::setup), bold(FG_BRIGHT))]))
+        Paragraph::new(Line::from(vec![Span::styled("◈ ", accent()), Span::styled(app.t(Key::setup), bold(Color::Reset))]))
             .alignment(Alignment::Center),
         at(head, head.y + 1),
     );
@@ -299,10 +287,9 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
         let label_text = if app.api_deployed { app.t(Key::api_live) } else { app.t(Key::deploy_api) };
         let label = &format!(" {}", label_text);
         let style = match (focused, app.api_deployed) {
-            (true, true)   => s(FG_BRIGHT, Color::Rgb(25, 70, 40)),
-            (_, true)      => s(ACCENT, Color::Rgb(20, 55, 35)),
-            (true, false)  => s(FG_BRIGHT, BG_ACTIVE),
-            (false, false) => s(FG_MUTED, BG_SURFACE),
+            (true, _)      => focus_bar(),
+            (false, true)  => accent(),
+            (false, false) => dim(),
         };
         frame.render_widget(
             Paragraph::new(Span::styled(label, style)).alignment(Alignment::Center),
@@ -313,18 +300,18 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
     // hints
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("↑↓", Style::default().fg(ACCENT_DIM)), Span::styled(format!(" {}  ", app.t(Key::nav_hint)), Style::default().fg(FG_DIM)),
-            Span::styled("⏎", Style::default().fg(ACCENT_DIM)),  Span::styled(format!(" {}", app.t(Key::select_hint)), Style::default().fg(FG_DIM)),
+            Span::styled("↑↓", accent()), Span::styled(format!(" {}  ", app.t(Key::nav_hint)), dim()),
+            Span::styled("⏎", accent()),  Span::styled(format!(" {}", app.t(Key::select_hint)), dim()),
         ])).alignment(Alignment::Center),
         at(hints, hints.y + 1),
     );
 }
 
 fn draw_side_btn(frame: &mut Frame, row_area: Rect, symbol: &str, focused: bool) {
-    let (fg, bg) = if focused { (ACCENT, BG_ACTIVE) } else { (FG_DIM, BG_SURFACE) };
+    let style = if focused { focus_bar() } else { dim() };
     let bx = row_area.x + row_area.width.saturating_sub(3);
     frame.render_widget(
-        Paragraph::new(Span::styled(format!("[{symbol}]"), s(fg, bg))),
+        Paragraph::new(Span::styled(format!("[{symbol}]"), style)),
         Rect { x: bx, y: row_area.y + 1, width: 3, height: 1 },
     );
 }
@@ -335,11 +322,10 @@ fn draw_combo(frame: &mut Frame, area: Rect, label: &str, options: &[impl AsRef<
     let lbl = Rect { x: area.x + 2, y: area.y, width: area.width.saturating_sub(2), height: 1 };
     let combo = Rect { x: area.x + 2, y: area.y + 1, width: area.width.saturating_sub(4), height: 1 };
 
-    let lc = if focused { ACCENT } else { FG_DIM };
-    frame.render_widget(Paragraph::new(Span::styled(label, Style::default().fg(lc))), lbl);
+    frame.render_widget(Paragraph::new(Span::styled(label, if focused { accent() } else { dim() })), lbl);
 
     let text = selected.map_or("—".into(), |i| options[i].as_ref().to_owned());
-    let (fg, bg, ic) = if focused { (FG_BRIGHT, BG_ACTIVE, ACCENT) } else { (FG_MUTED, BG_SURFACE, FG_DIM) };
+    let style = if focused { focus_bar() } else { dim() };
 
     let w = combo.width as usize;
     let chev = " ▾";
@@ -348,8 +334,8 @@ fn draw_combo(frame: &mut Frame, area: Rect, label: &str, options: &[impl AsRef<
     let pad = max.saturating_sub(trunc.len());
 
     frame.render_widget(Paragraph::new(Line::from(vec![
-        Span::styled(format!(" {trunc}{}", " ".repeat(pad)), s(fg, bg)),
-        Span::styled(chev, s(ic, bg)),
+        Span::styled(format!(" {trunc}{}", " ".repeat(pad)), style),
+        Span::styled(chev, style),
     ])), combo);
 }
 
@@ -357,21 +343,21 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
     let cy = area.y + area.height / 2;
     if app.api_deployed {
         frame.render_widget(centered(Span::styled("●", bold(ACCENT))), at(area, cy.saturating_sub(1)));
-        frame.render_widget(centered(Span::styled(app.t(Key::deployed_api), Style::default().fg(FG_MUTED))), at(area, cy + 1));
+        frame.render_widget(centered(Span::styled(app.t(Key::deployed_api), dim())), at(area, cy + 1));
         if let Some(url) = &app.host_url {
             let focused = app.cur_row() == Row::Deploy;
             if focused {
-                frame.render_widget(centered(Span::styled(url.as_str(), Style::default().fg(FG_BRIGHT))), at(area, cy + 3));
+                frame.render_widget(centered(Span::styled(url.as_str(), bold(Color::Reset))), at(area, cy + 3));
             } else {
-                frame.render_widget(centered(Span::styled(app.t(Key::focus_deploy_to_reveal_ip), Style::default().fg(FG_DIM))), at(area, cy + 3));
+                frame.render_widget(centered(Span::styled(app.t(Key::focus_deploy_to_reveal_ip), dim())), at(area, cy + 3));
             }
         }
     } else {
         if cy >= 2 {
-            frame.render_widget(centered(Span::styled("◇", bold(FG_DIM))), at(area, cy - 2));
+            frame.render_widget(centered(Span::styled("◇", dim())), at(area, cy - 2));
         }
-        frame.render_widget(centered(Span::styled(app.t(Key::no_api_running), Style::default().fg(FG_DIM))), at(area, cy));
-        frame.render_widget(centered(Span::styled(app.t(Key::select_model_and_deploy), Style::default().fg(Color::Rgb(55, 55, 70)))), at(area, cy + 1));
+        frame.render_widget(centered(Span::styled(app.t(Key::no_api_running), dim())), at(area, cy));
+        frame.render_widget(centered(Span::styled(app.t(Key::select_model_and_deploy), dim())), at(area, cy + 1));
     }
 }
 
@@ -379,17 +365,17 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let model = app.ai_selected.map_or(String::new(), |i| format!("  {}  ", app.ai_options[i]));
     let cls = app.cls_selected.map_or(String::new(), |i| format!("+ {}  ", app.cls_ais[i].name));
     let ep = app.ep_selected.map_or(String::new(), |ep| format!("  {}  ", ep.name()));
-    let (api_label, api_fg) = if app.api_deployed { (" ● LIVE ", ACCENT) } else { (" ○ OFF ", FG_DIM) };
+    let (api_label, api_style) = if app.api_deployed { (" ● LIVE ", accent()) } else { (" ○ OFF ", dim()) };
 
     frame.render_widget(Paragraph::new(Line::from(vec![
-        Span::styled(" BoquilaHUB ", s(ACCENT, BG_STATUS).add_modifier(Modifier::BOLD)),
-        Span::styled("│", s(BORDER, BG_STATUS)),
-        Span::styled(api_label, s(api_fg, BG_STATUS)),
-        Span::styled("│", s(BORDER, BG_STATUS)),
-        Span::styled(model, s(FG_MUTED, BG_STATUS)),
-        Span::styled(cls, s(FG_DIM, BG_STATUS)),
-        Span::styled(ep, s(FG_DIM, BG_STATUS)),
-    ])).style(Style::default().bg(BG_STATUS)), area);
+        Span::styled(" BoquilaHUB ", bold(ACCENT)),
+        Span::styled("│", dim()),
+        Span::styled(api_label, api_style),
+        Span::styled("│", dim()),
+        Span::styled(model, Style::default()),
+        Span::styled(cls, dim()),
+        Span::styled(ep, dim()),
+    ])), area);
 }
 
 fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
@@ -419,7 +405,7 @@ fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
     let items: Vec<ListItem> = options.iter().enumerate().skip(scroll).map(|(i, opt)| {
         let cur = i == cursor;
         let sel = selected == Some(i);
-        let base = if cur { bold(FG_BRIGHT).bg(BG_ACTIVE) } else { s(FG_MUTED, BG_POPUP) };
+        let base = if cur { focus_bar() } else { Style::default() };
         ListItem::new(Line::from(vec![
             Span::styled(if sel { "● " } else { "  " }, if sel { base.fg(ACCENT) } else { base }),
             Span::styled(opt.as_str(), base),
@@ -429,11 +415,10 @@ fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
     frame.render_widget(List::new(items).block(
         Block::bordered()
             .title(Line::from(vec![
-                Span::styled(" ", Style::default().fg(ACCENT)),
-                Span::styled(title, bold(FG_BRIGHT)),
-                Span::styled(" ", Style::default().fg(ACCENT)),
+                Span::styled(" ", accent()),
+                Span::styled(title, bold(Color::Reset)),
+                Span::styled(" ", accent()),
             ]))
-            .border_style(Style::default().fg(ACCENT_DIM))
-            .style(Style::default().bg(BG_POPUP)),
+            .border_style(accent()),
     ), popup);
 }
