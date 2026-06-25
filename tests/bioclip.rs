@@ -3,7 +3,6 @@ use boquilahub::api::abstractions::AIOutputs;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
-#[ignore]
 async fn bioclip_produces_image_embedding() -> Result<()> {
     const MODEL_NAME: &str = "bioclip2";
 

@@ -2,7 +2,6 @@ use anyhow::Result;
 use boquilahub::api::bq::*;
 
 #[tokio::test]
-#[ignore]
 async fn image_inference() -> Result<()> {
     let img = image::open("tests/assets/img.jpg")?.to_rgb8();
     let model_name = "yolov11n";
