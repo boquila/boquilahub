@@ -93,10 +93,10 @@ pub async fn run_cli(command: Commands) {
 
             if let Some(cls_name) = &args.model_cls {
                 let cls = resolve_model(cls_name, &ais);
-                let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::Cuda, None);
+                let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::gpu(), None);
             }
 
-            let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::Cuda, None);
+            let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::gpu(), None);
 
             println!("{}", ASCII_ART);
             match &args.model_cls {

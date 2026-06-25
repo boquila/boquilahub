@@ -6,14 +6,17 @@ use super::processing::pre::slice_image;
 use anyhow::{bail, ensure, Context, Result};
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
-use ort::{ep::CUDA, session::Session};
+#[cfg(feature = "cuda")]
+use ort::ep::CUDA;
+#[cfg(feature = "webgpu")]
+use ort::ep::WebGPU;
+use ort::session::Session;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
-use anyhow::Error;
 
 pub(crate) fn ort_err<E: std::fmt::Display>(e: E) -> anyhow::Error {
     anyhow::anyhow!("{e}")
@@ -91,8 +94,12 @@ impl BQModel {
     pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session> {
         let mut builder = Session::builder().map_err(ort_err)?;
         builder = builder.with_optimization_level(GraphOptimizationLevel::Level3).map_err(ort_err)?;
-        if ep == Ep::Cuda {
-            builder = builder.with_execution_providers([CUDA::default().build()]).map_err(ort_err)?;
+        match ep {
+            #[cfg(feature = "cuda")]
+            Ep::Cuda => builder = builder.with_execution_providers([CUDA::default().build()]).map_err(ort_err)?,
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU => builder = builder.with_execution_providers([WebGPU::default().build()]).map_err(ort_err)?,
+            _ => {}
         }
         Ok(builder.commit_from_memory(model_data)?)
     }
@@ -306,30 +313,70 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
 pub enum Ep {
     #[default]
     Cpu,
-    Cuda,
     BoquilaHubRemote,
+    #[cfg(feature = "cuda")]
+    Cuda,
+    #[cfg(feature = "webgpu")]
+    WebGPU,
 }
 
+static LOCAL_NAMES: &[&str] = &[
+    "CPU",
+    #[cfg(feature = "cuda")]
+    "CUDA",
+    #[cfg(feature = "webgpu")]
+    "WebGPU",
+];
+
 impl Ep {
+    pub fn gpu() -> Ep {
+        #[cfg(feature = "cuda")]
+        { return Ep::Cuda; }
+        #[cfg(feature = "webgpu")]
+        { return Ep::WebGPU; }
+    }
+
+    pub fn local() -> &'static [Ep] {
+        &[
+            Ep::Cpu,
+            #[cfg(feature = "cuda")]
+            Ep::Cuda,
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU,
+        ]
+    }
+    
+    pub fn variants() -> &'static [Ep] {
+        &[
+            Ep::Cpu,
+            Ep::BoquilaHubRemote,
+            #[cfg(feature = "cuda")]
+            Ep::Cuda,
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU,
+        ]
+    }
+    
     pub const fn name(&self) -> &'static str {
         match self {
             Ep::Cpu => "CPU",
-            Ep::Cuda => "CUDA",
             Ep::BoquilaHubRemote => "BoquilaHUB Remote",
+            #[cfg(feature = "cuda")]
+            Ep::Cuda => "CUDA",
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU => "WebGPU",
         }
+    }
+    
+    pub fn local_names() -> &'static [&'static str] {
+        LOCAL_NAMES
     }
 
     pub const fn is_local(&self) -> bool {
         !matches!(self, Ep::BoquilaHubRemote)
     }
 
-    pub const fn dependencies(&self) -> &'static str {
-        match self {
-            Ep::Cuda => "cuDNN",
-            _ => "none",
-        }
-    }
-
+    #[cfg(feature = "cuda")]
     pub fn version(&self) -> Result<f32, Error> {
         match self {
             Ep::Cuda => Self::get_cuda_version(),
@@ -337,6 +384,7 @@ impl Ep {
         }
     }
 
+    #[cfg(feature = "cuda")]
     fn get_cuda_version() -> Result<f32, Error> {
         let mut cmd = std::process::Command::new("nvcc");
         cmd.args(["--version"]);

@@ -642,14 +642,8 @@ impl Gui {
         egui::ComboBox::from_id_salt("EP")
             .selected_text(self.ep_selected.name())
             .show_ui(ui, |ui| {
-                for ep in [Ep::Cpu, Ep::Cuda, Ep::BoquilaHubRemote] {
-                    ui.selectable_value(&mut temp_ep_selected, ep, ep.name())
-                        .on_hover_text(format!(
-                            "Version: {:.1}, Local: {}, Dependencies: {}",
-                            ep.version().unwrap_or(0.0),
-                            ep.is_local(),
-                            ep.dependencies()
-                        ));
+                for &ep in Ep::variants() {
+                    ui.selectable_value(&mut temp_ep_selected, ep, ep.name());
                 }
             });
 
@@ -658,6 +652,7 @@ impl Gui {
                 Ep::BoquilaHubRemote => {
                     self.dialog = OpenDialog::ApiServer;
                 }
+                #[cfg(feature = "cuda")]
                 Ep::Cuda => {
                     let cuda_version = match temp_ep_selected.version() {
                         Ok(cuda_v) => cuda_v,

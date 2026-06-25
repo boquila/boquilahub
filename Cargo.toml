@@ -22,7 +22,7 @@ image = { version = "0.25.10", features = ["jpeg", "png"] }
 ndarray = "0.17.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
-ort = { version = "=2.0.0-rc.12", features = ["ndarray","cuda","load-dynamic"] }
+ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std","ndarray","download-binaries","copy-dylibs","tls-rustls"] }
 axum = { version = "0.8.9", default-features = false, features = ["multipart", "http1", "tokio"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "sync", "net", "fs", "io-util"] }
 reqwest = { version = "0.13.4", features = ["json","blocking", "multipart"] }
@@ -40,6 +40,11 @@ ratatui = "0.30.2"
 realfft = "3.5"
 rodio = { version = "0.22.2", default-features = false, features = ["playback"] }
 egui_plot = "0.35.0"
+
+[features]
+default = ["webgpu"]
+webgpu = ["ort/webgpu"]
+cuda = ["ort/cuda"]
 
 [profile.release]
 lto = true
