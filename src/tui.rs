@@ -47,6 +47,7 @@ struct App {
     ai_options: Vec<String>,  ai_selected: Option<usize>,  ai_open: bool,  ai_cursor: usize,
     cls_ais: Vec<AIMetadata>,
     cls_active: bool, cls_selected: Option<usize>, cls_open: bool, cls_cursor: usize,
+    eps: &'static [Ep],
     ep_selected: Option<Ep>,  ep_open: bool,  ep_cursor: usize,
     api_deployed: bool,
     host_url: Option<String>,
@@ -65,7 +66,7 @@ impl App {
             ai_selected: None, ai_open: false, ai_cursor: 0,
             cls_ais,
             cls_active: false, cls_selected: None, cls_open: false, cls_cursor: 0,
-            ep_selected: None, ep_open: false, ep_cursor: 0,
+            eps: Ep::local(), ep_selected: None, ep_open: false, ep_cursor: 0,
             api_deployed: false,
             host_url: None,
             status_msg: None,
@@ -150,11 +151,10 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
     }
     if app.ep_open {
         let prev = app.ep_selected;
-        let ep_options = Ep::local();
-        let mut temp_selected = app.ep_selected.and_then(|ep| ep_options.iter().position(|&e| e == ep));
-        let r = handle_dropdown(code, ep_options.len(), &mut app.ep_cursor, &mut temp_selected, &mut app.ep_open);
+        let mut temp_selected = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
+        let r = handle_dropdown(code, app.eps.len(), &mut app.ep_cursor, &mut temp_selected, &mut app.ep_open);
         if !app.ep_open {
-            app.ep_selected = temp_selected.map(|i| ep_options[i]);
+            app.ep_selected = temp_selected.map(|i| app.eps[i]);
         }
         if !app.ep_open && app.ep_selected != prev && app.ep_selected.is_some() {
             load_ai_model(app);
@@ -183,7 +183,7 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
                     Row::Ep => {
                         app.ep_open = true;
                         app.ep_cursor = app.ep_selected
-                            .map_or(0, |ep| Ep::local().iter().position(|e| *e == ep).unwrap_or(0));
+                            .map_or(0, |ep| app.eps.iter().position(|e| *e == ep).unwrap_or(0));
                     }
                     Row::Deploy => {
                         if !app.api_deployed && app.ai_selected.is_some() && app.ep_selected.is_some() {
@@ -292,9 +292,8 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
         draw_side_btn(frame, cls_area, "-", focused);
     }
 
-    let ep_options = Ep::local_names();
-    let ep_selected_idx = app.ep_selected.and_then(|ep| ep_options.iter().position(|&name| name == ep.name()));
-    draw_combo(frame, ep, app.t(Key::select_ep), ep_options, ep_selected_idx, app.cur_row() == Row::Ep);
+    let ep_selected_idx = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
+    draw_combo(frame, ep, app.t(Key::select_ep), app.eps, ep_selected_idx, app.cur_row() == Row::Ep);
 
     // deploy button — only visible when both AI and processor are chosen
     let can_deploy = app.ai_selected.is_some() && app.ep_selected.is_some();
@@ -398,8 +397,8 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
     let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
-    let ep_options: Vec<String> = Ep::local().iter().map(|ep| ep.name().to_string()).collect();
-    let ep_selected_idx = app.ep_selected.and_then(|ep| Ep::local().iter().position(|&e| e == ep));
+    let ep_options: Vec<String> = app.eps.iter().map(|ep| ep.name().to_string()).collect();
+    let ep_selected_idx = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
     let (options, cursor, selected, title) = match which {
         "ai"  => (&app.ai_options, app.ai_cursor, app.ai_selected, app.t(Key::select_ai)),
         "cls" => (&cls_names, app.cls_cursor, app.cls_selected, app.t(Key::select_2nd_ai)),

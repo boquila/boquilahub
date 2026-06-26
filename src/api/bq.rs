@@ -313,20 +313,12 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
 pub enum Ep {
     #[default]
     Cpu,
-    BoquilaHubRemote,
     #[cfg(feature = "cuda")]
     Cuda,
     #[cfg(feature = "webgpu")]
     WebGPU,
+    BoquilaHubRemote,
 }
-
-static LOCAL_NAMES: &[&str] = &[
-    "CPU",
-    #[cfg(feature = "cuda")]
-    "CUDA",
-    #[cfg(feature = "webgpu")]
-    "WebGPU",
-];
 
 impl Ep {
     pub fn gpu() -> Ep {
@@ -336,42 +328,33 @@ impl Ep {
         { return Ep::WebGPU; }
     }
 
-    pub fn local() -> &'static [Ep] {
+    pub const fn variants() -> &'static [Ep] {
         &[
             Ep::Cpu,
             #[cfg(feature = "cuda")]
             Ep::Cuda,
             #[cfg(feature = "webgpu")]
             Ep::WebGPU,
+            Ep::BoquilaHubRemote,
         ]
     }
-    
-    pub fn variants() -> &'static [Ep] {
-        &[
-            Ep::Cpu,
-            Ep::BoquilaHubRemote,
-            #[cfg(feature = "cuda")]
-            Ep::Cuda,
-            #[cfg(feature = "webgpu")]
-            Ep::WebGPU,
-        ]
+
+    /// Every variant except the remote provider, which `variants()` lists last.
+    pub const fn local() -> &'static [Ep] {
+        Self::variants().split_last().unwrap().1
     }
     
     pub const fn name(&self) -> &'static str {
         match self {
             Ep::Cpu => "CPU",
-            Ep::BoquilaHubRemote => "BoquilaHUB Remote",
             #[cfg(feature = "cuda")]
             Ep::Cuda => "CUDA",
             #[cfg(feature = "webgpu")]
             Ep::WebGPU => "WebGPU",
+            Ep::BoquilaHubRemote => "BoquilaHUB Remote",
         }
     }
     
-    pub fn local_names() -> &'static [&'static str] {
-        LOCAL_NAMES
-    }
-
     pub const fn is_local(&self) -> bool {
         !matches!(self, Ep::BoquilaHubRemote)
     }
@@ -411,6 +394,12 @@ impl Ep {
         Ok(version.unwrap_or(0.0))
     }
 
+}
+
+impl AsRef<str> for Ep {
+    fn as_ref(&self) -> &str {
+        self.name()
+    }
 }
 
 impl AIMetadataRaw {
