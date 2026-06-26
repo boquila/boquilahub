@@ -47,7 +47,7 @@ struct App {
     ai_options: Vec<String>,  ai_selected: Option<usize>,  ai_open: bool,  ai_cursor: usize,
     cls_ais: Vec<AIMetadata>,
     cls_active: bool, cls_selected: Option<usize>, cls_open: bool, cls_cursor: usize,
-    eps: &'static [Ep],
+    eps: Vec<Ep>,
     ep_selected: Option<Ep>,  ep_open: bool,  ep_cursor: usize,
     api_deployed: bool,
     host_url: Option<String>,
@@ -293,7 +293,7 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let ep_selected_idx = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
-    draw_combo(frame, ep, app.t(Key::select_ep), app.eps, ep_selected_idx, app.cur_row() == Row::Ep);
+    draw_combo(frame, ep, app.t(Key::select_ep), &app.eps, ep_selected_idx, app.cur_row() == Row::Ep);
 
     // deploy button — only visible when both AI and processor are chosen
     let can_deploy = app.ai_selected.is_some() && app.ep_selected.is_some();

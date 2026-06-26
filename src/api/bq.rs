@@ -339,9 +339,8 @@ impl Ep {
         ]
     }
 
-    /// Every variant except the remote provider, which `variants()` lists last.
-    pub const fn local() -> &'static [Ep] {
-        Self::variants().split_last().unwrap().1
+    pub fn local() -> Vec<Ep> {
+        Self::variants().iter().copied().filter(|e| e.is_local()).collect()
     }
     
     pub const fn name(&self) -> &'static str {
