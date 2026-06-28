@@ -46,6 +46,7 @@ impl GlobalBQ {
         let config = config.unwrap_or_default();
 
         let (model_metadata, data) = BQModel::import_data(value)?;
+        
         let session = BQModel::session_from_memory(&data, ep)?;
         let aimodel: Model = Model::new(
             model_metadata,
@@ -96,9 +97,9 @@ impl BQModel {
         builder = builder.with_optimization_level(GraphOptimizationLevel::Level3).map_err(ort_err)?;
         match ep {
             #[cfg(feature = "cuda")]
-            Ep::Cuda => builder = builder.with_execution_providers([CUDA::default().build()]).map_err(ort_err)?,
+            Ep::Cuda => builder = builder.with_execution_providers([CUDA::default().build().error_on_failure()]).map_err(ort_err)?,
             #[cfg(feature = "webgpu")]
-            Ep::WebGPU => builder = builder.with_execution_providers([WebGPU::default().build()]).map_err(ort_err)?,
+            Ep::WebGPU => builder = builder.with_execution_providers([WebGPU::default().build().error_on_failure()]).map_err(ort_err)?,
             _ => {}
         }
         Ok(builder.commit_from_memory(model_data)?)
@@ -349,7 +350,7 @@ impl Ep {
             #[cfg(feature = "cuda")]
             Ep::Cuda => "CUDA",
             #[cfg(feature = "webgpu")]
-            Ep::WebGPU => "WebGPU",
+            Ep::WebGPU => "GPU",
             Ep::BoquilaHubRemote => "BoquilaHUB Remote",
         }
     }
@@ -357,42 +358,6 @@ impl Ep {
     pub const fn is_local(&self) -> bool {
         !matches!(self, Ep::BoquilaHubRemote)
     }
-
-    #[cfg(feature = "cuda")]
-    pub fn version(&self) -> Result<f32, Error> {
-        match self {
-            Ep::Cuda => Self::get_cuda_version(),
-            _ => Ok(0.0),
-        }
-    }
-
-    #[cfg(feature = "cuda")]
-    fn get_cuda_version() -> Result<f32, Error> {
-        let mut cmd = std::process::Command::new("nvcc");
-        cmd.args(["--version"]);
-    
-        #[cfg(windows)]
-        {
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            use std::os::windows::process::CommandExt;        
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-    
-        let output = cmd.output()?;
-    
-        let output_text = match std::str::from_utf8(&output.stdout) {
-            Ok(v) => v,
-            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-        };
-    
-        let version = output_text
-            .split_once("release ")
-            .and_then(|(_, rest)| rest.split_once(','))
-            .and_then(|(v, _)| v.parse::<f32>().ok());
-    
-        Ok(version.unwrap_or(0.0))
-    }
-
 }
 
 impl AsRef<str> for Ep {

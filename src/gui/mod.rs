@@ -4,6 +4,7 @@ mod feed;
 mod image_view;
 mod video_file;
 
+use anyhow::Result;
 use super::{api::*, localization::*};
 use abstractions::*;
 use crate::api::audio::AudioData;
@@ -615,24 +616,26 @@ impl Gui {
         }
     }
 
-    fn set_ai(&mut self) {
+    fn set_ai(&mut self, ep: Ep) -> Result <()> {
         if let Some(ai_index) = self.ai_selected {
-            let _ = GlobalBQ::First.set_model(
+            GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
-                self.ep_selected,
+                ep,
                 Some(self.ai_config.clone()),
-            );
+            )?;
         }
+        Ok(())
     }
 
-    fn set_ai_cls(&mut self) {
+    fn set_ai_cls(&mut self, ep: Ep) -> Result <()> {
         if let Some(_ai_cls_index) = self.ai_cls_selected {
-            let _ = GlobalBQ::Second.set_model(
+            GlobalBQ::Second.set_model(
                 &self.current_ai_cls().get_path(),
-                self.ep_selected,
+                ep,
                 Some(self.ai_cls_config.clone()),
-            );
+            )?;
         }
+        Ok(())
     }
 
     fn ep_widget(&mut self, ui: &mut egui::Ui) {
@@ -652,30 +655,17 @@ impl Gui {
                 Ep::BoquilaHubRemote => {
                     self.dialog = OpenDialog::ApiServer;
                 }
-                #[cfg(feature = "cuda")]
-                Ep::Cuda => {
-                    let cuda_version = match temp_ep_selected.version() {
-                        Ok(cuda_v) => cuda_v,
-                        Err(error) => {
-                            eprintln!("Could not find CUDA version with error: {error}");
-                            return;
-                        }
-                    };
-
-                    if cuda_version >= 12.8 {
-                        self.ep_selected = temp_ep_selected;
-
-                        self.set_ai();
-                        self.set_ai_cls();
-                    } else {
-                        self.process_error();
-                    }
-                }
                 _ => {
-                    self.ep_selected = temp_ep_selected;
-
-                    self.set_ai();
-                    self.set_ai_cls();
+                    match self.set_ai(temp_ep_selected) {
+                        Ok(_result) => {
+                            
+                            let _ = self.set_ai_cls(temp_ep_selected);
+                            self.ep_selected = temp_ep_selected;
+                        }
+                        Err(_e) => {
+                            self.process_error();
+                        }
+                    }
                 }
             }
         }
