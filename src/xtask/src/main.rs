@@ -5,6 +5,10 @@
 // This runs as its own cargo invocation, so the deps are on disk *before*
 // `cargo build` compiles ffmpeg-sys-next (which links ffmpeg at build time).
 
+// On macOS only ffmpeg is fetched (ORT comes from the `ort` crate), so the
+// download/extract helpers below go unused there.
+#![cfg_attr(target_os = "macos", allow(dead_code))]
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -79,8 +83,39 @@ fn ensure_ffmpeg(deps: &Path) {
     assert!(dest.exists(), "ffmpeg setup failed: {} missing", dest.display());
 }
 
-// ---- ONNX Runtime --------------------------------------------------------
+#[cfg(target_os = "macos")]
+fn ensure_ffmpeg(deps: &Path) {
+    let dest = deps.join(FFMPEG_DIR);
+    if dest.exists() {
+        return;
+    }
 
+    println!("xtask: linking Homebrew ffmpeg into deps/ffmpeg ...");
+    let out = Command::new("brew")
+        .args(["--prefix", "ffmpeg"])
+        .output()
+        .expect("failed to run `brew`; install Homebrew, then `brew install ffmpeg`");
+    assert!(
+        out.status.success(),
+        "`brew --prefix ffmpeg` failed; run `brew install ffmpeg` first"
+    );
+    let prefix = String::from_utf8(out.stdout).expect("brew output not UTF-8");
+    let prefix = Path::new(prefix.trim());
+    assert!(
+        prefix.join("include").exists() && prefix.join("lib").exists(),
+        "Homebrew ffmpeg at {} lacks include/ or lib/; try `brew reinstall ffmpeg`",
+        prefix.display()
+    );
+    std::os::unix::fs::symlink(prefix, &dest)
+        .unwrap_or_else(|e| panic!("symlink {} -> {}: {e}", prefix.display(), dest.display()));
+    assert!(dest.exists(), "ffmpeg setup failed: {} missing", dest.display());
+}
+
+// ---- ONNX Runtime --------------------------------------------------------
+#[cfg(target_os = "macos")]
+fn ensure_onnxruntime(_deps: &Path) {}
+
+#[cfg(not(target_os = "macos"))]
 fn ensure_onnxruntime(deps: &Path) {
     let dest = deps.join(ORT_DIR);
     if dest.exists() {

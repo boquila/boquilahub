@@ -94,7 +94,19 @@ pub fn get_ipv4_address() -> Option<String> {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        let route = Command::new("route").args(["-n", "get", "1.1.1.1"]).output().ok()?.stdout;
+        let route = String::from_utf8_lossy(&route);
+        let iface = route.lines().find_map(|l| l.trim().strip_prefix("interface: "))?;
+        let ip = Command::new("ipconfig").args(["getifaddr", iface]).output().ok()?.stdout;
+        let ip = String::from_utf8_lossy(&ip).trim().to_string();
+        if !ip.is_empty() {
+            return Some(ip);
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         let output = Command::new("ip")
             .args(["route", "get", "1.1.1.1"])

@@ -11,18 +11,29 @@ jobs:
       fail-fast: false
       matrix:
         variant: [webgpu, cuda]
-        os: [windows-latest, ubuntu-22.04]
+        os: [windows-latest, ubuntu-22.04, macos-14]
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: boquilahub.exe
             platform: windows
             ext: 7z
+            arch: x86_64
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: boquilahub
             platform: linux
             ext: tar.gz
+            arch: x86_64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: boquilahub
+            platform: macos
+            ext: tar.gz
+            arch: arm64
+        exclude:
+          - os: macos-14
+            variant: cuda
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -46,18 +57,28 @@ jobs:
             libasound2-dev \
             p7zip-full
 
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg dylibbundler
+
       - name: Fetch ffmpeg
         run: cargo xtask fetch
 
       - name: Set package name
         shell: bash
-        run: echo "PKG=boquilahub-${{ matrix.platform }}-x86_64-${{ matrix.variant }}.${{ matrix.ext }}" >> "$GITHUB_ENV"
+        run: echo "PKG=boquilahub-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.variant }}.${{ matrix.ext }}" >> "$GITHUB_ENV"
 
       - name: Build release
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
             export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
+          fi
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # ffmpeg-sys-next emits a GNU-only linker flag on the FFMPEG_DIR path
+            # that Apple's ld rejects; route linking through a shim that drops it.
+            chmod +x .github/macos-cc-shim.sh
+            export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="$PWD/.github/macos-cc-shim.sh"
           fi
           if [ "${{ matrix.variant }}" = "cuda" ]; then
             cargo build --release --no-default-features --features cuda
@@ -93,6 +114,27 @@ jobs:
           cp -a target/release/*.so* pkg/
           cp -a /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
           cp -r models pkg/models
+          tar czf "$PKG" -C pkg .
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Bundle ffmpeg + its Homebrew dependency tree next to the binary and
+          # rewrite their load paths to @executable_path so the archive runs on a
+          # clean Mac. Run in target/release, where ort already placed the ONNX
+          # Runtime dylib beside the binary, so dylibbundler can resolve it too.
+          dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
+            -d target/release -p @executable_path/ -s target/release
+          mkdir pkg
+          cp target/release/${{ matrix.artifact }} pkg/
+          cp target/release/*.dylib pkg/
+          cp -R target/release/assets pkg/assets
+          cp -r models pkg/models
+          # dylibbundler's load-path rewrites invalidate code signatures; Apple
+          # Silicon refuses to load unsigned/broken Mach-O, so re-sign ad-hoc.
+          find pkg -name '*.dylib' -exec codesign --force --sign - {} +
+          codesign --force --sign - pkg/${{ matrix.artifact }}
+          chmod +x pkg/${{ matrix.artifact }}
           tar czf "$PKG" -C pkg .
 
       - name: Upload artifact
