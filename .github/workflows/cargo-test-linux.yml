@@ -8,6 +8,8 @@ on:
 jobs:
   build-and-run:
     runs-on: ubuntu-latest
+    env:
+      LD_LIBRARY_PATH: ${{ github.workspace }}/deps/ffmpeg/lib:${{ github.workspace }}/target/debug
 
     steps:
       - name: Checkout code
