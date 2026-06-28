@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 // Stable, normalized dep dirs produced by `cargo xtask fetch`.
 const FFMPEG_DIR: &str = "deps/ffmpeg";
+#[cfg(feature = "cuda")]
 const ORT_DIR: &str = "deps/onnxruntime";
 
 pub fn main() {
@@ -27,6 +28,7 @@ pub fn main() {
         copy_ffmpeg_libs(&target_dir);
     }
 
+    #[cfg(feature = "cuda")]
     copy_onnxruntime_libs(&target_dir);
 
     copy_geofence(&target_dir)
@@ -34,13 +36,18 @@ pub fn main() {
 
 // The native deps must exist before this crate (and ffmpeg-sys-next) builds.
 fn require_deps() {
-    for dir in [FFMPEG_DIR, ORT_DIR] {
-        assert!(
-            Path::new(dir).exists(),
-            "missing native deps: `{dir}` not found.\n\
-             Run `cargo xtask fetch` first to download ffmpeg + ONNX Runtime."
-        );
-    }
+    assert!(
+        Path::new(FFMPEG_DIR).exists(),
+        "missing native deps: `{FFMPEG_DIR}` not found.\n\
+         Run `cargo xtask fetch` first to download ffmpeg."
+    );
+
+    #[cfg(feature = "cuda")]
+    assert!(
+        Path::new(ORT_DIR).exists(),
+        "missing native deps: `{ORT_DIR}` not found.\n\
+         Run `cargo xtask fetch` first to download ONNX Runtime."
+    );
 }
 
 fn subset_font(out_dir: &Path) {
@@ -129,7 +136,7 @@ fn copy_ffmpeg_libs(target_dir: &Path) {
     }
 }
 
-// Copy the ONNX Runtime shared libraries (skipping TensorRT) next to the binary.
+#[cfg(feature = "cuda")]
 fn copy_onnxruntime_libs(target_dir: &Path) {
     #[cfg(windows)]
     let ext = "dll";

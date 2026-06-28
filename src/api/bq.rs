@@ -6,14 +6,17 @@ use super::processing::pre::slice_image;
 use anyhow::{bail, ensure, Context, Result};
 use image::{ImageBuffer, Rgb};
 use ort::session::builder::GraphOptimizationLevel;
-use ort::{ep::CUDA, session::Session};
+#[cfg(feature = "cuda")]
+use ort::ep::CUDA;
+#[cfg(feature = "webgpu")]
+use ort::ep::WebGPU;
+use ort::session::Session;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::sync::{OnceLock, RwLock};
-use anyhow::Error;
 
 pub(crate) fn ort_err<E: std::fmt::Display>(e: E) -> anyhow::Error {
     anyhow::anyhow!("{e}")
@@ -43,6 +46,7 @@ impl GlobalBQ {
         let config = config.unwrap_or_default();
 
         let (model_metadata, data) = BQModel::import_data(value)?;
+        
         let session = BQModel::session_from_memory(&data, ep)?;
         let aimodel: Model = Model::new(
             model_metadata,
@@ -91,8 +95,12 @@ impl BQModel {
     pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session> {
         let mut builder = Session::builder().map_err(ort_err)?;
         builder = builder.with_optimization_level(GraphOptimizationLevel::Level3).map_err(ort_err)?;
-        if ep == Ep::Cuda {
-            builder = builder.with_execution_providers([CUDA::default().build()]).map_err(ort_err)?;
+        match ep {
+            #[cfg(feature = "cuda")]
+            Ep::Cuda => builder = builder.with_execution_providers([CUDA::default().build().error_on_failure()]).map_err(ort_err)?,
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU => builder = builder.with_execution_providers([WebGPU::default().build().error_on_failure()]).map_err(ort_err)?,
+            _ => {}
         }
         Ok(builder.commit_from_memory(model_data)?)
     }
@@ -306,63 +314,56 @@ fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>
 pub enum Ep {
     #[default]
     Cpu,
+    #[cfg(feature = "cuda")]
     Cuda,
+    #[cfg(feature = "webgpu")]
+    WebGPU,
     BoquilaHubRemote,
 }
 
 impl Ep {
+    pub fn gpu() -> Ep {
+        #[cfg(feature = "cuda")]
+        { return Ep::Cuda; }
+        #[cfg(feature = "webgpu")]
+        { return Ep::WebGPU; }
+    }
+
+    pub const fn variants() -> &'static [Ep] {
+        &[
+            Ep::Cpu,
+            #[cfg(feature = "cuda")]
+            Ep::Cuda,
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU,
+            Ep::BoquilaHubRemote,
+        ]
+    }
+
+    pub fn locals() -> Vec<Ep> {
+        Self::variants().iter().copied().filter(|e| e.is_local()).collect()
+    }
+    
     pub const fn name(&self) -> &'static str {
         match self {
             Ep::Cpu => "CPU",
+            #[cfg(feature = "cuda")]
             Ep::Cuda => "CUDA",
+            #[cfg(feature = "webgpu")]
+            Ep::WebGPU => "GPU",
             Ep::BoquilaHubRemote => "BoquilaHUB Remote",
         }
     }
-
+    
     pub const fn is_local(&self) -> bool {
         !matches!(self, Ep::BoquilaHubRemote)
     }
+}
 
-    pub const fn dependencies(&self) -> &'static str {
-        match self {
-            Ep::Cuda => "cuDNN",
-            _ => "none",
-        }
+impl AsRef<str> for Ep {
+    fn as_ref(&self) -> &str {
+        self.name()
     }
-
-    pub fn version(&self) -> Result<f32, Error> {
-        match self {
-            Ep::Cuda => Self::get_cuda_version(),
-            _ => Ok(0.0),
-        }
-    }
-
-    fn get_cuda_version() -> Result<f32, Error> {
-        let mut cmd = std::process::Command::new("nvcc");
-        cmd.args(["--version"]);
-    
-        #[cfg(windows)]
-        {
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            use std::os::windows::process::CommandExt;        
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-    
-        let output = cmd.output()?;
-    
-        let output_text = match std::str::from_utf8(&output.stdout) {
-            Ok(v) => v,
-            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-        };
-    
-        let version = output_text
-            .split_once("release ")
-            .and_then(|(_, rest)| rest.split_once(','))
-            .and_then(|(v, _)| v.parse::<f32>().ok());
-    
-        Ok(version.unwrap_or(0.0))
-    }
-
 }
 
 impl AIMetadataRaw {

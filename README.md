@@ -35,11 +35,12 @@ You can load any [.bq model](https://github.com/boquila/.bq). You can find them 
 
 ## List of Runtimes
 
-| Runtime           | Description                                                                        | Requirements  | Available?   |
-|-------------------|------------------------------------------------------------------------------------|--------------|--------------|
-| CPU              | Your average CPU                                                                   | Having a CPU | ✅           |
-| NVIDIA CUDA      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | CUDA v12.8 + cuDNN 9.7 | ✅ |
-| Remote BoquilaHUB | A BoquilaHUB session in your network with a deployed REST API                     | Having the URL | ✅      |
+| Runtime           | Description                                                                        | Requirements  |
+|-------------------|------------------------------------------------------------------------------------|--------------|
+| CPU              | Your average CPU                                                                   | Having a CPU |
+| NVIDIA CUDA      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | CUDA v12.8 + cuDNN 9.7 |
+| WebGPU | GPU acceleration via the WebGPU API, runs on most devices that support graphics | Having a modern GPU | 
+| Remote BoquilaHUB | A BoquilaHUB session in your network with a deployed REST API                     | Having the URL | 
 
 And soon more
 

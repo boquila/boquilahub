@@ -10,17 +10,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        variant: [webgpu, cuda]
+        os: [windows-latest, ubuntu-22.04]
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: boquilahub.exe
-            minimal_name: boquilahub-windows-x86_64-minimal.7z
-            full_name: boquilahub-windows-x86_64-full.7z
+            platform: windows
+            ext: 7z
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact: boquilahub
-            minimal_name: boquilahub-linux-x86_64-minimal.tar.gz
-            full_name: boquilahub-linux-x86_64-full.tar.gz
+            platform: linux
+            ext: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -44,8 +46,12 @@ jobs:
             libasound2-dev \
             p7zip-full
 
-      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+      - name: Fetch ffmpeg
         run: cargo xtask fetch
+
+      - name: Set package name
+        shell: bash
+        run: echo "PKG=boquilahub-${{ matrix.platform }}-x86_64-${{ matrix.variant }}.${{ matrix.ext }}" >> "$GITHUB_ENV"
 
       - name: Build release
         shell: bash
@@ -53,81 +59,50 @@ jobs:
           if [ "${{ runner.os }}" = "Linux" ]; then
             export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
           fi
-          cargo build --release
+          if [ "${{ matrix.variant }}" = "cuda" ]; then
+            cargo build --release --no-default-features --features cuda
+          else
+            cargo build --release
+          fi
 
-      - name: Smoke test - pull models (Linux)
-        if: runner.os == 'Linux'
+      - name: Smoke test - pull models
+        shell: bash
         run: |
           ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
           ./target/release/${{ matrix.artifact }} pull boquilanet-gen
 
-      - name: Smoke test - pull models (Windows)
+      - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
-          ./target/release/${{ matrix.artifact }} pull boquilanet-gen
+          mkdir pkg
+          cp target/release/${{ matrix.artifact }} pkg/
+          cp -Recurse target/release/assets pkg/assets
+          cp target/release/*.dll pkg/
+          cp -Recurse models pkg/models
+          7z a $env:PKG ./pkg/*
 
-      - name: Package minimal (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          mkdir minimal
-          cp target/release/${{ matrix.artifact }} minimal/
-          cp -Recurse target/release/assets minimal/assets
-          7z a ${{ matrix.minimal_name }} ./minimal/*
-
-      - name: Package full (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          mkdir full
-          cp target/release/${{ matrix.artifact }} full/
-          cp -Recurse target/release/assets full/assets
-          cp target/release/*.dll full/
-          cp -Recurse models full/models
-          7z a ${{ matrix.full_name }} ./full/*
-
-      - name: Package minimal (Linux)
+      - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
-          mkdir minimal
-          cp target/release/${{ matrix.artifact }} minimal/
-          cp -r target/release/assets minimal/assets
-          chmod +x minimal/${{ matrix.artifact }}
-          tar czf ${{ matrix.minimal_name }} -C minimal .
+          mkdir pkg
+          cp target/release/${{ matrix.artifact }} pkg/
+          cp -r target/release/assets pkg/assets
+          chmod +x pkg/${{ matrix.artifact }}
+          # ffmpeg + ONNX Runtime / WebGPU libs were placed next to the binary at build time.
+          cp -a target/release/*.so* pkg/
+          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
+          cp -r models pkg/models
+          tar czf "$PKG" -C pkg .
 
-      - name: Package full (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          mkdir full
-          cp target/release/${{ matrix.artifact }} full/
-          cp -r target/release/assets full/assets
-          chmod +x full/${{ matrix.artifact }}
-          # ffmpeg + ONNX Runtime libs were copied next to the binary by build.rs.
-          cp -a target/release/libav*.so* full/
-          cp -a target/release/libsw*.so* full/
-          cp -a target/release/libonnxruntime*.so* full/
-          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* full/
-          cp -r models full/models
-          tar czf ${{ matrix.full_name }} -C full .
-
-      - name: Upload minimal artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.minimal_name }}
-          path: ${{ matrix.minimal_name }}
-
-      - name: Upload full artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.full_name }}
-          path: ${{ matrix.full_name }}
+          name: ${{ env.PKG }}
+          path: ${{ env.PKG }}
 
       - name: Attach to GitHub Release
         if: github.event_name == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.minimal_name }}" --clobber
-          gh release upload "${{ github.event.release.tag_name }}" "${{ matrix.full_name }}" --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ env.PKG }}" --clobber

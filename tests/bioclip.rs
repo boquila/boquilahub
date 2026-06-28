@@ -25,9 +25,7 @@ async fn bioclip_produces_image_embedding() -> Result<()> {
         std::fs::write(&path, bytes)?;
     }
 
-    // CUDA EP: the full bioclip vision tower won't fit in RAM on CI; CPU
-    // execution OOMs. Requires CUDA + cuDNN locally.
-    GlobalBQ::First.set_model(&model_path, Ep::Cuda, None)?;
+    GlobalBQ::First.set_model(&model_path, Ep::gpu(), None)?;
 
     let result = (|| -> Result<()> {
         let img = image::open("tests/assets/img.jpg")?.to_rgb8();
