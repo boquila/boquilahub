@@ -18,8 +18,6 @@ Download the latest binaries from [releases](https://github.com/boquila/boquilah
 
 We offer two versions, one with both dependencies (ffmpeg and onnxruntime) and one without, in case you have them in your computer already.
 
-> **macOS:** the binaries are unsigned. On first launch, right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine <unzipped-folder>` to get past Gatekeeper.
-
 ## AIs
 
 You can load any [.bq model](https://github.com/boquila/.bq). You can find them on our [website](https://boquila.org/hub).
@@ -30,9 +28,9 @@ You can load any [.bq model](https://github.com/boquila/.bq). You can find them 
 | --------------------------------- |------------ |
 | Windows          | ✅ |
 | Linux          | ✅ |
+| MacOS          | ✅ |
 | Android          | On the way |
 | Web        | On the way |
-| MacOS          | ✅ |
 | iOS          | Not soon |
 
 ## List of Runtimes

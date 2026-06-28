@@ -70,7 +70,7 @@ pub enum Commands {
 #[derive(Parser)]
 #[command(
     name = "BoquilaHUB",
-    version = "0.4",
+    version = "0.6",
     about = "BoquilaHUB - AIs for Nature"
 )]
 pub struct Cli {
