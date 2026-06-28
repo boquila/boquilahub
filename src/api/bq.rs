@@ -340,7 +340,7 @@ impl Ep {
         ]
     }
 
-    pub fn local() -> Vec<Ep> {
+    pub fn locals() -> Vec<Ep> {
         Self::variants().iter().copied().filter(|e| e.is_local()).collect()
     }
     

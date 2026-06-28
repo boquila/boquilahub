@@ -66,7 +66,7 @@ impl App {
             ai_selected: None, ai_open: false, ai_cursor: 0,
             cls_ais,
             cls_active: false, cls_selected: None, cls_open: false, cls_cursor: 0,
-            eps: Ep::local(), ep_selected: None, ep_open: false, ep_cursor: 0,
+            eps: Ep::locals(), ep_selected: None, ep_open: false, ep_cursor: 0,
             api_deployed: false,
             host_url: None,
             status_msg: None,

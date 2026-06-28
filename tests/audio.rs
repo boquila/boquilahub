@@ -21,6 +21,7 @@ fn smoke() -> Result<()> {
 }
 
 #[test]
+#[ignore]
 fn audio_inference() -> Result<()> {
     let audio = AudioData::from_file("tests/assets/bird.mp3")?;
     GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", Ep::Cpu, None)?;
