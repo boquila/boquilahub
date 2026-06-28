@@ -34,6 +34,11 @@ jobs:
       - name: Build binary
         run: cargo build
 
+      - name: Bundle native libs next to the binary
+        run: |
+          cp -a deps/ffmpeg/lib/*.so* target/debug/
+          cp -a "$HOME"/.cache/ort.pyke.io/dfbin/*/*/*.so* target/debug/
+
       - name: Pull a model
         run: ./target/debug/boquilahub pull yolov11n
 
