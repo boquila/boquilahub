@@ -1,0 +1,53 @@
+name: Build and Test Run on macOS
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: macos-14
+    env:
+      # ffmpeg-sys-next emits a GNU-only linker flag on the FFMPEG_DIR path that
+      # Apple's ld rejects; route linking through a shim that drops it.
+      CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: ${{ github.workspace }}/.github/macos-cc-shim.sh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Make linker shim executable
+        run: chmod +x .github/macos-cc-shim.sh
+
+      - name: Fetch native deps (ffmpeg)
+        run: cargo xtask fetch
+
+      - name: Test
+        run: cargo test -- --nocapture
+
+      - name: Build binary
+        run: cargo build
+
+      - name: Pull a model
+        run: ./target/debug/boquilahub pull yolov11n
+
+      - name: Run GUI for 20 seconds
+        run: |
+          ./target/debug/boquilahub gui &
+          PID=$!
+          sleep 20
+          if ! kill -0 $PID 2>/dev/null; then
+            wait $PID
+            exit $?
+          fi
+          kill $PID

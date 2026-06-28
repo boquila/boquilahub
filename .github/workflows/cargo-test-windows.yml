@@ -1,0 +1,43 @@
+name: Build and Test Run on Windows
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+        run: cargo xtask fetch
+
+      - name: Test
+        run: cargo test -- --nocapture
+
+      - name: Build binary
+        run: cargo build
+
+      - name: Pull a model
+        shell: pwsh
+        run: ./target/debug/boquilahub.exe pull yolov11n
+
+      - name: Run GUI for 20 seconds
+        shell: pwsh
+        run: |
+          $proc = Start-Process -NoNewWindow -FilePath ./target/debug/boquilahub.exe -ArgumentList "gui" -PassThru
+          Start-Sleep -Seconds 20
+          if ($proc.HasExited) {
+            exit $proc.ExitCode
+          }
+          Stop-Process -Id $proc.Id -Force

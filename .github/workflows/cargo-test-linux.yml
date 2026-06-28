@@ -1,0 +1,53 @@
+name: Build and Test Run on Linux
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    env:
+      LD_LIBRARY_PATH: ${{ github.workspace }}/deps/ffmpeg/lib:${{ github.workspace }}/target/debug
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system deps (ALSA for rodio)
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: false
+
+      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+        run: cargo xtask fetch
+
+      - name: Test
+        run: cargo test -- --nocapture
+
+      - name: Build binary
+        run: cargo build
+
+      - name: Pull a model
+        run: ./target/debug/boquilahub pull yolov11n
+
+      - name: Run GUI for 20 seconds
+        run: |
+          ./target/debug/boquilahub gui &
+          PID=$!
+          sleep 20
+          if ! kill -0 $PID 2>/dev/null; then
+            wait $PID
+            exit $?
+          fi
+          kill $PID
