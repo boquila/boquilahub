@@ -24,6 +24,8 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: false
 
       - name: Fetch native deps (ffmpeg + ONNX Runtime)
         run: cargo xtask fetch
@@ -33,11 +35,6 @@ jobs:
 
       - name: Build binary
         run: cargo build
-
-      - name: Bundle native libs next to the binary
-        run: |
-          cp -a deps/ffmpeg/lib/*.so* target/debug/
-          cp -a "$HOME"/.cache/ort.pyke.io/dfbin/*/*/*.so* target/debug/
 
       - name: Pull a model
         run: ./target/debug/boquilahub pull yolov11n
