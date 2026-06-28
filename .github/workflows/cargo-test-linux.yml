@@ -31,11 +31,17 @@ jobs:
       - name: Test
         run: cargo test -- --nocapture
 
-      - name: Run for at least 10 seconds
+      - name: Build binary
+        run: cargo build
+
+      - name: Pull a model
+        run: ./target/debug/boquilahub pull yolov11n
+
+      - name: Run GUI for 20 seconds
         run: |
-          cargo run &
+          ./target/debug/boquilahub gui &
           PID=$!
-          sleep 15
+          sleep 20
           if ! kill -0 $PID 2>/dev/null; then
             wait $PID
             exit $?

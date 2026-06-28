@@ -28,6 +28,13 @@ pub fn main() {
         copy_ffmpeg_libs(&target_dir);
     }
 
+    // macOS: ort's copy-dylibs drops libonnxruntime + libwebgpu_dawn next to the
+    // binary with @rpath install names, so add the rpath that resolves them (the
+    // $ORIGIN equivalent). Homebrew ffmpeg is found via its absolute install
+    // names, so it needs no rpath here.
+    #[cfg(target_os = "macos")]
+    println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
+
     #[cfg(feature = "cuda")]
     copy_onnxruntime_libs(&target_dir);
 

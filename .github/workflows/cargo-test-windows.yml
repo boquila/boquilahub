@@ -25,11 +25,18 @@ jobs:
       - name: Test
         run: cargo test -- --nocapture
 
-      - name: Run for at least 10 seconds
+      - name: Build binary
+        run: cargo build
+
+      - name: Pull a model
+        shell: pwsh
+        run: ./target/debug/boquilahub.exe pull yolov11n
+
+      - name: Run GUI for 20 seconds
         shell: pwsh
         run: |
-          $proc = Start-Process -NoNewWindow -FilePath cargo -ArgumentList "run" -PassThru
-          Start-Sleep -Seconds 10
+          $proc = Start-Process -NoNewWindow -FilePath ./target/debug/boquilahub.exe -ArgumentList "gui" -PassThru
+          Start-Sleep -Seconds 20
           if ($proc.HasExited) {
             exit $proc.ExitCode
           }
