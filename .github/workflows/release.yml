@@ -90,6 +90,9 @@ jobs:
       - name: Smoke test - pull models
         shell: bash
         run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            export LD_LIBRARY_PATH="$PWD/target/release:$PWD/deps/ffmpeg/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          fi
           ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
           ./target/release/${{ matrix.artifact }} pull boquilanet-gen
 
@@ -111,7 +114,11 @@ jobs:
           cp target/release/${{ matrix.artifact }} pkg/
           cp -r target/release/assets pkg/assets
           chmod +x pkg/${{ matrix.artifact }}
-          cp -L target/release/*.so* pkg/
+          cp -L deps/ffmpeg/lib/*.so* pkg/
+          if [ "${{ matrix.variant }}" = "cuda" ]; then
+            find deps/onnxruntime/lib -maxdepth 1 -name '*.so*' ! -name '*tensorrt*' -exec cp -Ln {} pkg/ \;
+          fi
+          cp -L target/release/*.so* pkg/ 2>/dev/null || true
           cp -L /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
           cp -r models pkg/models
           tar czf "$PKG" -C pkg .
@@ -119,21 +126,23 @@ jobs:
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
-          for f in target/release/*.dylib; do
-            [ -L "$f" ] || continue
-            cp -L "$f" "$f.real" && mv -f "$f.real" "$f" && chmod +w "$f"
-          done
-          dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
-            -d target/release -p @executable_path/ -s target/release
           mkdir pkg
+          dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
+            -d pkg -p @executable_path/ -s target/release
           cp target/release/${{ matrix.artifact }} pkg/
-          cp target/release/*.dylib pkg/
           cp -R target/release/assets pkg/assets
           cp -r models pkg/models
           find pkg -name '*.dylib' -exec codesign --force --sign - {} +
           codesign --force --sign - pkg/${{ matrix.artifact }}
           chmod +x pkg/${{ matrix.artifact }}
           tar czf "$PKG" -C pkg .
+
+      - name: Verify artifact is self-contained
+        if: runner.os != 'Windows'
+        run: |
+          tmp=$(mktemp -d)
+          tar xzf "$PKG" -C "$tmp"
+          env -u LD_LIBRARY_PATH -u DYLD_LIBRARY_PATH "$tmp/${{ matrix.artifact }}" --help
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
