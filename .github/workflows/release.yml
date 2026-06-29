@@ -44,6 +44,9 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.variant }}
+          cache-targets: ${{ runner.os != 'Linux' }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -75,8 +78,6 @@ jobs:
             export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
           fi
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # ffmpeg-sys-next emits a GNU-only linker flag on the FFMPEG_DIR path
-            # that Apple's ld rejects; route linking through a shim that drops it.
             chmod +x .github/macos-cc-shim.sh
             export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="$PWD/.github/macos-cc-shim.sh"
           fi
@@ -110,19 +111,18 @@ jobs:
           cp target/release/${{ matrix.artifact }} pkg/
           cp -r target/release/assets pkg/assets
           chmod +x pkg/${{ matrix.artifact }}
-          # ffmpeg + ONNX Runtime / WebGPU libs were placed next to the binary at build time.
-          cp -a target/release/*.so* pkg/
-          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
+          cp -L target/release/*.so* pkg/
+          cp -L /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
           cp -r models pkg/models
           tar czf "$PKG" -C pkg .
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
-          # Bundle ffmpeg + its Homebrew dependency tree next to the binary and
-          # rewrite their load paths to @executable_path so the archive runs on a
-          # clean Mac. Run in target/release, where ort already placed the ONNX
-          # Runtime dylib beside the binary, so dylibbundler can resolve it too.
+          for f in target/release/*.dylib; do
+            [ -L "$f" ] || continue
+            cp -L "$f" "$f.real" && mv -f "$f.real" "$f" && chmod +w "$f"
+          done
           dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
             -d target/release -p @executable_path/ -s target/release
           mkdir pkg
@@ -130,8 +130,6 @@ jobs:
           cp target/release/*.dylib pkg/
           cp -R target/release/assets pkg/assets
           cp -r models pkg/models
-          # dylibbundler's load-path rewrites invalidate code signatures; Apple
-          # Silicon refuses to load unsigned/broken Mach-O, so re-sign ad-hoc.
           find pkg -name '*.dylib' -exec codesign --force --sign - {} +
           codesign --force --sign - pkg/${{ matrix.artifact }}
           chmod +x pkg/${{ matrix.artifact }}
