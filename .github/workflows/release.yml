@@ -58,13 +58,14 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev \
             libasound2-dev \
-            p7zip-full
+            p7zip-full \
+            patchelf
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: brew install ffmpeg dylibbundler
 
-      - name: Fetch ffmpeg
+      - name: Fetch native deps
         run: cargo xtask fetch
 
       - name: Set package name
@@ -74,9 +75,6 @@ jobs:
       - name: Build release
         shell: bash
         run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
-          fi
           if [ "${{ runner.os }}" = "macOS" ]; then
             chmod +x .github/macos-cc-shim.sh
             export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="$PWD/.github/macos-cc-shim.sh"
@@ -121,6 +119,8 @@ jobs:
           cp -L target/release/*.so* pkg/ 2>/dev/null || true
           cp -L /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
           cp -r models pkg/models
+          find pkg -type f -name '*.so*' -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
+          patchelf --set-rpath '$ORIGIN' pkg/${{ matrix.artifact }}
           tar czf "$PKG" -C pkg .
 
       - name: Package (macOS)
