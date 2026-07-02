@@ -44,6 +44,9 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.variant }}
+          cache-targets: ${{ runner.os != 'Linux' }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -55,13 +58,14 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev \
             libasound2-dev \
-            p7zip-full
+            p7zip-full \
+            patchelf
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: brew install ffmpeg dylibbundler
 
-      - name: Fetch ffmpeg
+      - name: Fetch native deps
         run: cargo xtask fetch
 
       - name: Set package name
@@ -71,12 +75,7 @@ jobs:
       - name: Build release
         shell: bash
         run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            export RUSTFLAGS='-C link-arg=-Wl,-rpath,$ORIGIN'
-          fi
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # ffmpeg-sys-next emits a GNU-only linker flag on the FFMPEG_DIR path
-            # that Apple's ld rejects; route linking through a shim that drops it.
             chmod +x .github/macos-cc-shim.sh
             export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="$PWD/.github/macos-cc-shim.sh"
           fi
@@ -89,6 +88,9 @@ jobs:
       - name: Smoke test - pull models
         shell: bash
         run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            export LD_LIBRARY_PATH="$PWD/target/release:$PWD/deps/ffmpeg/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          fi
           ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
           ./target/release/${{ matrix.artifact }} pull boquilanet-gen
 
@@ -110,32 +112,37 @@ jobs:
           cp target/release/${{ matrix.artifact }} pkg/
           cp -r target/release/assets pkg/assets
           chmod +x pkg/${{ matrix.artifact }}
-          # ffmpeg + ONNX Runtime / WebGPU libs were placed next to the binary at build time.
-          cp -a target/release/*.so* pkg/
-          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
+          cp -L deps/ffmpeg/lib/*.so* pkg/
+          if [ "${{ matrix.variant }}" = "cuda" ]; then
+            find deps/onnxruntime/lib -maxdepth 1 -name '*.so*' ! -name '*tensorrt*' -exec cp -Ln {} pkg/ \;
+          fi
+          cp -L target/release/*.so* pkg/ 2>/dev/null || true
+          cp -L /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
           cp -r models pkg/models
+          find pkg -type f -name '*.so*' -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
+          patchelf --set-rpath '$ORIGIN' pkg/${{ matrix.artifact }}
           tar czf "$PKG" -C pkg .
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
-          # Bundle ffmpeg + its Homebrew dependency tree next to the binary and
-          # rewrite their load paths to @executable_path so the archive runs on a
-          # clean Mac. Run in target/release, where ort already placed the ONNX
-          # Runtime dylib beside the binary, so dylibbundler can resolve it too.
-          dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
-            -d target/release -p @executable_path/ -s target/release
           mkdir pkg
+          dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
+            -d pkg -p @executable_path/ -s target/release
           cp target/release/${{ matrix.artifact }} pkg/
-          cp target/release/*.dylib pkg/
           cp -R target/release/assets pkg/assets
           cp -r models pkg/models
-          # dylibbundler's load-path rewrites invalidate code signatures; Apple
-          # Silicon refuses to load unsigned/broken Mach-O, so re-sign ad-hoc.
           find pkg -name '*.dylib' -exec codesign --force --sign - {} +
           codesign --force --sign - pkg/${{ matrix.artifact }}
           chmod +x pkg/${{ matrix.artifact }}
           tar czf "$PKG" -C pkg .
+
+      - name: Verify artifact is self-contained
+        if: runner.os != 'Windows'
+        run: |
+          tmp=$(mktemp -d)
+          tar xzf "$PKG" -C "$tmp"
+          env -u LD_LIBRARY_PATH -u DYLD_LIBRARY_PATH "$tmp/${{ matrix.artifact }}" --help
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

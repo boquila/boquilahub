@@ -3,17 +3,15 @@ use font_subset::FontReader;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-// Stable, normalized dep dirs produced by `cargo xtask fetch`.
 const FFMPEG_DIR: &str = "deps/ffmpeg";
 #[cfg(feature = "cuda")]
 const ORT_DIR: &str = "deps/onnxruntime";
 
 pub fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    let target_dir = out_dir.join("../../.."); // target/<profile>/, next to the binary
+    let target_dir = out_dir.ancestors().nth(3).unwrap().to_path_buf();
 
     require_deps();
-
     subset_font(&out_dir);
 
     #[cfg(windows)]
@@ -28,10 +26,6 @@ pub fn main() {
         copy_ffmpeg_libs(&target_dir);
     }
 
-    // macOS: ort's copy-dylibs drops libonnxruntime + libwebgpu_dawn next to the
-    // binary with @rpath install names, so add the rpath that resolves them (the
-    // $ORIGIN equivalent). Homebrew ffmpeg is found via its absolute install
-    // names, so it needs no rpath here.
     #[cfg(target_os = "macos")]
     println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
 
@@ -41,7 +35,6 @@ pub fn main() {
     copy_geofence(&target_dir)
 }
 
-// The native deps must exist before this crate (and ffmpeg-sys-next) builds.
 fn require_deps() {
     assert!(
         Path::new(FFMPEG_DIR).exists(),
@@ -68,19 +61,17 @@ fn subset_font(out_dir: &Path) {
 
     let mut wanted: BTreeSet<char> = BTreeSet::new();
 
-    // The source's chars are a superset of every string the UI can show.
     wanted.extend(std::fs::read_to_string(LOC_SRC).unwrap().chars());
 
-    // Runtime text (filenames, model labels) isn't in the UI strings.
     for &(lo, hi) in &[
-        (0x0020u32, 0x007E), // Basic Latin
-        (0x00A0, 0x024F),    // Latin-1 Supplement + Latin Extended-A/-B
-        (0x0300, 0x036F),    // Combining diacritics
-        (0x1E00, 0x1EFF),    // Latin Extended Additional (Vietnamese)
-        (0x2000, 0x206F),    // General punctuation
-        (0x3000, 0x303F),    // CJK symbols & punctuation
-        (0x3040, 0x30FF),    // Hiragana + Katakana
-        (0xFF00, 0xFFEF),    // Halfwidth & fullwidth forms
+        (0x0020u32, 0x007E),
+        (0x00A0, 0x024F),
+        (0x0300, 0x036F),
+        (0x1E00, 0x1EFF),
+        (0x2000, 0x206F),
+        (0x3000, 0x303F),
+        (0x3040, 0x30FF),
+        (0xFF00, 0xFFEF),
     ] {
         wanted.extend((lo..=hi).filter_map(char::from_u32));
     }
@@ -93,7 +84,6 @@ fn subset_font(out_dir: &Path) {
         ),
     }
 
-    // font-subset returns an error for any char the font lacks, so drop them first.
     let bytes = std::fs::read(FONT_SRC).unwrap();
     let face = FontRef::try_from_slice(&bytes).expect("parse source font");
     wanted.retain(|&c| face.glyph_id(c).0 != 0);
@@ -121,8 +111,6 @@ fn add_icon() {
         .unwrap();
 }
 
-// Copy the ffmpeg shared libraries next to the binary.
-// Windows ships its DLLs in bin/, Linux its .so files in lib/.
 #[cfg(any(windows, target_os = "linux"))]
 fn copy_ffmpeg_libs(target_dir: &Path) {
     #[cfg(windows)]
@@ -131,9 +119,12 @@ fn copy_ffmpeg_libs(target_dir: &Path) {
     let (subdir, ext) = ("lib", ".so");
 
     for entry in std::fs::read_dir(format!("{FFMPEG_DIR}/{subdir}")).expect("read ffmpeg dir") {
-        let path = entry.unwrap().path();
+        let entry = entry.unwrap();
+        if !entry.file_type().map(|ft| ft.is_file() || ft.is_symlink()).unwrap_or(false) {
+            continue;
+        }
+        let path = entry.path();
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        // Linux files look like libavcodec.so.61, so match on the name.
         if name.contains(ext) {
             let dest = target_dir.join(&name);
             if !dest.exists() {
@@ -150,14 +141,23 @@ fn copy_onnxruntime_libs(target_dir: &Path) {
     #[cfg(target_os = "linux")]
     let ext = "so";
 
-    for entry in std::fs::read_dir(format!("{ORT_DIR}/lib")).expect("read onnxruntime lib/") {
-        let path = entry.unwrap().path();
+    let lib_dir = format!("{ORT_DIR}/lib");
+    for entry in std::fs::read_dir(&lib_dir).expect("read onnxruntime lib/") {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        if !entry.file_type().map(|ft| ft.is_file() || ft.is_symlink()).unwrap_or(false) {
+            continue;
+        }
+        let path = entry.path();
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        // On Linux files look like libonnxruntime.so.1.26.0, so match on the name.
         if name.contains(ext) && !name.contains("tensorrt") {
             let dest = target_dir.join(&name);
             if !dest.exists() {
-                std::fs::copy(&path, &dest).unwrap();
+                if let Err(e) = std::fs::copy(&path, &dest) {
+                    println!("cargo:warning=failed to copy {}: {}", path.display(), e);
+                }
             }
         }
     }
