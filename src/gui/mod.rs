@@ -982,7 +982,7 @@ impl Gui {
 impl eframe::App for Gui {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, main_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::Panel::top("top_panel").show_inside(main_ui, |ui| {
+        egui::Panel::top("top_panel").show(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button(self.t(Key::about), |ui| {
                     ui.hyperlink_to(
@@ -1005,7 +1005,7 @@ impl eframe::App for Gui {
             });
         });
 
-        egui::Panel::left("left_panel").show_inside(main_ui, |ui| {
+        egui::Panel::left("left_panel").show(main_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(format!("💻 {}", self.t(Key::setup)));
             });
@@ -1047,7 +1047,7 @@ impl eframe::App for Gui {
             self.show_error_message(ui);
         });
 
-        egui::CentralPanel::default().show_inside(main_ui, |ui| {
+        egui::CentralPanel::default().show(main_ui, |ui| {
             let cond1 = self.selected_files.len() >= 1;
             let cond2 = !self.selected_videos.is_empty();
             let cond3 = self.feed_url.is_some();

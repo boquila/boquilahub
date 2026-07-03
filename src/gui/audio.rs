@@ -651,7 +651,8 @@ fn render_audio_plot(
 ) -> PlotInteraction {
     use egui::{Align2, Color32, Stroke};
     use egui_plot::{
-        GridMark, Line, Plot, PlotBounds, PlotImage, PlotPoint, PlotPoints, Polygon, Text,
+        GridMark, HoverPosition, Line, Plot, PlotBounds, PlotImage, PlotPoint, PlotPoints,
+        Polygon, Text,
     };
 
     let nyquist = AUDIO_DISPLAY_SR as f64 / 2.0;
@@ -736,14 +737,20 @@ fn render_audio_plot(
                     .collect()
             }
         })
-        .label_formatter(move |name, pos| {
+        .label_formatter(move |hover| {
+            let (name, pos) = match hover {
+                HoverPosition::NearDataPoint {
+                    plot_name, position, ..
+                } => (*plot_name, *position),
+                HoverPosition::Elsewhere { position } => ("", *position),
+            };
             if let Some(rest) = name.strip_prefix("seg|") {
                 let parts: Vec<&str> = rest.splitn(4, '|').collect();
                 if parts.len() == 4 {
-                    return format!(
+                    return Some(format!(
                         "{}\n{}% confidence\n{}s – {}s",
                         parts[0], parts[1], parts[2], parts[3]
-                    );
+                    ));
                 }
             }
             let t = pos.x;
@@ -803,7 +810,7 @@ fn render_audio_plot(
                     lines.push(format!("  …and {} more", hits.len() - 6));
                 }
             }
-            lines.join("\n")
+            Some(lines.join("\n"))
         })
         .show(ui, |plot_ui| {
             // External state takes precedence: snap the plot to our requested
