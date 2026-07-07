@@ -28,16 +28,30 @@ fn at(area: Rect, y: u16) -> Rect { Rect { y, height: 1, ..area } }
 #[derive(Clone, Copy, PartialEq)]
 enum Row { Ai, ClsAi, Ep, Deploy }
 
+#[derive(Default)]
+struct Dropdown {
+    selected: Option<usize>,
+    cursor: usize,
+}
+
+impl Dropdown {
+    fn reset_cursor(&mut self) {
+        self.cursor = self.selected.unwrap_or(0);
+    }
+}
+
 struct App {
     lang: Lang,
     row: usize,
-    side_btn: bool, // true = focus is on the +/- button, not the combo
+    side_btn: bool,     // true = focus is on the +/- button, not the combo
+    open: Option<Row>,  // which dropdown, if any, is currently open
     ais: Vec<AIMetadata>,
-    ai_options: Vec<String>,  ai_selected: Option<usize>,  ai_open: bool,  ai_cursor: usize,
+    ai: Dropdown,
     cls_ais: Vec<AIMetadata>,
-    cls_active: bool, cls_selected: Option<usize>, cls_open: bool, cls_cursor: usize,
+    cls_active: bool,
+    cls: Dropdown,
     eps: Vec<Ep>,
-    ep_selected: Option<Ep>,  ep_open: bool,  ep_cursor: usize,
+    ep: Dropdown,
     api_deployed: bool,
     host_url: Option<String>,
     status_msg: Option<String>,
@@ -46,16 +60,13 @@ struct App {
 impl App {
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
-        let ai_options: Vec<String> = ais.iter().map(|ai| ai.name.clone()).collect();
         let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image).cloned().collect();
         Self {
             lang,
-            row: 0, side_btn: false,
-            ais, ai_options,
-            ai_selected: None, ai_open: false, ai_cursor: 0,
-            cls_ais,
-            cls_active: false, cls_selected: None, cls_open: false, cls_cursor: 0,
-            eps: Ep::locals(), ep_selected: None, ep_open: false, ep_cursor: 0,
+            row: 0, side_btn: false, open: None,
+            ais, ai: Dropdown::default(),
+            cls_ais, cls_active: false, cls: Dropdown::default(),
+            eps: Ep::locals(), ep: Dropdown::default(),
             api_deployed: false,
             host_url: None,
             status_msg: None,
@@ -68,23 +79,20 @@ impl App {
         let mut v = vec![Row::Ai];
         if self.cls_active { v.push(Row::ClsAi); }
         v.push(Row::Ep);
-        if self.ai_selected.is_some() && self.ep_selected.is_some() || self.api_deployed {
-            v.push(Row::Deploy);
-        }
+        if self.can_deploy() || self.api_deployed { v.push(Row::Deploy); }
         v
     }
     fn cur_row(&self) -> Row {
         let rows = self.rows();
         rows[self.row.min(rows.len() - 1)]
     }
+    fn can_deploy(&self) -> bool {
+        self.ai.selected.is_some() && self.ep.selected.is_some()
+    }
     fn can_add_cls(&self) -> bool {
-        self.ai_selected.is_some()
-            && !self.cls_active
+        !self.cls_active
             && !self.cls_ais.is_empty()
-            && self.ai_selected.map_or(false, |i| {
-                let t = self.ais[i].task;
-                t == Task::Detect || t == Task::Segment
-            })
+            && self.ai.selected.is_some_and(|i| matches!(self.ais[i].task, Task::Detect | Task::Segment))
     }
     fn has_side_btn(&self) -> bool {
         match self.cur_row() {
@@ -98,7 +106,6 @@ impl App {
         if self.row >= len { self.row = len - 1; }
         if !self.has_side_btn() { self.side_btn = false; }
     }
-    fn any_open(&self) -> bool { self.ai_open || self.ep_open || self.cls_open }
 }
 
 // ── main ─────────────────────────────────────────────────────────────
@@ -119,37 +126,27 @@ pub fn run_tui(lang: Lang) -> std::io::Result<()> {
 // ── input ────────────────────────────────────────────────────────────
 fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
     if code == KeyCode::Char('c') && mods.contains(KeyModifiers::CONTROL) { return true; }
-    if matches!(code, KeyCode::Char('q') | KeyCode::Esc) && !app.any_open() { return true; }
+    if matches!(code, KeyCode::Char('q') | KeyCode::Esc) && app.open.is_none() { return true; }
 
-    if app.ai_open {
-        let prev = app.ai_selected;
-        let r = handle_dropdown(code, app.ai_options.len(), &mut app.ai_cursor, &mut app.ai_selected, &mut app.ai_open);
-        if !app.ai_open && app.ai_selected != prev && app.ai_selected.is_some() {
-            load_ai_model(app);
+    if let Some(which) = app.open {
+        let changed = match which {
+            Row::Ai => handle_dropdown(code, app.ais.len(), &mut app.ai),
+            Row::ClsAi => handle_dropdown(code, app.cls_ais.len(), &mut app.cls),
+            Row::Ep => handle_dropdown(code, app.eps.len(), &mut app.ep),
+            Row::Deploy => None,
+        };
+        if let Some(changed) = changed {
+            app.open = None;
+            if changed {
+                match which {
+                    Row::Ai => load_ai_model(app),
+                    Row::ClsAi => load_cls_model(app),
+                    Row::Ep => { load_ai_model(app); load_cls_model(app); }
+                    Row::Deploy => {}
+                }
+            }
         }
-        return r;
-    }
-    if app.cls_open {
-        let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
-        let prev = app.cls_selected;
-        let r = handle_dropdown(code, cls_names.len(), &mut app.cls_cursor, &mut app.cls_selected, &mut app.cls_open);
-        if !app.cls_open && app.cls_selected != prev && app.cls_selected.is_some() {
-            load_cls_model(app);
-        }
-        return r;
-    }
-    if app.ep_open {
-        let prev = app.ep_selected;
-        let mut temp_selected = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
-        let r = handle_dropdown(code, app.eps.len(), &mut app.ep_cursor, &mut temp_selected, &mut app.ep_open);
-        if !app.ep_open {
-            app.ep_selected = temp_selected.map(|i| app.eps[i]);
-        }
-        if !app.ep_open && app.ep_selected != prev && app.ep_selected.is_some() {
-            load_ai_model(app);
-            load_cls_model(app);
-        }
-        return r;
+        return false;
     }
 
     let row_len = app.rows().len();
@@ -162,23 +159,23 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
             if app.side_btn {
                 match app.cur_row() {
                     Row::Ai => { app.cls_active = true; app.side_btn = false; app.row = 1; }
-                    Row::ClsAi => { app.cls_active = false; app.cls_selected = None; GlobalBQ::Second.clear(); app.side_btn = false; app.clamp(); }
+                    Row::ClsAi => { app.cls_active = false; app.cls.selected = None; GlobalBQ::Second.clear(); app.side_btn = false; app.clamp(); }
                     _ => {}
                 }
             } else {
-                match app.cur_row() {
-                    Row::Ai => { app.ai_open = true; app.ai_cursor = app.ai_selected.unwrap_or(0); }
-                    Row::ClsAi => { app.cls_open = true; app.cls_cursor = app.cls_selected.unwrap_or(0); }
-                    Row::Ep => {
-                        app.ep_open = true;
-                        app.ep_cursor = app.ep_selected
-                            .map_or(0, |ep| app.eps.iter().position(|e| *e == ep).unwrap_or(0));
+                let row = app.cur_row();
+                if row == Row::Deploy {
+                    if !app.api_deployed && app.can_deploy() {
+                        deploy_api(app);
                     }
-                    Row::Deploy => {
-                        if !app.api_deployed && app.ai_selected.is_some() && app.ep_selected.is_some() {
-                            deploy_api(app);
-                        }
+                } else {
+                    match row {
+                        Row::Ai => app.ai.reset_cursor(),
+                        Row::ClsAi => app.cls.reset_cursor(),
+                        Row::Ep => app.ep.reset_cursor(),
+                        Row::Deploy => unreachable!(),
                     }
+                    app.open = Some(row);
                 }
             }
         }
@@ -187,49 +184,53 @@ fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
     false
 }
 
-fn handle_dropdown(code: KeyCode, len: usize, cursor: &mut usize, selected: &mut Option<usize>, open: &mut bool) -> bool {
+fn handle_dropdown(code: KeyCode, len: usize, dd: &mut Dropdown) -> Option<bool> {
     match code {
-        KeyCode::Up   => *cursor = cursor.saturating_sub(1),
-        KeyCode::Down => *cursor = (*cursor + 1).min(len.saturating_sub(1)),
-        KeyCode::Enter => { *selected = Some(*cursor); *open = false; }
-        KeyCode::Esc   => *open = false,
-        _ => {}
+        KeyCode::Up => { dd.cursor = dd.cursor.saturating_sub(1); None }
+        KeyCode::Down => { dd.cursor = (dd.cursor + 1).min(len.saturating_sub(1)); None }
+        KeyCode::Enter => {
+            let changed = dd.selected != Some(dd.cursor);
+            dd.selected = Some(dd.cursor);
+            Some(changed)
+        }
+        KeyCode::Esc => Some(false),
+        _ => None,
     }
-    false
 }
 
 fn load_ai_model(app: &mut App) {
-    if let Some(ai_idx) = app.ai_selected {
-        let ep = app.ep_selected.unwrap_or(Ep::Cpu);
+    if let Some(ai_idx) = app.ai.selected {
+        let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.ais[ai_idx].get_path();
-        match GlobalBQ::First.set_model(&model_path, ep, None) {
-            Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.ais[ai_idx].name)); }
-            Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
-        }
+        app.status_msg = GlobalBQ::First.set_model(&model_path, ep, None)
+            .err().map(|e| format!("{}: {}", app.t(Key::error_ocurred), e));
     }
 }
 
 fn load_cls_model(app: &mut App) {
-    if let Some(cls_idx) = app.cls_selected {
-        let ep = app.ep_selected.unwrap_or(Ep::Cpu);
+    if let Some(cls_idx) = app.cls.selected {
+        let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.cls_ais[cls_idx].get_path();
-        match GlobalBQ::Second.set_model(&model_path, ep, None) {
-            Ok(_) => { app.status_msg = Some(format!("{} {}", app.t(Key::loaded), app.cls_ais[cls_idx].name)); }
-            Err(e) => { app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)); }
-        }
+        app.status_msg = GlobalBQ::Second.set_model(&model_path, ep, None)
+            .err().map(|e| format!("{}: {}", app.t(Key::error_ocurred), e));
     }
 }
 
 fn deploy_api(app: &mut App) {
     let port = 8791u16;
-    tokio::spawn(async move {
-        if let Err(e) = run_api(port).await {
-            eprintln!("API error: {}", e);
+    match std::net::TcpListener::bind(("0.0.0.0", port)) {
+        Ok(probe) => {
+            drop(probe);
+            tokio::spawn(async move {
+                if let Err(e) = run_api(port).await {
+                    eprintln!("API error: {}", e);
+                }
+            });
+            app.host_url = get_ipv4_address().map(|ip| format!("http://{}:{}", ip, port));
+            app.api_deployed = true;
         }
-    });
-    app.host_url = get_ipv4_address().map(|ip| format!("http://{}:{}", ip, port));
-    app.api_deployed = true;
-    app.status_msg = Some(app.t(Key::deployed_api).to_string());
+        Err(e) => app.status_msg = Some(format!("{}: {}", app.t(Key::error_ocurred), e)),
+    }
 }
 
 // ── drawing ──────────────────────────────────────────────────────────
@@ -237,16 +238,16 @@ fn draw(frame: &mut Frame, app: &App) {
     let [body, status] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
     let [sidebar, central] = Layout::horizontal([Constraint::Length(28), Constraint::Min(0)]).areas(body);
 
-    draw_sidebar(frame, app, sidebar);
+    let combo_rows = draw_sidebar(frame, app, sidebar);
     draw_central(frame, app, central);
     draw_status_bar(frame, app, status);
 
-    if app.ai_open { draw_dropdown_overlay(frame, app, "ai"); }
-    if app.cls_open { draw_dropdown_overlay(frame, app, "cls"); }
-    if app.ep_open { draw_dropdown_overlay(frame, app, "ep"); }
+    if let Some(which) = app.open {
+        draw_dropdown_overlay(frame, app, which, combo_rows);
+    }
 }
 
-fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
+fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) -> (Rect, Rect, Rect) {
     let block = Block::default().borders(Borders::RIGHT).border_style(dim());
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -264,7 +265,7 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
         at(head, head.y + 1),
     );
 
-    draw_combo(frame, ai, app.t(Key::select_ai), &app.ai_options, app.ai_selected, app.cur_row() == Row::Ai && !app.side_btn);
+    draw_combo(frame, ai, app.t(Key::select_ai), &app.ais, app.ai.selected, app.cur_row() == Row::Ai && !app.side_btn);
 
     // [+] button to the right of the Model combo
     if app.can_add_cls() {
@@ -274,18 +275,15 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
 
     // classification AI section
     if app.cls_active {
-        let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
-        draw_combo(frame, cls_area, app.t(Key::select_2nd_ai), &cls_names, app.cls_selected, app.cur_row() == Row::ClsAi && !app.side_btn);
+        draw_combo(frame, cls_area, app.t(Key::select_2nd_ai), &app.cls_ais, app.cls.selected, app.cur_row() == Row::ClsAi && !app.side_btn);
         let focused = app.cur_row() == Row::ClsAi && app.side_btn;
         draw_side_btn(frame, cls_area, "-", focused);
     }
 
-    let ep_selected_idx = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
-    draw_combo(frame, ep, app.t(Key::select_ep), &app.eps, ep_selected_idx, app.cur_row() == Row::Ep);
+    draw_combo(frame, ep, app.t(Key::select_ep), &app.eps, app.ep.selected, app.cur_row() == Row::Ep);
 
     // deploy button — only visible when both AI and processor are chosen
-    let can_deploy = app.ai_selected.is_some() && app.ep_selected.is_some();
-    if can_deploy || app.api_deployed {
+    if app.can_deploy() || app.api_deployed {
         let focused = app.cur_row() == Row::Deploy;
         let label_text = if app.api_deployed { app.t(Key::api_live) } else { app.t(Key::deploy_api) };
         let label = &format!(" {}", label_text);
@@ -308,6 +306,8 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
         ])).alignment(Alignment::Center),
         at(hints, hints.y + 1),
     );
+
+    (ai, cls_area, ep)
 }
 
 fn draw_side_btn(frame: &mut Frame, row_area: Rect, symbol: &str, focused: bool) {
@@ -332,9 +332,9 @@ fn draw_combo(frame: &mut Frame, area: Rect, label: &str, options: &[impl AsRef<
 
     let w = combo.width as usize;
     let chev = " ▾";
-    let max = w.saturating_sub(chev.len());
+    let max = w.saturating_sub(chev.chars().count());
     let trunc: String = text.chars().take(max).collect();
-    let pad = max.saturating_sub(trunc.len());
+    let pad = max.saturating_sub(trunc.chars().count());
 
     frame.render_widget(Paragraph::new(Line::from(vec![
         Span::styled(format!(" {trunc}{}", " ".repeat(pad)), style),
@@ -365,53 +365,38 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let model = app.ai_selected.map_or(String::new(), |i| format!("  {}  ", app.ai_options[i]));
-    let cls = app.cls_selected.map_or(String::new(), |i| format!("+ {}  ", app.cls_ais[i].name));
-    let ep = app.ep_selected.map_or(String::new(), |ep| format!("  {}  ", ep.name()));
-    let (api_label, api_style) = if app.api_deployed { (" ● LIVE ", accent()) } else { (" ○ OFF ", dim()) };
-
-    frame.render_widget(Paragraph::new(Line::from(vec![
-        Span::styled(" BoquilaHUB ", bold(ACCENT)),
-        Span::styled("│", dim()),
-        Span::styled(api_label, api_style),
-        Span::styled("│", dim()),
-        Span::styled(model, Style::default()),
-        Span::styled(cls, dim()),
-        Span::styled(ep, dim()),
-    ])), area);
+    let mut spans = vec![Span::styled(" BoquilaHUB ", bold(ACCENT))];
+    if let Some(msg) = &app.status_msg {
+        spans.push(Span::styled("│ ", dim()));
+        spans.push(Span::styled(msg.as_str(), Style::default()));
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: &str) {
-    let cls_names: Vec<String> = app.cls_ais.iter().map(|ai| ai.name.clone()).collect();
-    let ep_options: Vec<String> = app.eps.iter().map(|ep| ep.name().to_string()).collect();
-    let ep_selected_idx = app.ep_selected.and_then(|ep| app.eps.iter().position(|&e| e == ep));
-    let (options, cursor, selected, title) = match which {
-        "ai"  => (&app.ai_options, app.ai_cursor, app.ai_selected, app.t(Key::select_ai)),
-        "cls" => (&cls_names, app.cls_cursor, app.cls_selected, app.t(Key::select_2nd_ai)),
-        _     => (&ep_options, app.ep_cursor, ep_selected_idx, app.t(Key::select_ep)),
+fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: Row, rows: (Rect, Rect, Rect)) {
+    let (names, dd, title, row_area): (Vec<&str>, &Dropdown, &str, Rect) = match which {
+        Row::Ai => (app.ais.iter().map(|a| a.name.as_str()).collect(), &app.ai, app.t(Key::select_ai), rows.0),
+        Row::ClsAi => (app.cls_ais.iter().map(|a| a.name.as_str()).collect(), &app.cls, app.t(Key::select_2nd_ai), rows.1),
+        Row::Ep => (app.eps.iter().map(|e| e.name()).collect(), &app.ep, app.t(Key::select_ep), rows.2),
+        Row::Deploy => return,
     };
 
-    let cls_offset: u16 = if app.cls_active { 3 } else { 0 };
-    let y = match which {
-        "ai"  => 4,
-        "cls" => 7,
-        _     => 7 + cls_offset,
-    };
+    let y = row_area.y + 1; // combo line, matches draw_combo's `area.y + 1`
     let max_h = frame.area().height.saturating_sub(y);
     if max_h < 3 { return; }
-    let popup_h = (options.len() as u16 + 2).min(max_h);
+    let popup_h = (names.len() as u16 + 2).min(max_h);
     let visible = popup_h.saturating_sub(2) as usize; // inner rows (minus border)
-    let scroll = if cursor >= visible { cursor - visible + 1 } else { 0 };
-    let popup = Rect { x: 2, y, width: 24, height: popup_h };
+    let scroll = if dd.cursor >= visible { dd.cursor - visible + 1 } else { 0 };
+    let popup = Rect { x: row_area.x + 2, y, width: 24, height: popup_h };
     frame.render_widget(Clear, popup);
 
-    let items: Vec<ListItem> = options.iter().enumerate().skip(scroll).map(|(i, opt)| {
-        let cur = i == cursor;
-        let sel = selected == Some(i);
+    let items: Vec<ListItem> = names.iter().enumerate().skip(scroll).map(|(i, name)| {
+        let cur = i == dd.cursor;
+        let sel = dd.selected == Some(i);
         let base = if cur { focus_bar() } else { Style::default() };
         ListItem::new(Line::from(vec![
             Span::styled(if sel { "● " } else { "  " }, if sel { base.fg(ACCENT) } else { base }),
-            Span::styled(opt.as_str(), base),
+            Span::styled(*name, base),
         ]))
     }).collect();
 
