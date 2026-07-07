@@ -1191,22 +1191,17 @@ fn partition_media_in_dir(
         let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
             continue;
         };
-        if formats::IMAGE_FORMATS
-            .iter()
-            .any(|f| ext.eq_ignore_ascii_case(f))
-        {
+        if has_ext(ext, formats::IMAGE_FORMATS) {
             images.push(path);
-        } else if formats::AUDIO_FORMATS
-            .iter()
-            .any(|f| ext.eq_ignore_ascii_case(f))
-        {
+        } else if has_ext(ext, formats::AUDIO_FORMATS) {
             audios.push(path);
-        } else if formats::VIDEO_FORMATS
-            .iter()
-            .any(|f| ext.eq_ignore_ascii_case(f))
-        {
+        } else if has_ext(ext, formats::VIDEO_FORMATS) {
             videos.push(path);
         }
     }
     (images, audios, videos)
+}
+
+fn has_ext<const N: usize>(ext: &str, formats: [&str; N]) -> bool {
+    formats.iter().any(|f| ext.eq_ignore_ascii_case(f))
 }
