@@ -36,10 +36,10 @@ impl Gui {
             .collapsible(false)
             .resizable(false)
             .show(ui, |ui| {
-                ui.text_edit_singleline(&mut self.temp_str);
+                ui.text_edit_singleline(&mut self.temp.feed_str);
                 ui.horizontal(|ui| {
                     if ui.button(self.t(Key::ok)).clicked() {
-                        let url = self.temp_str.clone();
+                        let url = self.temp.feed_str.clone();
                         match stream::Feed::new(&url) {
                             Ok(mut feed) => match feed.next() {
                                 Some(frame) => {

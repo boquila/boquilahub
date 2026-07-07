@@ -43,7 +43,7 @@ pub fn run_gui() {
 }
 
 macro_rules! ai_config_window {
-    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $variant:expr, $current_ai_fn:ident) => {
+    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:expr, $variant:expr, $current_ai_fn:ident) => {
         if $show_field {
             egui::Window::new($self.t(Key::configure_ai))
                 .collapsible(false)
@@ -52,7 +52,7 @@ macro_rules! ai_config_window {
                     let text_slide1 = $self.t(Key::confidence_level);
                     ui.add(
                         egui::Slider::new(
-                            &mut $self.$temp_config_field.confidence_threshold,
+                            &mut $temp_config_field.confidence_threshold,
                             0.10..=0.99,
                         )
                         .text(text_slide1),
@@ -65,7 +65,7 @@ macro_rules! ai_config_window {
                         let text_slide2 = $self.t(Key::overlap_filter);
                         ui.add(
                             egui::Slider::new(
-                                &mut $self.$temp_config_field.nms_threshold,
+                                &mut $temp_config_field.nms_threshold,
                                 0.10..=0.99,
                             )
                             .text(text_slide2),
@@ -78,11 +78,11 @@ macro_rules! ai_config_window {
                     if has_geofence {
                         ui.label($self.t(Key::region_filter));
                         egui::ComboBox::from_id_salt("Region")
-                            .selected_text($self.$temp_config_field.geo_fence.clone())
+                            .selected_text($temp_config_field.geo_fence.clone())
                             .show_ui(ui, |ui| {
                                 for str in utils::COUNTRY_CODES {
                                     ui.selectable_value(
-                                        &mut $self.$temp_config_field.geo_fence,
+                                        &mut $temp_config_field.geo_fence,
                                         str.to_owned(),
                                         str,
                                     );
@@ -91,13 +91,13 @@ macro_rules! ai_config_window {
                     }
                     ui.horizontal(|ui| {
                         if ui.button($self.t(Key::ok)).clicked() {
-                            $self.$config_field = $self.$temp_config_field.clone();
+                            $self.$config_field = $temp_config_field.clone();
                             $variant.update_config($self.$config_field.clone());
                             $show_field = false;
                         }
                         ui.add_space(8.0);
                         if ui.button($self.t(Key::cancel)).clicked() {
-                            $self.$temp_config_field = $self.$config_field.clone();
+                            $temp_config_field = $self.$config_field.clone();
                             $show_field = false;
                         }
                     });
@@ -130,8 +130,6 @@ struct Gui {
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
-    temp_str: String,
-    temp_api_str: String,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     // Per-segment alpha masks for the currently displayed image. Rebuilt in
     // `paint()` so we don't re-upload every frame.
@@ -162,8 +160,6 @@ struct Gui {
     // Model Configurations
     ai_config: ModelConfig,
     ai_cls_config: ModelConfig,
-    temp_ai_config: ModelConfig,
-    temp_ai_cls_config: ModelConfig,
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
@@ -179,6 +175,7 @@ struct Gui {
     // Enums (size depends on variants, but typically 1-8 bytes)
     lang: Lang,
     mode: Mode,
+    temp: Temp,
 
     // bool fields grouped together (1 byte each, but will be padded)
     show_ai_cls: bool,
@@ -205,6 +202,14 @@ struct State<T> {
     texture: Option<egui::TextureHandle>,
     is_processing: bool,
     progress_bar: f32,
+}
+
+#[derive(Default)]
+struct Temp {
+    feed_str: String,
+    api_str: String,
+    ai_config: ModelConfig,
+    ai_cls_config: ModelConfig,
 }
 
 impl<T> Default for State<T> {
@@ -534,7 +539,7 @@ impl Gui {
                 ui,
                 self.show_config.ai,
                 ai_config,
-                temp_ai_config,
+                self.temp.ai_config,
                 GlobalBQ::First,
                 current_ai
             );
@@ -593,7 +598,7 @@ impl Gui {
                 ui,
                 self.show_config.ai_cls,
                 ai_cls_config,
-                temp_ai_cls_config,
+                self.temp.ai_cls_config,
                 GlobalBQ::Second,
                 current_ai_cls
             );
@@ -943,10 +948,10 @@ impl Gui {
                 .collapsible(false)
                 .resizable(false)
                 .show(ui, |ui| {
-                    ui.text_edit_singleline(&mut self.temp_api_str);
+                    ui.text_edit_singleline(&mut self.temp.api_str);
                     ui.horizontal(|ui| {
                         if ui.button(self.t(Key::ok)).clicked() {
-                            let url = self.temp_api_str.clone();
+                            let url = self.temp.api_str.clone();
 
                             // This tells tokio to move this blocking operation to another thread
                             let is_valid_api = tokio::task::block_in_place(|| {
