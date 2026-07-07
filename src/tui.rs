@@ -235,9 +235,12 @@ fn deploy_api(app: &mut App) {
 
 // ── drawing ──────────────────────────────────────────────────────────
 fn draw(frame: &mut Frame, app: &App) {
-    let [body, status] = Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
+    let [title, body, status] = Layout::vertical([
+        Constraint::Length(1), Constraint::Min(0), Constraint::Length(1),
+    ]).areas(frame.area());
     let [sidebar, central] = Layout::horizontal([Constraint::Length(28), Constraint::Min(0)]).areas(body);
 
+    frame.render_widget(Paragraph::new(Span::styled(" BoquilaHUB ", bold(ACCENT))), title);
     let combo_rows = draw_sidebar(frame, app, sidebar);
     draw_central(frame, app, central);
     draw_status_bar(frame, app, status);
@@ -365,12 +368,9 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let mut spans = vec![Span::styled(" BoquilaHUB ", bold(ACCENT))];
     if let Some(msg) = &app.status_msg {
-        spans.push(Span::styled("│ ", dim()));
-        spans.push(Span::styled(msg.as_str(), Style::default()));
+        frame.render_widget(Paragraph::new(Span::styled(format!(" {msg} "), Style::default())), area);
     }
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: Row, rows: (Rect, Rect, Rect)) {
