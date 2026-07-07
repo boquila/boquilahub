@@ -467,7 +467,16 @@ impl Gui {
             }
         }
 
-        self.input_api_url_dialog(ui);
+    }
+
+    fn dialog(&mut self, ui: &mut egui::Ui) {
+        match self.dialog {
+            OpenDialog::ApiServer => {self.input_api_url_dialog(ui)},
+            OpenDialog::FeedUrl => {self.feed_input_dialog(ui);},
+            OpenDialog::ProcessAll => {}, // tese two are managed somewhere else, we should manage them here
+            OpenDialog::Export => {}, 
+            OpenDialog::None => {},
+        }
     }
 
     fn ai_widget(&mut self, ui: &mut egui::Ui) {
@@ -836,11 +845,6 @@ impl Gui {
                     }
                 }
             });
-
-        // Feed url dialog
-        if self.dialog == OpenDialog::FeedUrl {
-            self.feed_input_dialog(ui);
-        }
     }
 
     /// Load (decode) the AudioData for the currently-selected audio file and
@@ -949,38 +953,37 @@ impl Gui {
     }
 
     fn input_api_url_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog == OpenDialog::ApiServer {
-            egui::Window::new(self.t(Key::input_url))
-                .collapsible(false)
-                .resizable(false)
-                .show(ui, |ui| {
-                    ui.text_edit_singleline(&mut self.temp.api_str);
-                    ui.horizontal(|ui| {
-                        if ui.button(self.t(Key::ok)).clicked() {
-                            let url = self.temp.api_str.clone();
+        egui::Window::new(self.t(Key::input_url))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.text_edit_singleline(&mut self.temp.api_str);
+                ui.horizontal(|ui| {
+                    if ui.button(self.t(Key::ok)).clicked() {
+                        let url = self.temp.api_str.clone();
 
-                            // This tells tokio to move this blocking operation to another thread
-                            let is_valid_api = tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current()
-                                    .block_on(check_boquila_hub_api(&url))
-                            });
+                        // This tells tokio to move this blocking operation to another thread
+                        let is_valid_api = tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::current()
+                                .block_on(check_boquila_hub_api(&url))
+                        });
 
-                            if is_valid_api {
-                                self.dialog = OpenDialog::None;
-                                self.api_server_url = Some(url);
-                                self.ep_selected = Ep::BoquilaHubRemote;
-                            } else {
-                                self.push_toast(Message::Error);
-                            }
-                        }
-                        ui.add_space(8.0);
-                        if ui.button(self.t(Key::cancel)).clicked() {
+                        if is_valid_api {
                             self.dialog = OpenDialog::None;
-                            self.api_server_url = None;
+                            self.api_server_url = Some(url);
+                            self.ep_selected = Ep::BoquilaHubRemote;
+                        } else {
+                            self.push_toast(Message::Error);
                         }
-                    });
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.dialog = OpenDialog::None;
+                        self.api_server_url = None;
+                    }
                 });
-        }
+            });
+        
     }
 
 }
@@ -1050,6 +1053,7 @@ impl eframe::App for Gui {
             }
 
             self.show_toast(ui);
+            self.dialog(ui);
         });
 
         egui::CentralPanel::default().show(main_ui, |ui| {
