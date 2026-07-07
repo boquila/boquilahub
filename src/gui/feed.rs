@@ -58,9 +58,9 @@ impl Gui {
                                         self.cancel_video_processing();
                                     }
                                 }
-                                None => self.process_error(),
+                                None => self.push_toast(super::Message::Error),
                             },
-                            Err(_) => self.process_error(),
+                            Err(_) => self.push_toast(super::Message::Error),
                         }
                         self.dialog = OpenDialog::None;
                     }
@@ -100,7 +100,7 @@ impl Gui {
         let mut feed = match stream::Feed::new(&url) {
             Ok(f) => f,
             Err(_) => {
-                self.process_error();
+                self.push_toast(super::Message::Error);
                 return;
             }
         };
@@ -411,13 +411,13 @@ impl Gui {
         if export_json {
             match self.export_current_feed_frame_json() {
                 Some(path) => self.process_done_at(path),
-                None => self.process_error(),
+                None => self.push_toast(super::Message::Error),
             }
         }
         if export_png {
             match self.export_current_feed_frame_png() {
                 Some(path) => self.process_done_at(path),
-                None => self.process_error(),
+                None => self.push_toast(super::Message::Error),
             }
         }
     }

@@ -223,7 +223,7 @@ impl Gui {
                             });
                         }
                         let msg = self.t(Key::saved_next_to_originals).to_string();
-                        self.process_done_with(msg);
+                        self.push_toast(super::Message::ok(msg));
                         self.dialog = OpenDialog::None;
                     }
 

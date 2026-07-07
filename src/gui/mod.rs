@@ -157,12 +157,7 @@ struct Gui {
     video_play_start_frame: u64,
     video_last_displayed_frame: Option<u64>,
 
-    // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
-    done_time: Option<Instant>,
-    error_time: Option<Instant>,
-    // Optional override for the "Done" toast — used to surface the export
-    // path so the user isn't left guessing where their files landed.
-    done_message: Option<String>,
+    toasts: VecDeque<Toast>,
 
     // Model Configurations
     ai_config: ModelConfig,
@@ -292,6 +287,31 @@ struct ShowConfig {
     feed: bool,
 }
 
+enum Message {
+    Success(String),
+    Error,
+}
+
+impl Message {
+    fn ok(msg: impl Into<String>) -> Self {
+        Message::Success(format!("✅ {}", msg.into()))
+    }
+}
+
+struct Toast {
+    msg: Message,
+    time: Instant,
+}
+
+impl Toast {
+    fn new(msg: Message) -> Self {
+        Self {
+            msg,
+            time: Instant::now(),
+        }
+    }
+}
+
 #[derive(Default, PartialEq)]
 enum OpenDialog {
     #[default]
@@ -308,7 +328,7 @@ impl Gui {
 
         fonts.font_data.insert(
             "Noto".to_owned(),
-            egui::FontData::from_static(&render::FONT_BYTES.as_ref()).into(),
+            egui::FontData::from_static(&render::FONT_BYTES).into(),
         );
 
         fonts
@@ -350,24 +370,17 @@ impl Gui {
             || self.audio_state.is_processing
     }
 
-    fn process_done(&mut self) {
-        self.done_time = Some(Instant::now());
-        self.done_message = None;
+    fn push_toast(&mut self, msg: Message) {
+        if self.toasts.len() == 20 { // Max Toasts
+            self.toasts.pop_front();
+        }
+        self.toasts.push_back(Toast::new(msg));
     }
 
     fn process_done_at(&mut self, location: impl Into<String>) {
-        self.done_time = Some(Instant::now());
         let prefix = self.t(Key::saved_to);
-        self.done_message = Some(format!("✅ {} {}", prefix, location.into()));
-    }
-
-    fn process_done_with(&mut self, message: impl Into<String>) {
-        self.done_time = Some(Instant::now());
-        self.done_message = Some(format!("✅ {}", message.into()));
-    }
-
-    fn process_error(&mut self) {
-        self.error_time = Some(Instant::now());
+        let str = format!("{} {}", prefix, location.into());
+        self.push_toast(Message::ok(str));
     }
 
     fn t(&self, key: Key) -> &'static str {
@@ -394,38 +407,21 @@ impl Gui {
         }
     }
 
-    fn show_timed_message(
-        time: &mut Option<std::time::Instant>,
+    fn show_toast(
+        &self,
         ui: &mut egui::Ui,
-        message: &str,
-        duration_secs: f32,
     ) {
-        if let Some(start_time) = *time {
-            if start_time.elapsed().as_secs_f32() < duration_secs {
+        if let Some(toast) = self.toasts.back() {
+            if toast.time.elapsed().as_secs_f32() < 6.0 { // toast duration on screen
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.label(message);
+                    match &toast.msg {
+                        Message::Success(str) => {ui.label(str);},
+                        Message::Error => {ui.label(self.t(Key::error_ocurred));}
+                    }
                 });
                 ui.request_repaint();
-            } else {
-                *time = None;
-            }
+            } 
         }
-    }
-
-    fn show_done_message(&mut self, ui: &mut egui::Ui) {
-        let default = self.t(Key::done);
-        let message: &str = self.done_message.as_deref().unwrap_or(default);
-        // Path-bearing toasts need long enough to actually be read; the plain
-        // "Done" toast was 3s and felt fine, but a file path requires more.
-        let duration = if self.done_message.is_some() { 10.0 } else { 3.0 };
-        let time = &mut self.done_time;
-        Gui::show_timed_message(time, ui, message, duration);
-    }
-
-    fn show_error_message(&mut self, ui: &mut egui::Ui) {
-        let message = &self.t(Key::error_ocurred);
-        let time = &mut self.error_time;
-        Gui::show_timed_message(time, ui, message, 3.0);
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
@@ -459,7 +455,7 @@ impl Gui {
                     if !success {
                         self.isapi_deployed = false;
                         self.host_server_url = None;
-                        self.process_error();
+                        self.push_toast(Message::Error);
                     }
                     self.api_result_receiver = None;
                 }
@@ -529,7 +525,7 @@ impl Gui {
                     self.ep_selected,
                     Some(self.ai_config.clone()),
                 ).is_err() {
-                    self.process_error();
+                    self.push_toast(Message::Error);
                 }
             }
 
@@ -588,7 +584,7 @@ impl Gui {
                     self.ep_selected,
                     Some(self.ai_cls_config.clone()),
                 ).is_err() {
-                    self.process_error();
+                    self.push_toast(Message::Error);
                 }
             }
 
@@ -663,7 +659,7 @@ impl Gui {
                             self.ep_selected = temp_ep_selected;
                         }
                         Err(_e) => {
-                            self.process_error();
+                            self.push_toast(Message::Error);
                         }
                     }
                 }
@@ -747,7 +743,7 @@ impl Gui {
                                 }
                             }
                             Err(_e) => {
-                                self.process_error();
+                                self.push_toast(Message::Error);
                             }
                         }
                     }
@@ -824,7 +820,7 @@ impl Gui {
                         self.mode = Mode::Audio;
                         self.audio_state.progress_bar = self.selected_audios.get_progress();
                         if let Err(()) = self.load_current_audio() {
-                            self.process_error();
+                            self.push_toast(Message::Error);
                             self.selected_audios.clear();
                         }
                     }
@@ -964,7 +960,7 @@ impl Gui {
                                 self.api_server_url = Some(url);
                                 self.ep_selected = Ep::BoquilaHubRemote;
                             } else {
-                                self.process_error();
+                                self.push_toast(Message::Error);
                             }
                         }
                         ui.add_space(8.0);
@@ -1043,8 +1039,7 @@ impl eframe::App for Gui {
                 }
             }
 
-            self.show_done_message(ui);
-            self.show_error_message(ui);
+            self.show_toast(ui);
         });
 
         egui::CentralPanel::default().show(main_ui, |ui| {
