@@ -89,7 +89,6 @@ impl Gui {
             });
         }
 
-        self.audio_export_dialog(ui);
         self.process_all_dialog_audio(ui);
     }
 
@@ -121,10 +120,7 @@ impl Gui {
             });
     }
 
-    fn audio_export_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != OpenDialog::Export || self.mode != Mode::Audio {
-            return;
-        }
+    pub fn audio_export_dialog(&mut self, ui: &egui::Ui) {
         let mut close = false;
         let mut export = false;
         egui::Window::new(self.t(Key::export))

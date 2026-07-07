@@ -480,10 +480,7 @@ impl Gui {
         self.video_export_dialog(ui);
     }
 
-    fn video_export_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != super::OpenDialog::Export || self.mode != super::Mode::Video {
-            return;
-        }
+    pub fn video_export_dialog(&mut self, ui: &egui::Ui) {
         let mut close = false;
         egui::Window::new(self.t(Key::export))
             .collapsible(false)

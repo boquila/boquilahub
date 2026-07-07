@@ -211,42 +211,42 @@ impl Gui {
             });
         }
 
-        if self.dialog == OpenDialog::Export && self.mode == Mode::Image {
-            egui::Window::new(self.t(Key::export))
-                .collapsible(false)
-                .resizable(false)
-                .show(ui, |ui| {
-                    if ui.button(self.t(Key::export_predictions)).clicked() {
-                        for file in self.selected_imgs.clone() {
-                            tokio::spawn(async move {
-                                let _ = file.write_predictions();
-                            });
-                        }
-                        let msg = self.t(Key::saved_next_to_originals).to_string();
-                        self.push_toast(super::Message::ok(msg));
-                        self.dialog = OpenDialog::None;
-                    }
-
-                    if ui
-                        .button(self.t(Key::export_imgs_with_predictions))
-                        .clicked()
-                    {
-                        for file in &self.selected_imgs {
-                            if file.wasprocessed {
-                                self.save_gui(file);
-                            }
-                        }
-                        self.process_done_at(format!("{}/", export::EXPORT_DIR));
-                        self.dialog = OpenDialog::None;
-                    }
-
-                    if ui.button(self.t(Key::cancel)).clicked() {
-                        self.dialog = OpenDialog::None;
-                    }
-                });
-        }
-
         self.process_all_dialog(ui);
+    }
+
+    pub fn img_export_dialog(&mut self, ui: &mut egui::Ui) {
+        egui::Window::new(self.t(Key::export))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                if ui.button(self.t(Key::export_predictions)).clicked() {
+                    for file in self.selected_imgs.clone() {
+                        tokio::spawn(async move {
+                            let _ = file.write_predictions();
+                        });
+                    }
+                    let msg = self.t(Key::saved_next_to_originals).to_string();
+                    self.push_toast(super::Message::ok(msg));
+                    self.dialog = OpenDialog::None;
+                }
+
+                if ui
+                    .button(self.t(Key::export_imgs_with_predictions))
+                    .clicked()
+                {
+                    for file in &self.selected_imgs {
+                        if file.wasprocessed {
+                            self.save_gui(file);
+                        }
+                    }
+                    self.process_done_at(format!("{}/", export::EXPORT_DIR));
+                    self.dialog = OpenDialog::None;
+                }
+
+                if ui.button(self.t(Key::cancel)).clicked() {
+                    self.dialog = OpenDialog::None;
+                }
+            });
     }
 
     // ---------- main image viewer ----------
@@ -1292,4 +1292,3 @@ fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
         ui.label(format!("{} — {:.0}%", label, prob * 100.0));
     });
 }
-

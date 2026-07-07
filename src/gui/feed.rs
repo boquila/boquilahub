@@ -366,14 +366,9 @@ impl Gui {
                 }
             });
         }
-
-        self.feed_export_dialog(ui);
     }
 
-    fn feed_export_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != OpenDialog::Export || self.mode != Mode::Feed {
-            return;
-        }
+    pub fn feed_export_dialog(&mut self, ui: &egui::Ui) {
         let has_ai_at_current = self
             .current_feed_frame()
             .map(|f| f.aioutput.is_some())

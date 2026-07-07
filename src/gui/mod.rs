@@ -473,8 +473,15 @@ impl Gui {
         match self.dialog {
             OpenDialog::ApiServer => {self.input_api_url_dialog(ui)},
             OpenDialog::FeedUrl => {self.feed_input_dialog(ui);},
-            OpenDialog::ProcessAll => {}, // tese two are managed somewhere else, we should manage them here
-            OpenDialog::Export => {}, 
+            OpenDialog::ProcessAll => {},
+            OpenDialog::Export => {
+                match self.mode {
+                    Mode::Image => {self.img_export_dialog(ui);},
+                    Mode::Audio => {self.audio_export_dialog(ui);},
+                    Mode::Video => {self.video_export_dialog(ui)},
+                    Mode::Feed => {self.feed_export_dialog(ui);},
+                }
+            }, 
             OpenDialog::None => {},
         }
     }
