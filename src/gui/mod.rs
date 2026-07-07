@@ -111,7 +111,7 @@ struct Gui {
     // Large types first
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
-    selected_files: Vec<PredImg>,
+    selected_imgs: Vec<PredImg>,
     selected_audios: Vec<PredAudio>,
     // AudioData is heavy (hours of float samples). We only keep it for the
     // currently displayed audio file — switching invalidates and reloads.
@@ -197,7 +197,7 @@ struct Gui {
 /// One per modality (image/audio/video/feed). The receiver lives here so the
 /// channel-disconnect rule — "worker done iff `rx.try_recv() == Disconnected`" —
 /// is enforced in one place via `drain()`. Callers cannot accidentally check
-/// the wrong predicate (e.g. `selected_files.iter().all(wasprocessed)`, which
+/// the wrong predicate (e.g. `selected_imgs.iter().all(wasprocessed)`, which
 /// stays false forever during single-item analysis in a batch).
 struct State<T> {
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<T>>,
@@ -653,8 +653,7 @@ impl Gui {
                 }
                 _ => {
                     match self.set_ai(temp_ep_selected) {
-                        Ok(_result) => {
-                            
+                        Ok(()) => {
                             let _ = self.set_ai_cls(temp_ep_selected);
                             self.ep_selected = temp_ep_selected;
                         }
@@ -698,14 +697,14 @@ impl Gui {
                                     || !video_files.is_empty();
 
                                 if !image_files.is_empty() {
-                                    self.selected_files = image_files
+                                    self.selected_imgs = image_files
                                         .into_iter()
                                         .map(PredImg::new_simple)
                                         .collect();
                                     self.image_texture_n = 1;
                                     self.paint(ui, 0);
                                     self.img_state.progress_bar =
-                                        self.selected_files.get_progress();
+                                        self.selected_imgs.get_progress();
                                 }
 
                                 if !audio_files.is_empty() {
@@ -733,7 +732,7 @@ impl Gui {
                                 // behaviour); otherwise fall back to whichever
                                 // modality the folder actually contained.
                                 if had_any {
-                                    if !self.selected_files.is_empty() {
+                                    if !self.selected_imgs.is_empty() {
                                         self.mode = Mode::Image;
                                     } else if !self.selected_videos.is_empty() {
                                         self.mode = Mode::Video;
@@ -758,14 +757,14 @@ impl Gui {
                         .add_filter("Image", &formats::IMAGE_FORMATS)
                         .pick_files()
                     {
-                        self.selected_files = paths
+                        self.selected_imgs = paths
                             .into_iter()
                             .map(|path| PredImg::new_simple(path))
                             .collect();
                         self.image_texture_n = 1;
                         self.paint(ui, 0);
                         self.mode = Mode::Image;
-                        self.img_state.progress_bar = self.selected_files.get_progress()
+                        self.img_state.progress_bar = self.selected_imgs.get_progress()
                     }
                 }
                 ui.end_row();
@@ -1043,7 +1042,7 @@ impl eframe::App for Gui {
         });
 
         egui::CentralPanel::default().show(main_ui, |ui| {
-            let cond1 = self.selected_files.len() >= 1;
+            let cond1 = self.selected_imgs.len() >= 1;
             let cond2 = !self.selected_videos.is_empty();
             let cond3 = self.feed_url.is_some();
             let cond4 = !self.selected_audios.is_empty();
