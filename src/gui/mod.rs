@@ -724,10 +724,7 @@ impl Gui {
                                     || !video_files.is_empty();
 
                                 if !image_files.is_empty() {
-                                    self.selected_imgs = image_files
-                                        .into_iter()
-                                        .map(PredImg::new_simple)
-                                        .collect();
+                                    self.selected_imgs = image_files.into_preds(PredImg::new_simple);
                                     self.image_texture_n = 1;
                                     self.paint(ui, 0);
                                     self.img_state.progress_bar =
@@ -735,10 +732,7 @@ impl Gui {
                                 }
 
                                 if !audio_files.is_empty() {
-                                    self.selected_audios = audio_files
-                                        .into_iter()
-                                        .map(PredAudio::new_simple)
-                                        .collect();
+                                    self.selected_audios = audio_files.into_preds(PredAudio::new_simple);
                                     self.audio_texture_n = 1;
                                     self.audio_state.progress_bar =
                                         self.selected_audios.get_progress();
@@ -746,10 +740,7 @@ impl Gui {
                                 }
 
                                 if !video_files.is_empty() {
-                                    self.selected_videos = video_files
-                                        .into_iter()
-                                        .map(PredVideo::new_simple)
-                                        .collect();
+                                    self.selected_videos = video_files.into_preds(PredVideo::new_simple);
                                     self.video_texture_n = 1;
                                     self.load_current_video(ui);
                                 }
@@ -784,10 +775,7 @@ impl Gui {
                         .add_filter("Image", &formats::IMAGE_FORMATS)
                         .pick_files()
                     {
-                        self.selected_imgs = paths
-                            .into_iter()
-                            .map(|path| PredImg::new_simple(path))
-                            .collect();
+                        self.selected_imgs = paths.into_preds(PredImg::new_simple);
                         self.image_texture_n = 1;
                         self.paint(ui, 0);
                         self.mode = Mode::Image;
@@ -806,10 +794,7 @@ impl Gui {
                         .pick_files()
                     {
                         if !paths.is_empty() {
-                            self.selected_videos = paths
-                                .into_iter()
-                                .map(PredVideo::new_simple)
-                                .collect();
+                            self.selected_videos = paths.into_preds(PredVideo::new_simple);
                             self.video_texture_n = 1;
                             self.mode = Mode::Video;
                             self.load_current_video(ui);
@@ -838,10 +823,7 @@ impl Gui {
                         .add_filter("Audio", &formats::AUDIO_FORMATS)
                         .pick_files()
                     {
-                        self.selected_audios = paths
-                            .into_iter()
-                            .map(PredAudio::new_simple)
-                            .collect();
+                        self.selected_audios = paths.into_preds(PredAudio::new_simple);
                         self.audio_texture_n = 1;
                         self.mode = Mode::Audio;
                         self.audio_state.progress_bar = self.selected_audios.get_progress();
@@ -1171,6 +1153,16 @@ fn imgbuf_to_texture(
     let color_img =
         egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
     Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
+}
+
+trait PathsExt {
+    fn into_preds<T>(self, new_simple: impl Fn(PathBuf) -> T) -> Vec<T>;
+}
+
+impl PathsExt for Vec<PathBuf> {
+    fn into_preds<T>(self, new_simple: impl Fn(PathBuf) -> T) -> Vec<T> {
+        self.into_iter().map(new_simple).collect()
+    }
 }
 
 #[derive(Default, PartialEq)]
