@@ -471,140 +471,146 @@ impl Gui {
     }
 
     fn ai_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ep_selected.is_local() {
-            let previous_ai = self.ai_selected;
-            ui.label(self.t(Key::select_ai));
+        if !self.ep_selected.is_local() {
+            return;
+        }
+        
+        let previous_ai = self.ai_selected;
+        ui.label(self.t(Key::select_ai));
 
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("AI")
-                    .selected_text(match self.ai_selected {
-                        Some(i) => &self.ais[i].name,
-                        None => "",
-                    })
-                    .show_ui(ui, |ui| {
-                        for (i, ai) in self.ais.iter().enumerate() {
-                            ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
-                                .on_hover_text(&ai.classes.join(", "));
-                        }
-                    });
-
-                if self.ai_selected.is_some() {
-                    if ui
-                        .button("⚙")
-                        .on_hover_text(self.t(Key::configure_ai))
-                        .clicked()
-                    {
-                        self.show_config.ai = true;
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("AI")
+                .selected_text(match self.ai_selected {
+                    Some(i) => &self.ais[i].name,
+                    None => "",
+                })
+                .show_ui(ui, |ui| {
+                    for (i, ai) in self.ais.iter().enumerate() {
+                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
+                            .on_hover_text(&ai.classes.join(", "));
                     }
-                }
+                });
 
-                // '+' button, select a escond AI
-                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
+            if self.ai_selected.is_some() {
+                if ui
+                    .button("⚙")
+                    .on_hover_text(self.t(Key::configure_ai))
+                    .clicked()
                 {
-                    let task = self.ais[self.ai_selected.unwrap()].task;
-                    if task == Task::Detect || task == Task::Segment {
-                        if ui
-                            .button("+")
-                            .on_hover_text(self.t(Key::add_classification_model_to_complement))
-                            .clicked()
-                        {
-                            self.show_ai_cls = true;
-                        }
-                    }
-                }
-            });
-
-            if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-                if self.is_audio_model() {
-                    self.show_ai_cls = false;
-                    self.ai_cls_selected = None;
-                    GlobalBQ::Second.clear();
-                    // Mel params may differ for the new audio model — invalidate cache.
-                    self.audio_full_mel = None;
-                    self.audio_mel_meta = None;
-                    self.audio_state.texture = None;
-                }
-                let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                if GlobalBQ::First.set_model(
-                    &model_path,
-                    self.ep_selected,
-                    Some(self.ai_config.clone()),
-                ).is_err() {
-                    self.push_toast(Message::Error);
+                    self.show_config.ai = true;
                 }
             }
 
-            ai_config_window!(
-                self,
-                ui,
-                self.show_config.ai,
-                ai_config,
-                self.temp.ai_config,
-                GlobalBQ::First,
-                current_ai
-            );
+            // '+' button, select a escond AI
+            if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
+            {
+                let task = self.ais[self.ai_selected.unwrap()].task;
+                if task == Task::Detect || task == Task::Segment {
+                    if ui
+                        .button("+")
+                        .on_hover_text(self.t(Key::add_classification_model_to_complement))
+                        .clicked()
+                    {
+                        self.show_ai_cls = true;
+                    }
+                }
+            }
+        });
 
-            ui.add_space(8.0);
+        if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
+            if self.is_audio_model() {
+                self.show_ai_cls = false;
+                self.ai_cls_selected = None;
+                GlobalBQ::Second.clear();
+                // Mel params may differ for the new audio model — invalidate cache.
+                self.audio_full_mel = None;
+                self.audio_mel_meta = None;
+                self.audio_state.texture = None;
+            }
+            let model_path = self.ais[self.ai_selected.unwrap()].get_path();
+            if GlobalBQ::First.set_model(
+                &model_path,
+                self.ep_selected,
+                Some(self.ai_config.clone()),
+            ).is_err() {
+                self.push_toast(Message::Error);
+            }
         }
+
+        ai_config_window!(
+            self,
+            ui,
+            self.show_config.ai,
+            ai_config,
+            self.temp.ai_config,
+            GlobalBQ::First,
+            current_ai
+        );
+
+        ui.add_space(8.0);
+    
     }
 
     fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ep_selected.is_local() && self.show_ai_cls {
-            let previous_ai = self.ai_cls_selected;
-            ui.label(self.t(Key::select_2nd_ai));
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("AI_CLS")
-                    .selected_text(match self.ai_cls_selected {
-                        Some(i) => &self.ais_cls_only[i].name,
-                        None => "",
-                    })
-                    .show_ui(ui, |ui| {
-                        for (i, ai) in self.ais_cls_only.iter().enumerate() {
-                            ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
-                                .on_hover_text(&ai.classes.join(", "));
-                        }
-                    });
-
-                // Button to remove AI, and unload it from memory.
-                if self.ai_cls_selected.is_some() {
-                    if ui
-                        .button("⚙")
-                        .on_hover_text(self.t(Key::configure_ai))
-                        .clicked()
-                    {
-                        self.show_config.ai_cls = true;
+        if !(self.ep_selected.is_local() && self.show_ai_cls) {
+            return;
+        }
+        
+        let previous_ai = self.ai_cls_selected;
+        ui.label(self.t(Key::select_2nd_ai));
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("AI_CLS")
+                .selected_text(match self.ai_cls_selected {
+                    Some(i) => &self.ais_cls_only[i].name,
+                    None => "",
+                })
+                .show_ui(ui, |ui| {
+                    for (i, ai) in self.ais_cls_only.iter().enumerate() {
+                        ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
+                            .on_hover_text(&ai.classes.join(", "));
                     }
+                });
 
-                    if ui.button("-").clicked() {
-                        self.show_ai_cls = false;
-                        self.ai_cls_selected = None;
-                        GlobalBQ::Second.clear();
-                    }
+            // Button to remove AI, and unload it from memory.
+            if self.ai_cls_selected.is_some() {
+                if ui
+                    .button("⚙")
+                    .on_hover_text(self.t(Key::configure_ai))
+                    .clicked()
+                {
+                    self.show_config.ai_cls = true;
                 }
-            });
-            if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
-                let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                if GlobalBQ::Second.set_model(
-                    &model_path,
-                    self.ep_selected,
-                    Some(self.ai_cls_config.clone()),
-                ).is_err() {
-                    self.push_toast(Message::Error);
+
+                if ui.button("-").clicked() {
+                    self.show_ai_cls = false;
+                    self.ai_cls_selected = None;
+                    GlobalBQ::Second.clear();
                 }
             }
-
-            ai_config_window!(
-                self,
-                ui,
-                self.show_config.ai_cls,
-                ai_cls_config,
-                self.temp.ai_cls_config,
-                GlobalBQ::Second,
-                current_ai_cls
-            );
-
-            ui.add_space(8.0);
+        });
+        if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
+            let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
+            if GlobalBQ::Second.set_model(
+                &model_path,
+                self.ep_selected,
+                Some(self.ai_cls_config.clone()),
+            ).is_err() {
+                self.push_toast(Message::Error);
+            }
         }
+
+        ai_config_window!(
+            self,
+            ui,
+            self.show_config.ai_cls,
+            ai_cls_config,
+            self.temp.ai_cls_config,
+            GlobalBQ::Second,
+            current_ai_cls
+        );
+
+        ui.add_space(8.0);
+        
     }
 
     fn get_endpoint(&self) -> Option<String> {
