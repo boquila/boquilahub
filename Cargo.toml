@@ -5,7 +5,7 @@ resolver = "2"
 [package]
 name = "boquilahub"
 version = "0.6.0"
-edition = "2021"
+edition = "2024"
 build = "src/build.rs"
 authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"

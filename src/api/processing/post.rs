@@ -127,7 +127,7 @@ pub fn process_class_output(
     let mut probs: Vec<Prob> = output
         .iter()
         .enumerate()
-        .filter(|(_, &score)| conf.map_or(true, |c| score >= c))
+        .filter(|&(_, &score)| conf.map_or(true, |c| score >= c))
         .map(|(i, &score)| Prob::new(classes[i].clone(), score, i as u32))
         .collect();
     probs.sort_by(|a, b| b.prob.partial_cmp(&a.prob).unwrap());
