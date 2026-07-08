@@ -204,14 +204,6 @@ struct State<T> {
     progress_bar: f32,
 }
 
-#[derive(Default)]
-struct Temp {
-    feed_str: String,
-    api_str: String,
-    ai_config: ModelConfig,
-    ai_cls_config: ModelConfig,
-}
-
 impl<T> Default for State<T> {
     fn default() -> Self {
         Self {
@@ -290,6 +282,14 @@ struct ShowConfig {
     _img: bool,
     video: bool,
     feed: bool,
+}
+
+#[derive(Default)]
+struct Temp {
+    feed_str: String,
+    api_str: String,
+    ai_config: ModelConfig,
+    ai_cls_config: ModelConfig,
 }
 
 enum Message {
@@ -978,7 +978,6 @@ impl Gui {
 }
 
 impl eframe::App for Gui {
-    /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, main_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::Panel::top("top_panel").show(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -1174,9 +1173,6 @@ enum Mode {
     Audio,
 }
 
-/// Bucket a directory's files into (images, audio, video) by extension. Each
-/// file lands in at most one bucket; order matches the source iterator so the
-/// resulting UI is stable across folder rescans.
 fn partition_media_in_dir(
     entries: fs::ReadDir,
 ) -> (Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>) {
