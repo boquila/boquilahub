@@ -42,68 +42,60 @@ pub fn run_gui() {
     );
 }
 
-macro_rules! ai_config_window {
-    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:expr, $variant:expr, $current_ai_fn:ident) => {
-        if $show_field {
-            egui::Window::new($self.t(Key::configure_ai))
-                .collapsible(false)
-                .resizable(false)
-                .show($ctx, |ui| {
-                    let text_slide1 = $self.t(Key::confidence_level);
-                    ui.add(
-                        egui::Slider::new(
-                            &mut $temp_config_field.confidence_threshold,
-                            0.10..=0.99,
-                        )
-                        .text(text_slide1),
-                    );
-                    let has_nms = $self
-                        .$current_ai_fn()
-                        .post_processing
-                        .contains(&PostProcessing::NMS);
-                    if has_nms {
-                        let text_slide2 = $self.t(Key::overlap_filter);
-                        ui.add(
-                            egui::Slider::new(
-                                &mut $temp_config_field.nms_threshold,
-                                0.10..=0.99,
-                            )
-                            .text(text_slide2),
-                        );
-                    }
-                    let has_geofence = $self
-                        .$current_ai_fn()
-                        .post_processing
-                        .contains(&PostProcessing::GeoFence);
-                    if has_geofence {
-                        ui.label($self.t(Key::region_filter));
-                        egui::ComboBox::from_id_salt("Region")
-                            .selected_text($temp_config_field.geo_fence.clone())
-                            .show_ui(ui, |ui| {
-                                for str in utils::COUNTRY_CODES {
-                                    ui.selectable_value(
-                                        &mut $temp_config_field.geo_fence,
-                                        str.to_owned(),
-                                        str,
-                                    );
-                                }
-                            });
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.button($self.t(Key::ok)).clicked() {
-                            $self.$config_field = $temp_config_field.clone();
-                            $variant.update_config($self.$config_field.clone());
-                            $show_field = false;
-                        }
-                        ui.add_space(8.0);
-                        if ui.button($self.t(Key::cancel)).clicked() {
-                            $temp_config_field = $self.$config_field.clone();
-                            $show_field = false;
-                        }
-                    });
-                });
+/// All UI state for one AI model slot's "configure" popup (there are two:
+/// primary and secondary/classification). Bundling show/config/temp here
+/// replaces three parallel per-slot fields that used to live scattered across
+/// `Gui`, `ShowConfig`, and `Temp`.
+#[derive(Default, Clone)]
+struct AiConfigSlot {
+    show: bool,
+    config: ModelConfig,
+    temp: ModelConfig,
+}
+
+impl AiConfigSlot {
+    fn window(&mut self, ui: &mut egui::Ui, lang: &Lang, variant: GlobalBQ, current_ai: &AIMetadata) {
+        if !self.show {
+            return;
         }
-    };
+        egui::Window::new(translate(Key::configure_ai, lang))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.add(
+                    egui::Slider::new(&mut self.temp.confidence_threshold, 0.10..=0.99)
+                        .text(translate(Key::confidence_level, lang)),
+                );
+                if current_ai.post_processing.contains(&PostProcessing::NMS) {
+                    ui.add(
+                        egui::Slider::new(&mut self.temp.nms_threshold, 0.10..=0.99)
+                            .text(translate(Key::overlap_filter, lang)),
+                    );
+                }
+                if current_ai.post_processing.contains(&PostProcessing::GeoFence) {
+                    ui.label(translate(Key::region_filter, lang));
+                    egui::ComboBox::from_id_salt("Region")
+                        .selected_text(self.temp.geo_fence.clone())
+                        .show_ui(ui, |ui| {
+                            for str in utils::COUNTRY_CODES {
+                                ui.selectable_value(&mut self.temp.geo_fence, str.to_owned(), str);
+                            }
+                        });
+                }
+                ui.horizontal(|ui| {
+                    if ui.button(translate(Key::ok, lang)).clicked() {
+                        self.config = self.temp.clone();
+                        variant.update_config(self.config.clone());
+                        self.show = false;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(translate(Key::cancel, lang)).clicked() {
+                        self.temp = self.config.clone();
+                        self.show = false;
+                    }
+                });
+            });
+    }
 }
 
 #[derive(Default)]
@@ -158,8 +150,8 @@ struct Gui {
     toasts: VecDeque<Toast>,
 
     // Model Configurations
-    ai_config: ModelConfig,
-    ai_cls_config: ModelConfig,
+    ai: AiConfigSlot,
+    ai_cls: AiConfigSlot,
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
@@ -277,8 +269,6 @@ impl<T> State<T> {
 
 #[derive(Default)]
 struct ShowConfig {
-    ai: bool,
-    ai_cls: bool,
     _img: bool,
     video: bool,
     feed: bool,
@@ -288,8 +278,6 @@ struct ShowConfig {
 struct Temp {
     feed_str: String,
     api_str: String,
-    ai_config: ModelConfig,
-    ai_cls_config: ModelConfig,
 }
 
 enum Message {
@@ -513,7 +501,7 @@ impl Gui {
                     .on_hover_text(self.t(Key::configure_ai))
                     .clicked()
                 {
-                    self.show_config.ai = true;
+                    self.ai.show = true;
                 }
             }
 
@@ -547,21 +535,16 @@ impl Gui {
             if GlobalBQ::First.set_model(
                 &model_path,
                 self.ep_selected,
-                Some(self.ai_config.clone()),
+                Some(self.ai.config.clone()),
             ).is_err() {
                 self.push_toast(Message::Error);
             }
         }
 
-        ai_config_window!(
-            self,
-            ui,
-            self.show_config.ai,
-            ai_config,
-            self.temp.ai_config,
-            GlobalBQ::First,
-            current_ai
-        );
+        if self.ai.show {
+            let current_ai = self.current_ai().clone();
+            self.ai.window(ui, &self.lang, GlobalBQ::First, &current_ai);
+        }
 
         ui.add_space(8.0);
     
@@ -594,7 +577,7 @@ impl Gui {
                     .on_hover_text(self.t(Key::configure_ai))
                     .clicked()
                 {
-                    self.show_config.ai_cls = true;
+                    self.ai_cls.show = true;
                 }
 
                 if ui.button("-").clicked() {
@@ -609,21 +592,16 @@ impl Gui {
             if GlobalBQ::Second.set_model(
                 &model_path,
                 self.ep_selected,
-                Some(self.ai_cls_config.clone()),
+                Some(self.ai_cls.config.clone()),
             ).is_err() {
                 self.push_toast(Message::Error);
             }
         }
 
-        ai_config_window!(
-            self,
-            ui,
-            self.show_config.ai_cls,
-            ai_cls_config,
-            self.temp.ai_cls_config,
-            GlobalBQ::Second,
-            current_ai_cls
-        );
+        if self.ai_cls.show {
+            let current_ai_cls = self.current_ai_cls().clone();
+            self.ai_cls.window(ui, &self.lang, GlobalBQ::Second, &current_ai_cls);
+        }
 
         ui.add_space(8.0);
         
@@ -644,7 +622,7 @@ impl Gui {
             GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
                 ep,
-                Some(self.ai_config.clone()),
+                Some(self.ai.config.clone()),
             )?;
         }
         Ok(())
@@ -655,7 +633,7 @@ impl Gui {
             GlobalBQ::Second.set_model(
                 &self.current_ai_cls().get_path(),
                 ep,
-                Some(self.ai_cls_config.clone()),
+                Some(self.ai_cls.config.clone()),
             )?;
         }
         Ok(())
