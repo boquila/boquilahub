@@ -413,6 +413,12 @@ impl AIMetadata {
     }
 }
 
+impl AsRef<str> for AIMetadata {
+    fn as_ref(&self) -> &str {
+        &self.name
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Modality {
     Audio,

@@ -264,7 +264,6 @@ impl Gui {
                 if let Some(pv) = self.current_video_mut() {
                     pv.wasprocessed = true;
                 }
-                self.process_done();
             } else {
                 // Preview ran to EOF — drop the exhausted decoder so a later
                 // Analyse / replay rebuilds one rather than reusing a dead one.
@@ -405,11 +404,9 @@ impl Gui {
             if ok {
                 if let Some(path) = self.video_export_path.take() {
                     self.process_done_at(path);
-                } else {
-                    self.process_done();
-                }
+                } 
             } else {
-                self.process_error();
+                self.push_toast(super::Message::Error);
                 self.video_export_path = None;
             }
         }
@@ -483,10 +480,7 @@ impl Gui {
         self.video_export_dialog(ui);
     }
 
-    fn video_export_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != super::OpenDialog::Export || self.mode != super::Mode::Video {
-            return;
-        }
+    pub fn video_export_dialog(&mut self, ui: &egui::Ui) {
         let mut close = false;
         egui::Window::new(self.t(Key::export))
             .collapsible(false)

@@ -89,7 +89,6 @@ impl Gui {
             });
         }
 
-        self.audio_export_dialog(ui);
         self.process_all_dialog_audio(ui);
     }
 
@@ -121,10 +120,7 @@ impl Gui {
             });
     }
 
-    fn audio_export_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != OpenDialog::Export || self.mode != Mode::Audio {
-            return;
-        }
+    pub fn audio_export_dialog(&mut self, ui: &egui::Ui) {
         let mut close = false;
         let mut export = false;
         egui::Window::new(self.t(Key::export))
@@ -155,7 +151,7 @@ impl Gui {
             }
             if wrote_any {
                 let msg = self.t(Key::saved_next_to_originals).to_string();
-                self.process_done_with(msg);
+                self.push_toast(super::Message::ok(msg));
             }
         }
         if close {
@@ -294,7 +290,7 @@ impl Gui {
         if new_index != self.audio_texture_n {
             self.audio_texture_n = new_index;
             if self.load_current_audio().is_err() {
-                self.process_error();
+                self.push_toast(super::Message::Error);
             }
         }
 
@@ -319,7 +315,7 @@ impl Gui {
                     }
                 }
             } else {
-                self.process_error();
+                self.push_toast(super::Message::Error);
             }
         }
 
@@ -332,7 +328,6 @@ impl Gui {
 
         if closed {
             self.audio_state.finish();
-            self.process_done();
         }
 
         self.audio_state.progress_bar = self.selected_audios.get_progress();

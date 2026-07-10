@@ -15,7 +15,7 @@ impl Gui {
     // ---------- texture loading ----------
 
     pub(super) fn paint(&mut self, ui: &egui::Ui, i: usize) {
-        let Some(predimg) = self.selected_files.get(i) else { return; };
+        let Some(predimg) = self.selected_imgs.get(i) else { return; };
         let Ok(loaded) = image::open(&predimg.file_path) else { return; };
         let img = loaded.into_rgba8();
         self.img_state.texture = imgbuf_to_texture(&img, ui);
@@ -43,13 +43,13 @@ impl Gui {
     // ---------- analysis lifecycle ----------
 
     pub(super) fn start_single_img_analysis(&mut self, target: usize) {
-        if target >= self.selected_files.len() || self.img_state.is_processing {
+        if target >= self.selected_imgs.len() || self.img_state.is_processing {
             return;
         }
-        self.selected_files[target].reset();
+        self.selected_imgs[target].reset();
 
         let (tx, mut cancel_rx) = self.img_state.start();
-        let predimg = self.selected_files[target].clone();
+        let predimg = self.selected_imgs[target].clone();
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
@@ -76,12 +76,12 @@ impl Gui {
 
     pub(super) fn start_img_analysis(&mut self) {
         if self.process_all_imgs {
-            self.selected_files
+            self.selected_imgs
                 .iter_mut()
                 .for_each(|pred_img| pred_img.reset());
         }
         let (tx, mut cancel_rx) = self.img_state.start();
-        let copy_predigms = self.selected_files.clone();
+        let copy_predigms = self.selected_imgs.clone();
 
         let api_endpoint = self.get_endpoint();
         let is_remote = !self.ep_selected.is_local();
@@ -116,8 +116,8 @@ impl Gui {
     pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.img_state.drain();
         for (i, bbox) in updates {
-            self.selected_files[i].aioutput = Some(bbox);
-            self.selected_files[i].wasprocessed = true;
+            self.selected_imgs[i].aioutput = Some(bbox);
+            self.selected_imgs[i].wasprocessed = true;
             if i == self.image_texture_n - 1 {
                 self.paint(ui, i);
             }
@@ -125,7 +125,7 @@ impl Gui {
         if closed {
             self.img_state.finish();
         }
-        self.img_state.progress_bar = self.selected_files.get_progress();
+        self.img_state.progress_bar = self.selected_imgs.get_progress();
         ui.request_repaint();
     }
 
@@ -160,7 +160,7 @@ impl Gui {
     // ---------- left-panel widget (Analyze / Export) ----------
 
     pub(super) fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.is_empty() || !self.can_run_image_ai() {
+        if self.selected_imgs.is_empty() || !self.can_run_image_ai() {
             return;
         }
 
@@ -176,7 +176,7 @@ impl Gui {
                 .clicked()
                 && !self.img_state.is_processing
             {
-                if self.selected_files.get_progress() == 0.0 {
+                if self.selected_imgs.get_progress() == 0.0 {
                     self.start_img_analysis();
                 } else {
                     self.dialog = OpenDialog::ProcessAll;
@@ -211,51 +211,51 @@ impl Gui {
             });
         }
 
-        if self.dialog == OpenDialog::Export && self.mode == Mode::Image {
-            egui::Window::new(self.t(Key::export))
-                .collapsible(false)
-                .resizable(false)
-                .show(ui, |ui| {
-                    if ui.button(self.t(Key::export_predictions)).clicked() {
-                        for file in self.selected_files.clone() {
-                            tokio::spawn(async move {
-                                let _ = file.write_predictions();
-                            });
-                        }
-                        let msg = self.t(Key::saved_next_to_originals).to_string();
-                        self.process_done_with(msg);
-                        self.dialog = OpenDialog::None;
-                    }
-
-                    if ui
-                        .button(self.t(Key::export_imgs_with_predictions))
-                        .clicked()
-                    {
-                        for file in &self.selected_files {
-                            if file.wasprocessed {
-                                self.save_gui(file);
-                            }
-                        }
-                        self.process_done_at(format!("{}/", export::EXPORT_DIR));
-                        self.dialog = OpenDialog::None;
-                    }
-
-                    if ui.button(self.t(Key::cancel)).clicked() {
-                        self.dialog = OpenDialog::None;
-                    }
-                });
-        }
-
         self.process_all_dialog(ui);
+    }
+
+    pub fn img_export_dialog(&mut self, ui: &mut egui::Ui) {
+        egui::Window::new(self.t(Key::export))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                if ui.button(self.t(Key::export_predictions)).clicked() {
+                    for file in self.selected_imgs.clone() {
+                        tokio::spawn(async move {
+                            let _ = file.write_predictions();
+                        });
+                    }
+                    let msg = self.t(Key::saved_next_to_originals).to_string();
+                    self.push_toast(super::Message::ok(msg));
+                    self.dialog = OpenDialog::None;
+                }
+
+                if ui
+                    .button(self.t(Key::export_imgs_with_predictions))
+                    .clicked()
+                {
+                    for file in &self.selected_imgs {
+                        if file.wasprocessed {
+                            self.save_gui(file);
+                        }
+                    }
+                    self.process_done_at(format!("{}/", export::EXPORT_DIR));
+                    self.dialog = OpenDialog::None;
+                }
+
+                if ui.button(self.t(Key::cancel)).clicked() {
+                    self.dialog = OpenDialog::None;
+                }
+            });
     }
 
     // ---------- main image viewer ----------
 
     pub(super) fn ui_image(&mut self, ui: &mut egui::Ui) {
-        if self.selected_files.is_empty() {
+        if self.selected_imgs.is_empty() {
             return;
         }
-        let n = self.selected_files.len();
+        let n = self.selected_imgs.len();
         if self.image_texture_n < 1 {
             self.image_texture_n = 1;
         }
@@ -267,22 +267,22 @@ impl Gui {
 
         let i = self.image_texture_n - 1;
         let is_classification = matches!(
-            self.selected_files[i].aioutput.as_ref(),
+            self.selected_imgs[i].aioutput.as_ref(),
             Some(AIOutputs::Classification(_))
         );
-        let has_non_empty_output = self.selected_files[i].wasprocessed
+        let has_non_empty_output = self.selected_imgs[i].wasprocessed
             && self
-                .selected_files[i]
+                .selected_imgs[i]
                 .aioutput
                 .as_ref()
                 .map(|a| !a.is_empty())
                 .unwrap_or(false);
         let show_side_panel = is_classification && has_non_empty_output;
         let has_spatial_output = matches!(
-            self.selected_files[i].aioutput.as_ref(),
+            self.selected_imgs[i].aioutput.as_ref(),
             Some(AIOutputs::ObjectDetection(b)) if !b.is_empty()
         ) || matches!(
-            self.selected_files[i].aioutput.as_ref(),
+            self.selected_imgs[i].aioutput.as_ref(),
             Some(AIOutputs::Segmentation(s)) if !s.is_empty()
         );
 
@@ -350,7 +350,7 @@ impl Gui {
                 self.t(Key::prev),
                 self.t(Key::next),
             );
-            let predimg = &self.selected_files[new_index - 1];
+            let predimg = &self.selected_imgs[new_index - 1];
             let name = predimg
                 .file_path
                 .file_name()
@@ -434,7 +434,7 @@ impl Gui {
             );
 
             let i = self.image_texture_n - 1;
-            let predimg = &self.selected_files[i];
+            let predimg = &self.selected_imgs[i];
 
             if predimg.wasprocessed {
                 match predimg.aioutput.as_ref() {
@@ -461,7 +461,7 @@ impl Gui {
 
     fn draw_classification_panel(&self, ui: &mut egui::Ui) {
         let i = self.image_texture_n - 1;
-        let probs = match self.selected_files[i].aioutput.as_ref() {
+        let probs = match self.selected_imgs[i].aioutput.as_ref() {
             Some(AIOutputs::Classification(probs)) => probs,
             _ => return,
         };
@@ -1292,4 +1292,3 @@ fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
         ui.label(format!("{} — {:.0}%", label, prob * 100.0));
     });
 }
-

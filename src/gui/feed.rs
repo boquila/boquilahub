@@ -36,10 +36,10 @@ impl Gui {
             .collapsible(false)
             .resizable(false)
             .show(ui, |ui| {
-                ui.text_edit_singleline(&mut self.temp_str);
+                ui.text_edit_singleline(&mut self.temp.feed_str);
                 ui.horizontal(|ui| {
                     if ui.button(self.t(Key::ok)).clicked() {
-                        let url = self.temp_str.clone();
+                        let url = self.temp.feed_str.clone();
                         match stream::Feed::new(&url) {
                             Ok(mut feed) => match feed.next() {
                                 Some(frame) => {
@@ -58,9 +58,9 @@ impl Gui {
                                         self.cancel_video_processing();
                                     }
                                 }
-                                None => self.process_error(),
+                                None => self.push_toast(super::Message::Error),
                             },
-                            Err(_) => self.process_error(),
+                            Err(_) => self.push_toast(super::Message::Error),
                         }
                         self.dialog = OpenDialog::None;
                     }
@@ -100,7 +100,7 @@ impl Gui {
         let mut feed = match stream::Feed::new(&url) {
             Ok(f) => f,
             Err(_) => {
-                self.process_error();
+                self.push_toast(super::Message::Error);
                 return;
             }
         };
@@ -366,14 +366,9 @@ impl Gui {
                 }
             });
         }
-
-        self.feed_export_dialog(ui);
     }
 
-    fn feed_export_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != OpenDialog::Export || self.mode != Mode::Feed {
-            return;
-        }
+    pub fn feed_export_dialog(&mut self, ui: &egui::Ui) {
         let has_ai_at_current = self
             .current_feed_frame()
             .map(|f| f.aioutput.is_some())
@@ -411,13 +406,13 @@ impl Gui {
         if export_json {
             match self.export_current_feed_frame_json() {
                 Some(path) => self.process_done_at(path),
-                None => self.process_error(),
+                None => self.push_toast(super::Message::Error),
             }
         }
         if export_png {
             match self.export_current_feed_frame_png() {
                 Some(path) => self.process_done_at(path),
-                None => self.process_error(),
+                None => self.push_toast(super::Message::Error),
             }
         }
     }

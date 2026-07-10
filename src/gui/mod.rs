@@ -42,68 +42,60 @@ pub fn run_gui() {
     );
 }
 
-macro_rules! ai_config_window {
-    ($self:expr, $ctx:expr, $show_field:expr, $config_field:ident, $temp_config_field:ident, $variant:expr, $current_ai_fn:ident) => {
-        if $show_field {
-            egui::Window::new($self.t(Key::configure_ai))
-                .collapsible(false)
-                .resizable(false)
-                .show($ctx, |ui| {
-                    let text_slide1 = $self.t(Key::confidence_level);
-                    ui.add(
-                        egui::Slider::new(
-                            &mut $self.$temp_config_field.confidence_threshold,
-                            0.10..=0.99,
-                        )
-                        .text(text_slide1),
-                    );
-                    let has_nms = $self
-                        .$current_ai_fn()
-                        .post_processing
-                        .contains(&PostProcessing::NMS);
-                    if has_nms {
-                        let text_slide2 = $self.t(Key::overlap_filter);
-                        ui.add(
-                            egui::Slider::new(
-                                &mut $self.$temp_config_field.nms_threshold,
-                                0.10..=0.99,
-                            )
-                            .text(text_slide2),
-                        );
-                    }
-                    let has_geofence = $self
-                        .$current_ai_fn()
-                        .post_processing
-                        .contains(&PostProcessing::GeoFence);
-                    if has_geofence {
-                        ui.label($self.t(Key::region_filter));
-                        egui::ComboBox::from_id_salt("Region")
-                            .selected_text($self.$temp_config_field.geo_fence.clone())
-                            .show_ui(ui, |ui| {
-                                for str in utils::COUNTRY_CODES {
-                                    ui.selectable_value(
-                                        &mut $self.$temp_config_field.geo_fence,
-                                        str.to_owned(),
-                                        str,
-                                    );
-                                }
-                            });
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.button($self.t(Key::ok)).clicked() {
-                            $self.$config_field = $self.$temp_config_field.clone();
-                            $variant.update_config($self.$config_field.clone());
-                            $show_field = false;
-                        }
-                        ui.add_space(8.0);
-                        if ui.button($self.t(Key::cancel)).clicked() {
-                            $self.$temp_config_field = $self.$config_field.clone();
-                            $show_field = false;
-                        }
-                    });
-                });
+/// All UI state for one AI model slot's "configure" popup (there are two:
+/// primary and secondary/classification). Bundling show/config/temp here
+/// replaces three parallel per-slot fields that used to live scattered across
+/// `Gui`, `ShowConfig`, and `Temp`.
+#[derive(Default, Clone)]
+struct AiConfigSlot {
+    show: bool,
+    config: ModelConfig,
+    temp: ModelConfig,
+}
+
+impl AiConfigSlot {
+    fn window(&mut self, ui: &mut egui::Ui, lang: &Lang, variant: GlobalBQ, current_ai: &AIMetadata) {
+        if !self.show {
+            return;
         }
-    };
+        egui::Window::new(translate(Key::configure_ai, lang))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.add(
+                    egui::Slider::new(&mut self.temp.confidence_threshold, 0.10..=0.99)
+                        .text(translate(Key::confidence_level, lang)),
+                );
+                if current_ai.post_processing.contains(&PostProcessing::NMS) {
+                    ui.add(
+                        egui::Slider::new(&mut self.temp.nms_threshold, 0.10..=0.99)
+                            .text(translate(Key::overlap_filter, lang)),
+                    );
+                }
+                if current_ai.post_processing.contains(&PostProcessing::GeoFence) {
+                    ui.label(translate(Key::region_filter, lang));
+                    egui::ComboBox::from_id_salt("Region")
+                        .selected_text(self.temp.geo_fence.clone())
+                        .show_ui(ui, |ui| {
+                            for str in utils::COUNTRY_CODES {
+                                ui.selectable_value(&mut self.temp.geo_fence, str.to_owned(), str);
+                            }
+                        });
+                }
+                ui.horizontal(|ui| {
+                    if ui.button(translate(Key::ok, lang)).clicked() {
+                        self.config = self.temp.clone();
+                        variant.update_config(self.config.clone());
+                        self.show = false;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(translate(Key::cancel, lang)).clicked() {
+                        self.temp = self.config.clone();
+                        self.show = false;
+                    }
+                });
+            });
+    }
 }
 
 #[derive(Default)]
@@ -111,7 +103,7 @@ struct Gui {
     // Large types first
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
-    selected_files: Vec<PredImg>,
+    selected_imgs: Vec<PredImg>,
     selected_audios: Vec<PredAudio>,
     // AudioData is heavy (hours of float samples). We only keep it for the
     // currently displayed audio file — switching invalidates and reloads.
@@ -130,8 +122,6 @@ struct Gui {
     feed_url: Option<String>,
     host_server_url: Option<String>,
     api_server_url: Option<String>,
-    temp_str: String,
-    temp_api_str: String,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     // Per-segment alpha masks for the currently displayed image. Rebuilt in
     // `paint()` so we don't re-upload every frame.
@@ -157,18 +147,11 @@ struct Gui {
     video_play_start_frame: u64,
     video_last_displayed_frame: Option<u64>,
 
-    // Option<Instant> (likely 24 bytes: 8-byte discriminant + 16-byte Instant)
-    done_time: Option<Instant>,
-    error_time: Option<Instant>,
-    // Optional override for the "Done" toast — used to surface the export
-    // path so the user isn't left guessing where their files landed.
-    done_message: Option<String>,
+    toasts: VecDeque<Toast>,
 
     // Model Configurations
-    ai_config: ModelConfig,
-    ai_cls_config: ModelConfig,
-    temp_ai_config: ModelConfig,
-    temp_ai_cls_config: ModelConfig,
+    ai: AiConfigSlot,
+    ai_cls: AiConfigSlot,
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
@@ -184,6 +167,7 @@ struct Gui {
     // Enums (size depends on variants, but typically 1-8 bytes)
     lang: Lang,
     mode: Mode,
+    temp: Temp,
 
     // bool fields grouped together (1 byte each, but will be padded)
     show_ai_cls: bool,
@@ -202,7 +186,7 @@ struct Gui {
 /// One per modality (image/audio/video/feed). The receiver lives here so the
 /// channel-disconnect rule — "worker done iff `rx.try_recv() == Disconnected`" —
 /// is enforced in one place via `drain()`. Callers cannot accidentally check
-/// the wrong predicate (e.g. `selected_files.iter().all(wasprocessed)`, which
+/// the wrong predicate (e.g. `selected_imgs.iter().all(wasprocessed)`, which
 /// stays false forever during single-item analysis in a batch).
 struct State<T> {
     rx: Option<tokio::sync::mpsc::UnboundedReceiver<T>>,
@@ -285,11 +269,40 @@ impl<T> State<T> {
 
 #[derive(Default)]
 struct ShowConfig {
-    ai: bool,
-    ai_cls: bool,
     _img: bool,
     video: bool,
     feed: bool,
+}
+
+#[derive(Default)]
+struct Temp {
+    feed_str: String,
+    api_str: String,
+}
+
+enum Message {
+    Success(String),
+    Error,
+}
+
+impl Message {
+    fn ok(msg: impl Into<String>) -> Self {
+        Message::Success(format!("✅ {}", msg.into()))
+    }
+}
+
+struct Toast {
+    msg: Message,
+    time: Instant,
+}
+
+impl Toast {
+    fn new(msg: Message) -> Self {
+        Self {
+            msg,
+            time: Instant::now(),
+        }
+    }
 }
 
 #[derive(Default, PartialEq)]
@@ -308,7 +321,7 @@ impl Gui {
 
         fonts.font_data.insert(
             "Noto".to_owned(),
-            egui::FontData::from_static(&render::FONT_BYTES.as_ref()).into(),
+            egui::FontData::from_static(&render::FONT_BYTES).into(),
         );
 
         fonts
@@ -350,24 +363,17 @@ impl Gui {
             || self.audio_state.is_processing
     }
 
-    fn process_done(&mut self) {
-        self.done_time = Some(Instant::now());
-        self.done_message = None;
+    fn push_toast(&mut self, msg: Message) {
+        if self.toasts.len() == 20 { // Max Toasts
+            self.toasts.pop_front();
+        }
+        self.toasts.push_back(Toast::new(msg));
     }
 
     fn process_done_at(&mut self, location: impl Into<String>) {
-        self.done_time = Some(Instant::now());
         let prefix = self.t(Key::saved_to);
-        self.done_message = Some(format!("✅ {} {}", prefix, location.into()));
-    }
-
-    fn process_done_with(&mut self, message: impl Into<String>) {
-        self.done_time = Some(Instant::now());
-        self.done_message = Some(format!("✅ {}", message.into()));
-    }
-
-    fn process_error(&mut self) {
-        self.error_time = Some(Instant::now());
+        let str = format!("{} {}", prefix, location.into());
+        self.push_toast(Message::ok(str));
     }
 
     fn t(&self, key: Key) -> &'static str {
@@ -394,38 +400,21 @@ impl Gui {
         }
     }
 
-    fn show_timed_message(
-        time: &mut Option<std::time::Instant>,
+    fn show_toast(
+        &self,
         ui: &mut egui::Ui,
-        message: &str,
-        duration_secs: f32,
     ) {
-        if let Some(start_time) = *time {
-            if start_time.elapsed().as_secs_f32() < duration_secs {
+        if let Some(toast) = self.toasts.back() {
+            if toast.time.elapsed().as_secs_f32() < 6.0 { // toast duration on screen
                 ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                    ui.label(message);
+                    match &toast.msg {
+                        Message::Success(str) => {ui.label(str);},
+                        Message::Error => {ui.label(self.t(Key::error_ocurred));}
+                    }
                 });
                 ui.request_repaint();
-            } else {
-                *time = None;
-            }
+            } 
         }
-    }
-
-    fn show_done_message(&mut self, ui: &mut egui::Ui) {
-        let default = self.t(Key::done);
-        let message: &str = self.done_message.as_deref().unwrap_or(default);
-        // Path-bearing toasts need long enough to actually be read; the plain
-        // "Done" toast was 3s and felt fine, but a file path requires more.
-        let duration = if self.done_message.is_some() { 10.0 } else { 3.0 };
-        let time = &mut self.done_time;
-        Gui::show_timed_message(time, ui, message, duration);
-    }
-
-    fn show_error_message(&mut self, ui: &mut egui::Ui) {
-        let message = &self.t(Key::error_ocurred);
-        let time = &mut self.error_time;
-        Gui::show_timed_message(time, ui, message, 3.0);
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
@@ -459,151 +448,163 @@ impl Gui {
                     if !success {
                         self.isapi_deployed = false;
                         self.host_server_url = None;
-                        self.process_error();
+                        self.push_toast(Message::Error);
                     }
                     self.api_result_receiver = None;
                 }
             }
         }
 
-        self.input_api_url_dialog(ui);
+    }
+
+    fn dialog(&mut self, ui: &mut egui::Ui) {
+        match self.dialog {
+            OpenDialog::ApiServer => {self.input_api_url_dialog(ui)},
+            OpenDialog::FeedUrl => {self.feed_input_dialog(ui);},
+            OpenDialog::ProcessAll => {},
+            OpenDialog::Export => {
+                match self.mode {
+                    Mode::Image => {self.img_export_dialog(ui);},
+                    Mode::Audio => {self.audio_export_dialog(ui);},
+                    Mode::Video => {self.video_export_dialog(ui)},
+                    Mode::Feed => {self.feed_export_dialog(ui);},
+                }
+            }, 
+            OpenDialog::None => {},
+        }
     }
 
     fn ai_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ep_selected.is_local() {
-            let previous_ai = self.ai_selected;
-            ui.label(self.t(Key::select_ai));
+        if !self.ep_selected.is_local() {
+            return;
+        }
+        
+        let previous_ai = self.ai_selected;
+        ui.label(self.t(Key::select_ai));
 
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("AI")
-                    .selected_text(match self.ai_selected {
-                        Some(i) => &self.ais[i].name,
-                        None => "",
-                    })
-                    .show_ui(ui, |ui| {
-                        for (i, ai) in self.ais.iter().enumerate() {
-                            ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
-                                .on_hover_text(&ai.classes.join(", "));
-                        }
-                    });
-
-                if self.ai_selected.is_some() {
-                    if ui
-                        .button("⚙")
-                        .on_hover_text(self.t(Key::configure_ai))
-                        .clicked()
-                    {
-                        self.show_config.ai = true;
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("AI")
+                .selected_text(match self.ai_selected {
+                    Some(i) => &self.ais[i].name,
+                    None => "",
+                })
+                .show_ui(ui, |ui| {
+                    for (i, ai) in self.ais.iter().enumerate() {
+                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
+                            .on_hover_text(&ai.classes.join(", "));
                     }
-                }
+                });
 
-                // '+' button, select a escond AI
-                if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
+            if self.ai_selected.is_some() {
+                if ui
+                    .button("⚙")
+                    .on_hover_text(self.t(Key::configure_ai))
+                    .clicked()
                 {
-                    let task = self.ais[self.ai_selected.unwrap()].task;
-                    if task == Task::Detect || task == Task::Segment {
-                        if ui
-                            .button("+")
-                            .on_hover_text(self.t(Key::add_classification_model_to_complement))
-                            .clicked()
-                        {
-                            self.show_ai_cls = true;
-                        }
-                    }
-                }
-            });
-
-            if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-                if self.is_audio_model() {
-                    self.show_ai_cls = false;
-                    self.ai_cls_selected = None;
-                    GlobalBQ::Second.clear();
-                    // Mel params may differ for the new audio model — invalidate cache.
-                    self.audio_full_mel = None;
-                    self.audio_mel_meta = None;
-                    self.audio_state.texture = None;
-                }
-                let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-                if GlobalBQ::First.set_model(
-                    &model_path,
-                    self.ep_selected,
-                    Some(self.ai_config.clone()),
-                ).is_err() {
-                    self.process_error();
+                    self.ai.show = true;
                 }
             }
 
-            ai_config_window!(
-                self,
-                ui,
-                self.show_config.ai,
-                ai_config,
-                temp_ai_config,
-                GlobalBQ::First,
-                current_ai
-            );
+            // '+' button, select a escond AI
+            if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
+            {
+                let task = self.ais[self.ai_selected.unwrap()].task;
+                if task == Task::Detect || task == Task::Segment {
+                    if ui
+                        .button("+")
+                        .on_hover_text(self.t(Key::add_classification_model_to_complement))
+                        .clicked()
+                    {
+                        self.show_ai_cls = true;
+                    }
+                }
+            }
+        });
 
-            ui.add_space(8.0);
+        if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
+            if self.is_audio_model() {
+                self.show_ai_cls = false;
+                self.ai_cls_selected = None;
+                GlobalBQ::Second.clear();
+                // Mel params may differ for the new audio model — invalidate cache.
+                self.audio_full_mel = None;
+                self.audio_mel_meta = None;
+                self.audio_state.texture = None;
+            }
+            let model_path = self.ais[self.ai_selected.unwrap()].get_path();
+            if GlobalBQ::First.set_model(
+                &model_path,
+                self.ep_selected,
+                Some(self.ai.config.clone()),
+            ).is_err() {
+                self.push_toast(Message::Error);
+            }
         }
+
+        if self.ai.show {
+            let current_ai = self.current_ai().clone();
+            self.ai.window(ui, &self.lang, GlobalBQ::First, &current_ai);
+        }
+
+        ui.add_space(8.0);
+    
     }
 
     fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ep_selected.is_local() && self.show_ai_cls {
-            let previous_ai = self.ai_cls_selected;
-            ui.label(self.t(Key::select_2nd_ai));
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("AI_CLS")
-                    .selected_text(match self.ai_cls_selected {
-                        Some(i) => &self.ais_cls_only[i].name,
-                        None => "",
-                    })
-                    .show_ui(ui, |ui| {
-                        for (i, ai) in self.ais_cls_only.iter().enumerate() {
-                            ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
-                                .on_hover_text(&ai.classes.join(", "));
-                        }
-                    });
-
-                // Button to remove AI, and unload it from memory.
-                if self.ai_cls_selected.is_some() {
-                    if ui
-                        .button("⚙")
-                        .on_hover_text(self.t(Key::configure_ai))
-                        .clicked()
-                    {
-                        self.show_config.ai_cls = true;
+        if !(self.ep_selected.is_local() && self.show_ai_cls) {
+            return;
+        }
+        
+        let previous_ai = self.ai_cls_selected;
+        ui.label(self.t(Key::select_2nd_ai));
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("AI_CLS")
+                .selected_text(match self.ai_cls_selected {
+                    Some(i) => &self.ais_cls_only[i].name,
+                    None => "",
+                })
+                .show_ui(ui, |ui| {
+                    for (i, ai) in self.ais_cls_only.iter().enumerate() {
+                        ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
+                            .on_hover_text(&ai.classes.join(", "));
                     }
+                });
 
-                    if ui.button("-").clicked() {
-                        self.show_ai_cls = false;
-                        self.ai_cls_selected = None;
-                        GlobalBQ::Second.clear();
-                    }
+            // Button to remove AI, and unload it from memory.
+            if self.ai_cls_selected.is_some() {
+                if ui
+                    .button("⚙")
+                    .on_hover_text(self.t(Key::configure_ai))
+                    .clicked()
+                {
+                    self.ai_cls.show = true;
                 }
-            });
-            if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
-                let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-                if GlobalBQ::Second.set_model(
-                    &model_path,
-                    self.ep_selected,
-                    Some(self.ai_cls_config.clone()),
-                ).is_err() {
-                    self.process_error();
+
+                if ui.button("-").clicked() {
+                    self.show_ai_cls = false;
+                    self.ai_cls_selected = None;
+                    GlobalBQ::Second.clear();
                 }
             }
-
-            ai_config_window!(
-                self,
-                ui,
-                self.show_config.ai_cls,
-                ai_cls_config,
-                temp_ai_cls_config,
-                GlobalBQ::Second,
-                current_ai_cls
-            );
-
-            ui.add_space(8.0);
+        });
+        if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
+            let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
+            if GlobalBQ::Second.set_model(
+                &model_path,
+                self.ep_selected,
+                Some(self.ai_cls.config.clone()),
+            ).is_err() {
+                self.push_toast(Message::Error);
+            }
         }
+
+        if self.ai_cls.show {
+            let current_ai_cls = self.current_ai_cls().clone();
+            self.ai_cls.window(ui, &self.lang, GlobalBQ::Second, &current_ai_cls);
+        }
+
+        ui.add_space(8.0);
+        
     }
 
     fn get_endpoint(&self) -> Option<String> {
@@ -621,7 +622,7 @@ impl Gui {
             GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
                 ep,
-                Some(self.ai_config.clone()),
+                Some(self.ai.config.clone()),
             )?;
         }
         Ok(())
@@ -632,7 +633,7 @@ impl Gui {
             GlobalBQ::Second.set_model(
                 &self.current_ai_cls().get_path(),
                 ep,
-                Some(self.ai_cls_config.clone()),
+                Some(self.ai_cls.config.clone()),
             )?;
         }
         Ok(())
@@ -657,13 +658,12 @@ impl Gui {
                 }
                 _ => {
                     match self.set_ai(temp_ep_selected) {
-                        Ok(_result) => {
-                            
+                        Ok(()) => {
                             let _ = self.set_ai_cls(temp_ep_selected);
                             self.ep_selected = temp_ep_selected;
                         }
                         Err(_e) => {
-                            self.process_error();
+                            self.push_toast(Message::Error);
                         }
                     }
                 }
@@ -702,21 +702,15 @@ impl Gui {
                                     || !video_files.is_empty();
 
                                 if !image_files.is_empty() {
-                                    self.selected_files = image_files
-                                        .into_iter()
-                                        .map(PredImg::new_simple)
-                                        .collect();
+                                    self.selected_imgs = image_files.into_preds(PredImg::new_simple);
                                     self.image_texture_n = 1;
                                     self.paint(ui, 0);
                                     self.img_state.progress_bar =
-                                        self.selected_files.get_progress();
+                                        self.selected_imgs.get_progress();
                                 }
 
                                 if !audio_files.is_empty() {
-                                    self.selected_audios = audio_files
-                                        .into_iter()
-                                        .map(PredAudio::new_simple)
-                                        .collect();
+                                    self.selected_audios = audio_files.into_preds(PredAudio::new_simple);
                                     self.audio_texture_n = 1;
                                     self.audio_state.progress_bar =
                                         self.selected_audios.get_progress();
@@ -724,10 +718,7 @@ impl Gui {
                                 }
 
                                 if !video_files.is_empty() {
-                                    self.selected_videos = video_files
-                                        .into_iter()
-                                        .map(PredVideo::new_simple)
-                                        .collect();
+                                    self.selected_videos = video_files.into_preds(PredVideo::new_simple);
                                     self.video_texture_n = 1;
                                     self.load_current_video(ui);
                                 }
@@ -737,7 +728,7 @@ impl Gui {
                                 // behaviour); otherwise fall back to whichever
                                 // modality the folder actually contained.
                                 if had_any {
-                                    if !self.selected_files.is_empty() {
+                                    if !self.selected_imgs.is_empty() {
                                         self.mode = Mode::Image;
                                     } else if !self.selected_videos.is_empty() {
                                         self.mode = Mode::Video;
@@ -747,7 +738,7 @@ impl Gui {
                                 }
                             }
                             Err(_e) => {
-                                self.process_error();
+                                self.push_toast(Message::Error);
                             }
                         }
                     }
@@ -762,14 +753,11 @@ impl Gui {
                         .add_filter("Image", &formats::IMAGE_FORMATS)
                         .pick_files()
                     {
-                        self.selected_files = paths
-                            .into_iter()
-                            .map(|path| PredImg::new_simple(path))
-                            .collect();
+                        self.selected_imgs = paths.into_preds(PredImg::new_simple);
                         self.image_texture_n = 1;
                         self.paint(ui, 0);
                         self.mode = Mode::Image;
-                        self.img_state.progress_bar = self.selected_files.get_progress()
+                        self.img_state.progress_bar = self.selected_imgs.get_progress()
                     }
                 }
                 ui.end_row();
@@ -784,10 +772,7 @@ impl Gui {
                         .pick_files()
                     {
                         if !paths.is_empty() {
-                            self.selected_videos = paths
-                                .into_iter()
-                                .map(PredVideo::new_simple)
-                                .collect();
+                            self.selected_videos = paths.into_preds(PredVideo::new_simple);
                             self.video_texture_n = 1;
                             self.mode = Mode::Video;
                             self.load_current_video(ui);
@@ -816,25 +801,17 @@ impl Gui {
                         .add_filter("Audio", &formats::AUDIO_FORMATS)
                         .pick_files()
                     {
-                        self.selected_audios = paths
-                            .into_iter()
-                            .map(PredAudio::new_simple)
-                            .collect();
+                        self.selected_audios = paths.into_preds(PredAudio::new_simple);
                         self.audio_texture_n = 1;
                         self.mode = Mode::Audio;
                         self.audio_state.progress_bar = self.selected_audios.get_progress();
                         if let Err(()) = self.load_current_audio() {
-                            self.process_error();
+                            self.push_toast(Message::Error);
                             self.selected_audios.clear();
                         }
                     }
                 }
             });
-
-        // Feed url dialog
-        if self.dialog == OpenDialog::FeedUrl {
-            self.feed_input_dialog(ui);
-        }
     }
 
     /// Load (decode) the AudioData for the currently-selected audio file and
@@ -943,44 +920,42 @@ impl Gui {
     }
 
     fn input_api_url_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog == OpenDialog::ApiServer {
-            egui::Window::new(self.t(Key::input_url))
-                .collapsible(false)
-                .resizable(false)
-                .show(ui, |ui| {
-                    ui.text_edit_singleline(&mut self.temp_api_str);
-                    ui.horizontal(|ui| {
-                        if ui.button(self.t(Key::ok)).clicked() {
-                            let url = self.temp_api_str.clone();
+        egui::Window::new(self.t(Key::input_url))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.text_edit_singleline(&mut self.temp.api_str);
+                ui.horizontal(|ui| {
+                    if ui.button(self.t(Key::ok)).clicked() {
+                        let url = self.temp.api_str.clone();
 
-                            // This tells tokio to move this blocking operation to another thread
-                            let is_valid_api = tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current()
-                                    .block_on(check_boquila_hub_api(&url))
-                            });
+                        // This tells tokio to move this blocking operation to another thread
+                        let is_valid_api = tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::current()
+                                .block_on(check_boquila_hub_api(&url))
+                        });
 
-                            if is_valid_api {
-                                self.dialog = OpenDialog::None;
-                                self.api_server_url = Some(url);
-                                self.ep_selected = Ep::BoquilaHubRemote;
-                            } else {
-                                self.process_error();
-                            }
-                        }
-                        ui.add_space(8.0);
-                        if ui.button(self.t(Key::cancel)).clicked() {
+                        if is_valid_api {
                             self.dialog = OpenDialog::None;
-                            self.api_server_url = None;
+                            self.api_server_url = Some(url);
+                            self.ep_selected = Ep::BoquilaHubRemote;
+                        } else {
+                            self.push_toast(Message::Error);
                         }
-                    });
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.dialog = OpenDialog::None;
+                        self.api_server_url = None;
+                    }
                 });
-        }
+            });
+        
     }
 
 }
 
 impl eframe::App for Gui {
-    /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, main_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::Panel::top("top_panel").show(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -1043,12 +1018,12 @@ impl eframe::App for Gui {
                 }
             }
 
-            self.show_done_message(ui);
-            self.show_error_message(ui);
+            self.show_toast(ui);
+            self.dialog(ui);
         });
 
         egui::CentralPanel::default().show(main_ui, |ui| {
-            let cond1 = self.selected_files.len() >= 1;
+            let cond1 = self.selected_imgs.len() >= 1;
             let cond2 = !self.selected_videos.is_empty();
             let cond3 = self.feed_url.is_some();
             let cond4 = !self.selected_audios.is_empty();
@@ -1157,6 +1132,16 @@ fn imgbuf_to_texture(
     Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
 }
 
+trait PathsExt {
+    fn into_preds<T>(self, new_simple: impl Fn(PathBuf) -> T) -> Vec<T>;
+}
+
+impl PathsExt for Vec<PathBuf> {
+    fn into_preds<T>(self, new_simple: impl Fn(PathBuf) -> T) -> Vec<T> {
+        self.into_iter().map(new_simple).collect()
+    }
+}
+
 #[derive(Default, PartialEq)]
 enum Mode {
     #[default]
@@ -1166,9 +1151,6 @@ enum Mode {
     Audio,
 }
 
-/// Bucket a directory's files into (images, audio, video) by extension. Each
-/// file lands in at most one bucket; order matches the source iterator so the
-/// resulting UI is stable across folder rescans.
 fn partition_media_in_dir(
     entries: fs::ReadDir,
 ) -> (Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>) {
@@ -1183,22 +1165,17 @@ fn partition_media_in_dir(
         let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
             continue;
         };
-        if formats::IMAGE_FORMATS
-            .iter()
-            .any(|f| ext.eq_ignore_ascii_case(f))
-        {
+        if has_ext(ext, formats::IMAGE_FORMATS) {
             images.push(path);
-        } else if formats::AUDIO_FORMATS
-            .iter()
-            .any(|f| ext.eq_ignore_ascii_case(f))
-        {
+        } else if has_ext(ext, formats::AUDIO_FORMATS) {
             audios.push(path);
-        } else if formats::VIDEO_FORMATS
-            .iter()
-            .any(|f| ext.eq_ignore_ascii_case(f))
-        {
+        } else if has_ext(ext, formats::VIDEO_FORMATS) {
             videos.push(path);
         }
     }
     (images, audios, videos)
+}
+
+fn has_ext<const N: usize>(ext: &str, formats: [&str; N]) -> bool {
+    formats.iter().any(|f| ext.eq_ignore_ascii_case(f))
 }
