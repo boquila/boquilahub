@@ -46,7 +46,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.variant }}
-          cache-targets: ${{ runner.os != 'Linux' }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -59,7 +58,11 @@ jobs:
             libwayland-dev \
             libasound2-dev \
             p7zip-full \
-            patchelf
+            patchelf \
+            pkg-config \
+            yasm \
+            nasm \
+            libx264-dev
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
@@ -79,17 +82,32 @@ jobs:
             chmod +x .github/macos-cc-shim.sh
             export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="$PWD/.github/macos-cc-shim.sh"
           fi
+          # Release binaries statically link ffmpeg on Linux (see the
+          # `ffmpeg-static` feature in Cargo.toml); debug/test builds stay on
+          # the prebuilt shared lib as before.
+          EXTRA_FEATURES=""
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            EXTRA_FEATURES="ffmpeg-static"
+          fi
           if [ "${{ matrix.variant }}" = "cuda" ]; then
-            cargo build --release --no-default-features --features cuda
+            cargo build --release --no-default-features --features "cuda${EXTRA_FEATURES:+,$EXTRA_FEATURES}"
           else
-            cargo build --release
+            cargo build --release ${EXTRA_FEATURES:+--features "$EXTRA_FEATURES"}
+          fi
+
+      - name: Assert ffmpeg is statically linked
+        if: runner.os == 'Linux'
+        run: |
+          if ldd target/release/${{ matrix.artifact }} | grep -E 'lib(av|sw|postproc)'; then
+            echo "ERROR: ffmpeg is dynamically linked" >&2
+            exit 1
           fi
 
       - name: Smoke test - pull models
         shell: bash
         run: |
           if [ "${{ runner.os }}" = "Linux" ]; then
-            export LD_LIBRARY_PATH="$PWD/target/release:$PWD/deps/ffmpeg/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            export LD_LIBRARY_PATH="$PWD/target/release${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           fi
           ./target/release/${{ matrix.artifact }} pull SpeciesNetv4.0.0a
           ./target/release/${{ matrix.artifact }} pull boquilanet-gen
@@ -112,12 +130,15 @@ jobs:
           cp target/release/${{ matrix.artifact }} pkg/
           cp -r target/release/assets pkg/assets
           chmod +x pkg/${{ matrix.artifact }}
-          cp -L deps/ffmpeg/lib/*.so* pkg/
           if [ "${{ matrix.variant }}" = "cuda" ]; then
             find deps/onnxruntime/lib -maxdepth 1 -name '*.so*' ! -name '*tensorrt*' -exec cp -Ln {} pkg/ \;
           fi
           cp -L target/release/*.so* pkg/ 2>/dev/null || true
           cp -L /usr/lib/x86_64-linux-gnu/libasound.so* pkg/
+          # libx264 is a third-party codec dep of ffmpeg's static build; Ubuntu's
+          # libx264-dev only ships a shared lib (no static .a), so it's bundled
+          # here rather than linked in, same as libasound/onnxruntime.
+          cp -L /usr/lib/x86_64-linux-gnu/libx264.so* pkg/
           cp -r models pkg/models
           find pkg -type f -name '*.so*' -exec patchelf --set-rpath '$ORIGIN' {} \; 2>/dev/null || true
           patchelf --set-rpath '$ORIGIN' pkg/${{ matrix.artifact }}

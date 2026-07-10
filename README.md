@@ -63,4 +63,13 @@ export CARGO_TARGET_$(rustc -vV | sed -n 's/host: //p' | tr 'a-z-' 'A-Z_')_LINKE
 cargo build --release
 ```
 
+On **Linux**, the commands above are all you need for local development — they produce a binary dynamically linked against the fetched ffmpeg. The binaries we actually release are statically linked instead (no `libav*.so.*` dependency on the user's distro), which compiles ffmpeg from source and needs a few extra system packages:
+
+```shell
+sudo apt install pkg-config yasm nasm libx264-dev   # ffmpeg's own build deps
+cargo build --release --features ffmpeg-static
+```
+
+The first build compiles ffmpeg from source and takes noticeably longer; later builds are cached as usual. Because the result statically links GPL-licensed ffmpeg (with `libx264` for H.264 encoding), the resulting binary is a GPL-derived work — BoquilaHUB's AGPLv3 is compatible with (and stricter than) that.
+
 Probably instead of cloning from main, you should prefer to get the source code from a tagged version
