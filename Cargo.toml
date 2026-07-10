@@ -45,6 +45,13 @@ egui_plot = "0.36.0"
 default = ["webgpu"]
 webgpu = ["ort/webgpu"]
 cuda = ["ort/cuda"]
+# Linux only: compile ffmpeg from source and link it statically (via
+# ffmpeg-sys-next's `build` feature) instead of using a prebuilt shared lib, so
+# releases don't depend on the distro's libav*.so.* version. Must be passed
+# explicitly (see .github/workflows and README) — Cargo features can't be
+# enabled conditionally per-OS in the manifest, and this path is untested on
+# Windows/macOS, which keep using their prebuilt ffmpeg as before.
+ffmpeg-static = ["ffmpeg-next/build", "ffmpeg-next/build-license-gpl", "ffmpeg-next/build-lib-x264"]
 
 [profile.release]
 lto = true

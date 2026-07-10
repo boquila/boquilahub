@@ -4,6 +4,11 @@
 //
 // This runs as its own cargo invocation, so the deps are on disk *before*
 // `cargo build` compiles ffmpeg-sys-next (which links ffmpeg at build time).
+//
+// The ffmpeg fetched here is a prebuilt shared lib, used for ordinary/debug
+// builds. `cargo build --features ffmpeg-static` (release builds; see
+// Cargo.toml) instead compiles ffmpeg from source and links it statically on
+// Linux, ignoring this fetch for ffmpeg — it still runs, just unused.
 
 // On macOS only ffmpeg is fetched (ORT comes from the `ort` crate), so the
 // download/extract helpers below go unused there.

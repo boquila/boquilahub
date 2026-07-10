@@ -20,9 +20,14 @@ pub fn main() {
         add_icon()
     }
 
+    // `--features ffmpeg-static` (release builds) compiles ffmpeg from source
+    // and links it statically instead — no .so to copy for it in that case,
+    // but onnxruntime's .so is still bundled next to the binary, so the rpath
+    // is needed either way.
     #[cfg(target_os = "linux")]
     {
         println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
+        #[cfg(not(feature = "ffmpeg-static"))]
         copy_ffmpeg_libs(&target_dir);
     }
 
@@ -111,7 +116,7 @@ fn add_icon() {
         .unwrap();
 }
 
-#[cfg(any(windows, target_os = "linux"))]
+#[cfg(any(windows, all(target_os = "linux", not(feature = "ffmpeg-static"))))]
 fn copy_ffmpeg_libs(target_dir: &Path) {
     #[cfg(windows)]
     let (subdir, ext) = ("bin", ".dll");
