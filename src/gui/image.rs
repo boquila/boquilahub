@@ -5,7 +5,6 @@ use crate::api::export;
 use crate::api::render::*;
 use crate::api::rest::detect_remotely;
 use crate::localization::*;
-use image::{ImageBuffer, Rgba};
 use std::fs;
 
 const MIN_PREVIEW_H: f32 = 240.0;
@@ -22,26 +21,7 @@ impl Gui {
         self.mask_textures = build_mask_textures(predimg, ui);
     }
 
-    fn draw_gui(&self, predimg: &PredImg) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
-        let mut img = image::open(&predimg.file_path).unwrap().into_rgb8();
-        if predimg.wasprocessed {
-            if predimg.aioutput.as_ref().unwrap().is_empty() {
-                draw_no_predictions(&mut img, Some(&self.lang));
-            } else {
-                draw_aioutput(&mut img, predimg.aioutput.as_ref().unwrap());
-            }
-        }
-        image::DynamicImage::ImageRgb8(img).to_rgba8()
-    }
-
-    pub(super) fn save_gui(&self, predimg: &PredImg) {
-        let img_data = image::DynamicImage::ImageRgba8(self.draw_gui(predimg)).to_rgb8();
-        let filename = export::prepare_export_img(&predimg.file_path);
-        img_data.save(&filename).unwrap();
-    }
-
     // ---------- analysis lifecycle ----------
-
     pub(super) fn start_single_img_analysis(&mut self, target: usize) {
         if target >= self.selected_imgs.len() || self.img_state.is_processing {
             return;
@@ -234,9 +214,16 @@ impl Gui {
                     .button(self.t(Key::export_imgs_with_predictions))
                     .clicked()
                 {
-                    for file in &self.selected_imgs {
-                        if file.wasprocessed {
-                            self.save_gui(file);
+                    for file in self.selected_imgs.clone() {
+                        let has_predictions = file
+                            .aioutput
+                            .as_ref()
+                            .map(|a| !a.is_empty())
+                            .unwrap_or(false);
+                        if file.wasprocessed && has_predictions {
+                            tokio::spawn(async move {
+                                let _ = file.save();
+                            });
                         }
                     }
                     self.process_done_at(format!("{}/", export::EXPORT_DIR));
