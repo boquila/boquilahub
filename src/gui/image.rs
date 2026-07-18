@@ -8,7 +8,6 @@ use crate::localization::*;
 use std::fs;
 
 const MIN_PREVIEW_H: f32 = 240.0;
-const SIDE_PANEL_W: f32 = 240.0;
 
 impl Gui {
     // ---------- texture loading ----------
@@ -253,18 +252,6 @@ impl Gui {
         self.draw_image_header(ui, n);
 
         let i = self.image_texture_n - 1;
-        let is_classification = matches!(
-            self.selected_imgs[i].aioutput.as_ref(),
-            Some(AIOutputs::Classification(_))
-        );
-        let has_non_empty_output = self.selected_imgs[i].wasprocessed
-            && self
-                .selected_imgs[i]
-                .aioutput
-                .as_ref()
-                .map(|a| !a.is_empty())
-                .unwrap_or(false);
-        let show_side_panel = is_classification && has_non_empty_output;
         let has_spatial_output = matches!(
             self.selected_imgs[i].aioutput.as_ref(),
             Some(AIOutputs::ObjectDetection(b)) if !b.is_empty()
@@ -274,50 +261,17 @@ impl Gui {
         );
 
         let avail = ui.available_size_before_wrap();
-        // Below this width, side-by-side leaves the preview too cramped — drop
-        // the classification panel under it instead.
-        const STACK_BELOW_WIDTH: f32 = 720.0;
-        let stack_side = show_side_panel && avail.x < STACK_BELOW_WIDTH;
-        let beside_side = show_side_panel && !stack_side;
-
-        let side_gap = if beside_side { 12.0 } else { 0.0 };
-        let side_w = if beside_side {
-            SIDE_PANEL_W.min((avail.x * 0.32).max(180.0))
-        } else {
-            0.0
-        };
-        let preview_w = (avail.x - side_w - side_gap).max(200.0);
+        let preview_w = avail.x.max(200.0);
         let echo_strip_h: f32 = if has_spatial_output { 30.0 } else { 0.0 };
         let echo_strip_gap: f32 = if has_spatial_output { 6.0 } else { 0.0 };
-        // When stacking, the preview keeps the lion's share and the
-        // classification panel takes the rest — central panel scrolls if
-        // its content needs more than that.
-        let preview_h = if stack_side {
-            (avail.y * 0.62 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H)
-        } else {
-            (avail.y - 8.0 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H)
-        };
+        let preview_h = (avail.y - 8.0 - echo_strip_h - echo_strip_gap).max(MIN_PREVIEW_H);
 
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_max_width(preview_w);
-                let echo = self.draw_image_preview(ui, preview_w, preview_h);
-                if has_spatial_output {
-                    ui.add_space(echo_strip_gap);
-                    draw_echo_strip(ui, echo.as_ref(), echo_strip_h, preview_w);
-                }
-                if stack_side {
-                    ui.add_space(8.0);
-                    self.draw_classification_panel(ui);
-                }
-            });
-
-            if beside_side {
-                ui.add_space(side_gap);
-                ui.vertical(|ui| {
-                    ui.set_max_width(side_w);
-                    self.draw_classification_panel(ui);
-                });
+        ui.vertical(|ui| {
+            ui.set_max_width(preview_w);
+            let echo = self.draw_image_preview(ui, preview_w, preview_h);
+            if has_spatial_output {
+                ui.add_space(echo_strip_gap);
+                draw_echo_strip(ui, echo.as_ref(), echo_strip_h, preview_w);
             }
         });
 
@@ -437,115 +391,6 @@ impl Gui {
             }
         })
         .inner
-    }
-
-    fn draw_classification_panel(&self, ui: &mut egui::Ui) {
-        let i = self.image_texture_n - 1;
-        let probs = match self.selected_imgs[i].aioutput.as_ref() {
-            Some(AIOutputs::Classification(probs)) => probs,
-            _ => return,
-        };
-        if probs.is_empty() {
-            ui.label(egui::RichText::new(self.t(Key::no_predictions)).weak());
-            return;
-        }
-
-        ui.vertical(|ui| {
-            ui.label(egui::RichText::new(self.t(Key::predictions)).heading());
-            ui.add_space(4.0);
-
-            let mut ranked: Vec<&Prob> = probs.iter().collect();
-            ranked.sort_by(|a, b| {
-                b.prob
-                    .partial_cmp(&a.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-
-            // Cap rows so a 1000-class model doesn't render 1000 bars + galleys
-            // every frame. Always show at least 3 for context.
-            const MAX_ROWS: usize = 20;
-            const MIN_PROB_VISIBLE: f32 = 0.005;
-            let signal_count = ranked
-                .iter()
-                .position(|p| p.prob < MIN_PROB_VISIBLE)
-                .unwrap_or(ranked.len());
-            let visible = signal_count.min(MAX_ROWS).max(3).min(ranked.len());
-            let hidden = ranked.len().saturating_sub(visible);
-
-            let dark = ui.visuals().dark_mode;
-            let track_color = if dark {
-                egui::Color32::from_rgba_unmultiplied(255, 255, 255, 20)
-            } else {
-                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 18)
-            };
-            let bar_h: f32 = 22.0;
-
-            for (rank, p) in ranked.iter().take(visible).enumerate() {
-                let c = class_color(p.class_id);
-                let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
-
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("■").color(color).monospace());
-                    let label_text = if rank == 0 {
-                        egui::RichText::new(&p.label).strong()
-                    } else {
-                        egui::RichText::new(&p.label)
-                    };
-                    ui.label(label_text);
-                });
-
-                let (rect, _) = ui.allocate_exact_size(
-                    egui::vec2(ui.available_width().max(80.0), bar_h),
-                    egui::Sense::hover(),
-                );
-                let painter = ui.painter();
-                painter.rect_filled(rect, 4.0, track_color);
-                let fill_w = rect.width() * p.prob.clamp(0.0, 1.0);
-                let fill_rect = egui::Rect::from_min_size(
-                    rect.min,
-                    egui::vec2(fill_w.max(1.0), rect.height()),
-                );
-                painter.rect_filled(fill_rect, 4.0, color);
-                let txt = format!("{:.1}%", p.prob * 100.0);
-                let galley = painter.layout_no_wrap(
-                    txt,
-                    egui::FontId::proportional(12.0),
-                    egui::Color32::WHITE,
-                );
-                let inside_fill = galley.size().x + 10.0 < fill_w;
-                let text_x = if inside_fill {
-                    fill_rect.right() - galley.size().x - 6.0
-                } else {
-                    fill_rect.right() + 6.0
-                };
-                let text_color = if inside_fill {
-                    egui::Color32::WHITE
-                } else if dark {
-                    egui::Color32::from_gray(220)
-                } else {
-                    egui::Color32::from_gray(40)
-                };
-                painter.galley(
-                    egui::pos2(
-                        text_x,
-                        rect.center().y - galley.size().y / 2.0,
-                    ),
-                    galley,
-                    text_color,
-                );
-
-                ui.add_space(4.0);
-            }
-
-            if hidden > 0 {
-                ui.add_space(2.0);
-                ui.label(
-                    egui::RichText::new(and_more(hidden, &self.lang))
-                        .weak()
-                        .small(),
-                );
-            }
-        });
     }
 
 }
