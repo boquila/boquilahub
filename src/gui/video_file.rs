@@ -473,8 +473,6 @@ impl Gui {
                 }
             });
         }
-
-        self.video_export_dialog(ui);
     }
 
     pub fn video_export_dialog(&mut self, ui: &egui::Ui) {
