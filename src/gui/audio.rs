@@ -436,14 +436,6 @@ impl Gui {
                     self.audio_view_range_dirty = true;
                     self.audio_state.texture = None;
                 }
-                ui.label(format!(
-                    "{} {:.2}s → {:.2}s   ·   {} {:.2}s",
-                    self.t(Key::view_label),
-                    self.audio_view_range.0,
-                    self.audio_view_range.1,
-                    self.t(Key::span_label),
-                    self.audio_view_range.1 - self.audio_view_range.0,
-                ));
             });
 
             // Plot fills the remaining space. Texture is sized to
