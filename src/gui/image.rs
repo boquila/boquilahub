@@ -108,34 +108,6 @@ impl Gui {
         ui.request_repaint();
     }
 
-    pub(super) fn process_all_dialog(&mut self, ui: &egui::Ui) {
-        if self.dialog != OpenDialog::ProcessAll {
-            return;
-        }
-        egui::Window::new(self.t(Key::process_everything))
-            .collapsible(false)
-            .resizable(false)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button(self.t(Key::yes)).clicked() {
-                        self.process_all_imgs = true;
-                        self.start_img_analysis();
-                        self.dialog = OpenDialog::None;
-                    }
-                    ui.add_space(8.0);
-                    if ui.button(self.t(Key::no_only_missing_data)).clicked() {
-                        self.process_all_imgs = false;
-                        self.start_img_analysis();
-                        self.dialog = OpenDialog::None;
-                    }
-                    ui.add_space(8.0);
-                    if ui.button(self.t(Key::cancel)).clicked() {
-                        self.dialog = OpenDialog::None;
-                    }
-                });
-            });
-    }
-
     // ---------- left-panel widget (Analyze / Export) ----------
 
     pub(super) fn img_analysis_widget(&mut self, ui: &mut egui::Ui) {
@@ -190,7 +162,7 @@ impl Gui {
             });
         }
 
-        self.process_all_dialog(ui);
+        self.process_all_dialog(ui, |gui, process_all| gui.process_all_imgs = process_all, Gui::start_img_analysis);
     }
 
     pub fn img_export_dialog(&mut self, ui: &mut egui::Ui) {
@@ -468,8 +440,7 @@ fn draw_echo_strip(
         egui::Color32::from_gray(110)
     };
 
-    let c = class_color(e.class_id);
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    let color = super::class_color32(e.class_id);
 
     let chip = egui::Rect::from_center_size(
         egui::pos2(rect.left() + pad + 6.0, cy),
@@ -538,10 +509,6 @@ fn draw_echo_strip(
     }
 }
 
-fn and_more(n: usize, lang: &Lang) -> String {
-    translate(Key::and_more_fmt, lang).replace("{}", &n.to_string())
-}
-
 fn bbox_screen_rect(
     b: &XYXYc,
     origin: egui::Pos2,
@@ -580,7 +547,7 @@ fn draw_image_overlay(
 
     match aio {
         AIOutputs::ObjectDetection(bboxes) => {
-            let hovered = pick_hovered_bbox(bboxes, hover_pos, rect.min, scale);
+            let hovered = pick_hovered(bboxes, hover_pos, rect.min, scale, |b| b);
             for (idx, b) in bboxes.iter().enumerate() {
                 draw_box_with_label(
                     &painter,
@@ -598,7 +565,7 @@ fn draw_image_overlay(
             hovered.map(|idx| HoverEcho::from_bbox(&bboxes[idx], false))
         }
         AIOutputs::Segmentation(segs) => {
-            let hovered = pick_hovered_seg(segs, hover_pos, rect.min, scale);
+            let hovered = pick_hovered(segs, hover_pos, rect.min, scale, |s| &s.bbox);
             let uv = egui::Rect::from_min_max(
                 egui::pos2(0.0, 0.0),
                 egui::pos2(1.0, 1.0),
@@ -641,27 +608,34 @@ fn draw_image_overlay(
         AIOutputs::AudioClassification(_) => None,
         AIOutputs::Embed(emb) => {
             let chip = format!("{} · {}", translate(Key::embedding, lang), emb.model);
-            draw_corner_chip(&painter, rect, &chip);
+            draw_corner_chip(&painter, rect, &chip, 12.0, 22.0, 10.0);
             None
         }
     }
 }
 
-fn draw_corner_chip(painter: &egui::Painter, rect: egui::Rect, text: &str) {
+/// Small rounded label chip anchored to `rect`'s top-left corner.
+fn draw_corner_chip(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    text: &str,
+    font_size: f32,
+    chip_h: f32,
+    corner_radius: f32,
+) {
     let galley = painter.layout_no_wrap(
         text.into(),
-        egui::FontId::proportional(12.0),
+        egui::FontId::proportional(font_size),
         egui::Color32::WHITE,
     );
     let pad = 8.0;
-    let chip_h = 22.0;
     let chip_w = galley.size().x + 14.0;
     let bg = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180);
     let chip = egui::Rect::from_min_size(
         egui::pos2(rect.min.x + pad, rect.min.y + pad),
         egui::vec2(chip_w, chip_h),
     );
-    painter.rect_filled(chip, 10.0, bg);
+    painter.rect_filled(chip, corner_radius, bg);
     painter.galley(
         chip.min + egui::vec2(7.0, (chip_h - galley.size().y) / 2.0),
         galley,
@@ -669,44 +643,27 @@ fn draw_corner_chip(painter: &egui::Painter, rect: egui::Rect, text: &str) {
     );
 }
 
-fn pick_hovered_bbox(
-    bboxes: &[XYXYc],
+/// Smallest-area item under the cursor — smallest wins so a small box nested
+/// inside a bigger one is still selectable.
+fn pick_hovered<T>(
+    items: &[T],
     hover_pos: Option<egui::Pos2>,
     origin: egui::Pos2,
     scale: egui::Vec2,
+    bbox_of: impl Fn(&T) -> &XYXYc,
 ) -> Option<usize> {
-    let p = hover_pos?;
+    let hover_point = hover_pos?;
     let mut best: Option<(usize, f32)> = None;
-    for (idx, b) in bboxes.iter().enumerate() {
-        let r = bbox_screen_rect(b, origin, scale);
-        if r.contains(p) {
-            let area = r.width() * r.height();
-            if best.map_or(true, |(_, a)| area < a) {
+    for (idx, item) in items.iter().enumerate() {
+        let item_rect = bbox_screen_rect(bbox_of(item), origin, scale);
+        if item_rect.contains(hover_point) {
+            let area = item_rect.width() * item_rect.height();
+            if best.map_or(true, |(_, best_area)| area < best_area) {
                 best = Some((idx, area));
             }
         }
     }
-    best.map(|(i, _)| i)
-}
-
-fn pick_hovered_seg(
-    segs: &[SEGc],
-    hover_pos: Option<egui::Pos2>,
-    origin: egui::Pos2,
-    scale: egui::Vec2,
-) -> Option<usize> {
-    let p = hover_pos?;
-    let mut best: Option<(usize, f32)> = None;
-    for (idx, s) in segs.iter().enumerate() {
-        let r = bbox_screen_rect(&s.bbox, origin, scale);
-        if r.contains(p) {
-            let area = r.width() * r.height();
-            if best.map_or(true, |(_, a)| area < a) {
-                best = Some((idx, area));
-            }
-        }
-    }
-    best.map(|(i, _)| i)
+    best.map(|(idx, _)| idx)
 }
 
 fn bbox_color_id(b: &XYXYc) -> u32 {
@@ -724,8 +681,7 @@ fn draw_box_with_label(
     b: &XYXYc,
     hovered: bool,
 ) {
-    let c = class_color(bbox_color_id(b));
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+    let color = super::class_color32(bbox_color_id(b));
 
     let stroke_w = if hovered { 3.0 } else { 1.8 };
     painter.rect_stroke(
@@ -853,70 +809,35 @@ fn draw_classification_ribbon(
 fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response, lang: &Lang) {
     let painter = ui.painter_at(img_resp.rect);
     let text = translate(Key::no_predictions, lang);
-    let galley = painter.layout_no_wrap(
-        text.into(),
-        egui::FontId::proportional(13.0),
-        egui::Color32::WHITE,
-    );
-    let pad = 8.0;
-    let chip_h = 24.0;
-    let chip_w = galley.size().x + 14.0;
-    let bg = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180);
-    let pos = egui::pos2(img_resp.rect.min.x + pad, img_resp.rect.min.y + pad);
-    let chip = egui::Rect::from_min_size(pos, egui::vec2(chip_w, chip_h));
-    painter.rect_filled(chip, 12.0, bg);
-    painter.galley(
-        chip.min + egui::vec2(7.0, (chip_h - galley.size().y) / 2.0),
-        galley,
-        egui::Color32::WHITE,
-    );
+    draw_corner_chip(&painter, img_resp.rect, text, 13.0, 24.0, 12.0);
 }
 
-fn bbox_tooltip_ui(ui: &mut egui::Ui, b: &XYXYc, lang: &Lang) {
-    let cls_id = bbox_color_id(b);
-    let c = class_color(cls_id);
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+fn bbox_tooltip_ui(ui: &mut egui::Ui, detection: &XYXYc, lang: &Lang) {
+    let color = super::class_color32(bbox_color_id(detection));
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new("■").color(color).monospace());
-        ui.label(egui::RichText::new(&b.label).strong());
+        ui.label(egui::RichText::new(&detection.label).strong());
     });
     ui.label(format!(
         "{:.0}{}",
-        b.xyxy.prob * 100.0,
+        detection.xyxy.prob * 100.0,
         translate(Key::confidence_pct, lang)
     ));
-    let w = (b.xyxy.x2 - b.xyxy.x1).max(0.0).round() as i32;
-    let h = (b.xyxy.y2 - b.xyxy.y1).max(0.0).round() as i32;
+    let width_px = (detection.xyxy.x2 - detection.xyxy.x1).max(0.0).round() as i32;
+    let height_px = (detection.xyxy.y2 - detection.xyxy.y1).max(0.0).round() as i32;
     ui.label(
-        egui::RichText::new(format!("{} × {} px", w, h))
+        egui::RichText::new(format!("{} × {} px", width_px, height_px))
             .weak()
             .small(),
     );
-
-    if let Some(extras) = b.extra_cls.as_ref() {
-        if !extras.is_empty() {
-            ui.separator();
-            ui.label(egui::RichText::new(translate(Key::refined, lang)).strong());
-            let mut sorted: Vec<&Prob> = extras.iter().collect();
-            sorted.sort_by(|a, b| {
-                b.prob
-                    .partial_cmp(&a.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for p in sorted.iter().take(4) {
-                tooltip_row(ui, p.class_id, &p.label, p.prob);
-            }
-        }
-    }
+    refined_extras_ui(ui, detection.extra_cls.as_ref(), lang);
 }
 
-fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc, lang: &Lang) {
-    let cls_id = bbox_color_id(&s.bbox);
-    let c = class_color(cls_id);
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
+fn seg_tooltip_ui(ui: &mut egui::Ui, segment: &SEGc, lang: &Lang) {
+    let color = super::class_color32(bbox_color_id(&segment.bbox));
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new("■").color(color).monospace());
-        ui.label(egui::RichText::new(&s.bbox.label).strong());
+        ui.label(egui::RichText::new(&segment.bbox.label).strong());
         ui.label(
             egui::RichText::new(format!("· {}", translate(Key::segment, lang)))
                 .weak()
@@ -925,36 +846,41 @@ fn seg_tooltip_ui(ui: &mut egui::Ui, s: &SEGc, lang: &Lang) {
     });
     ui.label(format!(
         "{:.0}{}",
-        s.bbox.xyxy.prob * 100.0,
+        segment.bbox.xyxy.prob * 100.0,
         translate(Key::confidence_pct, lang)
     ));
-    let w = (s.bbox.xyxy.x2 - s.bbox.xyxy.x1).max(0.0).round() as i32;
-    let h = (s.bbox.xyxy.y2 - s.bbox.xyxy.y1).max(0.0).round() as i32;
+    let width_px = (segment.bbox.xyxy.x2 - segment.bbox.xyxy.x1).max(0.0).round() as i32;
+    let height_px = (segment.bbox.xyxy.y2 - segment.bbox.xyxy.y1).max(0.0).round() as i32;
     ui.label(
-        egui::RichText::new(format!("bbox {} × {} px", w, h))
+        egui::RichText::new(format!("bbox {} × {} px", width_px, height_px))
             .weak()
             .small(),
     );
     ui.label(
-        egui::RichText::new(format!("mask {} × {}", s.mask.width, s.mask.height))
+        egui::RichText::new(format!("mask {} × {}", segment.mask.width, segment.mask.height))
             .weak()
             .small(),
     );
+    refined_extras_ui(ui, segment.bbox.extra_cls.as_ref(), lang);
+}
 
-    if let Some(extras) = s.bbox.extra_cls.as_ref() {
-        if !extras.is_empty() {
-            ui.separator();
-            ui.label(egui::RichText::new(translate(Key::refined, lang)).strong());
-            let mut sorted: Vec<&Prob> = extras.iter().collect();
-            sorted.sort_by(|a, b| {
-                b.prob
-                    .partial_cmp(&a.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for p in sorted.iter().take(4) {
-                tooltip_row(ui, p.class_id, &p.label, p.prob);
-            }
-        }
+/// The "Refined: ..." block shown under a bbox/segment tooltip when
+/// `extra_cls` (a secondary classifier's output) is present.
+fn refined_extras_ui(ui: &mut egui::Ui, extra_cls: Option<&Vec<Prob>>, lang: &Lang) {
+    let Some(extras) = extra_cls else { return; };
+    if extras.is_empty() {
+        return;
+    }
+    ui.separator();
+    ui.label(egui::RichText::new(translate(Key::refined, lang)).strong());
+    let mut sorted: Vec<&Prob> = extras.iter().collect();
+    sorted.sort_by(|left, right| {
+        right.prob
+            .partial_cmp(&left.prob)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    for prediction in sorted.iter().take(4) {
+        super::tooltip_row(ui, prediction.class_id, &prediction.label, prediction.prob);
     }
 }
 
@@ -965,26 +891,17 @@ fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob], lang: &Lang) {
     }
     ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
     let mut sorted: Vec<&Prob> = probs.iter().collect();
-    sorted.sort_by(|a, b| {
-        b.prob
-            .partial_cmp(&a.prob)
+    sorted.sort_by(|left, right| {
+        right.prob
+            .partial_cmp(&left.prob)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    for p in sorted.iter().take(6) {
-        tooltip_row(ui, p.class_id, &p.label, p.prob);
+    for prediction in sorted.iter().take(6) {
+        super::tooltip_row(ui, prediction.class_id, &prediction.label, prediction.prob);
     }
     if probs.len() > 6 {
         ui.label(
-            egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
+            egui::RichText::new(super::and_more(probs.len() - 6, lang)).weak(),
         );
     }
-}
-
-fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
-    let c = class_color(class_id);
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("■").color(color).monospace());
-        ui.label(format!("{} — {:.0}%", label, prob * 100.0));
-    });
 }

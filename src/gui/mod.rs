@@ -11,6 +11,7 @@ use crate::api::audio::AudioData;
 use bq::*;
 use models::Task;
 use processing::post::PostProcessing;
+use render::*;
 use rest::{check_boquila_hub_api, get_ipv4_address, run_api};
 use std::collections::{HashMap, VecDeque};
 use std::fs::{self};
@@ -950,7 +951,40 @@ impl Gui {
                     }
                 });
             });
-        
+
+    }
+
+    pub(super) fn process_all_dialog(
+        &mut self,
+        ui: &egui::Ui,
+        set_all: fn(&mut Gui, bool),
+        start: fn(&mut Gui),
+    ) {
+        if self.dialog != OpenDialog::ProcessAll {
+            return;
+        }
+        egui::Window::new(self.t(Key::process_everything))
+            .collapsible(false)
+            .resizable(false)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button(self.t(Key::yes)).clicked() {
+                        set_all(self, true);
+                        start(self);
+                        self.dialog = OpenDialog::None;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::no_only_missing_data)).clicked() {
+                        set_all(self, false);
+                        start(self);
+                        self.dialog = OpenDialog::None;
+                    }
+                    ui.add_space(8.0);
+                    if ui.button(self.t(Key::cancel)).clicked() {
+                        self.dialog = OpenDialog::None;
+                    }
+                });
+            });
     }
 
 }
@@ -1130,6 +1164,191 @@ fn imgbuf_to_texture(
     let color_img =
         egui::ColorImage::from_rgba_unmultiplied(size, img.as_flat_samples().as_slice());
     Some(ui.load_texture("current_frame", color_img, egui::TextureOptions::default()))
+}
+
+// ---------- Cross-modality render helpers ----------
+
+/// Default max width for scaled-down preview thumbnails.
+pub(super) const THUMBNAIL_MAX_W: u32 = 1280;
+
+pub(super) fn class_color32(class_id: u32) -> egui::Color32 {
+    let rgb = class_color(class_id);
+    egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2])
+}
+
+pub(super) fn format_time(secs: f64) -> String {
+    let mins = (secs / 60.0).floor() as i64;
+    let remaining_secs = secs - mins as f64 * 60.0;
+    if mins > 0 {
+        format!("{}:{:05.2}", mins, remaining_secs)
+    } else {
+        format!("0:{:05.2}", remaining_secs)
+    }
+}
+
+pub(super) fn and_more(count: usize, lang: &Lang) -> String {
+    translate(Key::and_more_fmt, lang).replace("{}", &count.to_string())
+}
+
+pub(super) fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
+    let color = class_color32(class_id);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(format!("{} — {:.0}%", label, prob * 100.0));
+    });
+}
+
+/// Tooltip body listing a frame's predictions: a header count, up to 6 rows
+/// ranked by confidence, then "…and N more" if there were more.
+pub(super) fn aioutput_tooltip_list(ui: &mut egui::Ui, aio: &AIOutputs, lang: &Lang) {
+    match aio {
+        AIOutputs::ObjectDetection(bboxes) => {
+            if bboxes.is_empty() {
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
+                return;
+            }
+            ui.separator();
+            let count = bboxes.len();
+            let noun = if count == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", count, noun)).strong());
+            let mut sorted: Vec<&XYXYc> = bboxes.iter().collect();
+            sorted.sort_by(|left, right| right.xyxy.prob.partial_cmp(&left.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal));
+            for detection in sorted.iter().take(6) {
+                tooltip_row(ui, detection.xyxy.class_id, &detection.label, detection.xyxy.prob);
+            }
+            if count > 6 {
+                ui.label(egui::RichText::new(and_more(count - 6, lang)).weak());
+            }
+        }
+        AIOutputs::Segmentation(segs) => {
+            if segs.is_empty() {
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
+                return;
+            }
+            ui.separator();
+            let count = segs.len();
+            let noun = if count == 1 { translate(Key::segment, lang) } else { translate(Key::segments, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", count, noun)).strong());
+            let mut sorted: Vec<&SEGc> = segs.iter().collect();
+            sorted.sort_by(|left, right| right.bbox.xyxy.prob.partial_cmp(&left.bbox.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal));
+            for segment in sorted.iter().take(6) {
+                tooltip_row(ui, segment.bbox.xyxy.class_id, &segment.bbox.label, segment.bbox.xyxy.prob);
+            }
+            if count > 6 {
+                ui.label(egui::RichText::new(and_more(count - 6, lang)).weak());
+            }
+        }
+        AIOutputs::Classification(probs) => {
+            if probs.is_empty() {
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
+                return;
+            }
+            ui.separator();
+            ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
+            let mut sorted: Vec<&Prob> = probs.iter().collect();
+            sorted.sort_by(|left, right| right.prob.partial_cmp(&left.prob).unwrap_or(std::cmp::Ordering::Equal));
+            for prediction in sorted.iter().take(6) {
+                tooltip_row(ui, prediction.class_id, &prediction.label, prediction.prob);
+            }
+            if probs.len() > 6 {
+                ui.label(egui::RichText::new(and_more(probs.len() - 6, lang)).weak());
+            }
+        }
+        AIOutputs::AudioClassification(_) => {}
+        AIOutputs::Embed(_) => {}
+    }
+}
+
+/// Scale a prediction's coordinates by `(scale_x, scale_y)`.
+pub(super) fn scale_aioutput(aio: &AIOutputs, scale_x: f32, scale_y: f32) -> AIOutputs {
+    match aio {
+        AIOutputs::ObjectDetection(bboxes) => {
+            let scaled: Vec<XYXYc> = bboxes
+                .iter()
+                .map(|detection| {
+                    let mut scaled_detection = detection.clone();
+                    scaled_detection.xyxy.x1 *= scale_x;
+                    scaled_detection.xyxy.x2 *= scale_x;
+                    scaled_detection.xyxy.y1 *= scale_y;
+                    scaled_detection.xyxy.y2 *= scale_y;
+                    scaled_detection
+                })
+                .collect();
+            AIOutputs::ObjectDetection(scaled)
+        }
+        AIOutputs::Segmentation(segs) => {
+            let scaled: Vec<SEGc> = segs
+                .iter()
+                .map(|segment| {
+                    let mut scaled_segment = segment.clone();
+                    scaled_segment.bbox.xyxy.x1 *= scale_x;
+                    scaled_segment.bbox.xyxy.x2 *= scale_x;
+                    scaled_segment.bbox.xyxy.y1 *= scale_y;
+                    scaled_segment.bbox.xyxy.y2 *= scale_y;
+                    scaled_segment
+                })
+                .collect();
+            AIOutputs::Segmentation(scaled)
+        }
+        AIOutputs::Classification(_)
+        | AIOutputs::AudioClassification(_)
+        | AIOutputs::Embed(_) => aio.clone(),
+    }
+}
+
+pub(super) fn thumbnail_resize(
+    img: &image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    max_w: u32,
+) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
+    if img.width() <= max_w {
+        img.clone()
+    } else {
+        let new_height = (img.height() as f32 * max_w as f32 / img.width() as f32) as u32;
+        image::imageops::resize(img, max_w, new_height.max(1), image::imageops::FilterType::Triangle)
+    }
+}
+
+/// Resize to `max_w` and burn in a (possibly rescaled) prediction overlay.
+pub(super) fn thumbnail_with_overlay(
+    img: &image::ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    aioutput: &AIOutputs,
+    max_w: u32,
+) -> image::ImageBuffer<image::Rgb<u8>, Vec<u8>> {
+    let mut small = thumbnail_resize(img, max_w);
+    let scale_x = small.width() as f32 / img.width() as f32;
+    let scale_y = small.height() as f32 / img.height() as f32;
+    let scaled = scale_aioutput(aioutput, scale_x, scale_y);
+    if !scaled.is_empty() {
+        draw_aioutput(&mut small, &scaled);
+    }
+    small
+}
+
+/// Merge consecutive columns mapping to the same class into
+/// `(col_start, col_end_inclusive, class_id)` runs.
+pub(super) fn merge_class_segments(
+    upper: usize,
+    mut class_at: impl FnMut(usize) -> Option<u32>,
+) -> Vec<(usize, usize, u32)> {
+    let mut segments: Vec<(usize, usize, u32)> = Vec::new();
+    let mut run_start = 0;
+    let mut run_class: Option<u32> = None;
+
+    for col in 0..upper {
+        let class = class_at(col);
+        if class == run_class {
+            continue; // still the same run (a `None` run is a gap between runs)
+        }
+        if let Some(class_id) = run_class {
+            segments.push((run_start, col - 1, class_id));
+        }
+        run_start = col;
+        run_class = class;
+    }
+    if let Some(class_id) = run_class {
+        segments.push((run_start, upper - 1, class_id));
+    }
+    segments
 }
 
 trait PathsExt {
