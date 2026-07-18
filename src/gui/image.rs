@@ -742,11 +742,9 @@ fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
         AIOutputs::Classification(_) => None,
         AIOutputs::AudioClassification(_) => None,
         AIOutputs::Embed(emb) => Some(format!(
-            "{} · {}×{}×{}",
+            "{} · {}",
             translate(Key::embedding, lang),
-            emb.h,
-            emb.w,
-            emb.d()
+            emb.model
         )),
     }
 }
@@ -853,102 +851,11 @@ fn draw_image_overlay(
         }
         AIOutputs::AudioClassification(_) => None,
         AIOutputs::Embed(emb) => {
-            draw_embed_overlay(ui, &painter, img_resp, emb, lang);
+            let chip = format!("{} · {}", translate(Key::embedding, lang), emb.model);
+            draw_corner_chip(&painter, rect, &chip);
             None
         }
     }
-}
-
-fn draw_embed_overlay(
-    ui: &egui::Ui,
-    painter: &egui::Painter,
-    img_resp: &egui::Response,
-    emb: &Embedding,
-    lang: &Lang,
-) {
-    let rect = img_resp.rect;
-    let h = emb.h as usize;
-    let w = emb.w as usize;
-    let d = emb.d();
-    let dims_chip = format!(
-        "{} · {} · {}×{}×{}",
-        translate(Key::embedding, lang),
-        emb.model,
-        h,
-        w,
-        d
-    );
-    draw_corner_chip(painter, rect, &dims_chip);
-
-    if h * w <= 1 || d == 0 || emb.values.len() < h * w * d {
-        return;
-    }
-
-    let Some(pos) = img_resp.hover_pos() else {
-        return;
-    };
-    let local_x = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 0.999_99);
-    let local_y = ((pos.y - rect.min.y) / rect.height()).clamp(0.0, 0.999_99);
-    let aj = (local_x * w as f32) as usize;
-    let ai = (local_y * h as f32) as usize;
-    let anchor_idx = ai * w + aj;
-    let anchor = &emb.values[anchor_idx * d..(anchor_idx + 1) * d];
-
-    let n = h * w;
-    let mut s = vec![0.0f32; n];
-    let mut smin = f32::INFINITY;
-    let mut smax = f32::NEG_INFINITY;
-    for t in 0..n {
-        let token = &emb.values[t * d..(t + 1) * d];
-        let mut dot = 0.0f32;
-        for k in 0..d {
-            dot += token[k] * anchor[k];
-        }
-        s[t] = dot;
-        smin = smin.min(dot);
-        smax = smax.max(dot);
-    }
-    let range = (smax - smin).max(1e-6);
-
-    // Squared on the normalised score amplifies contrast — only strongly-
-    // similar patches stay bright. Magma drives both colour and alpha.
-    let mut pixels: Vec<u8> = Vec::with_capacity(n * 4);
-    for t in 0..n {
-        let norm = ((s[t] - smin) / range).clamp(0.0, 1.0);
-        let amplified = norm * norm;
-        let [r, g, b] = magma(amplified);
-        let alpha = (25.0 + amplified * 220.0).round() as u8;
-        pixels.extend_from_slice(&[r, g, b, alpha]);
-    }
-    let color_img = egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
-    let tex = ui.ctx().load_texture(
-        "embed_heatmap",
-        color_img,
-        egui::TextureOptions::NEAREST,
-    );
-    let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    painter.image(tex.id(), rect, uv, egui::Color32::WHITE);
-}
-
-fn magma(t: f32) -> [u8; 3] {
-    let t = t.clamp(0.0, 1.0);
-    const STOPS: [[u8; 3]; 5] = [
-        [0, 0, 4],
-        [80, 18, 123],
-        [183, 55, 121],
-        [251, 136, 97],
-        [252, 253, 191],
-    ];
-    let scaled = t * 4.0;
-    let seg = (scaled.floor() as usize).min(3);
-    let local = scaled - seg as f32;
-    let a = STOPS[seg];
-    let b = STOPS[seg + 1];
-    [
-        (a[0] as f32 + (b[0] as f32 - a[0] as f32) * local).round() as u8,
-        (a[1] as f32 + (b[1] as f32 - a[1] as f32) * local).round() as u8,
-        (a[2] as f32 + (b[2] as f32 - a[2] as f32) * local).round() as u8,
-    ]
 }
 
 fn draw_corner_chip(painter: &egui::Painter, rect: egui::Rect, text: &str) {
