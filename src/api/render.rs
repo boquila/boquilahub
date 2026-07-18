@@ -1,5 +1,4 @@
 use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, Prob, ProbSugar, SEGc, XYXYc};
-use crate::localization::translate;
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
 use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
@@ -216,41 +215,6 @@ fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: 
         }
         draw_bbox_from_imgbuf(img, std::slice::from_ref(&seg.bbox));
     }
-}
-
-pub fn draw_no_predictions(
-    img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
-    lang: Option<&crate::localization::Lang>,
-) {
-    let font = &*FONT; // Dereference the LazyLock
-    let mut text = "no predictions";
-    if let Some(lang) = lang {
-        text = translate(crate::localization::Key::no_predictions, lang);
-    }
-
-    let start_x = 10i32;
-    let start_y = 10i32;
-
-    // Calculate background dimensions for fallback text
-    let bg_width = (text.len() as f32 * CHAR_WIDTH + 20.0) as u32;
-    let bg_height = (FONT_SCALE + 18.0) as u32;
-
-    // Draw semi-transparent background
-    draw_filled_rect_mut(
-        img,
-        Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
-        Rgb([0, 0, 0]), // Black background
-    );
-
-    // Draw border
-    draw_hollow_rect_mut(
-        img,
-        Rect::at(start_x - 5, start_y - 5).of_size(bg_width, bg_height),
-        WHITE,
-    );
-
-    // Draw fallback text
-    draw_text_mut(img, WHITE, start_x, start_y, FONT_SCALE, &font, text);
 }
 
 fn draw_cls_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, probs: &[Prob]) {
