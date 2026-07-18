@@ -780,8 +780,6 @@ fn build_feed_strip_segments(
     }
     let span = (newest_idx - oldest_idx) as f64;
     let mut walker = 0usize;
-    // Dedup repeated lookups: adjacent columns usually resolve to the same
-    // walker position, so only recompute the class when it actually moves.
     let mut cached_walker: Option<usize> = None;
     let mut cached_class: Option<u32> = None;
     super::merge_class_segments(n_cols, |col| {

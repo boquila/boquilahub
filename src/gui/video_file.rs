@@ -905,9 +905,8 @@ fn build_strip_segments(
     let limit_col = ((scrub_limit as f64 / max_idx) * n_cols as f64) as usize;
     let upper = n_cols.min(limit_col + 1);
 
-    // Dedup repeated lookups: adjacent pixels usually map to the same frame
-    // (when n_cols > n_frames), or to the same nearest analysed frame (when
-    // step > 1). Either way we avoid most of the prediction_at walk-backs.
+    // prediction_at walks backward through unanalysed frames to find the
+    // nearest processed one, so only call it when the target frame changes.
     let mut cached_frame: Option<u64> = None;
     let mut cached_class: Option<u32> = None;
     super::merge_class_segments(upper, |col| {
