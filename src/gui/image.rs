@@ -358,14 +358,7 @@ impl Gui {
                 .unwrap_or(self.t(Key::unknown_file));
             super::nav_filename(ui, name, new_index, n);
 
-            if predimg.wasprocessed {
-                if let Some(aio) = predimg.aioutput.as_ref() {
-                    if let Some(summary) = summary_line(aio, &self.lang) {
-                        ui.separator();
-                        ui.label(egui::RichText::new(summary).strong());
-                    }
-                }
-            } else {
+            if !predimg.wasprocessed {
                 ui.separator();
                 ui.label(
                     egui::RichText::new(self.t(Key::not_analysed))
@@ -710,42 +703,6 @@ fn draw_echo_strip(
             g_tail,
             weak_color,
         );
-    }
-}
-
-fn summary_line(aio: &AIOutputs, lang: &Lang) -> Option<String> {
-    match aio {
-        AIOutputs::ObjectDetection(b) if b.is_empty() => {
-            Some(translate(Key::no_predictions, lang).into())
-        }
-        AIOutputs::ObjectDetection(b) => {
-            let noun = if b.len() == 1 {
-                translate(Key::detection, lang)
-            } else {
-                translate(Key::detections, lang)
-            };
-            Some(format!("{} {}", b.len(), noun))
-        }
-        AIOutputs::Segmentation(s) if s.is_empty() => {
-            Some(translate(Key::no_predictions, lang).into())
-        }
-        AIOutputs::Segmentation(s) => {
-            let noun = if s.len() == 1 {
-                translate(Key::segment, lang)
-            } else {
-                translate(Key::segments, lang)
-            };
-            Some(format!("{} {}", s.len(), noun))
-        }
-        // Classification: the side panel is the source of truth — singling out
-        // a "top" class in the header is misleading when probabilities are noisy.
-        AIOutputs::Classification(_) => None,
-        AIOutputs::AudioClassification(_) => None,
-        AIOutputs::Embed(emb) => Some(format!(
-            "{} · {}",
-            translate(Key::embedding, lang),
-            emb.model
-        )),
     }
 }
 
