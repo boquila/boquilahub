@@ -1,6 +1,6 @@
 use crate::api::{
     bq::{AIMetadata, BQModel, Ep, GlobalBQ, Modality},
-    rest::{get_ipv4_address, run_api},
+    rest::{get_ipv4_address, Rest},
 };
 use clap::{Args, Parser, Subcommand};
 use std::path::Path;
@@ -106,7 +106,7 @@ impl Cli {
                 }
                 println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
 
-                if let Err(e) = run_api(args.port).await {
+                if let Err(e) = Rest::run(args.port).await {
                     eprintln!("Error running API: {}", e);
                 }
             }

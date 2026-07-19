@@ -24,18 +24,6 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-pub async fn run_api(port: u16) -> anyhow::Result<()> {
-    let app: Router = Router::new()
-        .route("/", get(root))
-        .route("/upload", post(upload))
-        .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)); // 10MB limit;
-
-    let addr = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
-    Ok(())
-}
-
 pub enum Payload<'a> {
     RawBytes(Vec<u8>),
     RgbImage(&'a ImageBuffer<Rgb<u8>, Vec<u8>>),
@@ -60,11 +48,23 @@ pub struct Rest {
 }
 
 impl Rest {
-    pub fn new(base_url: &str) -> Self {
+    pub fn connect(base_url: &str) -> Self {
         Self {
             client: Client::new(),
             upload_url: format!("{}/upload", base_url),
         }
+    }
+
+    pub async fn run(port: u16) -> anyhow::Result<()> {
+        let app: Router = Router::new()
+            .route("/", get(root))
+            .route("/upload", post(upload))
+            .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)); // 10MB limit;
+
+        let addr = format!("0.0.0.0:{}", port);
+        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        axum::serve(listener, app).await?;
+        Ok(())
     }
 
     pub async fn detect<'a>(&self, payload: impl Into<Payload<'a>>) -> anyhow::Result<AIOutputs> {

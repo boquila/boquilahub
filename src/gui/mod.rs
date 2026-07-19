@@ -12,7 +12,7 @@ use bq::*;
 use models::Task;
 use processing::post::PostProcessing;
 use render::*;
-use rest::{check_boquila_hub_api, get_ipv4_address, run_api, Rest};
+use rest::{check_boquila_hub_api, get_ipv4_address, Rest};
 use std::collections::{HashMap, VecDeque};
 use std::fs::{self};
 use std::path::PathBuf;
@@ -429,7 +429,7 @@ impl Gui {
                 {
                     let (tx, rx) = std::sync::mpsc::channel();
                     tokio::spawn(async move {
-                        let result = run_api(8791).await;
+                        let result = Rest::run(8791).await;
                         let _ = tx.send(result.is_ok());
                     });
 
@@ -928,7 +928,7 @@ impl Gui {
 
                         if is_valid_api {
                             self.dialog = OpenDialog::None;
-                            self.rest_client = Some(Rest::new(&url));
+                            self.rest_client = Some(Rest::connect(&url));
                             self.ep_selected = Ep::BoquilaHubRemote;
                         } else {
                             self.push_toast(Message::Error);
