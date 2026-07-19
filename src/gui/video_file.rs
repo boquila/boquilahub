@@ -111,16 +111,15 @@ impl Gui {
                     }
                 } else {
                     match tokio::task::spawn_blocking(move || {
-                        let result = process_imgbuf(&img);
-                        (img, result)
+                        process_imgbuf(&img).map(|result| (img, result))
                     })
                     .await
                     {
-                        Ok((returned, result)) => {
+                        Ok(Ok((returned, result))) => {
                             img = returned;
                             result
                         }
-                        Err(_) => break,
+                        _ => break,
                     }
                 };
                 let thumb = super::thumbnail_with_overlay(&img, &aioutput, super::THUMBNAIL_MAX_W);

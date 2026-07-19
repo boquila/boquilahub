@@ -16,7 +16,7 @@ async fn upload(mut multipart: Multipart) -> Result<String, StatusCode> {
         .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
         .into_rgb8();
 
-    let result = process_imgbuf(&imgbuf);
+    let result = process_imgbuf(&imgbuf).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     serde_json::to_string(&result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 

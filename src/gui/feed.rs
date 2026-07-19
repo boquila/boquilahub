@@ -138,16 +138,15 @@ impl Gui {
                         }
                     } else {
                         match tokio::task::spawn_blocking(move || {
-                            let result = process_imgbuf(&img);
-                            (img, result)
+                            process_imgbuf(&img).map(|result| (img, result))
                         })
                         .await
                         {
-                            Ok((returned, result)) => {
+                            Ok(Ok((returned, result))) => {
                                 img = returned;
                                 result
                             }
-                            Err(_) => break,
+                            _ => break,
                         }
                     };
                     Some(result)

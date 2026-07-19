@@ -27,8 +27,8 @@ async fn test_models() -> Result<()> {
         let metadata = BQModel::from_file_to_metadata(&path)?;
         GlobalBQ::First.set_model(&model_path, Ep::Cpu, None)?;
         match metadata.modality {
-            Modality::Image => { process_imgbuf(&img); }
-            Modality::Audio => { process_audio(&audio); }
+            Modality::Image => { process_imgbuf(&img)?; }
+            Modality::Audio => { process_audio(&audio)?; }
         }
 
         if should_download {

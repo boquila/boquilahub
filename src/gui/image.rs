@@ -44,9 +44,10 @@ impl Gui {
                 }
             } else {
                 let img = image::open(&predimg.file_path).unwrap().into_rgb8();
-                tokio::task::spawn_blocking(move || process_imgbuf(&img))
-                    .await
-                    .unwrap()
+                match tokio::task::spawn_blocking(move || process_imgbuf(&img)).await {
+                    Ok(Ok(result)) => result,
+                    _ => return,
+                }
             };
 
             let _ = tx.send((target, bbox));
@@ -80,9 +81,10 @@ impl Gui {
                     }
                 } else {
                     let img = image::open(&predimg.file_path).unwrap().into_rgb8();
-                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
-                        .await
-                        .unwrap()
+                    match tokio::task::spawn_blocking(move || process_imgbuf(&img)).await {
+                        Ok(Ok(result)) => result,
+                        _ => break,
+                    }
                 };
 
                 if tx.send((i, bbox)).is_err() {

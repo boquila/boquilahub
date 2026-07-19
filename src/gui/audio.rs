@@ -147,7 +147,7 @@ impl Gui {
             }
             let result = tokio::task::spawn_blocking(move || {
                 let audio = AudioData::from_file(&path).ok()?.to_mono();
-                Some(process_audio(&audio))
+                process_audio(&audio).ok()
             })
             .await
             .ok()
@@ -178,7 +178,7 @@ impl Gui {
                 let path = pred.file_path.clone();
                 let result = tokio::task::spawn_blocking(move || {
                     let audio = AudioData::from_file(&path).ok()?.to_mono();
-                    Some(process_audio(&audio))
+                    process_audio(&audio).ok()
                 })
                 .await
                 .ok()

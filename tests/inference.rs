@@ -10,7 +10,7 @@ async fn image_inference() -> Result<()> {
 
     // Test inference
     GlobalBQ::First.set_model(&model_path, Ep::Cpu, None)?;
-    let aioutput = process_imgbuf(&img);
+    let aioutput = process_imgbuf(&img)?;
     println!("{:?}",aioutput);
 
     Ok(())
