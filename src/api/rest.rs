@@ -70,7 +70,7 @@ impl Rest {
         let app: Router = Router::new()
             .route("/", get(root))
             .route("/upload", post(upload))
-            .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)); // 10MB limit;
+            .layer(axum::extract::DefaultBodyLimit::max(50 * 1024 * 1024)); // 10MB limit;
 
         let addr = format!("0.0.0.0:{}", port);
         let listener = tokio::net::TcpListener::bind(&addr).await?;
