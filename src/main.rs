@@ -1,4 +1,4 @@
-use boquilahub::cli::{run_cli, Cli};
+use boquilahub::cli::Cli;
 use clap::Parser;
 
 #[tokio::main(worker_threads = 4)]
@@ -15,7 +15,7 @@ async fn main() {
                 return;
             }
 
-            run_cli(cli.command.expect("Could not run CLI")).await;
+            cli.run().await;
         }
         Err(error) => error.exit(),
     }
