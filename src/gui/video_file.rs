@@ -6,11 +6,8 @@ use crate::api::render::*;
 use crate::api::rest::{detect_remotely, rgb_image_to_jpeg_buffer};
 use crate::api::video_file;
 use crate::localization::*;
-use image::{ImageBuffer, Rgb};
 use std::sync::Arc;
 use std::time::Instant;
-
-const THUMB_W: u32 = 1280;
 
 /// One analysed frame, posted from the worker task back to the UI thread.
 pub(super) struct AnalysisFrame {
@@ -127,7 +124,7 @@ impl Gui {
                         Err(_) => break,
                     }
                 };
-                let thumb = thumbnail_with_overlay(&img, &aioutput);
+                let thumb = super::thumbnail_with_overlay(&img, &aioutput, super::THUMBNAIL_MAX_W);
                 let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
                 if tx
                     .send(AnalysisFrame {
@@ -205,7 +202,7 @@ impl Gui {
                     .get(frame_idx as usize)
                     .and_then(|p| p.clone())
                     .unwrap_or_else(|| empty_overlay.clone());
-                let thumb = thumbnail_with_overlay(&img, &aio);
+                let thumb = super::thumbnail_with_overlay(&img, &aio, super::THUMBNAIL_MAX_W);
                 let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
                 if tx
                     .send(AnalysisFrame {
@@ -476,8 +473,6 @@ impl Gui {
                 }
             });
         }
-
-        self.video_export_dialog(ui);
     }
 
     pub fn video_export_dialog(&mut self, ui: &egui::Ui) {
@@ -868,73 +863,8 @@ impl Gui {
 
 // ---------- helpers (no Gui borrow) ----------
 
-fn thumbnail_with_overlay(
-    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
-    aioutput: &AIOutputs,
-) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let mut small = if img.width() <= THUMB_W {
-        img.clone()
-    } else {
-        let h = (img.height() as f32 * THUMB_W as f32 / img.width() as f32) as u32;
-        image::imageops::resize(img, THUMB_W, h.max(1), image::imageops::FilterType::Triangle)
-    };
-    let sx = small.width() as f32 / img.width() as f32;
-    let sy = small.height() as f32 / img.height() as f32;
-    let scaled = scale_aioutput(aioutput, sx, sy);
-    if !scaled.is_empty() {
-        draw_aioutput(&mut small, &scaled);
-    }
-    small
-}
-
-fn scale_aioutput(aio: &AIOutputs, sx: f32, sy: f32) -> AIOutputs {
-    match aio {
-        AIOutputs::ObjectDetection(bboxes) => {
-            let scaled: Vec<XYXYc> = bboxes
-                .iter()
-                .map(|b| {
-                    let mut nb = b.clone();
-                    nb.xyxy.x1 *= sx;
-                    nb.xyxy.x2 *= sx;
-                    nb.xyxy.y1 *= sy;
-                    nb.xyxy.y2 *= sy;
-                    nb
-                })
-                .collect();
-            AIOutputs::ObjectDetection(scaled)
-        }
-        AIOutputs::Segmentation(segs) => {
-            let scaled: Vec<SEGc> = segs
-                .iter()
-                .map(|s| {
-                    let mut ns = s.clone();
-                    ns.bbox.xyxy.x1 *= sx;
-                    ns.bbox.xyxy.x2 *= sx;
-                    ns.bbox.xyxy.y1 *= sy;
-                    ns.bbox.xyxy.y2 *= sy;
-                    ns
-                })
-                .collect();
-            AIOutputs::Segmentation(scaled)
-        }
-        AIOutputs::Classification(_)
-        | AIOutputs::AudioClassification(_)
-        | AIOutputs::Embed(_) => aio.clone(),
-    }
-}
-
-fn format_time(secs: f64) -> String {
-    let mins = (secs / 60.0).floor() as i64;
-    let s = secs - mins as f64 * 60.0;
-    if mins > 0 {
-        format!("{}:{:05.2}", mins, s)
-    } else {
-        format!("0:{:05.2}", s)
-    }
-}
-
 fn format_time_pair(now: f64, total: f64) -> String {
-    format!("{} / {}", format_time(now), format_time(total))
+    format!("{} / {}", super::format_time(now), super::format_time(total))
 }
 
 fn prev_analysed_frame(pv: Option<&PredVideo>, current: u64) -> Option<u64> {
@@ -973,45 +903,21 @@ fn build_strip_segments(
     let limit_col = ((scrub_limit as f64 / max_idx) * n_cols as f64) as usize;
     let upper = n_cols.min(limit_col + 1);
 
-    let mut segments: Vec<(usize, usize, u32)> = Vec::new();
-    let mut current: Option<(usize, u32)> = None;
-    // Dedup repeated lookups: adjacent pixels usually map to the same frame
-    // (when n_cols > n_frames), or to the same nearest analysed frame (when
-    // step > 1). Either way we avoid most of the prediction_at walk-backs.
-    let mut last_frame: Option<u64> = None;
-    let mut last_class: Option<u32> = None;
-
-    for col in 0..upper {
-        let t = col as f64 / n_cols as f64;
-        let frame = (t * max_idx) as u64;
-        let class = if last_frame == Some(frame) {
-            last_class
-        } else {
-            last_frame = Some(frame);
-            let c = pv
+    // prediction_at walks backward through unanalysed frames to find the
+    // nearest processed one, so only call it when the target frame changes.
+    let mut cached_frame: Option<u64> = None;
+    let mut cached_class: Option<u32> = None;
+    super::merge_class_segments(upper, |col| {
+        let frac = col as f64 / n_cols as f64;
+        let frame = (frac * max_idx) as u64;
+        if cached_frame != Some(frame) {
+            cached_frame = Some(frame);
+            cached_class = pv
                 .prediction_at(frame)
-                .and_then(|aio| aio.dominant_prob().map(|(cid, _, _)| cid));
-            last_class = c;
-            c
-        };
-        match (current, class) {
-            (Some((_, cur)), Some(c)) if cur == c => continue,
-            (Some((start, cur)), Some(c)) => {
-                segments.push((start, col - 1, cur));
-                current = Some((col, c));
-            }
-            (Some((start, cur)), None) => {
-                segments.push((start, col - 1, cur));
-                current = None;
-            }
-            (None, Some(c)) => current = Some((col, c)),
-            (None, None) => {}
+                .and_then(|aio| aio.dominant_prob().map(|(class_id, _, _)| class_id));
         }
-    }
-    if let Some((start, cur)) = current {
-        segments.push((start, upper.saturating_sub(1), cur));
-    }
-    segments
+        cached_class
+    })
 }
 
 fn tooltip_ui(
@@ -1024,7 +930,7 @@ fn tooltip_ui(
     ui.label(
         egui::RichText::new(format!(
             "{}  ·  {} {}",
-            format_time(secs),
+            super::format_time(secs),
             translate(Key::frame_label, lang),
             frame
         ))
@@ -1035,87 +941,6 @@ fn tooltip_ui(
         ui.label(egui::RichText::new(translate(Key::not_analysed_parens, lang)).weak());
         return;
     };
-    let Some(aio) = pv.frames.get(nearest as usize).and_then(|f| f.as_ref()) else { return; };
-
-    match aio {
-        AIOutputs::ObjectDetection(bboxes) => {
-            if bboxes.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
-                return;
-            }
-            ui.separator();
-            let n = bboxes.len();
-            let noun = if n == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
-            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
-            let mut bs: Vec<&XYXYc> = bboxes.iter().collect();
-            bs.sort_by(|a, b| {
-                b.xyxy.prob.partial_cmp(&a.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for b in bs.iter().take(6) {
-                tooltip_row(ui, b.xyxy.class_id, &b.label, b.xyxy.prob);
-            }
-            if n > 6 {
-                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
-            }
-        }
-        AIOutputs::Segmentation(segs) => {
-            if segs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
-                return;
-            }
-            ui.separator();
-            let n = segs.len();
-            let noun = if n == 1 { translate(Key::segment, lang) } else { translate(Key::segments, lang) };
-            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
-            let mut ss: Vec<&SEGc> = segs.iter().collect();
-            ss.sort_by(|a, b| {
-                b.bbox
-                    .xyxy
-                    .prob
-                    .partial_cmp(&a.bbox.xyxy.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for s in ss.iter().take(6) {
-                tooltip_row(ui, s.bbox.xyxy.class_id, &s.bbox.label, s.bbox.xyxy.prob);
-            }
-            if n > 6 {
-                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
-            }
-        }
-        AIOutputs::Classification(probs) => {
-            if probs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
-                return;
-            }
-            ui.separator();
-            ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
-            let mut ps: Vec<&Prob> = probs.iter().collect();
-            ps.sort_by(|a, b| {
-                b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for p in ps.iter().take(6) {
-                tooltip_row(ui, p.class_id, &p.label, p.prob);
-            }
-            if probs.len() > 6 {
-                ui.label(
-                    egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
-                );
-            }
-        }
-        AIOutputs::AudioClassification(_) => {}
-        AIOutputs::Embed(_) => {}
-    }
-}
-
-fn and_more(n: usize, lang: &Lang) -> String {
-    translate(Key::and_more_fmt, lang).replace("{}", &n.to_string())
-}
-
-fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
-    let c = class_color(class_id);
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("■").color(color).monospace());
-        ui.label(format!("{} — {:.0}%", label, prob * 100.0));
-    });
+    let Some(aio) = pv.frames.get(nearest as usize).and_then(|entry| entry.as_ref()) else { return; };
+    super::aioutput_tooltip_list(ui, aio, lang);
 }

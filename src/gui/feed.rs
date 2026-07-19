@@ -5,11 +5,9 @@ use crate::api::render::*;
 use crate::api::rest::{detect_remotely, rgb_image_to_jpeg_buffer};
 use crate::api::stream;
 use crate::localization::*;
-use image::{ImageBuffer, Rgb};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant, SystemTime};
 
-const FEED_THUMB_W: u32 = 1280;
 const FEED_EXPORT_DIR: &str = "export/feed";
 
 pub const FEED_BUFFER_MIN_SECS: u32 = 5;
@@ -159,8 +157,8 @@ impl Gui {
                 };
 
                 let thumb = match &aioutput {
-                    Some(aio) => thumbnail_with_overlay(&img, aio),
-                    None => thumbnail_resize(&img),
+                    Some(aio) => super::thumbnail_with_overlay(&img, aio, super::THUMBNAIL_MAX_W),
+                    None => super::thumbnail_resize(&img, super::THUMBNAIL_MAX_W),
                 };
                 let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
                 let elapsed = started_at.elapsed();
@@ -521,7 +519,7 @@ impl Gui {
                 ui.separator();
                 ui.label(format!(
                     "{}  ·  {} {:.1}s / {}s",
-                    format_time(here.as_secs_f64()),
+                    super::format_time(here.as_secs_f64()),
                     self.t(Key::buffer_label),
                     (n.elapsed.saturating_sub(o.elapsed)).as_secs_f64(),
                     self.feed_buffer_max_secs,
@@ -720,70 +718,6 @@ fn draw_feed_preview(
     });
 }
 
-fn thumbnail_resize(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    if img.width() <= FEED_THUMB_W {
-        img.clone()
-    } else {
-        let h = (img.height() as f32 * FEED_THUMB_W as f32 / img.width() as f32) as u32;
-        image::imageops::resize(
-            img,
-            FEED_THUMB_W,
-            h.max(1),
-            image::imageops::FilterType::Triangle,
-        )
-    }
-}
-
-fn thumbnail_with_overlay(
-    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
-    aioutput: &AIOutputs,
-) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
-    let mut small = thumbnail_resize(img);
-    let sx = small.width() as f32 / img.width() as f32;
-    let sy = small.height() as f32 / img.height() as f32;
-    let scaled = scale_aioutput(aioutput, sx, sy);
-    if !scaled.is_empty() {
-        draw_aioutput(&mut small, &scaled);
-    }
-    small
-}
-
-fn scale_aioutput(aio: &AIOutputs, sx: f32, sy: f32) -> AIOutputs {
-    match aio {
-        AIOutputs::ObjectDetection(bboxes) => {
-            let scaled: Vec<XYXYc> = bboxes
-                .iter()
-                .map(|b| {
-                    let mut nb = b.clone();
-                    nb.xyxy.x1 *= sx;
-                    nb.xyxy.x2 *= sx;
-                    nb.xyxy.y1 *= sy;
-                    nb.xyxy.y2 *= sy;
-                    nb
-                })
-                .collect();
-            AIOutputs::ObjectDetection(scaled)
-        }
-        AIOutputs::Segmentation(segs) => {
-            let scaled: Vec<SEGc> = segs
-                .iter()
-                .map(|s| {
-                    let mut ns = s.clone();
-                    ns.bbox.xyxy.x1 *= sx;
-                    ns.bbox.xyxy.x2 *= sx;
-                    ns.bbox.xyxy.y1 *= sy;
-                    ns.bbox.xyxy.y2 *= sy;
-                    ns
-                })
-                .collect();
-            AIOutputs::Segmentation(scaled)
-        }
-        AIOutputs::Classification(_)
-        | AIOutputs::AudioClassification(_)
-        | AIOutputs::Embed(_) => aio.clone(),
-    }
-}
-
 /// Trim a feed URL down to `scheme://host:port` for header display.
 /// Drops credentials before the host's `@`, and trims any path/query/fragment.
 /// Falls back to the original on parse failures.
@@ -818,16 +752,6 @@ fn local_stamp(t: SystemTime) -> String {
     dt.format("%Y%m%d_%H%M%S_%3f").to_string()
 }
 
-fn format_time(secs: f64) -> String {
-    let mins = (secs / 60.0).floor() as i64;
-    let s = secs - mins as f64 * 60.0;
-    if mins > 0 {
-        format!("{}:{:05.2}", mins, s)
-    } else {
-        format!("0:{:05.2}", s)
-    }
-}
-
 fn prev_feed_frame(buf: &VecDeque<FeedFrame>, current: u64) -> Option<u64> {
     buf.iter()
         .rev()
@@ -855,53 +779,30 @@ fn build_feed_strip_segments(
         return Vec::new();
     }
     let span = (newest_idx - oldest_idx) as f64;
-    let mut segments: Vec<(usize, usize, u32)> = Vec::new();
-    let mut current: Option<(usize, u32)> = None;
-    let mut last_walker: Option<usize> = None;
-    let mut last_class: Option<u32> = None;
     let mut walker = 0usize;
-
-    for col in 0..n_cols {
-        let t = (col as f64 + 0.5) / n_cols as f64;
-        let target = oldest_idx as f64 + t * span;
+    let mut cached_walker: Option<usize> = None;
+    let mut cached_class: Option<u32> = None;
+    super::merge_class_segments(n_cols, |col| {
+        let frac = (col as f64 + 0.5) / n_cols as f64;
+        let target = oldest_idx as f64 + frac * span;
         while walker + 1 < buf.len() {
-            let cur = (buf[walker].frame_idx as f64 - target).abs();
-            let next = (buf[walker + 1].frame_idx as f64 - target).abs();
-            if next < cur {
+            let dist_to_current = (buf[walker].frame_idx as f64 - target).abs();
+            let dist_to_next = (buf[walker + 1].frame_idx as f64 - target).abs();
+            if dist_to_next < dist_to_current {
                 walker += 1;
             } else {
                 break;
             }
         }
-        let class = if last_walker == Some(walker) {
-            last_class
-        } else {
-            last_walker = Some(walker);
-            let c = buf[walker]
+        if cached_walker != Some(walker) {
+            cached_walker = Some(walker);
+            cached_class = buf[walker]
                 .aioutput
                 .as_ref()
-                .and_then(|aio| aio.dominant_prob().map(|(cid, _, _)| cid));
-            last_class = c;
-            c
-        };
-        match (current, class) {
-            (Some((_, cur)), Some(c)) if cur == c => continue,
-            (Some((start, cur)), Some(c)) => {
-                segments.push((start, col - 1, cur));
-                current = Some((col, c));
-            }
-            (Some((start, cur)), None) => {
-                segments.push((start, col - 1, cur));
-                current = None;
-            }
-            (None, Some(c)) => current = Some((col, c)),
-            (None, None) => {}
+                .and_then(|aio| aio.dominant_prob().map(|(class_id, _, _)| class_id));
         }
-    }
-    if let Some((start, cur)) = current {
-        segments.push((start, n_cols.saturating_sub(1), cur));
-    }
-    segments
+        cached_class
+    })
 }
 
 fn feed_tooltip_ui(
@@ -911,11 +812,11 @@ fn feed_tooltip_ui(
     lang: &Lang,
 ) {
     let Some(target_idx) = target else { return; };
-    let Some(frame) = buf.iter().find(|f| f.frame_idx == target_idx) else { return; };
+    let Some(frame) = buf.iter().find(|candidate| candidate.frame_idx == target_idx) else { return; };
     ui.label(
         egui::RichText::new(format!(
             "{}  ·  {} {}",
-            format_time(frame.elapsed.as_secs_f64()),
+            super::format_time(frame.elapsed.as_secs_f64()),
             translate(Key::frame_label, lang),
             frame.frame_idx
         ))
@@ -925,88 +826,5 @@ fn feed_tooltip_ui(
         ui.label(egui::RichText::new(translate(Key::no_ai, lang)).weak());
         return;
     };
-    match aio {
-        AIOutputs::ObjectDetection(bs) => {
-            if bs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
-                return;
-            }
-            ui.separator();
-            let n = bs.len();
-            let noun = if n == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
-            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
-            let mut sorted: Vec<&XYXYc> = bs.iter().collect();
-            sorted.sort_by(|a, b| {
-                b.xyxy
-                    .prob
-                    .partial_cmp(&a.xyxy.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for b in sorted.iter().take(6) {
-                tooltip_row(ui, b.xyxy.class_id, &b.label, b.xyxy.prob);
-            }
-            if n > 6 {
-                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
-            }
-        }
-        AIOutputs::Segmentation(ss) => {
-            if ss.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
-                return;
-            }
-            ui.separator();
-            let n = ss.len();
-            let noun = if n == 1 { translate(Key::segment, lang) } else { translate(Key::segments, lang) };
-            ui.label(egui::RichText::new(format!("{} {}", n, noun)).strong());
-            let mut sorted: Vec<&SEGc> = ss.iter().collect();
-            sorted.sort_by(|a, b| {
-                b.bbox
-                    .xyxy
-                    .prob
-                    .partial_cmp(&a.bbox.xyxy.prob)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for s in sorted.iter().take(6) {
-                tooltip_row(ui, s.bbox.xyxy.class_id, &s.bbox.label, s.bbox.xyxy.prob);
-            }
-            if n > 6 {
-                ui.label(egui::RichText::new(and_more(n - 6, lang)).weak());
-            }
-        }
-        AIOutputs::Classification(probs) => {
-            if probs.is_empty() {
-                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
-                return;
-            }
-            ui.separator();
-            ui.label(egui::RichText::new(translate(Key::classification, lang)).strong());
-            let mut sorted: Vec<&Prob> = probs.iter().collect();
-            sorted.sort_by(|a, b| {
-                b.prob.partial_cmp(&a.prob).unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for p in sorted.iter().take(6) {
-                tooltip_row(ui, p.class_id, &p.label, p.prob);
-            }
-            if probs.len() > 6 {
-                ui.label(
-                    egui::RichText::new(and_more(probs.len() - 6, lang)).weak(),
-                );
-            }
-        }
-        AIOutputs::AudioClassification(_) => {}
-        AIOutputs::Embed(_) => {}
-    }
-}
-
-fn and_more(n: usize, lang: &Lang) -> String {
-    translate(Key::and_more_fmt, lang).replace("{}", &n.to_string())
-}
-
-fn tooltip_row(ui: &mut egui::Ui, class_id: u32, label: &str, prob: f32) {
-    let c = class_color(class_id);
-    let color = egui::Color32::from_rgb(c[0], c[1], c[2]);
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new("■").color(color).monospace());
-        ui.label(format!("{} — {:.0}%", label, prob * 100.0));
-    });
+    super::aioutput_tooltip_list(ui, aio, lang);
 }

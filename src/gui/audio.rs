@@ -1,4 +1,4 @@
-use super::{imgbuf_to_texture, Gui, Mode, OpenDialog};
+use super::{imgbuf_to_texture, Gui, OpenDialog};
 use crate::api::abstractions::*;
 use crate::api::audio::AudioData;
 use crate::api::bq::{process_audio, Modality};
@@ -89,35 +89,7 @@ impl Gui {
             });
         }
 
-        self.process_all_dialog_audio(ui);
-    }
-
-    fn process_all_dialog_audio(&mut self, ui: &egui::Ui) {
-        if self.dialog != OpenDialog::ProcessAll || self.mode != Mode::Audio {
-            return;
-        }
-        egui::Window::new(self.t(Key::process_everything))
-            .collapsible(false)
-            .resizable(false)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button(self.t(Key::yes)).clicked() {
-                        self.process_all_audios = true;
-                        self.start_audio_analysis();
-                        self.dialog = OpenDialog::None;
-                    }
-                    ui.add_space(8.0);
-                    if ui.button(self.t(Key::no_only_missing_data)).clicked() {
-                        self.process_all_audios = false;
-                        self.start_audio_analysis();
-                        self.dialog = OpenDialog::None;
-                    }
-                    ui.add_space(8.0);
-                    if ui.button(self.t(Key::cancel)).clicked() {
-                        self.dialog = OpenDialog::None;
-                    }
-                });
-            });
+        self.process_all_dialog(ui, |gui, process_all| gui.process_all_audios = process_all, Gui::start_audio_analysis);
     }
 
     pub fn audio_export_dialog(&mut self, ui: &egui::Ui) {
@@ -436,14 +408,6 @@ impl Gui {
                     self.audio_view_range_dirty = true;
                     self.audio_state.texture = None;
                 }
-                ui.label(format!(
-                    "{} {:.2}s → {:.2}s   ·   {} {:.2}s",
-                    self.t(Key::view_label),
-                    self.audio_view_range.0,
-                    self.audio_view_range.1,
-                    self.t(Key::span_label),
-                    self.audio_view_range.1 - self.audio_view_range.0,
-                ));
             });
 
             // Plot fills the remaining space. Texture is sized to

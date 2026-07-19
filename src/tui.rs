@@ -40,7 +40,7 @@ impl Dropdown {
     }
 }
 
-struct App {
+pub struct Tui {
     lang: Lang,
     row: usize,
     side_btn: bool,     // true = focus is on the +/- button, not the combo
@@ -57,7 +57,21 @@ struct App {
     status_msg: Option<String>,
 }
 
-impl App {
+impl Tui {
+    pub fn run(lang: Lang) -> std::io::Result<()> {
+        let mut app = Tui::new(lang);
+        ratatui::run(|terminal| loop {
+            terminal.draw(|f| draw(f, &app))?;
+            if event::poll(Duration::from_millis(50))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press && handle_input(&mut app, key.code, key.modifiers) {
+                        break Ok(());
+                    }
+                }
+            }
+        })
+    }
+    
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
         let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image).cloned().collect();
@@ -108,23 +122,8 @@ impl App {
     }
 }
 
-// ── main ─────────────────────────────────────────────────────────────
-pub fn run_tui(lang: Lang) -> std::io::Result<()> {
-    let mut app = App::new(lang);
-    ratatui::run(|terminal| loop {
-        terminal.draw(|f| draw(f, &app))?;
-        if event::poll(Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press && handle_input(&mut app, key.code, key.modifiers) {
-                    break Ok(());
-                }
-            }
-        }
-    })
-}
-
 // ── input ────────────────────────────────────────────────────────────
-fn handle_input(app: &mut App, code: KeyCode, mods: KeyModifiers) -> bool {
+fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
     if code == KeyCode::Char('c') && mods.contains(KeyModifiers::CONTROL) { return true; }
     if matches!(code, KeyCode::Char('q') | KeyCode::Esc) && app.open.is_none() { return true; }
 
@@ -198,7 +197,7 @@ fn handle_dropdown(code: KeyCode, len: usize, dd: &mut Dropdown) -> Option<bool>
     }
 }
 
-fn load_ai_model(app: &mut App) {
+fn load_ai_model(app: &mut Tui) {
     if let Some(ai_idx) = app.ai.selected {
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.ais[ai_idx].get_path();
@@ -207,7 +206,7 @@ fn load_ai_model(app: &mut App) {
     }
 }
 
-fn load_cls_model(app: &mut App) {
+fn load_cls_model(app: &mut Tui) {
     if let Some(cls_idx) = app.cls.selected {
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.cls_ais[cls_idx].get_path();
@@ -216,7 +215,7 @@ fn load_cls_model(app: &mut App) {
     }
 }
 
-fn deploy_api(app: &mut App) {
+fn deploy_api(app: &mut Tui) {
     let port = 8791u16;
     match std::net::TcpListener::bind(("0.0.0.0", port)) {
         Ok(probe) => {
@@ -234,7 +233,7 @@ fn deploy_api(app: &mut App) {
 }
 
 // ── drawing ──────────────────────────────────────────────────────────
-fn draw(frame: &mut Frame, app: &App) {
+fn draw(frame: &mut Frame, app: &Tui) {
     let [title, body, status] = Layout::vertical([
         Constraint::Length(1), Constraint::Min(0), Constraint::Length(1),
     ]).areas(frame.area());
@@ -250,7 +249,7 @@ fn draw(frame: &mut Frame, app: &App) {
     }
 }
 
-fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) -> (Rect, Rect, Rect) {
+fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect) {
     let block = Block::default().borders(Borders::RIGHT).border_style(dim());
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -345,7 +344,7 @@ fn draw_combo(frame: &mut Frame, area: Rect, label: &str, options: &[impl AsRef<
     ])), combo);
 }
 
-fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
+fn draw_central(frame: &mut Frame, app: &Tui, area: Rect) {
     let cy = area.y + area.height / 2;
     if app.api_deployed {
         frame.render_widget(centered(Span::styled("●", bold(ACCENT))), at(area, cy.saturating_sub(1)));
@@ -367,13 +366,13 @@ fn draw_central(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
+fn draw_status_bar(frame: &mut Frame, app: &Tui, area: Rect) {
     if let Some(msg) = &app.status_msg {
         frame.render_widget(Paragraph::new(Span::styled(format!(" {msg} "), Style::default())), area);
     }
 }
 
-fn draw_dropdown_overlay(frame: &mut Frame, app: &App, which: Row, rows: (Rect, Rect, Rect)) {
+fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, Rect, Rect)) {
     let (names, dd, title, row_area): (Vec<&str>, &Dropdown, &str, Rect) = match which {
         Row::Ai => (app.ais.iter().map(|a| a.name.as_str()).collect(), &app.ai, app.t(Key::select_ai), rows.0),
         Row::ClsAi => (app.cls_ais.iter().map(|a| a.name.as_str()).collect(), &app.cls, app.t(Key::select_2nd_ai), rows.1),

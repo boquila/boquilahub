@@ -302,19 +302,6 @@ pub struct PredVideo {
 }
 
 impl PredVideo {
-    pub fn new(file_path: std::path::PathBuf, width: u32, height: u32, fps: f64, n_frames: u64) -> Self {
-        Self {
-            file_path,
-            width,
-            height,
-            fps,
-            n_frames,
-            step: 1,
-            frames: vec![None; n_frames as usize],
-            wasprocessed: false,
-        }
-    }
-
     /// Cheap constructor: stores the path and loads a sidecar
     /// `_predictions.json` if one exists (same shape as `PredImg::new_simple`
     /// / `PredAudio::new_simple`). The ffmpeg probe is deferred to

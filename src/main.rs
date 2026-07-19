@@ -1,7 +1,7 @@
-use boquilahub::cli::{run_cli, Cli};
+use boquilahub::cli::Cli;
 use clap::Parser;
 
-#[tokio::main]
+#[tokio::main(worker_threads = 4)]
 async fn main() {
     let cli = Cli::try_parse();
 
@@ -9,22 +9,14 @@ async fn main() {
         Ok(cli) => {
             if cli.command.is_none() {
                 #[cfg(all(windows, not(debug_assertions)))]
-                hide_window();
-                boquilahub::gui::run_gui();
+                winapi::um::wincon::FreeConsole();
+                boquilahub::gui::Gui::run();
 
                 return;
             }
 
-            run_cli(cli.command.expect("Could not run CLI")).await;
+            cli.run().await;
         }
         Err(error) => error.exit(),
-    }
-}
-
-#[cfg(all(windows, not(debug_assertions)))]
-fn hide_window() {
-    use winapi::um::wincon::FreeConsole;
-    unsafe {
-        FreeConsole(); // Detaches and closes the console window
     }
 }

@@ -78,63 +78,65 @@ pub struct Cli {
     pub command: Option<Commands>,
 }
 
-pub async fn run_cli(command: Commands) {
-    match command {
-        Commands::Serve(args) => {
-            let ais: Vec<AIMetadata> = BQModel::get_list();
-            let model = resolve_model(&args.model, &ais);
+impl Cli {
+    pub async fn run(self) {
+        match self.command.expect("Could not run CLI") {
+            Commands::Serve(args) => {
+                let ais: Vec<AIMetadata> = BQModel::get_list();
+                let model = resolve_model(&args.model, &ais);
 
-            if model.modality == Modality::Audio {
-                panic!(
-                    "Audio models cannot be deployed as API. Model '{}' is an audio model.",
-                    model.name
-                );
+                if model.modality == Modality::Audio {
+                    panic!(
+                        "Audio models cannot be deployed as API. Model '{}' is an audio model.",
+                        model.name
+                    );
+                }
+
+                if let Some(cls_name) = &args.model_cls {
+                    let cls = resolve_model(cls_name, &ais);
+                    let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::gpu(), None);
+                }
+
+                let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::gpu(), None);
+
+                println!("{}", ASCII_ART);
+                match &args.model_cls {
+                    Some(cls) => println!("Model deployed: {} with {}", model.name, cls),
+                    None => println!("Model deployed: {}", model.name),
+                }
+                println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
+
+                if let Err(e) = run_api(args.port).await {
+                    eprintln!("Error running API: {}", e);
+                }
             }
-
-            if let Some(cls_name) = &args.model_cls {
-                let cls = resolve_model(cls_name, &ais);
-                let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::gpu(), None);
+            Commands::List => {
+                let ais: Vec<AIMetadata> = BQModel::get_list();
+                print_ais_table(&ais);
+                std::process::exit(0);
             }
-
-            let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::gpu(), None);
-
-            println!("{}", ASCII_ART);
-            match &args.model_cls {
-                Some(cls) => println!("Model deployed: {} with {}", model.name, cls),
-                None => println!("Model deployed: {}", model.name),
-            }
-            println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
-
-            if let Err(e) = run_api(args.port).await {
-                eprintln!("Error running API: {}", e);
-            }
-        }
-        Commands::List => {
-            let ais: Vec<AIMetadata> = BQModel::get_list();
-            print_ais_table(&ais);
-            std::process::exit(0);
-        }
-        Commands::Pull(args) => match pull(&args.model).await {
-            Ok(_) => {}
-            Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
-        },
-        Commands::Gui => {
-            let _ = crate::gui::run_gui();
-        }
-        Commands::Tui { lang } => {
-            let language = crate::localization::Lang::from_optional_str(lang.as_deref());
-            let _ = crate::tui::run_tui(language);
-        }
-        Commands::Bq { command } => match command {
-            BqCommands::Shape { name } => match BQModel::from_file_print_shape(&name) {
+            Commands::Pull(args) => match pull(&args.model).await {
                 Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
+                Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
             },
-            BqCommands::New { name } => match BQModel::create_bq_file(name) {
-                Ok(_) => {}
-                Err(e) => eprintln!("{}", e),
+            Commands::Gui => {
+                let _ = crate::gui::Gui::run();
             }
-        },
+            Commands::Tui { lang } => {
+                let language = crate::localization::Lang::from_optional_str(lang.as_deref());
+                let _ = crate::tui::Tui::run(language);
+            }
+            Commands::Bq { command } => match command {
+                BqCommands::Shape { name } => match BQModel::from_file_print_shape(&name) {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("{}", e),
+                },
+                BqCommands::New { name } => match BQModel::create_bq_file(name) {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("{}", e),
+                }
+            },
+        }
     }
 }
 

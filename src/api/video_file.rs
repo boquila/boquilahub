@@ -21,10 +21,10 @@ unsafe impl Send for DecodedFrame {}
 /// Pure decoder — no encoder, no audio passthrough.
 pub struct VideofileProcessor {
     receiver: std::sync::mpsc::Receiver<DecodedFrame>,
-    width: u32,
-    height: u32,
-    n_frames: u64,
-    fps: f64,
+    pub width: u32,
+    pub height: u32,
+    pub n_frames: u64,
+    pub fps: f64,
 }
 
 impl VideofileProcessor {
@@ -128,11 +128,6 @@ impl VideofileProcessor {
             fps,
         }
     }
-
-    pub fn width(&self) -> u32 { self.width }
-    pub fn height(&self) -> u32 { self.height }
-    pub fn get_n_frames(&self) -> u64 { self.n_frames }
-    pub fn fps(&self) -> f64 { self.fps }
 
     /// Single-shot open: read metadata and decode the first frame, then close.
     /// Used at file-pick time so the GUI can show the first frame without also
