@@ -4,9 +4,11 @@ use crate::api::audio::AudioData;
 use crate::api::bq::{process_audio, Modality};
 use crate::api::processing::pre::compute_mel;
 use crate::api::render::*;
+use crate::api::rest::Payload;
 use crate::localization::*;
 use image::{ImageBuffer, Rgba};
 use rodio::Source;
+use std::fs;
 use std::time::Instant;
 
 pub(super) const AUDIO_DISPLAY_SR: u32 = 22050;
@@ -141,20 +143,25 @@ impl Gui {
         let (tx, mut cancel_rx) = self.audio_state.start();
         let path = self.selected_audios[target].file_path.clone();
 
+        let rest_client = self.rest_client.clone();
+        let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             if cancel_rx.try_recv().is_ok() {
                 return;
             }
-            let result = tokio::task::spawn_blocking(move || {
-                let audio = AudioData::from_file(&path).ok()?.to_mono();
-                Some(process_audio(&audio))
-            })
-            .await
-            .ok()
-            .flatten();
-            if let Some(out) = result {
-                let _ = tx.send((target, out));
-            }
+            let result = if is_remote {
+                let buffer = fs::read(&path).unwrap();
+                rest_client.as_ref().unwrap().detect(Payload::RawAudioBytes(buffer)).await.ok()
+            } else {
+                tokio::task::spawn_blocking(move || {
+                    let audio = AudioData::from_file(&path).ok()?.to_mono();
+                    process_audio(&audio).ok()
+                })
+                .await
+                .ok()
+                .flatten()
+            };
+            let _ = tx.send((target, result));
         });
     }
 
@@ -167,6 +174,8 @@ impl Gui {
         let (tx, mut cancel_rx) = self.audio_state.start();
         let copy_preds = self.selected_audios.clone();
 
+        let rest_client = self.rest_client.clone();
+        let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             for (i, pred) in copy_preds.iter().enumerate() {
                 if pred.wasprocessed {
@@ -176,15 +185,19 @@ impl Gui {
                     break;
                 }
                 let path = pred.file_path.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                    let audio = AudioData::from_file(&path).ok()?.to_mono();
-                    Some(process_audio(&audio))
-                })
-                .await
-                .ok()
-                .flatten();
-                let Some(out) = result else { continue; };
-                if tx.send((i, out)).is_err() {
+                let result = if is_remote {
+                    let buffer = fs::read(&path).unwrap();
+                    rest_client.as_ref().unwrap().detect(Payload::RawAudioBytes(buffer)).await.ok()
+                } else {
+                    tokio::task::spawn_blocking(move || {
+                        let audio = AudioData::from_file(&path).ok()?.to_mono();
+                        process_audio(&audio).ok()
+                    })
+                    .await
+                    .ok()
+                    .flatten()
+                };
+                if tx.send((i, result)).is_err() {
                     break;
                 }
             }
@@ -277,17 +290,20 @@ impl Gui {
         let (updates, closed) = self.audio_state.drain();
         let current_idx = self.audio_texture_n.saturating_sub(1);
         let mut touched_current = false;
-        for (i, aio) in updates {
-            if matches!(aio, AIOutputs::AudioClassification(_)) {
-                if let Some(slot) = self.selected_audios.get_mut(i) {
-                    slot.aioutput = Some(aio);
-                    slot.wasprocessed = true;
-                    if i == current_idx {
-                        touched_current = true;
+        for (i, result) in updates {
+            match result {
+                Some(aio @ AIOutputs::AudioClassification(_)) => {
+                    if let Some(slot) = self.selected_audios.get_mut(i) {
+                        slot.aioutput = Some(aio);
+                        slot.wasprocessed = true;
+                        if i == current_idx {
+                            touched_current = true;
+                        }
                     }
                 }
-            } else {
-                self.push_toast(super::Message::Error);
+                _ => {
+                    self.push_toast(super::Message::Error);
+                }
             }
         }
 

@@ -39,7 +39,7 @@ async fn perch_identifies_species() -> Result<()> {
     let result = (|| -> Result<()> {
         for (path, expected) in cases {
             let audio = AudioData::from_file(path)?;
-            let aioutput = process_audio(&audio);
+            let aioutput = process_audio(&audio)?;
             let AIOutputs::AudioClassification(probs) = &aioutput else {
                 panic!("{path}: expected AudioClassification, got {:?}", aioutput);
             };

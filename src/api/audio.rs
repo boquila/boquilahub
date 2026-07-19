@@ -95,6 +95,17 @@ impl AudioData {
         Ok(())
     }
 
+    // ffmpeg-next only opens input by path, so round-trip bytes through a temp file.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, ffmpeg::Error> {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("bq_audio_{}_{n}", std::process::id()));
+        std::fs::write(&path, data).map_err(|_| ffmpeg::Error::External)?;
+        let result = Self::from_file(&path);
+        let _ = std::fs::remove_file(&path);
+        result
+    }
+
     /// Duration in seconds.
     pub fn duration(&self) -> f64 {
         let samples_per_channel = self.samples.len() / self.channels.max(1) as usize;

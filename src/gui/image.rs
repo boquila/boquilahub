@@ -3,7 +3,7 @@ use crate::api::abstractions::*;
 use crate::api::bq::process_imgbuf;
 use crate::api::export;
 use crate::api::render::*;
-use crate::api::rest::detect_remotely;
+use crate::api::rest::Payload;
 use crate::localization::*;
 use std::fs;
 
@@ -30,26 +30,27 @@ impl Gui {
         let (tx, mut cancel_rx) = self.img_state.start();
         let predimg = self.selected_imgs[target].clone();
 
-        let api_endpoint = self.get_endpoint();
+        let rest_client = self.rest_client.clone();
         let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             if cancel_rx.try_recv().is_ok() {
                 return;
             }
-            let bbox = if is_remote {
+            let result = if is_remote {
                 let buffer = fs::read(&predimg.file_path).unwrap();
-                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
-                    Ok(result) => result,
-                    Err(_) => return,
+                match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
+                    Ok(result) => Some(result),
+                    Err(_) => None,
                 }
             } else {
                 let img = image::open(&predimg.file_path).unwrap().into_rgb8();
-                tokio::task::spawn_blocking(move || process_imgbuf(&img))
-                    .await
-                    .unwrap()
+                match tokio::task::spawn_blocking(move || process_imgbuf(&img)).await {
+                    Ok(Ok(result)) => Some(result),
+                    _ => None,
+                }
             };
 
-            let _ = tx.send((target, bbox));
+            let _ = tx.send((target, result));
         });
     }
 
@@ -62,7 +63,7 @@ impl Gui {
         let (tx, mut cancel_rx) = self.img_state.start();
         let copy_predigms = self.selected_imgs.clone();
 
-        let api_endpoint = self.get_endpoint();
+        let rest_client = self.rest_client.clone();
         let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             for (i, predimg) in copy_predigms.iter().enumerate() {
@@ -72,20 +73,21 @@ impl Gui {
                 if cancel_rx.try_recv().is_ok() {
                     break;
                 }
-                let bbox = if is_remote {
+                let result = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
-                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
-                        Ok(result) => result,
-                        Err(_) => break,
+                    match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
+                        Ok(result) => Some(result),
+                        Err(_) => None,
                     }
                 } else {
                     let img = image::open(&predimg.file_path).unwrap().into_rgb8();
-                    tokio::task::spawn_blocking(move || process_imgbuf(&img))
-                        .await
-                        .unwrap()
+                    match tokio::task::spawn_blocking(move || process_imgbuf(&img)).await {
+                        Ok(Ok(result)) => Some(result),
+                        _ => None,
+                    }
                 };
 
-                if tx.send((i, bbox)).is_err() {
+                if tx.send((i, result)).is_err() {
                     break;
                 }
             }
@@ -94,11 +96,16 @@ impl Gui {
 
     pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.img_state.drain();
-        for (i, bbox) in updates {
-            self.selected_imgs[i].aioutput = Some(bbox);
-            self.selected_imgs[i].wasprocessed = true;
-            if i == self.image_texture_n - 1 {
-                self.paint(ui, i);
+        for (i, result) in updates {
+            match result {
+                Some(aio) => {
+                    self.selected_imgs[i].aioutput = Some(aio);
+                    self.selected_imgs[i].wasprocessed = true;
+                    if i == self.image_texture_n - 1 {
+                        self.paint(ui, i);
+                    }
+                }
+                None => self.push_toast(super::Message::Error),
             }
         }
         if closed {

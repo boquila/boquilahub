@@ -10,7 +10,7 @@ use ratatui::Frame;
 use super::api::{
     bq::{AIMetadata, BQModel, Ep, GlobalBQ, Modality},
     models::Task,
-    rest::{get_ipv4_address, run_api},
+    rest::{get_ipv4_address, Rest},
 };
 use super::localization::{translate, Key, Lang};
 
@@ -221,7 +221,7 @@ fn deploy_api(app: &mut Tui) {
         Ok(probe) => {
             drop(probe);
             tokio::spawn(async move {
-                if let Err(e) = run_api(port).await {
+                if let Err(e) = Rest::deploy(port).await {
                     eprintln!("API error: {}", e);
                 }
             });

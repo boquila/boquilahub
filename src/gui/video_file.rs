@@ -3,7 +3,7 @@ use crate::api::abstractions::*;
 use crate::api::bq::process_imgbuf;
 use crate::api::export;
 use crate::api::render::*;
-use crate::api::rest::{detect_remotely, rgb_image_to_jpeg_buffer};
+use crate::api::rest::rgb_image_to_jpeg_buffer;
 use crate::api::video_file;
 use crate::localization::*;
 use std::sync::Arc;
@@ -84,7 +84,7 @@ impl Gui {
         let (tx, mut cancel_rx) = self.video_state.start();
 
         let processor = Arc::clone(&self.video_file_processor);
-        let api_endpoint = self.get_endpoint();
+        let rest_client = self.rest_client.clone();
         let is_remote = !self.ep_selected.is_local();
         let step = self.video_step_frame.max(1) as u64;
 
@@ -105,23 +105,21 @@ impl Gui {
                     continue;
                 }
                 let aioutput = if is_remote {
-                    let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                    match rest_client.as_ref().unwrap().detect(&img).await {
                         Ok(r) => r,
                         Err(_) => break,
                     }
                 } else {
                     match tokio::task::spawn_blocking(move || {
-                        let result = process_imgbuf(&img);
-                        (img, result)
+                        process_imgbuf(&img).map(|result| (img, result))
                     })
                     .await
                     {
-                        Ok((returned, result)) => {
+                        Ok(Ok((returned, result))) => {
                             img = returned;
                             result
                         }
-                        Err(_) => break,
+                        _ => break,
                     }
                 };
                 let thumb = super::thumbnail_with_overlay(&img, &aioutput, super::THUMBNAIL_MAX_W);

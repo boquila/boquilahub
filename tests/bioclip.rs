@@ -29,7 +29,7 @@ async fn bioclip_produces_image_embedding() -> Result<()> {
 
     let result = (|| -> Result<()> {
         let img = image::open("tests/assets/img.jpg")?.to_rgb8();
-        let aioutput = process_imgbuf(&img);
+        let aioutput = process_imgbuf(&img)?;
         let AIOutputs::Embed(emb) = &aioutput else {
             panic!("expected AIOutputs::Embed, got {:?}", aioutput);
         };

@@ -1,4 +1,5 @@
 use super::abstractions::AIOutputs;
+use super::audio::AudioData;
 use super::bq::*;
 use axum::{extract::Multipart, http::StatusCode, routing::{get, post}, Router};
 use image::codecs::jpeg::JpegEncoder;
@@ -10,13 +11,22 @@ async fn upload(mut multipart: Multipart) -> Result<String, StatusCode> {
     let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? else {
         return Err(StatusCode::BAD_REQUEST);
     };
-
+    let is_audio = field.content_type().is_some_and(|ct| ct.starts_with("audio/"));
     let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
-    let imgbuf = image::load_from_memory(&data)
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
-        .into_rgb8();
 
-    let result = process_imgbuf(&imgbuf);
+    let result = if is_audio {
+        let audio = AudioData::from_bytes(&data)
+            .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
+            .to_mono();
+        process_audio(&audio)
+    } else {
+        let imgbuf = image::load_from_memory(&data)
+            .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
+            .into_rgb8();
+        process_imgbuf(&imgbuf)
+    };
+
+    let result = result.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     serde_json::to_string(&result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
@@ -24,50 +34,81 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
-    let app: Router = Router::new()
-        .route("/", get(root))
-        .route("/upload", post(upload))
-        .layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)); // 10MB limit;
-
-    let addr = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
-    Ok(())
+pub enum Payload<'a> {
+    RawImageBytes(Vec<u8>),
+    RawAudioBytes(Vec<u8>),
+    RgbImage(&'a ImageBuffer<Rgb<u8>, Vec<u8>>),
 }
 
-pub async fn detect_remotely(
-    url: &str,
-    buffer: Vec<u8>,
-) -> Result<AIOutputs, Box<dyn std::error::Error>> {
-    let client = Client::new();
-
-    let response = client
-        .post(url)
-        .multipart(reqwest::multipart::Form::new().part(
-            "file",
-            reqwest::multipart::Part::bytes(buffer).mime_str("image/jpeg")?,
-        ))
-        .send()
-        .await?;
-
-    let response_text = response.text().await?;
-    let deserialized: AIOutputs = serde_json::from_str(&response_text)?;
-
-    Ok(deserialized)
+impl<'a> From<&'a ImageBuffer<Rgb<u8>, Vec<u8>>> for Payload<'a> {
+    fn from(img: &'a ImageBuffer<Rgb<u8>, Vec<u8>>) -> Self {
+        Payload::RgbImage(img)
+    }
 }
 
-fn encode_jpeg(raw: &[u8], width: u32, height: u32, color_type: ColorType, quality: u8) -> Vec<u8> {
-    let mut buffer = Vec::new();
-    let encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
-    encoder
-        .write_image(raw, width, height, color_type.into())
-        .expect("Failed to encode image");
-    buffer
+#[derive(Clone)]
+pub struct Rest {
+    client: Client,
+    upload_url: String,
+}
+
+impl Rest {
+    pub async fn connect(base_url: &str) -> Option<Self> {
+        let response = reqwest::get(base_url).await.ok()?;
+        let body = response.text().await.ok()?;
+        if body.trim() != "BoquilaHUB Web API!" {
+            return None;
+        }
+
+        Some(Self {
+            client: Client::new(),
+            upload_url: format!("{}/upload", base_url),
+        })
+    }
+
+    pub async fn deploy(port: u16) -> anyhow::Result<()> {
+        let app: Router = Router::new()
+            .route("/", get(root))
+            .route("/upload", post(upload))
+            .layer(axum::extract::DefaultBodyLimit::max(50 * 1024 * 1024)); // 50MB limit;
+
+        let addr = format!("0.0.0.0:{}", port);
+        let listener = tokio::net::TcpListener::bind(&addr).await?;
+        axum::serve(listener, app).await?;
+        Ok(())
+    }
+
+    pub async fn detect<'a>(&self, payload: impl Into<Payload<'a>>) -> anyhow::Result<AIOutputs> {
+        let (buffer, mime) = match payload.into() {
+            Payload::RawImageBytes(bytes) => (bytes, "image/*"),
+            Payload::RawAudioBytes(bytes) => (bytes, "audio/*"),
+            Payload::RgbImage(img) => (rgb_image_to_jpeg_buffer(img, 95), "image/jpeg"),
+        };
+
+        let response = self
+            .client
+            .post(&self.upload_url)
+            .multipart(reqwest::multipart::Form::new().part(
+                "file",
+                reqwest::multipart::Part::bytes(buffer).mime_str(mime)?,
+            ))
+            .send()
+            .await?;
+
+        let response_text = response.text().await?;
+        let deserialized: AIOutputs = serde_json::from_str(&response_text)?;
+
+        Ok(deserialized)
+    }
 }
 
 pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
-    encode_jpeg(img.as_raw(), img.width(), img.height(), ColorType::Rgb8, quality)
+    let mut buffer = Vec::new();
+    let encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
+    encoder
+        .write_image(img.as_raw(), img.width(), img.height(), ColorType::Rgb8.into())
+        .expect("Failed to encode image");
+    buffer
 }
 
 pub fn get_ipv4_address() -> Option<String> {
@@ -122,16 +163,4 @@ pub fn get_ipv4_address() -> Option<String> {
     }
 
     return None;
-}
-
-pub async fn check_boquila_hub_api(url: &str) -> bool {
-    let Ok(response) = reqwest::get(url).await else {
-        return false;
-    };
-
-    let Ok(body) = response.text().await else {
-        return false;
-    };
-
-    body.trim() == "BoquilaHUB Web API!"
 }

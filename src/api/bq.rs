@@ -68,8 +68,10 @@ impl GlobalBQ {
         *guard = None;
     }
 
-    pub fn run(&self, input: &AIInput) -> AIOutputs {
-        self.get_lock().read().unwrap().as_ref().unwrap().run(input)
+    pub fn run(&self, input: &AIInput) -> Result<AIOutputs> {
+        let guard = self.get_lock().read().ok().context("model lock poisoned")?;
+        let model = guard.as_ref().context("no model loaded")?;
+        Ok(model.run(input))
     }
 }
 
@@ -269,14 +271,14 @@ pub static CURRENT_AI2: RwLock<Option<Model>> = RwLock::new(None);
 pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
 
 #[inline(always)]
-pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> AIOutputs {
-    let mut outputs = GlobalBQ::First.run(&AIInput::Image(img));
+pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Result<AIOutputs> {
+    let mut outputs = GlobalBQ::First.run(&AIInput::Image(img))?;
     process_with_ai2(&mut outputs, img);
-    outputs
+    Ok(outputs)
 }
 
 #[inline(always)]
-pub fn process_audio(audio: &AudioData) -> AIOutputs {
+pub fn process_audio(audio: &AudioData) -> Result<AIOutputs> {
     GlobalBQ::First.run(&AIInput::Audio(audio))
 }
 

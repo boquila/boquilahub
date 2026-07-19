@@ -2,7 +2,7 @@ use super::{imgbuf_to_texture, Gui, Mode, OpenDialog};
 use crate::api::abstractions::*;
 use crate::api::bq::process_imgbuf;
 use crate::api::render::*;
-use crate::api::rest::{detect_remotely, rgb_image_to_jpeg_buffer};
+use crate::api::rest::rgb_image_to_jpeg_buffer;
 use crate::api::stream;
 use crate::localization::*;
 use std::collections::VecDeque;
@@ -113,7 +113,7 @@ impl Gui {
 
         let (tx, mut cancel_rx) = self.feed_state.start();
 
-        let api_endpoint = self.get_endpoint();
+        let rest_client = self.rest_client.clone();
         let is_remote = !self.ep_selected.is_local();
         let has_ai = run_ai && self.can_run_image_ai();
         let step = self.feed_step_frame.max(1);
@@ -132,23 +132,21 @@ impl Gui {
 
                 let aioutput: Option<AIOutputs> = if has_ai {
                     let result = if is_remote {
-                        let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                        match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                        match rest_client.as_ref().unwrap().detect(&img).await {
                             Ok(r) => r,
                             Err(_) => break,
                         }
                     } else {
                         match tokio::task::spawn_blocking(move || {
-                            let result = process_imgbuf(&img);
-                            (img, result)
+                            process_imgbuf(&img).map(|result| (img, result))
                         })
                         .await
                         {
-                            Ok((returned, result)) => {
+                            Ok(Ok((returned, result))) => {
                                 img = returned;
                                 result
                             }
-                            Err(_) => break,
+                            _ => break,
                         }
                     };
                     Some(result)

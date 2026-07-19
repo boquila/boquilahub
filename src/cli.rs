@@ -1,6 +1,6 @@
 use crate::api::{
-    bq::{AIMetadata, BQModel, Ep, GlobalBQ, Modality},
-    rest::{get_ipv4_address, run_api},
+    bq::{AIMetadata, BQModel, Ep, GlobalBQ},
+    rest::{get_ipv4_address, Rest},
 };
 use clap::{Args, Parser, Subcommand};
 use std::path::Path;
@@ -85,13 +85,6 @@ impl Cli {
                 let ais: Vec<AIMetadata> = BQModel::get_list();
                 let model = resolve_model(&args.model, &ais);
 
-                if model.modality == Modality::Audio {
-                    panic!(
-                        "Audio models cannot be deployed as API. Model '{}' is an audio model.",
-                        model.name
-                    );
-                }
-
                 if let Some(cls_name) = &args.model_cls {
                     let cls = resolve_model(cls_name, &ais);
                     let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::gpu(), None);
@@ -106,7 +99,7 @@ impl Cli {
                 }
                 println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
 
-                if let Err(e) = run_api(args.port).await {
+                if let Err(e) = Rest::deploy(args.port).await {
                     eprintln!("Error running API: {}", e);
                 }
             }

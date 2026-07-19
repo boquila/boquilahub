@@ -12,7 +12,7 @@ use bq::*;
 use models::Task;
 use processing::post::PostProcessing;
 use render::*;
-use rest::{check_boquila_hub_api, get_ipv4_address, run_api};
+use rest::{get_ipv4_address, Rest};
 use std::collections::{HashMap, VecDeque};
 use std::fs::{self};
 use std::path::PathBuf;
@@ -101,7 +101,7 @@ pub struct Gui {
     audio_player: Option<rodio::Player>,
     feed_url: Option<String>,
     host_server_url: Option<String>,
-    api_server_url: Option<String>,
+    rest_client: Option<Rest>,
     api_result_receiver: Option<std::sync::mpsc::Receiver<bool>>,
     // Per-segment alpha masks for the currently displayed image. Rebuilt in
     // `paint()` so we don't re-upload every frame.
@@ -157,10 +157,10 @@ pub struct Gui {
     process_all_audios: bool,
     show_config: ShowConfig,
     dialog: OpenDialog,
-    img_state: State<(usize, AIOutputs)>,
+    img_state: State<(usize, Option<AIOutputs>)>,
     video_state: State<AnalysisFrame>,
     feed_state: State<FeedFrame>,
-    audio_state: State<(usize, AIOutputs)>,
+    audio_state: State<(usize, Option<AIOutputs>)>,
 }
 
 /// One per modality (image/audio/video/feed). The receiver lives here so the
@@ -397,7 +397,7 @@ impl Gui {
         if self.ep_selected.is_local() {
             self.ai_selected.is_some() && self.is_image_model()
         } else {
-            self.api_server_url.is_some()
+            self.rest_client.is_some()
         }
     }
 
@@ -419,7 +419,7 @@ impl Gui {
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ai_selected.is_some() && self.ep_selected.is_local() && self.is_image_model() {
+        if self.ai_selected.is_some() && self.ep_selected.is_local() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
                 if ui
@@ -429,7 +429,7 @@ impl Gui {
                 {
                     let (tx, rx) = std::sync::mpsc::channel();
                     tokio::spawn(async move {
-                        let result = run_api(8791).await;
+                        let result = Rest::deploy(8791).await;
                         let _ = tx.send(result.is_ok());
                     });
 
@@ -606,16 +606,6 @@ impl Gui {
 
         ui.add_space(8.0);
         
-    }
-
-    fn get_endpoint(&self) -> Option<String> {
-        if !self.ep_selected.is_local() {
-            self.api_server_url
-                .as_ref()
-                .map(|url| format!("{}/upload", url))
-        } else {
-            None
-        }
     }
 
     fn set_ai(&mut self, ep: Ep) -> Result <()> {
@@ -930,15 +920,14 @@ impl Gui {
                     if ui.button(self.t(Key::ok)).clicked() {
                         let url = self.temp.api_str.clone();
 
-                        // This tells tokio to move this blocking operation to another thread
-                        let is_valid_api = tokio::task::block_in_place(|| {
+                        let rest_client = tokio::task::block_in_place(|| {
                             tokio::runtime::Handle::current()
-                                .block_on(check_boquila_hub_api(&url))
+                                .block_on(Rest::connect(&url))
                         });
 
-                        if is_valid_api {
+                        if let Some(rest_client) = rest_client {
                             self.dialog = OpenDialog::None;
-                            self.api_server_url = Some(url);
+                            self.rest_client = Some(rest_client);
                             self.ep_selected = Ep::BoquilaHubRemote;
                         } else {
                             self.push_toast(Message::Error);
@@ -947,7 +936,7 @@ impl Gui {
                     ui.add_space(8.0);
                     if ui.button(self.t(Key::cancel)).clicked() {
                         self.dialog = OpenDialog::None;
-                        self.api_server_url = None;
+                        self.rest_client = None;
                     }
                 });
             });

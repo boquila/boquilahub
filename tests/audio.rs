@@ -26,7 +26,7 @@ fn audio_inference() -> Result<()> {
     let audio = AudioData::from_file("tests/assets/bird.mp3")?;
     GlobalBQ::First.set_model("models/MD_AudioBirds_V1.bq", Ep::Cpu, None)?;
 
-    let aioutput = boquilahub::api::bq::process_audio(&audio);
+    let aioutput = boquilahub::api::bq::process_audio(&audio)?;
     println!("Inference success",);
     println!("AI Outputs: {:?}", aioutput);
     Ok(())
