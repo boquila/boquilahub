@@ -205,31 +205,6 @@ impl AudioData {
         }
     }
 
-    /// Extract a time range `[start_secs, start_secs + duration_secs)` from the audio.
-    /// Shorter than requested range is zero-padded.
-    pub fn slice(&self, start_secs: f64, duration_secs: f64) -> Self {
-        let ch = self.channels.max(1) as usize;
-        let start_sample = (start_secs * self.sample_rate as f64).round() as usize * ch;
-        let len_samples = (duration_secs * self.sample_rate as f64).ceil() as usize * ch;
-
-        if start_sample >= self.samples.len() {
-            return Self {
-                samples: vec![0.0f32; len_samples],
-                sample_rate: self.sample_rate,
-                channels: self.channels,
-            };
-        }
-
-        let end_sample = (start_sample + len_samples).min(self.samples.len());
-        let mut samples = self.samples[start_sample..end_sample].to_vec();
-        samples.resize(len_samples, 0.0);
-        Self {
-            samples,
-            sample_rate: self.sample_rate,
-            channels: self.channels,
-        }
-    }
-
     /// Iterate over overlapping fixed-length chunks of audio.
     ///
     /// `chunk_secs` is the duration of each emitted chunk.
