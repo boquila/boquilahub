@@ -129,11 +129,6 @@ impl VideofileProcessor {
         }
     }
 
-    pub fn width(&self) -> u32 { self.width }
-    pub fn height(&self) -> u32 { self.height }
-    pub fn get_n_frames(&self) -> u64 { self.n_frames }
-    pub fn fps(&self) -> f64 { self.fps }
-
     /// Single-shot open: read metadata and decode the first frame, then close.
     /// Used at file-pick time so the GUI can show the first frame without also
     /// paying for the full streaming decoder + thread spawn that `new()` does
