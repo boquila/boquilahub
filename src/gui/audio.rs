@@ -161,9 +161,7 @@ impl Gui {
                 .ok()
                 .flatten()
             };
-            if let Some(out) = result {
-                let _ = tx.send((target, out));
-            }
+            let _ = tx.send((target, result));
         });
     }
 
@@ -199,8 +197,7 @@ impl Gui {
                     .ok()
                     .flatten()
                 };
-                let Some(out) = result else { continue; };
-                if tx.send((i, out)).is_err() {
+                if tx.send((i, result)).is_err() {
                     break;
                 }
             }
@@ -293,17 +290,20 @@ impl Gui {
         let (updates, closed) = self.audio_state.drain();
         let current_idx = self.audio_texture_n.saturating_sub(1);
         let mut touched_current = false;
-        for (i, aio) in updates {
-            if matches!(aio, AIOutputs::AudioClassification(_)) {
-                if let Some(slot) = self.selected_audios.get_mut(i) {
-                    slot.aioutput = Some(aio);
-                    slot.wasprocessed = true;
-                    if i == current_idx {
-                        touched_current = true;
+        for (i, result) in updates {
+            match result {
+                Some(aio @ AIOutputs::AudioClassification(_)) => {
+                    if let Some(slot) = self.selected_audios.get_mut(i) {
+                        slot.aioutput = Some(aio);
+                        slot.wasprocessed = true;
+                        if i == current_idx {
+                            touched_current = true;
+                        }
                     }
                 }
-            } else {
-                self.push_toast(super::Message::Error);
+                _ => {
+                    self.push_toast(super::Message::Error);
+                }
             }
         }
 

@@ -160,7 +160,7 @@ pub struct Gui {
     img_state: State<(usize, AIOutputs)>,
     video_state: State<AnalysisFrame>,
     feed_state: State<FeedFrame>,
-    audio_state: State<(usize, AIOutputs)>,
+    audio_state: State<(usize, Option<AIOutputs>)>,
 }
 
 /// One per modality (image/audio/video/feed). The receiver lives here so the
