@@ -36,7 +36,7 @@ impl Gui {
             if cancel_rx.try_recv().is_ok() {
                 return;
             }
-            let bbox = if is_remote {
+            let result = if is_remote {
                 let buffer = fs::read(&predimg.file_path).unwrap();
                 match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
                     Ok(result) => Some(result),
@@ -50,7 +50,7 @@ impl Gui {
                 }
             };
 
-            let _ = tx.send((target, bbox));
+            let _ = tx.send((target, result));
         });
     }
 
@@ -73,7 +73,7 @@ impl Gui {
                 if cancel_rx.try_recv().is_ok() {
                     break;
                 }
-                let bbox = if is_remote {
+                let result = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
                     match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
                         Ok(result) => Some(result),
@@ -87,7 +87,7 @@ impl Gui {
                     }
                 };
 
-                if tx.send((i, bbox)).is_err() {
+                if tx.send((i, result)).is_err() {
                     break;
                 }
             }
@@ -96,10 +96,10 @@ impl Gui {
 
     pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.img_state.drain();
-        for (i, bbox) in updates {
-            match bbox {
-                Some(bbox) => {
-                    self.selected_imgs[i].aioutput = Some(bbox);
+        for (i, result) in updates {
+            match result {
+                Some(aio) => {
+                    self.selected_imgs[i].aioutput = Some(aio);
                     self.selected_imgs[i].wasprocessed = true;
                     if i == self.image_texture_n - 1 {
                         self.paint(ui, i);
