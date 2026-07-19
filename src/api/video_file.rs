@@ -21,10 +21,10 @@ unsafe impl Send for DecodedFrame {}
 /// Pure decoder — no encoder, no audio passthrough.
 pub struct VideofileProcessor {
     receiver: std::sync::mpsc::Receiver<DecodedFrame>,
-    width: u32,
-    height: u32,
-    n_frames: u64,
-    fps: f64,
+    pub width: u32,
+    pub height: u32,
+    pub n_frames: u64,
+    pub fps: f64,
 }
 
 impl VideofileProcessor {
