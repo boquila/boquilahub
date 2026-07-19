@@ -90,17 +90,13 @@ impl Rest {
     }
 }
 
-fn encode_jpeg(raw: &[u8], width: u32, height: u32, color_type: ColorType, quality: u8) -> Vec<u8> {
+pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
     let mut buffer = Vec::new();
     let encoder = JpegEncoder::new_with_quality(&mut buffer, quality);
     encoder
-        .write_image(raw, width, height, color_type.into())
+        .write_image(img.as_raw(), img.width(), img.height(), ColorType::Rgb8.into())
         .expect("Failed to encode image");
     buffer
-}
-
-pub fn rgb_image_to_jpeg_buffer(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, quality: u8) -> Vec<u8> {
-    encode_jpeg(img.as_raw(), img.width(), img.height(), ColorType::Rgb8, quality)
 }
 
 pub fn get_ipv4_address() -> Option<String> {
