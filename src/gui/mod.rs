@@ -157,7 +157,7 @@ pub struct Gui {
     process_all_audios: bool,
     show_config: ShowConfig,
     dialog: OpenDialog,
-    img_state: State<(usize, AIOutputs)>,
+    img_state: State<(usize, Option<AIOutputs>)>,
     video_state: State<AnalysisFrame>,
     feed_state: State<FeedFrame>,
     audio_state: State<(usize, Option<AIOutputs>)>,

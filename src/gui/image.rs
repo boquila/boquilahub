@@ -39,14 +39,14 @@ impl Gui {
             let bbox = if is_remote {
                 let buffer = fs::read(&predimg.file_path).unwrap();
                 match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
-                    Ok(result) => result,
-                    Err(_) => return,
+                    Ok(result) => Some(result),
+                    Err(_) => None,
                 }
             } else {
                 let img = image::open(&predimg.file_path).unwrap().into_rgb8();
                 match tokio::task::spawn_blocking(move || process_imgbuf(&img)).await {
-                    Ok(Ok(result)) => result,
-                    _ => return,
+                    Ok(Ok(result)) => Some(result),
+                    _ => None,
                 }
             };
 
@@ -76,14 +76,14 @@ impl Gui {
                 let bbox = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
                     match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
-                        Ok(result) => result,
-                        Err(_) => break,
+                        Ok(result) => Some(result),
+                        Err(_) => None,
                     }
                 } else {
                     let img = image::open(&predimg.file_path).unwrap().into_rgb8();
                     match tokio::task::spawn_blocking(move || process_imgbuf(&img)).await {
-                        Ok(Ok(result)) => result,
-                        _ => break,
+                        Ok(Ok(result)) => Some(result),
+                        _ => None,
                     }
                 };
 
@@ -97,10 +97,15 @@ impl Gui {
     pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.img_state.drain();
         for (i, bbox) in updates {
-            self.selected_imgs[i].aioutput = Some(bbox);
-            self.selected_imgs[i].wasprocessed = true;
-            if i == self.image_texture_n - 1 {
-                self.paint(ui, i);
+            match bbox {
+                Some(bbox) => {
+                    self.selected_imgs[i].aioutput = Some(bbox);
+                    self.selected_imgs[i].wasprocessed = true;
+                    if i == self.image_texture_n - 1 {
+                        self.paint(ui, i);
+                    }
+                }
+                None => self.push_toast(super::Message::Error),
             }
         }
         if closed {
