@@ -120,7 +120,7 @@ impl Cli {
                 Err(e) => eprintln!("❌ Failed to pull model {}: {}", &args.model, e),
             },
             Commands::Gui => {
-                let _ = crate::gui::run_gui();
+                let _ = crate::gui::Gui::run();
             }
             Commands::Tui { lang } => {
                 let language = crate::localization::Lang::from_optional_str(lang.as_deref());

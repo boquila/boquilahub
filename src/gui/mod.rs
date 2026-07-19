@@ -22,27 +22,6 @@ use crate::api::video_file::VideofileProcessor;
 use crate::gui::feed::FeedFrame;
 use crate::gui::video_file::{AnalysisFrame, ExportProgress};
 
-pub fn run_gui() {
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 300.0])
-            .with_min_inner_size([300.0, 220.0])
-            .with_icon(
-                eframe::icon_data::from_png_bytes(&include_bytes!("../../assets/icon-256.png")[..])
-                    .expect("Failed to load icon"),
-            ),
-        ..Default::default()
-    };
-    let _ = eframe::run_native(
-        "BoquilaHUB",
-        native_options,
-        Box::new(|cc| {
-            Gui::setup(&cc.egui_ctx);
-            Ok(Box::new(Gui::new()))
-        }),
-    );
-}
-
 /// All UI state for one AI model slot's "configure" popup (there are two:
 /// primary and secondary/classification). Bundling show/config/temp here
 /// replaces three parallel per-slot fields that used to live scattered across
@@ -100,7 +79,7 @@ impl AiConfigSlot {
 }
 
 #[derive(Default)]
-struct Gui {
+pub struct Gui {
     // Large types first
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
@@ -317,6 +296,27 @@ enum OpenDialog {
 }
 
 impl Gui {
+    pub fn run() {
+        let native_options = eframe::NativeOptions {
+            viewport: egui::ViewportBuilder::default()
+                .with_inner_size([400.0, 300.0])
+                .with_min_inner_size([300.0, 220.0])
+                .with_icon(
+                    eframe::icon_data::from_png_bytes(&include_bytes!("../../assets/icon-256.png")[..])
+                        .expect("Failed to load icon"),
+                ),
+            ..Default::default()
+        };
+        let _ = eframe::run_native(
+            "BoquilaHUB",
+            native_options,
+            Box::new(|cc| {
+                Gui::setup(&cc.egui_ctx);
+                Ok(Box::new(Gui::new()))
+            }),
+        );
+    }
+    
     fn setup(ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
 

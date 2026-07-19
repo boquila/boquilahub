@@ -10,7 +10,7 @@ async fn main() {
             if cli.command.is_none() {
                 #[cfg(all(windows, not(debug_assertions)))]
                 winapi::um::wincon::FreeConsole();
-                boquilahub::gui::run_gui();
+                boquilahub::gui::Gui::run();
 
                 return;
             }
