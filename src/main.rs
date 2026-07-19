@@ -9,7 +9,7 @@ async fn main() {
         Ok(cli) => {
             if cli.command.is_none() {
                 #[cfg(all(windows, not(debug_assertions)))]
-                hide_window();
+                winapi::um::wincon::FreeConsole();
                 boquilahub::gui::run_gui();
 
                 return;
@@ -18,13 +18,5 @@ async fn main() {
             run_cli(cli.command.expect("Could not run CLI")).await;
         }
         Err(error) => error.exit(),
-    }
-}
-
-#[cfg(all(windows, not(debug_assertions)))]
-fn hide_window() {
-    use winapi::um::wincon::FreeConsole;
-    unsafe {
-        FreeConsole(); // Detaches and closes the console window
     }
 }
