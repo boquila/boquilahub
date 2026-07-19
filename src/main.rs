@@ -1,7 +1,7 @@
 use boquilahub::cli::{run_cli, Cli};
 use clap::Parser;
 
-#[tokio::main]
+#[tokio::main(worker_threads = 4)]
 async fn main() {
     let cli = Cli::try_parse();
 
