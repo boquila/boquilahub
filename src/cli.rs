@@ -124,7 +124,7 @@ impl Cli {
             }
             Commands::Tui { lang } => {
                 let language = crate::localization::Lang::from_optional_str(lang.as_deref());
-                let _ = crate::tui::run_tui(language);
+                let _ = crate::tui::Tui::run(language);
             }
             Commands::Bq { command } => match command {
                 BqCommands::Shape { name } => match BQModel::from_file_print_shape(&name) {
