@@ -25,14 +25,9 @@ async fn root() -> &'static str {
 }
 
 pub enum Payload<'a> {
-    RawBytes(Vec<u8>),
+    RawImageBytes(Vec<u8>),
+    RawAudioBytes(Vec<u8>),
     RgbImage(&'a ImageBuffer<Rgb<u8>, Vec<u8>>),
-}
-
-impl From<Vec<u8>> for Payload<'static> {
-    fn from(bytes: Vec<u8>) -> Self {
-        Payload::RawBytes(bytes)
-    }
 }
 
 impl<'a> From<&'a ImageBuffer<Rgb<u8>, Vec<u8>>> for Payload<'a> {
@@ -75,7 +70,8 @@ impl Rest {
 
     pub async fn detect<'a>(&self, payload: impl Into<Payload<'a>>) -> anyhow::Result<AIOutputs> {
         let (buffer, mime) = match payload.into() {
-            Payload::RawBytes(bytes) => (bytes, "image/*"),
+            Payload::RawImageBytes(bytes) => (bytes, "image/*"),
+            Payload::RawAudioBytes(bytes) => (bytes, "audio/*"),
             Payload::RgbImage(img) => (rgb_image_to_jpeg_buffer(img, 95), "image/jpeg"),
         };
 

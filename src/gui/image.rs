@@ -3,6 +3,7 @@ use crate::api::abstractions::*;
 use crate::api::bq::process_imgbuf;
 use crate::api::export;
 use crate::api::render::*;
+use crate::api::rest::Payload;
 use crate::localization::*;
 use std::fs;
 
@@ -37,7 +38,7 @@ impl Gui {
             }
             let bbox = if is_remote {
                 let buffer = fs::read(&predimg.file_path).unwrap();
-                match rest_client.as_ref().unwrap().detect(buffer).await {
+                match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
                     Ok(result) => result,
                     Err(_) => return,
                 }
@@ -73,7 +74,7 @@ impl Gui {
                 }
                 let bbox = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
-                    match rest_client.as_ref().unwrap().detect(buffer).await {
+                    match rest_client.as_ref().unwrap().detect(Payload::RawImageBytes(buffer)).await {
                         Ok(result) => result,
                         Err(_) => break,
                     }

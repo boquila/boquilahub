@@ -920,7 +920,6 @@ impl Gui {
                     if ui.button(self.t(Key::ok)).clicked() {
                         let url = self.temp.api_str.clone();
 
-                        // This tells tokio to move this blocking operation to another thread
                         let rest_client = tokio::task::block_in_place(|| {
                             tokio::runtime::Handle::current()
                                 .block_on(Rest::connect(&url))
