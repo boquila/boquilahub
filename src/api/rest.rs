@@ -36,9 +36,23 @@ pub async fn run_api(port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Reusable connection to a remote BoquilaHUB API. Holds one `reqwest::Client`
-/// (its own internal connection pool) so repeated posts reuse a keep-alive
-/// connection instead of paying a fresh TCP/TLS handshake each call.
+pub enum Payload<'a> {
+    RawBytes(Vec<u8>),
+    RgbImage(&'a ImageBuffer<Rgb<u8>, Vec<u8>>),
+}
+
+impl From<Vec<u8>> for Payload<'static> {
+    fn from(bytes: Vec<u8>) -> Self {
+        Payload::RawBytes(bytes)
+    }
+}
+
+impl<'a> From<&'a ImageBuffer<Rgb<u8>, Vec<u8>>> for Payload<'a> {
+    fn from(img: &'a ImageBuffer<Rgb<u8>, Vec<u8>>) -> Self {
+        Payload::RgbImage(img)
+    }
+}
+
 #[derive(Clone)]
 pub struct Rest {
     client: Client,
@@ -53,13 +67,18 @@ impl Rest {
         }
     }
 
-    pub async fn detect(&self, buffer: Vec<u8>) -> anyhow::Result<AIOutputs> {
+    pub async fn detect<'a>(&self, payload: impl Into<Payload<'a>>) -> anyhow::Result<AIOutputs> {
+        let (buffer, mime) = match payload.into() {
+            Payload::RawBytes(bytes) => (bytes, "image/*"),
+            Payload::RgbImage(img) => (rgb_image_to_jpeg_buffer(img, 95), "image/jpeg"),
+        };
+
         let response = self
             .client
             .post(&self.upload_url)
             .multipart(reqwest::multipart::Form::new().part(
                 "file",
-                reqwest::multipart::Part::bytes(buffer).mime_str("image/jpeg")?,
+                reqwest::multipart::Part::bytes(buffer).mime_str(mime)?,
             ))
             .send()
             .await?;

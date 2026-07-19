@@ -132,8 +132,7 @@ impl Gui {
 
                 let aioutput: Option<AIOutputs> = if has_ai {
                     let result = if is_remote {
-                        let buffer = rgb_image_to_jpeg_buffer(&img, 95);
-                        match rest_client.as_ref().unwrap().detect(buffer).await {
+                        match rest_client.as_ref().unwrap().detect(&img).await {
                             Ok(r) => r,
                             Err(_) => break,
                         }
