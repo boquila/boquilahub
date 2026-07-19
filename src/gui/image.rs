@@ -3,7 +3,6 @@ use crate::api::abstractions::*;
 use crate::api::bq::process_imgbuf;
 use crate::api::export;
 use crate::api::render::*;
-use crate::api::rest::detect_remotely;
 use crate::localization::*;
 use std::fs;
 
@@ -30,7 +29,7 @@ impl Gui {
         let (tx, mut cancel_rx) = self.img_state.start();
         let predimg = self.selected_imgs[target].clone();
 
-        let api_endpoint = self.get_endpoint();
+        let rest_client = self.rest_client.clone();
         let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             if cancel_rx.try_recv().is_ok() {
@@ -38,7 +37,7 @@ impl Gui {
             }
             let bbox = if is_remote {
                 let buffer = fs::read(&predimg.file_path).unwrap();
-                match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                match rest_client.as_ref().unwrap().detect(buffer).await {
                     Ok(result) => result,
                     Err(_) => return,
                 }
@@ -62,7 +61,7 @@ impl Gui {
         let (tx, mut cancel_rx) = self.img_state.start();
         let copy_predigms = self.selected_imgs.clone();
 
-        let api_endpoint = self.get_endpoint();
+        let rest_client = self.rest_client.clone();
         let is_remote = !self.ep_selected.is_local();
         tokio::spawn(async move {
             for (i, predimg) in copy_predigms.iter().enumerate() {
@@ -74,7 +73,7 @@ impl Gui {
                 }
                 let bbox = if is_remote {
                     let buffer = fs::read(&predimg.file_path).unwrap();
-                    match detect_remotely(api_endpoint.as_ref().unwrap(), buffer).await {
+                    match rest_client.as_ref().unwrap().detect(buffer).await {
                         Ok(result) => result,
                         Err(_) => break,
                     }

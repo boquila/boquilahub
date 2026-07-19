@@ -24,7 +24,7 @@ async fn root() -> &'static str {
     "BoquilaHUB Web API!"
 }
 
-pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_api(port: u16) -> anyhow::Result<()> {
     let app: Router = Router::new()
         .route("/", get(root))
         .route("/upload", post(upload))
@@ -36,25 +36,39 @@ pub async fn run_api(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub async fn detect_remotely(
-    url: &str,
-    buffer: Vec<u8>,
-) -> Result<AIOutputs, Box<dyn std::error::Error>> {
-    let client = Client::new();
+/// Reusable connection to a remote BoquilaHUB API. Holds one `reqwest::Client`
+/// (its own internal connection pool) so repeated posts reuse a keep-alive
+/// connection instead of paying a fresh TCP/TLS handshake each call.
+#[derive(Clone)]
+pub struct Rest {
+    client: Client,
+    upload_url: String,
+}
 
-    let response = client
-        .post(url)
-        .multipart(reqwest::multipart::Form::new().part(
-            "file",
-            reqwest::multipart::Part::bytes(buffer).mime_str("image/jpeg")?,
-        ))
-        .send()
-        .await?;
+impl Rest {
+    pub fn new(base_url: &str) -> Self {
+        Self {
+            client: Client::new(),
+            upload_url: format!("{}/upload", base_url),
+        }
+    }
 
-    let response_text = response.text().await?;
-    let deserialized: AIOutputs = serde_json::from_str(&response_text)?;
+    pub async fn detect(&self, buffer: Vec<u8>) -> anyhow::Result<AIOutputs> {
+        let response = self
+            .client
+            .post(&self.upload_url)
+            .multipart(reqwest::multipart::Form::new().part(
+                "file",
+                reqwest::multipart::Part::bytes(buffer).mime_str("image/jpeg")?,
+            ))
+            .send()
+            .await?;
 
-    Ok(deserialized)
+        let response_text = response.text().await?;
+        let deserialized: AIOutputs = serde_json::from_str(&response_text)?;
+
+        Ok(deserialized)
+    }
 }
 
 fn encode_jpeg(raw: &[u8], width: u32, height: u32, color_type: ColorType, quality: u8) -> Vec<u8> {
