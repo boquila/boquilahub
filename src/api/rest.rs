@@ -1,4 +1,5 @@
 use super::abstractions::AIOutputs;
+use super::audio::AudioData;
 use super::bq::*;
 use axum::{extract::Multipart, http::StatusCode, routing::{get, post}, Router};
 use image::codecs::jpeg::JpegEncoder;
@@ -10,13 +11,22 @@ async fn upload(mut multipart: Multipart) -> Result<String, StatusCode> {
     let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? else {
         return Err(StatusCode::BAD_REQUEST);
     };
-
+    let is_audio = field.content_type().is_some_and(|ct| ct.starts_with("audio/"));
     let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
-    let imgbuf = image::load_from_memory(&data)
-        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
-        .into_rgb8();
 
-    let result = process_imgbuf(&imgbuf).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let result = if is_audio {
+        let audio = AudioData::from_bytes(&data)
+            .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
+            .to_mono();
+        process_audio(&audio)
+    } else {
+        let imgbuf = image::load_from_memory(&data)
+            .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?
+            .into_rgb8();
+        process_imgbuf(&imgbuf)
+    };
+
+    let result = result.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     serde_json::to_string(&result).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 

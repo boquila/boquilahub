@@ -419,7 +419,7 @@ impl Gui {
     }
 
     fn api_widget(&mut self, ui: &mut egui::Ui) {
-        if self.ai_selected.is_some() && self.ep_selected.is_local() && self.is_image_model() {
+        if self.ai_selected.is_some() && self.ep_selected.is_local() {
             ui.label(self.t(Key::api));
             if !self.isapi_deployed {
                 if ui

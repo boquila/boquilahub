@@ -1,5 +1,5 @@
 use crate::api::{
-    bq::{AIMetadata, BQModel, Ep, GlobalBQ, Modality},
+    bq::{AIMetadata, BQModel, Ep, GlobalBQ},
     rest::{get_ipv4_address, Rest},
 };
 use clap::{Args, Parser, Subcommand};
@@ -84,13 +84,6 @@ impl Cli {
             Commands::Serve(args) => {
                 let ais: Vec<AIMetadata> = BQModel::get_list();
                 let model = resolve_model(&args.model, &ais);
-
-                if model.modality == Modality::Audio {
-                    panic!(
-                        "Audio models cannot be deployed as API. Model '{}' is an audio model.",
-                        model.name
-                    );
-                }
 
                 if let Some(cls_name) = &args.model_cls {
                     let cls = resolve_model(cls_name, &ais);

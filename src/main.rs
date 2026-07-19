@@ -9,7 +9,7 @@ async fn main() {
         Ok(cli) => {
             if cli.command.is_none() {
                 #[cfg(all(windows, not(debug_assertions)))]
-                winapi::um::wincon::FreeConsole();
+                unsafe {winapi::um::wincon::FreeConsole();}
                 boquilahub::gui::Gui::run();
 
                 return;
