@@ -106,7 +106,7 @@ impl Cli {
                 }
                 println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
 
-                if let Err(e) = Rest::run(args.port).await {
+                if let Err(e) = Rest::deploy(args.port).await {
                     eprintln!("Error running API: {}", e);
                 }
             }

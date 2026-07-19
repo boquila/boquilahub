@@ -429,7 +429,7 @@ impl Gui {
                 {
                     let (tx, rx) = std::sync::mpsc::channel();
                     tokio::spawn(async move {
-                        let result = Rest::run(8791).await;
+                        let result = Rest::deploy(8791).await;
                         let _ = tx.send(result.is_ok());
                     });
 

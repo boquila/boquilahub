@@ -221,7 +221,7 @@ fn deploy_api(app: &mut Tui) {
         Ok(probe) => {
             drop(probe);
             tokio::spawn(async move {
-                if let Err(e) = Rest::run(port).await {
+                if let Err(e) = Rest::deploy(port).await {
                     eprintln!("API error: {}", e);
                 }
             });

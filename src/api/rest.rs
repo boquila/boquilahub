@@ -56,7 +56,7 @@ impl Rest {
         })
     }
 
-    pub async fn run(port: u16) -> anyhow::Result<()> {
+    pub async fn deploy(port: u16) -> anyhow::Result<()> {
         let app: Router = Router::new()
             .route("/", get(root))
             .route("/upload", post(upload))
