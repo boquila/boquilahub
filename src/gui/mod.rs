@@ -12,7 +12,7 @@ use bq::*;
 use models::Task;
 use processing::post::PostProcessing;
 use render::*;
-use rest::{check_boquila_hub_api, get_ipv4_address, Rest};
+use rest::{get_ipv4_address, Rest};
 use std::collections::{HashMap, VecDeque};
 use std::fs::{self};
 use std::path::PathBuf;
@@ -921,14 +921,14 @@ impl Gui {
                         let url = self.temp.api_str.clone();
 
                         // This tells tokio to move this blocking operation to another thread
-                        let is_valid_api = tokio::task::block_in_place(|| {
+                        let rest_client = tokio::task::block_in_place(|| {
                             tokio::runtime::Handle::current()
-                                .block_on(check_boquila_hub_api(&url))
+                                .block_on(Rest::connect(&url))
                         });
 
-                        if is_valid_api {
+                        if let Some(rest_client) = rest_client {
                             self.dialog = OpenDialog::None;
-                            self.rest_client = Some(Rest::connect(&url));
+                            self.rest_client = Some(rest_client);
                             self.ep_selected = Ep::BoquilaHubRemote;
                         } else {
                             self.push_toast(Message::Error);

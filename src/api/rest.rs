@@ -48,11 +48,17 @@ pub struct Rest {
 }
 
 impl Rest {
-    pub fn connect(base_url: &str) -> Self {
-        Self {
+    pub async fn connect(base_url: &str) -> Option<Self> {
+        let response = reqwest::get(base_url).await.ok()?;
+        let body = response.text().await.ok()?;
+        if body.trim() != "BoquilaHUB Web API!" {
+            return None;
+        }
+
+        Some(Self {
             client: Client::new(),
             upload_url: format!("{}/upload", base_url),
-        }
+        })
     }
 
     pub async fn run(port: u16) -> anyhow::Result<()> {
@@ -151,16 +157,4 @@ pub fn get_ipv4_address() -> Option<String> {
     }
 
     return None;
-}
-
-pub async fn check_boquila_hub_api(url: &str) -> bool {
-    let Ok(response) = reqwest::get(url).await else {
-        return false;
-    };
-
-    let Ok(body) = response.text().await else {
-        return false;
-    };
-
-    body.trim() == "BoquilaHUB Web API!"
 }
