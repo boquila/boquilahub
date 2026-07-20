@@ -92,12 +92,12 @@ impl Cli {
 
                 let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::gpu(), None);
 
-                println!("{}", ASCII_ART);
+                println!("\x1b[38;2;51;218;114m{ASCII_ART}\x1b[0m");
                 match &args.model_cls {
                     Some(cls) => println!("Model deployed: {} with {}", model.name, cls),
                     None => println!("Model deployed: {}", model.name),
                 }
-                println!("IP Address: http://{}:8791", get_ipv4_address().unwrap());
+                println!("IP Address: http://{}:{}", get_ipv4_address().unwrap(),args.port);
 
                 if let Err(e) = Rest::deploy(args.port).await {
                     eprintln!("Error running API: {}", e);
@@ -134,19 +134,19 @@ impl Cli {
 }
 
 const ASCII_ART: &'static str = r#"
-
- /$$$$$$$                                /$$ /$$           /$$   /$$ /$$   /$$ /$$$$$$$
-| $$__  $$                              |__/| $$          | $$  | $$| $$  | $$| $$__  $$
-| $$  \ $$  /$$$$$$   /$$$$$$  /$$   /$$ /$$| $$  /$$$$$$ | $$  | $$| $$  | $$| $$  \ $$
-| $$$$$$$  /$$__  $$ /$$__  $$| $$  | $$| $$| $$ |____  $$| $$$$$$$$| $$  | $$| $$$$$$$
-| $$__  $$| $$  \ $$| $$  \ $$| $$  | $$| $$| $$  /$$$$$$$| $$__  $$| $$  | $$| $$__  $$
-| $$  \ $$| $$  | $$| $$  | $$| $$  | $$| $$| $$ /$$__  $$| $$  | $$| $$  | $$| $$  \ $$
-| $$$$$$$/|  $$$$$$/|  $$$$$$$|  $$$$$$/| $$| $$|  $$$$$$$| $$  | $$|  $$$$$$/| $$$$$$$/
-|_______/  \______/  \____  $$ \______/ |__/|__/ \_______/|__/  |__/ \______/ |_______/
-                          | $$
-                          | $$
-                          |__/                                      AI for Biodiversity
-
+ /-------
+| -------
+| -------
+| --------------
+| ----------------
+| -----------------
+| ----------    ----
+| -------   -   ----
+| ------  -    -----
+| ------ -   -------
+| ------ ----------
+| ------ --------
+|______________/
 "#;
 
 fn resolve_model<'a>(name: &str, ais: &'a [AIMetadata]) -> &'a AIMetadata {
