@@ -551,28 +551,21 @@ pub struct AvailableModel {
     pub download_link: String,
 }
 
-/// `values` is row-major `[H*W, D]`, per-token L2-normalised. `h = w = 1`
-/// for pooled outputs; otherwise patch tokens.
+/// A flat `[N]` embedding vector, L2-normalised.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Embedding {
     pub values: Vec<f32>,
     pub model: String,
-    pub h: u32,
-    pub w: u32,
 }
 
 impl Embedding {
-    pub fn square(values: Vec<f32>, model: String, side: u32) -> Self {
-        Self { values, model, h: side, w: side }
-    }
-
-    pub fn pooled(values: Vec<f32>, model: String) -> Self {
-        Self { values, model, h: 1, w: 1 }
-    }
-
-    pub fn d(&self) -> usize {
-        let cells = (self.h as usize) * (self.w as usize);
-        if cells == 0 { 0 } else { self.values.len() / cells }
+    /// L2-normalises a flat embedding vector.
+    pub fn from_raw(raw: &[f32], model: String) -> Self {
+        let norm = raw.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
+        Self {
+            values: raw.iter().map(|&v| v / norm).collect(),
+            model,
+        }
     }
 }
 
