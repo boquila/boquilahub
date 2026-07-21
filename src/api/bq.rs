@@ -16,7 +16,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::sync::{OnceLock, RwLock};
+use std::sync::{LazyLock, RwLock};
 
 pub(crate) fn ort_err<E: std::fmt::Display>(e: E) -> anyhow::Error {
     anyhow::anyhow!("{e}")
@@ -251,24 +251,12 @@ fn analyze_folder(folder_path: &str) -> Result<Vec<AIMetadata>> {
     Ok(ai_models)
 }
 
-pub fn init_geofence_data() -> Result<()> {
-    if GEOFENCE_DATA.get().is_some() {
-        return Ok(());
-    }
-
-    let json_content = fs::read_to_string("assets/geofence.json")
-        .context("Failed to read geofence data")?;
-    let geofence_map: HashMap<String, Vec<String>> = serde_json::from_str(&json_content)
-        .context("Failed to parse geofence data")?;
-    GEOFENCE_DATA
-        .set(geofence_map)
-        .map_err(|_| anyhow::anyhow!("Failed to initialize geofence data"))?;
-    Ok(())
-}
-
 pub static CURRENT_AI: RwLock<Option<Model>> = RwLock::new(None);
 pub static CURRENT_AI2: RwLock<Option<Model>> = RwLock::new(None);
-pub static GEOFENCE_DATA: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
+pub static GEOFENCE_DATA: LazyLock<HashMap<String, Vec<String>>> = LazyLock::new(|| {
+    serde_json::from_slice(include_bytes!("../../assets/geofence.json"))
+        .expect("parse embedded geofence data")
+});
 
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Result<AIOutputs> {
