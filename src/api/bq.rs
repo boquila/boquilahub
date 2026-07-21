@@ -143,6 +143,15 @@ impl BQModel {
             .and_then(|s| s.to_str())
             .unwrap_or("unknown");
 
+        let buf = Self::from_file_to_jsonbuf(path)?;
+        
+        let (ai_model, _) = parse_bq_header(&buf, name)?;
+        Ok(ai_model)
+    }
+
+    pub fn from_file_to_jsonbuf(file_path: impl AsRef<Path>) -> Result<Vec<u8>> {
+        let path = file_path.as_ref();
+
         let mut file = File::open(path)
             .with_context(|| format!("Failed to open .bq file: {}", path.display()))?;
 
@@ -156,8 +165,7 @@ impl BQModel {
         file.read_exact(&mut buf[12..])
             .with_context(|| format!("Failed to read JSON section from .bq file: {}", path.display()))?;
 
-        let (ai_model, _) = parse_bq_header(&buf, name)?;
-        Ok(ai_model)
+        return Ok(buf)
     }
 
     pub fn get_list() -> Vec<AIMetadata> {

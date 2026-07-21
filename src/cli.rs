@@ -37,6 +37,9 @@ pub enum BqCommands {
 
     /// Returns the shape of a .bq model
     Shape { name: String },
+
+    /// Returns the JSON part of a .bq model
+    Json { name: String },
 }
 
 #[derive(Subcommand)]
@@ -126,6 +129,10 @@ impl Cli {
                 },
                 BqCommands::New { name } => match BQModel::create_bq_file(name) {
                     Ok(_) => {}
+                    Err(e) => eprintln!("{}", e),
+                }
+                BqCommands::Json { name } => match BQModel::from_file_to_jsonbuf(name) {
+                    Ok(buf) => {println!("{}", String::from_utf8_lossy(&buf));}
                     Err(e) => eprintln!("{}", e),
                 }
             },
