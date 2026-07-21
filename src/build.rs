@@ -1,6 +1,6 @@
 use ab_glyph::{Font as _, FontRef};
 use font_subset::FontReader;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 const FFMPEG_DIR: &str = "deps/ffmpeg";
@@ -9,9 +9,11 @@ const ORT_DIR: &str = "deps/onnxruntime";
 
 pub fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    #[allow(unused_variables)] // used only under some platform/feature combos below
     let target_dir = out_dir.ancestors().nth(3).unwrap().to_path_buf();
 
     require_deps();
+    validate_geofence();
     subset_font(&out_dir);
 
     #[cfg(windows)]
@@ -36,8 +38,6 @@ pub fn main() {
 
     #[cfg(feature = "cuda")]
     copy_onnxruntime_libs(&target_dir);
-
-    copy_geofence(&target_dir)
 }
 
 fn require_deps() {
@@ -104,9 +104,12 @@ fn subset_font(out_dir: &Path) {
     std::fs::write(out_dir.join("NotoSansSC-subset.ttf"), &subset).unwrap();
 }
 
-fn copy_geofence(target_dir: &Path) {
-    std::fs::create_dir_all(target_dir.join("assets")).unwrap();
-    std::fs::copy("assets/geofence.json", target_dir.join("assets/geofence.json")).unwrap();
+fn validate_geofence() {
+    const SRC: &str = "assets/geofence.json";
+    println!("cargo:rerun-if-changed={SRC}");
+    let bytes = std::fs::read(SRC).unwrap_or_else(|e| panic!("read {SRC}: {e}"));
+    serde_json::from_slice::<HashMap<String, Vec<String>>>(&bytes)
+        .unwrap_or_else(|e| panic!("{SRC} is not a map of string -> list of strings: {e}"));
 }
 
 #[cfg(windows)]

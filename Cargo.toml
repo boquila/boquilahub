@@ -62,6 +62,7 @@ opt-level = 3
 [build-dependencies]
 font-subset = "0.1.0"
 ab_glyph = "0.2.32"
+serde_json = "1.0.150"
 
 # Winslop
 [target.'cfg(windows)'.build-dependencies]

@@ -1,6 +1,6 @@
 use crate::api::{
     abstractions::{AIOutputs, ModelConfig, Prob, ProbSugar},
-    bq::{init_geofence_data, AIMetadata},
+    bq::AIMetadata,
     models::Task,
     processing::{
         inference::inference,
@@ -75,10 +75,6 @@ impl EfficientNetV2 {
 
         let output_name: String = session.outputs()[0].name().to_string();
 
-        if metadata.post_processing.contains(&PostProcessing::GeoFence) {
-            init_geofence_data()?;
-        }
-
         Ok(EfficientNetV2 {
             classes: metadata.classes,
             batch_size,
@@ -117,7 +113,7 @@ impl EfficientNetV2 {
         if self.post_processing.contains(&PostProcessing::GeoFence) {
             apply_geofence_filter(
                 &mut probs,
-                &crate::api::bq::GEOFENCE_DATA.get().unwrap(),
+                &crate::api::bq::GEOFENCE_DATA,
                 &self.config.geo_fence,
             );
             apply_label_rollup(&mut probs, self.config.confidence_threshold);
