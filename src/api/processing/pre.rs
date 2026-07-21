@@ -30,7 +30,7 @@ fn fast_resize(
     ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
 }
 
-fn fast_resize_bilinear(
+fn fast_resize_bicubic(
     img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
     new_width: u32,
     new_height: u32,
@@ -38,7 +38,7 @@ fn fast_resize_bilinear(
     let mut dst_image = fir::images::Image::new(new_width, new_height, fir::PixelType::U8x3);
     let mut resizer = fir::Resizer::new();
     let options = fir::ResizeOptions::new()
-        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::Bilinear));
+        .resize_alg(fir::ResizeAlg::Convolution(fir::FilterType::CatmullRom));
     resizer.resize(img, &mut dst_image, &options).unwrap();
     ImageBuffer::from_raw(new_width, new_height, dst_image.into_vec()).unwrap()
 }
@@ -88,16 +88,53 @@ pub fn imgbuf_to_input_array(
     (input, img_width, img_height)
 }
 
-// OpenAI CLIP normalisation — also used by BioCLIP and most OpenCLIP forks.
-const CLIP_MEAN: [f32; 3] = [0.48145466, 0.4578275, 0.40821073];
-const CLIP_STD: [f32; 3] = [0.26862954, 0.26130258, 0.27577711];
+const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
+
+fn shorter_side_dims(w: u32, h: u32, s: u32) -> (u32, u32) {
+    let long = (((s as f32) * (w.max(h) as f32) / (w.min(h) as f32)) as u32).max(1);
+    if w <= h {
+        (s.max(1), long)
+    } else {
+        (long, s.max(1))
+    }
+}
 
 pub fn imgbuf_to_clip_input(
     input_height: u32,
     input_width: u32,
     img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
 ) -> Array<f32, Ix4> {
-    let resized = fast_resize_bilinear(img, input_width, input_height);
+    let (rw, rh) = shorter_side_dims(img.width(), img.height(), input_width.min(input_height));
+    let resized = fast_resize_bicubic(img, rw, rh);
+
+    let off_x = rw.saturating_sub(input_width) / 2;
+    let off_y = rh.saturating_sub(input_height) / 2;
+
+    let (h, w) = (input_height as usize, input_width as usize);
+    let mut input = Array::zeros((1, 3, h, w));
+    let input_slice = input.as_slice_mut().unwrap();
+
+    for oy in 0..input_height {
+        for ox in 0..input_width {
+            let sx = (ox + off_x).min(rw - 1);
+            let sy = (oy + off_y).min(rh - 1);
+            let [r, g, b] = resized.get_pixel(sx, sy).0;
+            let idx = oy as usize * w + ox as usize;
+            input_slice[idx] = r as f32 * SCALE;
+            input_slice[h * w + idx] = g as f32 * SCALE;
+            input_slice[2 * h * w + idx] = b as f32 * SCALE;
+        }
+    }
+    input
+}
+
+pub fn imgbuf_to_dinov3_input(
+    input_height: u32,
+    input_width: u32,
+    img: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+) -> Array<f32, Ix4> {
+    let resized = fast_resize_bicubic(img, input_width, input_height);
     let (h, w) = (input_height as usize, input_width as usize);
     let mut input = Array::zeros((1, 3, h, w));
     let input_slice = input.as_slice_mut().unwrap();
@@ -105,10 +142,9 @@ pub fn imgbuf_to_clip_input(
     for (x, y, pixel) in resized.enumerate_pixels() {
         let (x, y) = (x as usize, y as usize);
         let [r, g, b] = pixel.0;
-        let r = (r as f32 * SCALE - CLIP_MEAN[0]) / CLIP_STD[0];
-        let g = (g as f32 * SCALE - CLIP_MEAN[1]) / CLIP_STD[1];
-        let b = (b as f32 * SCALE - CLIP_MEAN[2]) / CLIP_STD[2];
-
+        let r = (r as f32 * SCALE - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
+        let g = (g as f32 * SCALE - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
+        let b = (b as f32 * SCALE - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
         let idx = y * w + x;
         input_slice[idx] = r;
         input_slice[h * w + idx] = g;

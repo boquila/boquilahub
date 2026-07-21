@@ -2,12 +2,8 @@ use anyhow::{anyhow, Result};
 use boquilahub::api::abstractions::AIOutputs;
 use boquilahub::api::bq::*;
 
-#[tokio::test]
-#[ignore]
-async fn bioclip_produces_image_embedding() -> Result<()> {
-    const MODEL_NAME: &str = "bioclip2";
-
-    let path = std::path::Path::new("models").join(format!("{MODEL_NAME}.bq"));
+async fn assert_image_embedding(model_name: &str) -> Result<()> {
+    let path = std::path::Path::new("models").join(format!("{model_name}.bq"));
     let model_path = path.to_string_lossy().into_owned();
     let should_download = !path.exists();
 
@@ -15,8 +11,8 @@ async fn bioclip_produces_image_embedding() -> Result<()> {
         let listmodels = BQModel::get_list_from_api().await?;
         let model = listmodels
             .into_iter()
-            .find(|m| m.name == MODEL_NAME)
-            .ok_or_else(|| anyhow!("{MODEL_NAME} not listed in the API"))?;
+            .find(|m| m.name == model_name)
+            .ok_or_else(|| anyhow!("{model_name} not listed in the API"))?;
 
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -41,7 +37,7 @@ async fn bioclip_produces_image_embedding() -> Result<()> {
             &emb.values[..emb.values.len().min(5)]
         );
 
-        assert_eq!(emb.model, MODEL_NAME);
+        assert_eq!(emb.model, model_name);
         assert!(!emb.values.is_empty());
         assert!(emb.values.iter().all(|v| v.is_finite()));
 
@@ -59,4 +55,12 @@ async fn bioclip_produces_image_embedding() -> Result<()> {
     }
 
     result
+}
+
+#[tokio::test]
+#[ignore]
+async fn image_encoders_produce_embeddings() -> Result<()> {
+    assert_image_embedding("bioclip2").await?;
+    assert_image_embedding("dinov3-vitl16").await?;
+    Ok(())
 }
