@@ -41,7 +41,7 @@ async fn assert_image_embedding(model_name: &str) -> Result<()> {
         assert!(!emb.values.is_empty());
         assert!(emb.values.iter().all(|v| v.is_finite()));
 
-        let norm = emb.values.iter().map(|v| v * v).sum::<f32>().sqrt();
+        let norm = emb.values.iter().map(|v| v.to_f32() * v.to_f32()).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-3, "embedding not L2-normalised: norm={norm}");
 
         let sim = emb.cosine(emb);

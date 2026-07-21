@@ -514,6 +514,8 @@ impl Embedding {
         let mut na = 0.0f32;
         let mut nb = 0.0f32;
         for (a, b) in self.values.iter().zip(other.values.iter()) {
+            let a = a.to_f32();
+            let b = b.to_f32();
             dot += a * b;
             na += a * a;
             nb += b * b;
@@ -554,7 +556,7 @@ pub struct AvailableModel {
 /// A flat `[N]` embedding vector, L2-normalised.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Embedding {
-    pub values: Vec<f32>,
+    pub values: Vec<half::f16>,
     pub model: String,
 }
 
@@ -563,7 +565,7 @@ impl Embedding {
     pub fn from_raw(raw: &[f32], model: String) -> Self {
         let norm = raw.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
         Self {
-            values: raw.iter().map(|&v| v / norm).collect(),
+            values: raw.iter().map(|&v| half::f16::from_f32(v / norm)).collect(),
             model,
         }
     }
