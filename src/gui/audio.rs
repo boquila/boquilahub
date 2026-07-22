@@ -923,14 +923,19 @@ fn render_audio_plot(
                         .fill_color(Color32::TRANSPARENT)
                         .stroke(Stroke::new(2.0, color)),
                 );
+                let luminance = 0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
+                let text_color = if luminance > 150.0 { Color32::BLACK } else { Color32::WHITE };
+                // Sit the label above the box, or just inside when it reaches the ceiling.
+                let anchor = if y2 > mel_max * 0.92 { Align2::LEFT_TOP } else { Align2::LEFT_BOTTOM };
                 plot_ui.text(
                     Text::new(
                         format!("boxtxt_{idx}"),
                         PlotPoint::new(x1, y2),
-                        format!("{} {:.0}%", b.label, b.xyxy.prob * 100.0),
+                        egui::RichText::new(format!(" {} {:.2} ", b.label, b.xyxy.prob))
+                            .color(text_color)
+                            .background_color(color),
                     )
-                    .color(color)
-                    .anchor(Align2::LEFT_BOTTOM)
+                    .anchor(anchor)
                     .allow_hover(false),
                 );
             }
