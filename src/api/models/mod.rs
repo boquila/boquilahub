@@ -1,3 +1,4 @@
+pub mod batdetect2;
 pub mod clip;
 pub mod dinov3;
 pub mod efficientnet;
@@ -5,6 +6,7 @@ pub mod overhead;
 pub mod perch;
 pub mod resnet18;
 pub mod yolo;
+use crate::api::models::batdetect2::BatDetect2;
 use crate::api::models::clip::Clip;
 use crate::api::models::dinov3::Dinov3;
 use crate::api::models::overhead::Overhead;
@@ -57,6 +59,7 @@ pub enum Model {
     Clip(Clip),
     Dinov3(Dinov3),
     Overhead(Overhead),
+    BatDetect2(BatDetect2),
 }
 
 pub enum AIInput<'a> {
@@ -74,6 +77,7 @@ impl Model {
             Model::Clip(inner) => &mut inner.config,
             Model::Dinov3(inner) => &mut inner.config,
             Model::Overhead(inner) => &mut inner.config,
+            Model::BatDetect2(inner) => &mut inner.config,
         }
     }
 }
@@ -95,6 +99,7 @@ impl Model {
             "overhead" | "heatmap" | "owl" | "herdnet" => {
                 Ok(Model::Overhead(Overhead::new(metadata, session, config)?))
             }
+            "batdetect2" => Ok(Model::BatDetect2(BatDetect2::new(metadata, session, config)?)),
             arch => Err(anyhow!("Unsupported model architecture: {}", arch)),
         }
     }
@@ -108,6 +113,7 @@ impl Model {
             (Model::Clip(m), AIInput::Image(img)) => m.run_image(img),
             (Model::Dinov3(m), AIInput::Image(img)) => m.run_image(img),
             (Model::Overhead(m), AIInput::Image(img)) => m.run_image(img),
+            (Model::BatDetect2(m), AIInput::Audio(audio)) => m.run_audio(audio),
             _ => panic!("wrong input type for this model architecture"),
         }
     }

@@ -39,6 +39,13 @@ impl Gui {
         (FALLBACK_N_FFT, FALLBACK_HOP_LENGTH, N_MELS, FALLBACK_TOP_DB)
     }
 
+    pub(super) fn audio_display_sr(&self) -> u32 {
+        self.ai_selected
+            .and_then(|i| self.ais[i].audio_config.as_ref())
+            .map(|ac| ac.sample_rate)
+            .unwrap_or(AUDIO_DISPLAY_SR)
+    }
+
     pub(super) fn audio_analysis_widget(&mut self, ui: &mut egui::Ui) {
         if self.selected_audios.is_empty()
             || !(self.is_audio_model() || !self.ep_selected.is_local())
@@ -292,7 +299,7 @@ impl Gui {
         let mut touched_current = false;
         for (i, result) in updates {
             match result {
-                Some(aio @ AIOutputs::AudioClassification(_)) => {
+                Some(aio @ (AIOutputs::AudioClassification(_) | AIOutputs::ObjectDetection(_))) => {
                     if let Some(slot) = self.selected_audios.get_mut(i) {
                         slot.aioutput = Some(aio);
                         slot.wasprocessed = true;
@@ -341,12 +348,13 @@ impl Gui {
         if self.audio_data.is_some() {
             let duration =
                 self.audio_data.as_ref().unwrap().duration().max(0.1);
+            let display_sr = self.audio_display_sr();
 
             // Precompute the mel for the entire audio on first use.
             if self.audio_full_mel.is_none() {
                 let (n_fft, hop_length, n_mels, top_db) = self.audio_mel_params();
                 let resampled =
-                    self.audio_data.as_ref().unwrap().resample(AUDIO_DISPLAY_SR);
+                    self.audio_data.as_ref().unwrap().resample(display_sr);
                 let mel =
                     compute_mel(&resampled, n_fft, hop_length, n_mels, top_db);
                 self.audio_full_mel = Some(mel);
@@ -467,6 +475,22 @@ impl Gui {
                 target_tex_w,
             );
 
+            let window_boxes: Vec<XYXYc> = self
+                .selected_audios
+                .get(self.audio_texture_n.saturating_sub(1))
+                .and_then(|p| p.detection_boxes())
+                .map(|boxes| {
+                    boxes
+                        .iter()
+                        .filter(|b| {
+                            b.xyxy.x2 as f64 > self.audio_view_range.0
+                                && (b.xyxy.x1 as f64) < self.audio_view_range.1
+                        })
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+
             if self.audio_state.texture.is_none() {
                 if let (Some(full_mel), Some(meta)) =
                     (self.audio_full_mel.as_ref(), self.audio_mel_meta)
@@ -474,7 +498,7 @@ impl Gui {
                     let (_n_fft, hop_length, _n_mels, top_db) = meta;
                     let img = mel_slice_to_imgbuf(
                         full_mel,
-                        AUDIO_DISPLAY_SR,
+                        display_sr,
                         hop_length,
                         top_db,
                         self.audio_view_range.0,
@@ -502,10 +526,12 @@ impl Gui {
                         &texture,
                         full_mel,
                         meta,
+                        display_sr,
                         self.audio_view_range,
                         duration,
                         &window_preds,
                         &column_winner,
+                        &window_boxes,
                         self.audio_playhead,
                         apply_bounds,
                         plot_w,
@@ -532,6 +558,25 @@ impl Gui {
 
         self.audio_handle_results(ui);
     }
+}
+
+fn freq_axis_ticks(nyquist: f64) -> Vec<f64> {
+    let raw_step = (nyquist / 6.0).max(1.0);
+    let mag = 10f64.powf(raw_step.log10().floor());
+    let nice = match raw_step / mag {
+        n if n < 1.5 => 1.0,
+        n if n < 3.0 => 2.0,
+        n if n < 7.0 => 5.0,
+        _ => 10.0,
+    };
+    let step = nice * mag;
+    let mut ticks = Vec::new();
+    let mut hz = 0.0;
+    while hz <= nyquist + 1e-6 {
+        ticks.push(hz);
+        hz += step;
+    }
+    ticks
 }
 
 /// For each pixel column of the spectrogram, the index (into `preds`) of the
@@ -614,10 +659,12 @@ fn render_audio_plot(
     texture: &egui::TextureHandle,
     full_mel: &ndarray::Array2<f32>,
     mel_meta: (usize, usize, usize, f32), // n_fft, hop_length, n_mels, top_db
+    display_sr: u32,
     view_range: (f64, f64),
     duration: f64,
     window_preds: &[AudioProb],
     column_winner: &[Option<usize>],
+    boxes: &[XYXYc],
     playhead: Option<f64>,
     apply_bounds: bool,
     plot_w: f32,
@@ -630,10 +677,11 @@ fn render_audio_plot(
         Polygon, Text,
     };
 
-    let nyquist = AUDIO_DISPLAY_SR as f64 / 2.0;
+    let nyquist = display_sr as f64 / 2.0;
     let mel_max = 2595.0 * (1.0 + nyquist / 700.0).log10();
-    let strip_pad = mel_max * 0.04;
-    let strip_h = mel_max * 0.12;
+    let has_strip = !window_preds.is_empty();
+    let strip_pad = if has_strip { mel_max * 0.04 } else { 0.0 };
+    let strip_h = if has_strip { mel_max * 0.12 } else { 0.0 };
     let strip_y_lo = mel_max + strip_pad;
     let strip_y_hi = strip_y_lo + strip_h;
     let y_max = strip_y_hi;
@@ -645,16 +693,12 @@ fn render_audio_plot(
     let texture_id = texture.id();
     let dark_mode = ui.visuals().dark_mode;
 
-    let hz_ticks: Vec<f64> = [0.0_f64, 250.0, 1000.0, 2000.0, 4000.0, 8000.0]
-        .iter()
-        .filter(|h| **h <= nyquist)
-        .copied()
-        .collect();
+    let hz_ticks = freq_axis_ticks(nyquist);
 
     let (_n_fft, hop_length, _n_mels_meta, _top_db) = mel_meta;
     let n_mels = full_mel.nrows();
     let n_time = full_mel.ncols();
-    let frames_per_sec = AUDIO_DISPLAY_SR as f64 / hop_length as f64;
+    let frames_per_sec = display_sr as f64 / hop_length as f64;
 
     let plot_response = Plot::new("audio_spectrogram_plot")
         .width(plot_w)
@@ -864,6 +908,36 @@ fn render_audio_plot(
                         .allow_hover(false),
                     );
                 }
+            }
+
+            for (idx, b) in boxes.iter().enumerate() {
+                let x1 = b.xyxy.x1 as f64;
+                let x2 = b.xyxy.x2 as f64;
+                let y1 = 2595.0 * (1.0 + b.xyxy.y1 as f64 / 700.0).log10();
+                let y2 = 2595.0 * (1.0 + b.xyxy.y2 as f64 / 700.0).log10();
+                let c = class_color(b.xyxy.class_id);
+                let color = Color32::from_rgb(c[0], c[1], c[2]);
+                let pts: Vec<[f64; 2]> = vec![[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
+                plot_ui.polygon(
+                    Polygon::new(format!("box_{idx}"), PlotPoints::from(pts))
+                        .fill_color(Color32::TRANSPARENT)
+                        .stroke(Stroke::new(2.0, color)),
+                );
+                let luminance = 0.299 * c[0] as f32 + 0.587 * c[1] as f32 + 0.114 * c[2] as f32;
+                let text_color = if luminance > 150.0 { Color32::BLACK } else { Color32::WHITE };
+                // Sit the label above the box, or just inside when it reaches the ceiling.
+                let anchor = if y2 > mel_max * 0.92 { Align2::LEFT_TOP } else { Align2::LEFT_BOTTOM };
+                plot_ui.text(
+                    Text::new(
+                        format!("boxtxt_{idx}"),
+                        PlotPoint::new(x1, y2),
+                        egui::RichText::new(format!(" {} {:.2} ", b.label, b.xyxy.prob))
+                            .color(text_color)
+                            .background_color(color),
+                    )
+                    .anchor(anchor)
+                    .allow_hover(false),
+                );
             }
 
             if let Some(ph) = playhead {
