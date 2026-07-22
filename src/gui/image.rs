@@ -237,6 +237,9 @@ impl Gui {
         ) || matches!(
             self.selected_imgs[i].aioutput.as_ref(),
             Some(AIOutputs::Segmentation(s)) if !s.is_empty()
+        ) || matches!(
+            self.selected_imgs[i].aioutput.as_ref(),
+            Some(AIOutputs::PointDetection(p)) if !p.is_empty()
         );
 
         let avail = ui.available_size_before_wrap();
@@ -385,6 +388,7 @@ struct HoverEcho {
     width_px: i32,
     height_px: i32,
     is_segment: bool,
+    is_point: bool,
 }
 
 impl HoverEcho {
@@ -402,6 +406,20 @@ impl HoverEcho {
             width_px: (b.xyxy.x2 - b.xyxy.x1).max(0.0).round() as i32,
             height_px: (b.xyxy.y2 - b.xyxy.y1).max(0.0).round() as i32,
             is_segment,
+            is_point: false,
+        }
+    }
+
+    fn from_point(p: &XYc) -> Self {
+        Self {
+            class_id: p.xy.class_id,
+            label: p.label.clone(),
+            prob: p.xy.prob,
+            refined: None,
+            width_px: 0,
+            height_px: 0,
+            is_segment: false,
+            is_point: true,
         }
     }
 }
@@ -497,7 +515,9 @@ fn draw_echo_strip(
         x += g_ref.size().x;
     }
 
-    let tail_text = if e.is_segment {
+    let tail_text = if e.is_point {
+        "  ·  point".to_string()
+    } else if e.is_segment {
         format!("  ·  {} × {} px  ·  segment", e.width_px, e.height_px)
     } else {
         format!("  ·  {} × {} px", e.width_px, e.height_px)
@@ -570,6 +590,26 @@ fn draw_image_overlay(
                 });
             }
             hovered.map(|idx| HoverEcho::from_bbox(&bboxes[idx], false))
+        }
+        AIOutputs::PointDetection(points) => {
+            let hovered = pick_hovered_point(points, hover_pos, rect.min, scale);
+            for (idx, p) in points.iter().enumerate() {
+                let center = egui::pos2(
+                    rect.min.x + p.xy.x * scale.x,
+                    rect.min.y + p.xy.y * scale.y,
+                );
+                let color = super::class_color32(p.xy.class_id);
+                let r = if Some(idx) == hovered { 6.0 } else { 4.0 };
+                painter.circle_filled(center, r + 1.5, egui::Color32::WHITE);
+                painter.circle_filled(center, r, color);
+            }
+            draw_point_legend(&painter, rect, points);
+            if let Some(idx) = hovered {
+                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                    point_tooltip_ui(ui, &points[idx], lang);
+                });
+            }
+            hovered.map(|idx| HoverEcho::from_point(&points[idx]))
         }
         AIOutputs::Segmentation(segs) => {
             let hovered = pick_hovered(segs, hover_pos, rect.min, scale, |s| &s.bbox);
@@ -671,6 +711,75 @@ fn pick_hovered<T>(
         }
     }
     best.map(|(idx, _)| idx)
+}
+
+/// Nearest point to the cursor within a small screen radius, if any.
+fn pick_hovered_point(
+    points: &[XYc],
+    hover_pos: Option<egui::Pos2>,
+    origin: egui::Pos2,
+    scale: egui::Vec2,
+) -> Option<usize> {
+    let hover = hover_pos?;
+    let mut best: Option<(usize, f32)> = None;
+    for (idx, p) in points.iter().enumerate() {
+        let center = egui::pos2(origin.x + p.xy.x * scale.x, origin.y + p.xy.y * scale.y);
+        let dist_sq = (center - hover).length_sq();
+        if dist_sq <= 12.0 * 12.0 && best.map_or(true, |(_, best_d)| dist_sq < best_d) {
+            best = Some((idx, dist_sq));
+        }
+    }
+    best.map(|(idx, _)| idx)
+}
+
+fn point_tooltip_ui(ui: &mut egui::Ui, p: &XYc, lang: &Lang) {
+    let color = super::class_color32(p.xy.class_id);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new("■").color(color).monospace());
+        ui.label(egui::RichText::new(&p.label).strong());
+    });
+    ui.label(format!(
+        "{:.0}{}",
+        p.xy.prob * 100.0,
+        translate(Key::confidence_pct, lang)
+    ));
+}
+
+/// Per-class count chips in the top-left, so the dots are legible without
+/// knowing the model.
+fn draw_point_legend(painter: &egui::Painter, rect: egui::Rect, points: &[XYc]) {
+    if points.is_empty() {
+        return;
+    }
+    let mut counts: Vec<(u32, String, usize)> = Vec::new();
+    for p in points {
+        match counts.iter_mut().find(|(id, _, _)| *id == p.xy.class_id) {
+            Some(entry) => entry.2 += 1,
+            None => counts.push((p.xy.class_id, p.label.clone(), 1)),
+        }
+    }
+    counts.sort_by(|a, b| b.2.cmp(&a.2));
+
+    let pad = 8.0;
+    let chip_h = 22.0;
+    let font = egui::FontId::proportional(12.5);
+    let x = rect.min.x + pad;
+    let mut y = rect.min.y + pad;
+    for (class_id, label, count) in counts.iter().take(6) {
+        let c = class_color(*class_id);
+        let bg = egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 230);
+        let text = format!("{}  ×{}", label, count);
+        let galley = painter.layout_no_wrap(text, font.clone(), egui::Color32::WHITE);
+        let w = galley.size().x + 14.0;
+        let chip = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, chip_h));
+        painter.rect_filled(chip, 6.0, bg);
+        painter.galley(
+            chip.min + egui::vec2(7.0, (chip_h - galley.size().y) / 2.0),
+            galley,
+            egui::Color32::WHITE,
+        );
+        y += chip_h + 4.0;
+    }
 }
 
 fn bbox_color_id(b: &XYXYc) -> u32 {

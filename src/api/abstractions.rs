@@ -74,6 +74,14 @@ pub struct XYXY {
     pub class_id: u32,
 }
 
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+pub struct XY {
+    pub x: f32,
+    pub y: f32,
+    pub prob: f32,
+    pub class_id: u32,
+}
+
 impl XYXY {
     pub fn new(x1: f32, y1: f32, x2: f32, y2: f32, prob: f32, class_id: u32) -> Self {
         Self {x1,y1,x2,y2,prob,class_id}
@@ -437,9 +445,27 @@ pub struct XYXYc {
     pub extra_cls: Option<Vec<Prob>>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct XYc {
+    pub xy: XY,
+    pub label: String,
+}
+
 impl XYXYc {
     pub fn new(xyxy: XYXY, label: String) -> Self {
         XYXYc {xyxy, label, extra_cls: None,}
+    }
+}
+
+impl XY {
+    pub fn new(x: f32, y: f32, prob: f32, class_id: u32) -> Self {
+        Self { x, y, prob, class_id }
+    }
+}
+
+impl XYc {
+    pub fn new(xy: XY, label: String) -> Self {
+        XYc { xy, label }
     }
 }
 
@@ -453,6 +479,7 @@ pub struct AudioProb {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AIOutputs {
     ObjectDetection(Vec<XYXYc>),
+    PointDetection(Vec<XYc>),
     Classification(Vec<Prob>),
     Segmentation(Vec<SEGc>),
     AudioClassification(Vec<AudioProb>),
@@ -463,6 +490,7 @@ impl AIOutputs {
     pub fn is_empty(&self) -> bool {
         match self {
             AIOutputs::ObjectDetection(bboxes) => bboxes.is_empty(),
+            AIOutputs::PointDetection(points) => points.is_empty(),
             AIOutputs::Classification(probs) => probs.is_empty(),
             AIOutputs::Segmentation(segments) => segments.is_empty(),
             AIOutputs::AudioClassification(audio_probs) => audio_probs.is_empty(),
@@ -489,6 +517,12 @@ impl AIOutputs {
                     a.xyxy.prob.partial_cmp(&b.xyxy.prob).unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .map(|b| (b.xyxy.class_id, b.label.as_str(), b.xyxy.prob)),
+            AIOutputs::PointDetection(points) => points
+                .iter()
+                .max_by(|a, b| {
+                    a.xy.prob.partial_cmp(&b.xy.prob).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|p| (p.xy.class_id, p.label.as_str(), p.xy.prob)),
             AIOutputs::Segmentation(segs) => segs
                 .iter()
                 .max_by(|a, b| {
@@ -539,7 +573,7 @@ pub struct ModelConfig {
 impl Default for ModelConfig {
     fn default() -> Self {
         Self {
-            confidence_threshold: 0.45,
+            confidence_threshold: 0.25,
             nms_threshold: 0.4,
             geo_fence: "".to_owned(),
         }
