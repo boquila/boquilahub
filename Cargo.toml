@@ -40,6 +40,7 @@ ratatui = "0.30.2"
 realfft = "3.5"
 rodio = { version = "0.22.2", default-features = false, features = ["playback"] }
 egui_plot = "0.36.0"
+half = {version= "2.7.1", features = ["serde"]}
 
 [features]
 default = ["webgpu"]
