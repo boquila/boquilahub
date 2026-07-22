@@ -278,6 +278,14 @@ impl PredAudio {
             _ => None,
         }
     }
+
+    /// Spectrogram detections: `x1..x2` are seconds, `y1..y2` are Hz.
+    pub fn detection_boxes(&self) -> Option<&[XYXYc]> {
+        match self.aioutput.as_ref() {
+            Some(AIOutputs::ObjectDetection(b)) => Some(b),
+            _ => None,
+        }
+    }
 }
 
 impl Pred for PredAudio {
