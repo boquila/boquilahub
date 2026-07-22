@@ -1,7 +1,9 @@
-use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, Prob, ProbSugar, SEGc, XYXYc};
+use crate::api::abstractions::{AIOutputs, BitMatrix, PredImg, Prob, ProbSugar, SEGc, XYXYc, XYc};
 use ab_glyph::FontRef;
 use image::{ImageBuffer, Rgb};
-use imageproc::drawing::{draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut};
+use imageproc::drawing::{
+    draw_filled_circle_mut, draw_filled_rect_mut, draw_hollow_rect_mut, draw_text_mut,
+};
 use imageproc::rect::Rect;
 use std::sync::LazyLock;
 
@@ -117,6 +119,9 @@ pub fn draw_aioutput(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, predictions: &AIOu
         AIOutputs::ObjectDetection(detections) => {
             draw_bbox_from_imgbuf(img, detections);
         }
+        AIOutputs::PointDetection(points) => {
+            draw_points_from_imgbuf(img, points);
+        }
         AIOutputs::Segmentation(segs) => {
             draw_seg_from_imgbuf(img, segs);
         }
@@ -169,6 +174,49 @@ fn draw_bbox_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, detections: &[
             &text,
         );
     }
+}
+
+fn draw_points_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, points: &[XYc]) {
+    const RADIUS: i32 = 5;
+    for p in points {
+        let center = (p.xy.x as i32, p.xy.y as i32);
+        let color = BBOX_COLORS[p.xy.class_id as usize % BBOX_COLORS.len()];
+        draw_filled_circle_mut(img, center, RADIUS + 1, WHITE);
+        draw_filled_circle_mut(img, center, RADIUS, color);
+    }
+    draw_point_legend(img, points);
+}
+
+/// Bare dots carry no meaning on their own, so burn a per-class count legend
+/// into the top-left corner.
+fn draw_point_legend(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, points: &[XYc]) {
+    if points.is_empty() {
+        return;
+    }
+    let font = &*FONT;
+    let counts = class_counts(points);
+    let mut y = 8i32;
+    for (class_id, label, count) in counts.iter().take(8) {
+        let color = BBOX_COLORS[*class_id as usize % BBOX_COLORS.len()];
+        let text = format!("{} x{}", label, count);
+        let w = (text.len() as f32 * CHAR_WIDTH) as u32 + 8;
+        draw_filled_rect_mut(img, Rect::at(8, y).of_size(w, FONT_SCALE as u32 + 4), color);
+        draw_text_mut(img, WHITE, 12, y + 2, FONT_SCALE, font, &text);
+        y += FONT_SCALE as i32 + 6;
+    }
+}
+
+/// `(class_id, label, count)` per class, most frequent first.
+fn class_counts(points: &[XYc]) -> Vec<(u32, String, usize)> {
+    let mut counts: Vec<(u32, String, usize)> = Vec::new();
+    for p in points {
+        match counts.iter_mut().find(|(id, _, _)| *id == p.xy.class_id) {
+            Some(entry) => entry.2 += 1,
+            None => counts.push((p.xy.class_id, p.label.clone(), 1)),
+        }
+    }
+    counts.sort_by(|a, b| b.2.cmp(&a.2));
+    counts
 }
 
 fn draw_seg_from_imgbuf(img: &mut ImageBuffer<Rgb<u8>, Vec<u8>>, segmentations: &[SEGc]) {

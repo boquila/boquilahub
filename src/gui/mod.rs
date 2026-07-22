@@ -1209,6 +1209,24 @@ pub(super) fn aioutput_tooltip_list(ui: &mut egui::Ui, aio: &AIOutputs, lang: &L
                 ui.label(egui::RichText::new(and_more(count - 6, lang)).weak());
             }
         }
+        AIOutputs::PointDetection(points) => {
+            if points.is_empty() {
+                ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
+                return;
+            }
+            ui.separator();
+            let count = points.len();
+            let noun = if count == 1 { translate(Key::detection, lang) } else { translate(Key::detections, lang) };
+            ui.label(egui::RichText::new(format!("{} {}", count, noun)).strong());
+            let mut sorted: Vec<&XYc> = points.iter().collect();
+            sorted.sort_by(|left, right| right.xy.prob.partial_cmp(&left.xy.prob).unwrap_or(std::cmp::Ordering::Equal));
+            for point in sorted.iter().take(6) {
+                tooltip_row(ui, point.xy.class_id, &point.label, point.xy.prob);
+            }
+            if count > 6 {
+                ui.label(egui::RichText::new(and_more(count - 6, lang)).weak());
+            }
+        }
         AIOutputs::Segmentation(segs) => {
             if segs.is_empty() {
                 ui.label(egui::RichText::new(translate(Key::no_predictions, lang)).weak());
@@ -1264,6 +1282,18 @@ pub(super) fn scale_aioutput(aio: &AIOutputs, scale_x: f32, scale_y: f32) -> AIO
                 })
                 .collect();
             AIOutputs::ObjectDetection(scaled)
+        }
+        AIOutputs::PointDetection(points) => {
+            let scaled: Vec<XYc> = points
+                .iter()
+                .map(|point| {
+                    let mut scaled_point = point.clone();
+                    scaled_point.xy.x *= scale_x;
+                    scaled_point.xy.y *= scale_y;
+                    scaled_point
+                })
+                .collect();
+            AIOutputs::PointDetection(scaled)
         }
         AIOutputs::Segmentation(segs) => {
             let scaled: Vec<SEGc> = segs
