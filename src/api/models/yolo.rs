@@ -15,6 +15,8 @@ use ort::{session::Session, value::ValueType};
 enum YoloType {
     Yolov5,
     Yolov8plus,
+    Yolov10,
+    Yolov26,
 }
 
 pub struct Yolo {
@@ -240,6 +242,7 @@ impl Yolo {
 impl Yolo {
     pub fn new(
         metadata: AIMetadata,
+        architecture: &str,
         session: Session,
         config: ModelConfig,
     ) -> Result<Self, Error> {
@@ -267,10 +270,17 @@ impl Yolo {
             }
         };
 
-        let yolotype = if output_width <= output_height {
-            YoloType::Yolov8plus
-        } else {
-            YoloType::Yolov5
+        let yolotype = match architecture {
+            "yolo" => {
+                if output_width <= output_height {
+                    YoloType::Yolov8plus
+                } else {
+                    YoloType::Yolov5
+                }
+            }
+            "yolov10" => YoloType::Yolov10,
+            "yolov26" => YoloType::Yolov26,
+            other => bail!("unsupported yolo type: {}", other),
         };
 
         let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs().get(1) {
@@ -323,6 +333,8 @@ impl Yolo {
                 let boxes = match self.yolotype {
                     YoloType::Yolov8plus => self.process_detect_output(&output, img_width, img_height),
                     YoloType::Yolov5 => self.process_detect_output_yolov5(&output, img_width, img_height),
+                    YoloType::Yolov10 => todo!(),
+                    YoloType::Yolov26 => todo!(),
                 };
                 return AIOutputs::ObjectDetection(boxes);
             }
