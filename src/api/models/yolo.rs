@@ -17,8 +17,6 @@ enum YoloType {
     Yolov8plus,
 }
 
-type DetectProcessor = fn(&Yolo, &Array<f32, IxDyn>, u32, u32) -> Vec<XYXYc>;
-
 pub struct Yolo {
     pub classes: Vec<String>,
     pub input_width: u32,
@@ -32,8 +30,7 @@ pub struct Yolo {
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
     pub config: ModelConfig,
-    _yolotype: YoloType,
-    detect_processor: DetectProcessor,
+    yolotype: YoloType,
 }
 
 impl Yolo {
@@ -270,12 +267,11 @@ impl Yolo {
             }
         };
 
-        let (_yolotype, detect_processor): (YoloType, DetectProcessor) =
-            if output_width <= output_height {
-                (YoloType::Yolov8plus, Yolo::process_detect_output)
-            } else {
-                (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
-            };
+        let yolotype = if output_width <= output_height {
+            YoloType::Yolov8plus
+        } else {
+            YoloType::Yolov5
+        };
 
         let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs().get(1) {
             match &output.dtype() {
@@ -305,8 +301,7 @@ impl Yolo {
             post_processing: metadata.post_processing,
             session,
             config,
-            _yolotype,
-            detect_processor,
+            yolotype,
         })
     }
 }
@@ -325,7 +320,10 @@ impl Yolo {
         match self.task {
             Task::Detect => {
                 let output = extract_output(&outputs, "output0");
-                let boxes = (self.detect_processor)(self, &output, img_width, img_height);
+                let boxes = match self.yolotype {
+                    YoloType::Yolov8plus => self.process_detect_output(&output, img_width, img_height),
+                    YoloType::Yolov5 => self.process_detect_output_yolov5(&output, img_width, img_height),
+                };
                 return AIOutputs::ObjectDetection(boxes);
             }
             Task::Classify => {
