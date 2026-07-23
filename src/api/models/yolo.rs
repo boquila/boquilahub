@@ -134,6 +134,34 @@ impl Yolo {
         self.t(&boxes)
     }
 
+    fn process_detect_output_end2end(
+        &self,
+        output: &Array<f32, IxDyn>,
+        img_width: u32,
+        img_height: u32,
+    ) -> Vec<XYXYc> {
+        let output = output.slice(s![.., .., 0]);
+        let x_scale = img_width as f32 / self.input_width as f32;
+        let y_scale = img_height as f32 / self.input_height as f32;
+
+        let boxes: Vec<XYXY> = output
+            .axis_iter(Axis(1))
+            .filter_map(|row| {
+                let prob = row[4 as usize];
+                if prob < self.config.confidence_threshold {
+                    return None;
+                }
+                let x1 = row[0 as usize] * x_scale;
+                let y1 = row[1 as usize] * y_scale;
+                let x2 = row[2 as usize] * x_scale;
+                let y2 = row[3 as usize] * y_scale;
+                Some(XYXY::new(x1, y1, x2, y2, prob, row[5 as usize] as u32))
+            })
+            .collect();
+
+        self.t(&boxes)
+    }
+
     fn t(&self, boxes: &Vec<XYXY>) -> Vec<XYXYc> {
         boxes
             .iter()
@@ -333,8 +361,7 @@ impl Yolo {
                 let boxes = match self.yolotype {
                     YoloType::Yolov8plus => self.process_detect_output(&output, img_width, img_height),
                     YoloType::Yolov5 => self.process_detect_output_yolov5(&output, img_width, img_height),
-                    YoloType::Yolov10 => todo!(),
-                    YoloType::Yolov26 => todo!(),
+                    YoloType::Yolov10 | YoloType::Yolov26 => {self.process_detect_output_end2end(&output, img_width, img_height)}
                 };
                 return AIOutputs::ObjectDetection(boxes);
             }
