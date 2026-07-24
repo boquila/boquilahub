@@ -484,17 +484,21 @@ impl Gui {
         ui.label(self.t(Key::select_ai));
 
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("AI")
-                .selected_text(match self.ai_selected {
-                    Some(i) => &self.ais[i].name,
-                    None => "",
-                })
-                .show_ui(ui, |ui| {
-                    for (i, ai) in self.ais.iter().enumerate() {
-                        ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
-                            .on_hover_text(&ai.classes.join(", "));
-                    }
-                });
+            let combo_width = ui.spacing().combo_width + 32.0;
+            ui.allocate_ui(egui::vec2(combo_width, ui.spacing().interact_size.y), |ui| {
+                egui::ComboBox::from_id_salt("AI")
+                    .truncate()
+                    .selected_text(match self.ai_selected {
+                        Some(i) => self.ais[i].name.as_str(),
+                        None => "",
+                    })
+                    .show_ui(ui, |ui| {
+                        for (i, ai) in self.ais.iter().enumerate() {
+                            ui.selectable_value(&mut self.ai_selected, Some(i), &ai.name)
+                                .on_hover_text(&ai.classes.join(", "));
+                        }
+                    });
+            });
 
             if self.ai_selected.is_some() {
                 if ui
@@ -559,17 +563,21 @@ impl Gui {
         let previous_ai = self.ai_cls_selected;
         ui.label(self.t(Key::select_2nd_ai));
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("AI_CLS")
-                .selected_text(match self.ai_cls_selected {
-                    Some(i) => &self.ais_cls_only[i].name,
-                    None => "",
-                })
-                .show_ui(ui, |ui| {
-                    for (i, ai) in self.ais_cls_only.iter().enumerate() {
-                        ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
-                            .on_hover_text(&ai.classes.join(", "));
-                    }
-                });
+            let combo_width = ui.spacing().combo_width + 32.0;
+            ui.allocate_ui(egui::vec2(combo_width, ui.spacing().interact_size.y), |ui| {
+                egui::ComboBox::from_id_salt("AI_CLS")
+                    .truncate()
+                    .selected_text(match self.ai_cls_selected {
+                        Some(i) => self.ais_cls_only[i].name.as_str(),
+                        None => "",
+                    })
+                    .show_ui(ui, |ui| {
+                        for (i, ai) in self.ais_cls_only.iter().enumerate() {
+                            ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
+                                .on_hover_text(&ai.classes.join(", "));
+                        }
+                    });
+            });
 
             // Button to remove AI, and unload it from memory.
             if self.ai_cls_selected.is_some() {

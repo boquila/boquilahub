@@ -15,9 +15,9 @@ use ort::{session::Session, value::ValueType};
 enum YoloType {
     Yolov5,
     Yolov8plus,
+    Yolov10,
+    Yolov26,
 }
-
-type DetectProcessor = fn(&Yolo, &Array<f32, IxDyn>, u32, u32) -> Vec<XYXYc>;
 
 pub struct Yolo {
     pub classes: Vec<String>,
@@ -32,8 +32,7 @@ pub struct Yolo {
     pub post_processing: Vec<PostProcessing>,
     pub session: Session,
     pub config: ModelConfig,
-    _yolotype: YoloType,
-    detect_processor: DetectProcessor,
+    yolotype: YoloType,
 }
 
 impl Yolo {
@@ -131,6 +130,34 @@ impl Yolo {
                 boxes = indices.iter().map(|&idx| boxes[idx]).collect();
             }
         }
+
+        self.t(&boxes)
+    }
+
+    fn process_detect_output_end2end(
+        &self,
+        output: &Array<f32, IxDyn>,
+        img_width: u32,
+        img_height: u32,
+    ) -> Vec<XYXYc> {
+        let output = output.slice(s![.., .., 0]);
+        let x_scale = img_width as f32 / self.input_width as f32;
+        let y_scale = img_height as f32 / self.input_height as f32;
+
+        let boxes: Vec<XYXY> = output
+            .axis_iter(Axis(1))
+            .filter_map(|row| {
+                let prob = row[4 as usize];
+                if prob < self.config.confidence_threshold {
+                    return None;
+                }
+                let x1 = row[0 as usize] * x_scale;
+                let y1 = row[1 as usize] * y_scale;
+                let x2 = row[2 as usize] * x_scale;
+                let y2 = row[3 as usize] * y_scale;
+                Some(XYXY::new(x1, y1, x2, y2, prob, row[5 as usize] as u32))
+            })
+            .collect();
 
         self.t(&boxes)
     }
@@ -243,6 +270,7 @@ impl Yolo {
 impl Yolo {
     pub fn new(
         metadata: AIMetadata,
+        architecture: &str,
         session: Session,
         config: ModelConfig,
     ) -> Result<Self, Error> {
@@ -270,12 +298,18 @@ impl Yolo {
             }
         };
 
-        let (_yolotype, detect_processor): (YoloType, DetectProcessor) =
-            if output_width <= output_height {
-                (YoloType::Yolov8plus, Yolo::process_detect_output)
-            } else {
-                (YoloType::Yolov5, Yolo::process_detect_output_yolov5)
-            };
+        let yolotype = match architecture {
+            "yolo" => {
+                if output_width <= output_height {
+                    YoloType::Yolov8plus
+                } else {
+                    YoloType::Yolov5
+                }
+            }
+            "yolov10" => YoloType::Yolov10,
+            "yolov26" => YoloType::Yolov26,
+            other => bail!("unsupported yolo type: {}", other),
+        };
 
         let (num_masks, mask_width, mask_height) = if let Some(output) = session.outputs().get(1) {
             match &output.dtype() {
@@ -305,8 +339,7 @@ impl Yolo {
             post_processing: metadata.post_processing,
             session,
             config,
-            _yolotype,
-            detect_processor,
+            yolotype,
         })
     }
 }
@@ -325,7 +358,11 @@ impl Yolo {
         match self.task {
             Task::Detect => {
                 let output = extract_output(&outputs, "output0");
-                let boxes = (self.detect_processor)(self, &output, img_width, img_height);
+                let boxes = match self.yolotype {
+                    YoloType::Yolov8plus => self.process_detect_output(&output, img_width, img_height),
+                    YoloType::Yolov5 => self.process_detect_output_yolov5(&output, img_width, img_height),
+                    YoloType::Yolov10 | YoloType::Yolov26 => {self.process_detect_output_end2end(&output, img_width, img_height)}
+                };
                 return AIOutputs::ObjectDetection(boxes);
             }
             Task::Classify => {

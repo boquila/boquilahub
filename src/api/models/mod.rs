@@ -90,7 +90,7 @@ impl Model {
     ) -> Result<Self, Error> {
         let arch = metadata.architecture.to_lowercase();
         match arch.as_str() {
-            "yolo" => Ok(Model::Yolo(Yolo::new(metadata, session, config)?)),
+            "yolo" | "yolov10" | "yolov26" => {Ok(Model::Yolo(Yolo::new(metadata, &arch, session, config)?))}
             "efficientnetv2" => Ok(Model::EfficientNetV2(EfficientNetV2::new(metadata, session, config)?)),
             "resnet18" => Ok(Model::ResNet18(ResNet18::new(metadata, session, config)?)),
             "perch_v2" | "perch" | "perch2" => Ok(Model::PerchV2(PerchV2::new(metadata, session, config)?)),
