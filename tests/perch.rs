@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use boquilahub::api::abstractions::{AIOutputs, AudioProbSugar};
+use boquilahub::api::abstractions::AIOutputs;
 use boquilahub::api::audio::AudioData;
 use boquilahub::api::bq::*;
 
@@ -45,11 +45,7 @@ async fn perch_identifies_species() -> Result<()> {
             };
             assert!(!probs.is_empty(), "{path}: zero windows");
 
-            println!(
-                "\n{path}  windows={}  top={}",
-                probs.len(),
-                probs.highest_confidence()
-            );
+            println!("\n{path}  windows={}", probs.len());
             for (i, p) in probs.iter().enumerate() {
                 println!(
                     "  [{i}] {:>5.2}-{:>5.2}s  {:<40} p={:.3}",

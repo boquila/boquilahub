@@ -14,18 +14,11 @@ impl Prob {
 }
 
 pub trait ProbSugar {
-    fn highest_confidence(&self) -> String;
     fn top(&self) -> Option<&Prob>;
     fn logits_to_probs(&mut self);
 }
 
 impl ProbSugar for Vec<Prob> {
-    fn highest_confidence(&self) -> String {
-        self.top()
-            .map(|p| p.label.clone())
-            .unwrap_or_else(|| String::from("no prediction"))
-    }
-
     fn top(&self) -> Option<&Prob> {
         self.iter().max_by(|a, b| {
             a.prob.partial_cmp(&b.prob).unwrap_or(std::cmp::Ordering::Equal)
@@ -237,19 +230,6 @@ impl Pred for PredImg {
     }
     fn predictions_json(&self) -> serde_json::Result<String> {
         serde_json::to_string(&self.aioutput)
-    }
-}
-
-pub trait AudioProbSugar {
-    fn highest_confidence(&self) -> String;
-}
-
-impl AudioProbSugar for Vec<AudioProb> {
-    fn highest_confidence(&self) -> String {
-        self.iter()
-            .max_by(|a, b| a.prediction.prob.partial_cmp(&b.prediction.prob).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|audio| audio.prediction.label.clone())
-            .unwrap_or_else(|| String::from("no prediction"))
     }
 }
 
