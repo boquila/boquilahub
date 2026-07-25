@@ -208,6 +208,7 @@ impl<T: Pred> PredListSugar for Vec<T> {
 pub struct PredImg {
     pub file_path: std::path::PathBuf,
     pub aioutput: Option<AIOutputs>,
+    pub embedding: Option<Embedding>,
     pub wasprocessed: bool,
 }
 
@@ -218,6 +219,7 @@ impl PredImg {
             wasprocessed: aioutput.is_some(),
             aioutput,
             file_path,
+            embedding: None,
         }
     }
 
