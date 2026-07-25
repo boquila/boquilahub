@@ -330,11 +330,7 @@ impl Gui {
 
     pub(super) fn export_video_predictions_json(&mut self) {
         let Some(pv) = self.current_video() else { return; };
-        let display = pv
-            .predictions_file_path()
-            .ok()
-            .and_then(|p| p.to_str().map(|s| s.to_string()))
-            .unwrap_or_else(|| "predictions.json".to_string());
+        let display = pv.predictions_file_path().to_string_lossy().into_owned();
         let pv_clone = pv.clone();
         tokio::spawn(async move {
             let _ = pv_clone.write_predictions();

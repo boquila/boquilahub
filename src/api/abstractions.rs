@@ -124,29 +124,14 @@ pub struct AudioConfig {
     pub top_db: f32,      // e.g. 80.0
 }
 
-/// For `input_path/file.ext`, returns `input_path/file_predictions.json`.
-/// Shared by every `Pred*` type so the sidecar layout stays uniform.
-pub fn sidecar_predictions_path(
-    input_path: &std::path::Path,
-) -> std::io::Result<std::path::PathBuf> {
-    let stem = input_path
-        .file_stem()
-        .ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid input path")
-        })?
-        .to_str()
-        .ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Non-UTF-8 file path")
-        })?;
-    Ok(input_path.with_file_name(format!("{}_predictions.json", stem)))
+pub fn sidecar_predictions_path(input_path: &std::path::Path) -> std::path::PathBuf {
+    let mut path = input_path.as_os_str().to_os_string();
+    path.push("_predictions.json");
+    path.into()
 }
 
 fn load_sidecar_aioutput(file_path: &std::path::Path) -> Option<AIOutputs> {
-    let path = sidecar_predictions_path(file_path).ok()?;
-    if !path.exists() {
-        return None;
-    }
-    AIOutputs::from_file(path).ok()
+    AIOutputs::from_file(sidecar_predictions_path(file_path)).ok()
 }
 
 /// Shared shape for the three media prediction types. Lets the GUI talk to
@@ -161,7 +146,7 @@ pub trait Pred {
     /// `PredVideo` so frames-as-array + probe metadata round-trip.
     fn predictions_json(&self) -> serde_json::Result<String>;
 
-    fn predictions_file_path(&self) -> std::io::Result<std::path::PathBuf> {
+    fn predictions_file_path(&self) -> std::path::PathBuf {
         sidecar_predictions_path(self.file_path())
     }
 
@@ -170,7 +155,7 @@ pub trait Pred {
     /// Serde errors are folded into `io::Error` so the trait stays free of
     /// extra error-crate dependencies.
     fn write_predictions(&self) -> std::io::Result<()> {
-        let path = self.predictions_file_path()?;
+        let path = self.predictions_file_path();
         let json = self
             .predictions_json()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
@@ -306,16 +291,13 @@ impl PredVideo {
     /// [`Self::hydrate`] so picking 100 videos doesn't pay a 100x
     /// ffmpeg-init cost upfront.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        if let Ok(path) = sidecar_predictions_path(&file_path) {
-            if path.exists() {
-                if let Ok(file) = std::fs::File::open(&path) {
-                    if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
-                        // Trust the caller-supplied path in case the video
-                        // moved since the predictions were saved.
-                        cached.file_path = file_path;
-                        return cached;
-                    }
-                }
+        let path = sidecar_predictions_path(&file_path);
+        if let Ok(file) = std::fs::File::open(&path) {
+            if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
+                // Trust the caller-supplied path in case the video
+                // moved since the predictions were saved.
+                cached.file_path = file_path;
+                return cached;
             }
         }
         Self {
