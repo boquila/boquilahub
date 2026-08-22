@@ -187,18 +187,16 @@ impl Yolo {
             .slice(s![.., coeff_limit..(self.output_width as usize), 0])
             .to_owned();
         // Reshape prototype tensor to (channels, height * width)
-        let proto_raw = proto_tensor.slice(s![.., .., .., 0]); // shape: (batch, h, w)
-
-        #[allow(deprecated)]
-        let proto_mask_features = proto_raw
-            .to_owned()
-            .into_shape((
-                self.mask_height as usize * self.mask_width as usize,
+        // proto_raw: (mask_width, mask_height, num_masks)
+        let proto_raw = proto_tensor.slice(s![.., .., .., 0]);
+        let proto_mask_features: Array2<f32> = proto_raw
+            .reversed_axes() // -> (num_masks, mask_height, mask_width)
+            .to_shape((
                 self.num_masks as usize,
-            )) // (h * w, channels)
-            .unwrap()
-            .permuted_axes([1, 0]) // -> (channels, h * w)
-            .to_owned();
+                self.mask_height as usize * self.mask_width as usize,
+            )) // -> (channels, h * w)
+            .expect("Failed to reshape proto tensor")
+            .into_owned();
         let x_scale = img_width as f32 / self.input_width as f32;
         let y_scale = img_height as f32 / self.input_height as f32;
 
@@ -222,12 +220,11 @@ impl Yolo {
 
                 let coeffs = coefs.row(index).insert_axis(ndarray::Axis(0)); // shape: (1, 32)
 
-                #[allow(deprecated)]
                 let mask: Array2<f32> = coeffs
                     .dot(&proto_mask_features) // shape: (1, h * w)
-                    .into_shape((self.mask_height as usize, self.mask_width as usize)) // reshape
+                    .to_shape((self.mask_height as usize, self.mask_width as usize)) // -> (h, w)
                     .expect("Failed to reshape mask")
-                    .to_owned(); // make it an Array2<f32>
+                    .into_owned(); // make it an Array2<f32>
 
                 let xc = values[0] * x_scale;
                 let yc = values[1] * y_scale;
