@@ -67,6 +67,28 @@ pub enum AIInput<'a> {
     Audio(&'a AudioData),
 }
 
+/// Top-1 of a softmax over one row of logits, allocating only the winning
+/// label. Bit-identical to building the full `Vec<Prob>`, running
+/// `logits_to_probs`, and keeping `max_by` (ties resolve to the last class).
+pub fn top1_from_logits<'a>(
+    logits: impl Iterator<Item = &'a f32> + Clone,
+    classes: &[String],
+) -> Prob {
+    let mut best = 0usize;
+    let mut best_logit = *logits.clone().next().expect("logits must not be empty");
+    for (c, &l) in logits.clone().enumerate() {
+        if l >= best_logit {
+            best = c;
+            best_logit = l;
+        }
+    }
+    let mut sum = 0.0f32;
+    for &l in logits {
+        sum += (l - best_logit).exp();
+    }
+    Prob::new(classes[best].clone(), 1.0 / sum, best as u32)
+}
+
 impl Model {
     pub fn config_mut(&mut self) -> &mut ModelConfig {
         match self {
