@@ -112,7 +112,10 @@ impl Gui {
             self.img_state.finish();
         }
         self.img_state.progress_bar = self.selected_imgs.get_progress();
-        ui.request_repaint();
+        if self.img_state.is_active() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(50));
+        }
     }
 
     // ---------- left-panel widget (Analyze / Export) ----------
