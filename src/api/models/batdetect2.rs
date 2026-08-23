@@ -1,6 +1,6 @@
 use super::*;
 use crate::api::{
-    abstractions::{AIOutputs, Prob, XYXY, XYXYc},
+    abstractions::{AIOutputs, XYXY, XYXYc},
     audio::AudioData,
 };
 use anyhow::{bail, Error, Result};
@@ -65,7 +65,6 @@ impl BatDetect2 {
             let low_freq = outputs["low_freq"].try_extract_array::<f32>().unwrap();
             let high_freq = outputs["high_freq"].try_extract_array::<f32>().unwrap();
             let class_id = outputs["class_id"].try_extract_array::<i64>().unwrap();
-            let class_scores = outputs["class_scores"].try_extract_array::<f32>().unwrap();
 
             let offset = start as f32 / sample_rate;
             for i in 0..scores.shape()[1] {
@@ -75,14 +74,8 @@ impl BatDetect2 {
                     break;
                 }
                 let cid = class_id[[0, i]].max(0) as usize;
-                let extra_cls = self
-                    .classes
-                    .iter()
-                    .enumerate()
-                    .map(|(c, name)| Prob::new(name.clone(), class_scores[[0, i, c]], c as u32))
-                    .collect();
-                boxes.push(XYXYc {
-                    xyxy: XYXY::new(
+                boxes.push(XYXYc::new(
+                    XYXY::new(
                         start_time[[0, i]] + offset,
                         low_freq[[0, i]],
                         end_time[[0, i]] + offset,
@@ -90,9 +83,8 @@ impl BatDetect2 {
                         score,
                         cid as u32,
                     ),
-                    label: self.classes.get(cid).cloned().unwrap_or_default(),
-                    extra_cls: Some(extra_cls),
-                });
+                    self.classes.get(cid).cloned().unwrap_or_default(),
+                ));
             }
         }
 
