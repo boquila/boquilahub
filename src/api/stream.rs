@@ -17,7 +17,6 @@ impl Feed {
         // Initialize FFmpeg
         ffmpeg::init()?;
         ffmpeg::util::log::set_level(ffmpeg::util::log::Level::Quiet);
-        std::fs::create_dir_all("export/feed").unwrap();
 
         // Open the RTSP stream with options for better RTSP handling
         let mut opts: ffmpeg::Dictionary<'_> = ffmpeg::Dictionary::new();
