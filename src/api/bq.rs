@@ -76,7 +76,7 @@ impl GlobalBQ {
 }
 
 fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AIMetadata, usize)> {
-    ensure!(content.len() >= 7, "File too short to be a valid .bq file");
+    ensure!(content.len() >= 8, "File too short to be a valid .bq file");
     ensure!(&content[..7] == b"BQMODEL", "Invalid file format: missing BQMODEL magic string");
     ensure!(content[7] == 1, "Unsupported .bq version: {}", content[7]);
     ensure!(content.len() >= 12, "File too short: missing JSON length");
@@ -85,9 +85,7 @@ fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AIMetadata, usize
     let json_end = 12 + json_length;
     ensure!(content.len() >= json_end, "File truncated: JSON section extends beyond file end");
 
-    let json_str = String::from_utf8(content[12..json_end].to_vec())
-        .context("Failed to parse JSON content in .bq file")?;
-    let ai_model: AIMetadataRaw = serde_json::from_str(&json_str)
+    let ai_model: AIMetadataRaw = serde_json::from_slice(&content[12..json_end])
         .context("Failed to deserialize JSON into AI metadata")?;
     let ai_model = ai_model.cook(file_stem);
     Ok((ai_model, json_end))

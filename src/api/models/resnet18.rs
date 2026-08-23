@@ -9,7 +9,7 @@ use crate::api::{
     },
 };
 use anyhow::{bail, Error, Result};
-use ndarray::Array2;
+use ndarray::{Array2, Axis};
 use ort::{session::Session, value::ValueType};
 
 const SUB_BATCH: usize = 64;
@@ -163,15 +163,7 @@ impl ResNet18 {
                 let label = self.classes[class_id as usize].clone();
                 Prob::new(label, prob, class_id)
             } else {
-                let num_classes = self.output_height as usize;
-                let mut probs: Vec<Prob> = (0..num_classes)
-                    .map(|c| Prob::new(self.classes[c].clone(), output[[c, j]], c as u32))
-                    .collect();
-                probs.logits_to_probs();
-                probs
-                    .into_iter()
-                    .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap())
-                    .unwrap()
+                top1_from_logits(output.index_axis(Axis(1), j).iter(), &self.classes)
             };
 
             all_probs.push(AudioProb { start, end, prediction });

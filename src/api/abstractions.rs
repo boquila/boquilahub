@@ -150,9 +150,6 @@ pub fn sidecar_predictions_path(
 
 fn load_sidecar_aioutput(file_path: &std::path::Path) -> Option<AIOutputs> {
     let path = sidecar_predictions_path(file_path).ok()?;
-    if !path.exists() {
-        return None;
-    }
     AIOutputs::from_file(path).ok()
 }
 
@@ -324,17 +321,15 @@ impl PredVideo {
     /// [`Self::hydrate`] so picking 100 videos doesn't pay a 100x
     /// ffmpeg-init cost upfront.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        if let Ok(path) = sidecar_predictions_path(&file_path) {
-            if path.exists() {
-                if let Ok(file) = std::fs::File::open(&path) {
-                    if let Ok(mut cached) = serde_json::from_reader::<_, PredVideo>(file) {
-                        // Trust the caller-supplied path in case the video
-                        // moved since the predictions were saved.
-                        cached.file_path = file_path;
-                        return cached;
-                    }
-                }
-            }
+        if let Ok(path) = sidecar_predictions_path(&file_path)
+            && let Ok(file) = std::fs::File::open(&path)
+            && let Ok(mut cached) =
+                serde_json::from_reader::<_, PredVideo>(std::io::BufReader::new(file))
+        {
+            // Trust the caller-supplied path in case the video
+            // moved since the predictions were saved.
+            cached.file_path = file_path;
+            return cached;
         }
         Self {
             file_path,
@@ -507,7 +502,8 @@ impl AIOutputs {
     }
 
     pub fn from_file(input_path: impl AsRef<std::path::Path>) -> std::io::Result<AIOutputs> {
-        let deserialized: AIOutputs = serde_json::from_reader(std::fs::File::open(input_path)?)?;
+        let file = std::fs::File::open(input_path)?;
+        let deserialized: AIOutputs = serde_json::from_reader(std::io::BufReader::new(file))?;
         Ok(deserialized)
     }
 

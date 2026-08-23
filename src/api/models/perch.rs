@@ -1,10 +1,10 @@
 use super::*;
 use crate::api::{
-    abstractions::{AIOutputs, AudioProb, Prob, ProbSugar},
+    abstractions::{AIOutputs, AudioProb},
     audio::AudioData,
 };
 use anyhow::{bail, Error, Result};
-use ndarray::Array2;
+use ndarray::{Array2, Axis};
 use ort::session::Session;
 
 const SUB_BATCH: usize = 8;
@@ -80,18 +80,13 @@ impl PerchV2 {
                 .into_owned();
 
             for (i, &start) in batch.iter().enumerate() {
-                let mut probs: Vec<Prob> = self.classes.iter().enumerate()
-                    .map(|(c, label)| Prob::new(label.clone(), logits[[i, c]], c as u32))
-                    .collect();
-                probs.logits_to_probs();
-                let top = probs.into_iter()
-                    .max_by(|a, b| a.prob.partial_cmp(&b.prob).unwrap())
-                    .unwrap();
+                let prediction =
+                    top1_from_logits(logits.index_axis(Axis(0), i).iter(), &self.classes);
                 let start_s = start as f32 / self.audio_config.sample_rate as f32;
                 out.push(AudioProb {
                     start: start_s,
                     end: start_s + self.audio_config.window_size,
-                    prediction: top,
+                    prediction,
                 });
             }
         }

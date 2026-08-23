@@ -246,15 +246,16 @@ fn stft(signal: &[f32], n_fft: usize, hop_length: usize) -> Array2<f32> {
     let n_freqs = n_fft / 2 + 1;
     let mut spec = Array2::zeros((n_freqs, n_frames));
 
+    let window: Vec<f32> = (0..n_fft)
+        .map(|j| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * j as f32 / (n_fft - 1) as f32).cos())
+        .collect();
     let mut windowed = vec![0.0f32; n_fft];
     let mut spectrum = r2c.make_output_vec();
 
     for i in 0..n_frames {
         let start = i * hop_length;
         for j in 0..n_fft {
-            let hann =
-                0.5 - 0.5 * (2.0 * std::f32::consts::PI * j as f32 / (n_fft - 1) as f32).cos();
-            windowed[j] = padded[start + j] * hann;
+            windowed[j] = padded[start + j] * window[j];
         }
 
         r2c.process(&mut windowed, &mut spectrum).unwrap();
@@ -273,10 +274,8 @@ fn stft(signal: &[f32], n_fft: usize, hop_length: usize) -> Array2<f32> {
 fn power_to_db(spec: &Array2<f32>, top_db: f32) -> Array2<f32> {
     let max_power = spec.iter().fold(0.0f32, |a, &b| a.max(b));
     let ref_power = max_power.max(1e-10);
-    let mut db = spec.mapv(|v| 10.0 * (v / ref_power).max(1e-10).log10());
     let min_db = -top_db;
-    db.mapv_inplace(|v| v.max(min_db));
-    db
+    spec.mapv(|v| (10.0 * (v / ref_power).max(1e-10).log10()).max(min_db))
 }
 
 /// Compute a single mel spectrogram from a mono signal.
