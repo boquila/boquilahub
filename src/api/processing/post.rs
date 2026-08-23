@@ -234,11 +234,11 @@ pub fn apply_geofence_filter(
         return;
     }
     for p in probs.iter_mut() {
-        let mut record = SpeciesRecord::new(&p.label).unwrap();
+        let Ok(mut record) = SpeciesRecord::new(&p.label) else { continue };
         loop {
             let taxonomic_string = record.to_taxonomic_string();
             if let Some(countries) = geofence_data.get(&taxonomic_string) {
-                if countries.contains(&target_country.to_string()) {
+                if countries.iter().any(|country| country == target_country) {
                     break;
                 }
             }
@@ -250,6 +250,10 @@ pub fn apply_geofence_filter(
     }
 }
 
+/// Collapses a prediction list to the best species or its best taxonomic
+/// rollup. Labels that are not valid semicolon taxonomy records are ignored
+/// by both the species decision and every rollup level; if no label is
+/// valid, `probs` is returned unchanged.
 pub fn apply_label_rollup(probs: &mut Vec<Prob>, confidence_threshold: f32) {
     let record_pairs: Vec<(SpeciesRecord, f32, u32)> = probs
         .iter()
@@ -260,11 +264,13 @@ pub fn apply_label_rollup(probs: &mut Vec<Prob>, confidence_threshold: f32) {
         })
         .collect();
 
-    let (best_record, best_confidence, best_class_id) = record_pairs
+    let Some((best_record, best_confidence, best_class_id)) = record_pairs
         .iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
         .map(|(record, conf, id)| (record, *conf, *id))
-        .unwrap();
+    else {
+        return;
+    };
 
     if best_confidence >= confidence_threshold {
         let name = format_species_name(best_record);
