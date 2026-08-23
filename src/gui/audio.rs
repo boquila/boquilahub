@@ -326,7 +326,10 @@ impl Gui {
         }
 
         self.audio_state.progress_bar = self.selected_audios.get_progress();
-        ui.ctx().request_repaint();
+        if self.audio_state.is_active() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(50));
+        }
     }
 
     pub(super) fn ui_audio(&mut self, ui: &mut egui::Ui) {
