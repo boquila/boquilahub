@@ -326,8 +326,6 @@ impl PredVideo {
             && let Ok(mut cached) =
                 serde_json::from_reader::<_, PredVideo>(std::io::BufReader::new(file))
         {
-            // Trust the caller-supplied path in case the video
-            // moved since the predictions were saved.
             cached.file_path = file_path;
             return cached;
         }
