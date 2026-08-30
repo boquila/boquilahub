@@ -1,7 +1,8 @@
 // We cherck that every format in 'api/formats.rs' can be loaded
 
 use boquilahub::api::audio::AudioData;
-use boquilahub::api::formats::{AUDIO_FORMATS, IMAGE_FORMATS};
+use boquilahub::api::formats::{AUDIO_FORMATS, IMAGE_FORMATS, VIDEO_FORMATS};
+use boquilahub::api::video_file::VideofileProcessor;
 
 #[test]
 fn every_listed_format_has_an_asset() {
@@ -17,6 +18,13 @@ fn every_listed_format_has_an_asset() {
         assert!(
             std::path::Path::new(&path).exists(),
             "missing asset for audio format '{ext}' - regenerate tests/assets/formats or drop the extension"
+        );
+    }
+    for ext in VIDEO_FORMATS {
+        let path = format!("tests/assets/formats/video/video.{ext}");
+        assert!(
+            std::path::Path::new(&path).exists(),
+            "missing asset for video format '{ext}' - generate tests/assets/formats or drop the extension"
         );
     }
 }
@@ -44,5 +52,21 @@ fn audio_formats_decode() {
             "audio.{ext}: decoded to zero samples"
         );
         assert!(audio.duration() > 0.0, "audio.{ext}: zero duration");
+    }
+}
+
+#[test]
+fn video_formats_decode() {
+    for ext in VIDEO_FORMATS {
+        let path = format!("tests/assets/formats/video/video.{ext}");
+        let probe = VideofileProcessor::probe(&path).unwrap_or_else(|e| panic!("video.{ext}: {e}"));
+        assert!(
+            probe.width > 0 && probe.height > 0,
+            "video.{ext}: zero dimensions"
+        );
+        assert!(
+            !probe.first_frame.as_raw().is_empty(),
+            "video.{ext}: empty first frame"
+        );
     }
 }
