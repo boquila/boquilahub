@@ -1,9 +1,4 @@
-//! Verifies every extension advertised in `api/formats.rs` can actually be
-//! decoded by the paths the app uses: `image::open` for images and
-//! `AudioData::from_file` (ffmpeg) for audio.
-//!
-//! Assets live in `tests/assets/formats/{image,audio}` and are (re)generated
-//! with `py tests/assets/formats/generate.py`.
+// We cherck that every format in 'api/formats.rs' can be loaded
 
 use boquilahub::api::audio::AudioData;
 use boquilahub::api::formats::{AUDIO_FORMATS, IMAGE_FORMATS};
