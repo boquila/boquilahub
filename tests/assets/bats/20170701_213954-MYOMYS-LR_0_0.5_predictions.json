@@ -1,0 +1,196 @@
+{
+  "ObjectDetection": [
+    {
+      "xyxy": {
+        "x1": 0.052,
+        "y1": 27187.5,
+        "x2": 0.059311353,
+        "y2": 117996.0,
+        "prob": 0.69873554,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.412,
+        "y1": 28046.875,
+        "x2": 0.41924682,
+        "y2": 117145.58,
+        "prob": 0.6943998,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.325,
+        "y1": 26328.125,
+        "x2": 0.33180875,
+        "y2": 118762.97,
+        "prob": 0.66880554,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.145,
+        "y1": 26328.125,
+        "x2": 0.15282226,
+        "y2": 118569.46,
+        "prob": 0.6686397,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.232,
+        "y1": 26328.125,
+        "x2": 0.23885871,
+        "y2": 115724.305,
+        "prob": 0.66024715,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.299,
+        "y1": 48671.875,
+        "x2": 0.30551657,
+        "y2": 55470.316,
+        "prob": 0.6455159,
+        "class_id": 10
+      },
+      "label": "Pipistrellus pygmaeus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.474,
+        "y1": 47812.5,
+        "x2": 0.48079902,
+        "y2": 52122.83,
+        "prob": 0.6265385,
+        "class_id": 10
+      },
+      "label": "Pipistrellus pygmaeus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.202,
+        "y1": 32343.75,
+        "x2": 0.20839933,
+        "y2": 111713.91,
+        "prob": 0.5910773,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.37,
+        "y1": 32343.75,
+        "x2": 0.376652,
+        "y2": 110011.34,
+        "prob": 0.5413711,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.116,
+        "y1": 31484.375,
+        "x2": 0.12202893,
+        "y2": 107407.92,
+        "prob": 0.51368994,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.023,
+        "y1": 33203.125,
+        "x2": 0.029078564,
+        "y2": 106682.49,
+        "prob": 0.47881418,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.437,
+        "y1": 34921.875,
+        "x2": 0.4424394,
+        "y2": 101503.12,
+        "prob": 0.45359668,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.219,
+        "y1": 47812.5,
+        "x2": 0.22359468,
+        "y2": 52488.633,
+        "prob": 0.4475765,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.489,
+        "y1": 32343.75,
+        "x2": 0.49524924,
+        "y2": 111111.016,
+        "prob": 0.41628543,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.138,
+        "y1": 47812.5,
+        "x2": 0.14293413,
+        "y2": 54400.516,
+        "prob": 0.31535485,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.0,
+        "y1": 27187.5,
+        "x2": 0.006708395,
+        "y2": 105971.07,
+        "prob": 0.30558676,
+        "class_id": 0
+      },
+      "label": "Myotis mystacinus",
+      "extra_cls": null
+    }
+  ]
+}
