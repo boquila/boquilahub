@@ -55,7 +55,7 @@ cargo xtask fetch   # downloads ffmpeg + ONNX Runtime into deps/ (run once)
 cargo build --release
 ```
 
-On **macOS**, install ffmpeg first with `brew install ffmpeg@8` — `cargo xtask fetch` links it into `deps/`. Because Apple's linker rejects a flag that `ffmpeg-sys-next` emits, route the link through the bundled shim:
+On **macOS**, install ffmpeg first with `brew install ffmpeg@7` — `cargo xtask fetch` links it into `deps/`. Because Apple's linker rejects a flag that `ffmpeg-sys-next` emits, route the link through the bundled shim:
 
 ```shell
 chmod +x .github/macos-cc-shim.sh

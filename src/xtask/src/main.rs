@@ -95,20 +95,20 @@ fn ensure_ffmpeg(deps: &Path) {
         return;
     }
 
-    println!("xtask: linking Homebrew ffmpeg@8 into deps/ffmpeg ...");
+    println!("xtask: linking Homebrew ffmpeg@7 into deps/ffmpeg ...");
     let out = Command::new("brew")
-        .args(["--prefix", "ffmpeg@8"])
+        .args(["--prefix", "ffmpeg@7"])
         .output()
-        .expect("failed to run `brew`; install Homebrew, then `brew install ffmpeg@8`");
+        .expect("failed to run `brew`; install Homebrew, then `brew install ffmpeg@7`");
     assert!(
         out.status.success(),
-        "`brew --prefix ffmpeg@8` failed; run `brew install ffmpeg@8` first"
+        "`brew --prefix ffmpeg@7` failed; run `brew install ffmpeg@7` first"
     );
     let prefix = String::from_utf8(out.stdout).expect("brew output not UTF-8");
     let prefix = Path::new(prefix.trim());
     assert!(
         prefix.join("include").exists() && prefix.join("lib").exists(),
-        "Homebrew ffmpeg@8 at {} lacks include/ or lib/; try `brew reinstall ffmpeg@8`",
+        "Homebrew ffmpeg@7 at {} lacks include/ or lib/; try `brew reinstall ffmpeg@7`",
         prefix.display()
     );
     std::os::unix::fs::symlink(prefix, &dest)

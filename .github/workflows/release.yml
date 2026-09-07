@@ -45,7 +45,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.variant }}
+          key: ${{ matrix.variant }}-ffmpeg-7
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -66,7 +66,7 @@ jobs:
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
-        run: brew install ffmpeg@8 dylibbundler
+        run: brew install ffmpeg@7 dylibbundler
 
       - name: Fetch native deps
         run: cargo xtask fetch
