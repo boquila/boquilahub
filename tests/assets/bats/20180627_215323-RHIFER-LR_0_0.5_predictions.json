@@ -1,0 +1,172 @@
+{
+  "ObjectDetection": [
+    {
+      "xyxy": {
+        "x1": 0.0,
+        "y1": 67578.125,
+        "x2": 0.061450753,
+        "y2": 84328.81,
+        "prob": 0.80673665,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.209,
+        "y1": 67578.125,
+        "x2": 0.2743564,
+        "y2": 83144.02,
+        "prob": 0.7694467,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.095,
+        "y1": 67578.125,
+        "x2": 0.15952143,
+        "y2": 83529.61,
+        "prob": 0.75370604,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.436,
+        "y1": 67578.125,
+        "x2": 0.49528304,
+        "y2": 83648.63,
+        "prob": 0.69917774,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.405,
+        "y1": 67578.125,
+        "x2": 0.46245027,
+        "y2": 83261.64,
+        "prob": 0.65516245,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.306,
+        "y1": 67578.125,
+        "x2": 0.36695594,
+        "y2": 83569.055,
+        "prob": 0.62733275,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.321,
+        "y1": 67578.125,
+        "x2": 0.38488364,
+        "y2": 84140.086,
+        "prob": 0.5992478,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.498,
+        "y1": 66718.75,
+        "x2": 0.55343133,
+        "y2": 83189.06,
+        "prob": 0.49190032,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.025,
+        "y1": 67578.125,
+        "x2": 0.05785816,
+        "y2": 82342.57,
+        "prob": 0.4381721,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.212,
+        "y1": 44375.0,
+        "x2": 0.22968134,
+        "y2": 48152.977,
+        "prob": 0.41691414,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.437,
+        "y1": 45234.375,
+        "x2": 0.45462757,
+        "y2": 48724.94,
+        "prob": 0.41028476,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.322,
+        "y1": 45234.375,
+        "x2": 0.33891365,
+        "y2": 48680.297,
+        "prob": 0.37927136,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.097,
+        "y1": 44375.0,
+        "x2": 0.11114757,
+        "y2": 49150.914,
+        "prob": 0.3719442,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.245,
+        "y1": 67578.125,
+        "x2": 0.274679,
+        "y2": 82416.445,
+        "prob": 0.35181934,
+        "class_id": 13
+      },
+      "label": "Rhinolophus ferrumequinum",
+      "extra_cls": null
+    }
+  ]
+}

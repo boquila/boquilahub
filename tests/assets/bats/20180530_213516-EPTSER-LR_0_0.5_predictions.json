@@ -1,0 +1,280 @@
+{
+  "ObjectDetection": [
+    {
+      "xyxy": {
+        "x1": 0.475,
+        "y1": 27187.5,
+        "x2": 0.48303,
+        "y2": 62556.742,
+        "prob": 0.76384085,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.103,
+        "y1": 44375.0,
+        "x2": 0.11008059,
+        "y2": 64916.562,
+        "prob": 0.72893673,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.009,
+        "y1": 26328.125,
+        "x2": 0.017067822,
+        "y2": 61179.09,
+        "prob": 0.7044566,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.163,
+        "y1": 27187.5,
+        "x2": 0.17071167,
+        "y2": 60939.47,
+        "prob": 0.6934162,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.316,
+        "y1": 26328.125,
+        "x2": 0.32304356,
+        "y2": 62810.39,
+        "prob": 0.66886127,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.373,
+        "y1": 45234.375,
+        "x2": 0.3781641,
+        "y2": 55831.11,
+        "prob": 0.6315963,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.286,
+        "y1": 45234.375,
+        "x2": 0.29239735,
+        "y2": 56932.066,
+        "prob": 0.61509573,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.045,
+        "y1": 46953.125,
+        "x2": 0.05021826,
+        "y2": 55616.926,
+        "prob": 0.58035433,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.43,
+        "y1": 29765.625,
+        "x2": 0.43536133,
+        "y2": 52551.195,
+        "prob": 0.49109903,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.443,
+        "y1": 26328.125,
+        "x2": 0.4490551,
+        "y2": 50583.684,
+        "prob": 0.4352412,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.126,
+        "y1": 46953.125,
+        "x2": 0.1316289,
+        "y2": 57499.7,
+        "prob": 0.4276923,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.47,
+        "y1": 45234.375,
+        "x2": 0.47860655,
+        "y2": 56376.445,
+        "prob": 0.4013339,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.412,
+        "y1": 27187.5,
+        "x2": 0.41994846,
+        "y2": 43733.113,
+        "prob": 0.39598548,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.4,
+        "y1": 29765.625,
+        "x2": 0.4060925,
+        "y2": 56212.14,
+        "prob": 0.38690725,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.131,
+        "y1": 27187.5,
+        "x2": 0.13753103,
+        "y2": 46052.863,
+        "prob": 0.3822313,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.217,
+        "y1": 46093.75,
+        "x2": 0.22381744,
+        "y2": 55210.688,
+        "prob": 0.37399682,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.347,
+        "y1": 26328.125,
+        "x2": 0.3546772,
+        "y2": 35299.727,
+        "prob": 0.3678,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.073,
+        "y1": 31484.375,
+        "x2": 0.08040111,
+        "y2": 42503.867,
+        "prob": 0.3249294,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.309,
+        "y1": 29765.625,
+        "x2": 0.3156534,
+        "y2": 59481.484,
+        "prob": 0.31375793,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.278,
+        "y1": 32343.75,
+        "x2": 0.28302506,
+        "y2": 51456.4,
+        "prob": 0.30350313,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.456,
+        "y1": 45234.375,
+        "x2": 0.46394908,
+        "y2": 54497.445,
+        "prob": 0.30133426,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.261,
+        "y1": 28046.875,
+        "x2": 0.26784804,
+        "y2": 43623.87,
+        "prob": 0.30033213,
+        "class_id": 2
+      },
+      "label": "Cnephaeus serotinus",
+      "extra_cls": null
+    },
+    {
+      "xyxy": {
+        "x1": 0.198,
+        "y1": 45234.375,
+        "x2": 0.2055876,
+        "y2": 53313.227,
+        "prob": 0.25329638,
+        "class_id": 8
+      },
+      "label": "Pipistrellus pipistrellus",
+      "extra_cls": null
+    }
+  ]
+}

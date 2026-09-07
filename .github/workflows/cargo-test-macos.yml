@@ -18,13 +18,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install ffmpeg
-        run: brew install ffmpeg
+        run: brew install ffmpeg@7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ffmpeg-7
 
       - name: Make linker shim executable
         run: chmod +x .github/macos-cc-shim.sh
