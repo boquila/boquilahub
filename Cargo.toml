@@ -24,7 +24,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std","ndarray","download-binaries","copy-dylibs","tls-rustls"] }
 axum = { version = "0.8.9", default-features = false, features = ["multipart", "http1", "tokio"] }
-tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "sync", "net", "fs", "io-util"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "net", "fs", "io-util"] }
 reqwest = { version = "0.13.4", features = ["json","blocking", "multipart"] }
 imageproc = "0.27.0"
 ab_glyph = "0.2.32"
