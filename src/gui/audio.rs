@@ -1,4 +1,4 @@
-use super::{imgbuf_to_texture, Gui, OpenDialog};
+use super::{Gui, OpenDialog};
 use crate::api::abstractions::*;
 use crate::api::audio::AudioData;
 use crate::api::bq::{process_audio, Modality};
@@ -6,12 +6,16 @@ use crate::api::processing::pre::compute_mel;
 use crate::api::render::*;
 use crate::api::rest::Payload;
 use crate::localization::*;
-use image::{ImageBuffer, Rgba};
 use rodio::Source;
 use std::fs;
 use std::time::Instant;
 
 pub(super) const AUDIO_DISPLAY_SR: u32 = 22050;
+
+// Height of the class-label strip above the spectrogram, as fractions of
+// the full mel range (pad between spectrogram and strip, then strip height).
+const STRIP_PAD_FRAC: f64 = 0.04;
+const STRIP_H_FRAC: f64 = 0.12;
 
 impl Gui {
     pub(super) fn is_audio_model(&self) -> bool {
@@ -318,7 +322,11 @@ impl Gui {
         // own predictions just landed, so the class strip / colours refresh
         // without the user needing to navigate away and back.
         if touched_current {
-            self.audio_state.texture = None;
+            self.audio_tex_dirty = true;
+            // Predictions add the class strip above the spectrogram, which
+            // raises the content's top edge; re-apply the view bounds so a
+            // fit view includes it.
+            self.audio_view_range_dirty = true;
         }
 
         if closed {
@@ -362,7 +370,7 @@ impl Gui {
                     compute_mel(&resampled, n_fft, hop_length, n_mels, top_db);
                 self.audio_full_mel = Some(mel);
                 self.audio_mel_meta = Some((n_fft, hop_length, n_mels, top_db));
-                self.audio_state.texture = None;
+                self.audio_tex_dirty = true;
             }
 
             // Clamp view range to audio bounds; require a minimum span.
@@ -375,7 +383,7 @@ impl Gui {
             {
                 self.audio_view_range = (vs, ve);
                 self.audio_view_range_dirty = true;
-                self.audio_state.texture = None;
+                self.audio_tex_dirty = true;
             }
 
             // Drive the playhead off the playback clock.
@@ -398,7 +406,7 @@ impl Gui {
                         let new_ve = (new_vs + span).min(duration);
                         self.audio_view_range = (new_vs, new_ve);
                         self.audio_view_range_dirty = true;
-                        self.audio_state.texture = None;
+                        self.audio_tex_dirty = true;
                     }
                 }
                 ui.ctx().request_repaint();
@@ -432,8 +440,9 @@ impl Gui {
                     .clicked()
                 {
                     self.audio_view_range = (0.0, duration);
+                    self.audio_y_range = None;
                     self.audio_view_range_dirty = true;
-                    self.audio_state.texture = None;
+                    self.audio_tex_dirty = true;
                 }
             });
 
@@ -451,8 +460,9 @@ impl Gui {
             let target_tex_h =
                 ((plot_h * 0.72) as usize).clamp(200, 1600);
 
-            if self.audio_tex_dims != Some((target_tex_w, target_tex_h)) {
-                self.audio_state.texture = None;
+            let tex_size = [target_tex_w, target_tex_h];
+            if self.audio_state.texture.as_ref().map(|t| t.size()) != Some(tex_size) {
+                self.audio_tex_dirty = true;
             }
 
             let window_preds: Vec<AudioProb> = self
@@ -494,12 +504,12 @@ impl Gui {
                 })
                 .unwrap_or_default();
 
-            if self.audio_state.texture.is_none() {
+            if self.audio_tex_dirty {
                 if let (Some(full_mel), Some(meta)) =
                     (self.audio_full_mel.as_ref(), self.audio_mel_meta)
                 {
                     let (_n_fft, hop_length, _n_mels, top_db) = meta;
-                    let img = mel_slice_to_imgbuf(
+                    let img = mel_slice_to_color_image(
                         full_mel,
                         display_sr,
                         hop_length,
@@ -511,9 +521,17 @@ impl Gui {
                         &window_preds,
                         &column_winner,
                     );
-                    self.audio_state.texture = imgbuf_to_texture(&img, ui);
-                    self.audio_tex_dims =
-                        Some((target_tex_w, target_tex_h));
+                    let opts = egui::TextureOptions::default();
+                    // Reuse the GPU allocation while the size holds — a fresh
+                    // load_texture every drag frame is what made panning chug.
+                    match self.audio_state.texture.as_mut() {
+                        Some(tex) if tex.size() == tex_size => tex.set(img, opts),
+                        _ => {
+                            self.audio_state.texture =
+                                Some(ui.ctx().load_texture("audio_spec", img, opts))
+                        }
+                    }
+                    self.audio_tex_dirty = false;
                 }
             }
 
@@ -537,6 +555,7 @@ impl Gui {
                         &window_boxes,
                         self.audio_playhead,
                         apply_bounds,
+                        self.audio_y_range,
                         plot_w,
                         plot_h,
                         target_tex_w,
@@ -545,7 +564,11 @@ impl Gui {
 
                 if let Some(new_range) = result.new_view_range {
                     self.audio_view_range = new_range;
-                    self.audio_state.texture = None;
+                    self.audio_tex_dirty = true;
+                }
+
+                if let Some(y) = result.new_y_range {
+                    self.audio_y_range = Some(y);
                 }
 
                 if let Some(t) = result.clicked_time {
@@ -563,23 +586,34 @@ impl Gui {
     }
 }
 
-fn freq_axis_ticks(nyquist: f64) -> Vec<f64> {
-    let raw_step = (nyquist / 6.0).max(1.0);
-    let mag = 10f64.powf(raw_step.log10().floor());
-    let nice = match raw_step / mag {
+fn mel_to_hz(mel: f64) -> f64 {
+    700.0 * (10f64.powf(mel / 2595.0) - 1.0)
+}
+
+fn hz_to_mel(hz: f64) -> f64 {
+    2595.0 * (1.0 + hz / 700.0).log10()
+}
+
+/// Round a raw tick step down to a nice 1/2/5 number.
+fn nice_step(raw: f64) -> f64 {
+    let mag = 10f64.powf(raw.log10().floor());
+    let nice = match raw / mag {
         n if n < 1.5 => 1.0,
         n if n < 3.0 => 2.0,
         n if n < 7.0 => 5.0,
         _ => 10.0,
     };
-    let step = nice * mag;
-    let mut ticks = Vec::new();
-    let mut hz = 0.0;
-    while hz <= nyquist + 1e-6 {
-        ticks.push(hz);
-        hz += step;
+    nice * mag
+}
+
+/// Keep a frequency view inside `[0, y_max]` and no narrower than 5% of it.
+fn clamp_y_view((lo, hi): (f64, f64), y_max: f64) -> (f64, f64) {
+    if !lo.is_finite() || !hi.is_finite() {
+        return (0.0, y_max);
     }
-    ticks
+    let span = (hi - lo).clamp(y_max * 0.05, y_max);
+    let lo = lo.clamp(0.0, y_max - span);
+    (lo, lo + span)
 }
 
 /// For each pixel column of the spectrogram, the index (into `preds`) of the
@@ -653,6 +687,8 @@ fn segments_from_columns(preds: &[AudioProb], columns: &[Option<usize>]) -> Vec<
 struct PlotInteraction {
     /// New view range if the user panned/zoomed (or None if unchanged).
     new_view_range: Option<(f64, f64)>,
+    /// New frequency (Y) view if the user panned/zoomed it (or None if unchanged).
+    new_y_range: Option<(f64, f64)>,
     /// Time the user clicked at (no drag), if any.
     clicked_time: Option<f64>,
 }
@@ -670,24 +706,26 @@ fn render_audio_plot(
     boxes: &[XYXYc],
     playhead: Option<f64>,
     apply_bounds: bool,
+    y_zoom: Option<(f64, f64)>,
     plot_w: f32,
     plot_h: f32,
     n_cols: usize,
 ) -> PlotInteraction {
     use egui::{Align2, Color32, Stroke};
     use egui_plot::{
-        GridMark, HoverPosition, Line, Plot, PlotBounds, PlotImage, PlotPoint, PlotPoints,
-        Polygon, Text,
+        GridMark, HoverPosition, Line, Plot, PlotImage, PlotPoint, PlotPoints, Polygon, Text,
     };
 
     let nyquist = display_sr as f64 / 2.0;
-    let mel_max = 2595.0 * (1.0 + nyquist / 700.0).log10();
+    let mel_max = hz_to_mel(nyquist);
     let has_strip = !window_preds.is_empty();
-    let strip_pad = if has_strip { mel_max * 0.04 } else { 0.0 };
-    let strip_h = if has_strip { mel_max * 0.12 } else { 0.0 };
+    let strip_pad = if has_strip { mel_max * STRIP_PAD_FRAC } else { 0.0 };
+    let strip_h = if has_strip { mel_max * STRIP_H_FRAC } else { 0.0 };
     let strip_y_lo = mel_max + strip_pad;
     let strip_y_hi = strip_y_lo + strip_h;
     let y_max = strip_y_hi;
+
+    let y_view = y_zoom.map_or((0.0, y_max), |y| clamp_y_view(y, y_max));
 
     let (x_min, x_max) = view_range;
     let span = (x_max - x_min).max(1e-9);
@@ -695,8 +733,6 @@ fn render_audio_plot(
     let segments = segments_from_columns(window_preds, column_winner);
     let texture_id = texture.id();
     let dark_mode = ui.visuals().dark_mode;
-
-    let hz_ticks = freq_axis_ticks(nyquist);
 
     let (_n_fft, hop_length, _n_mels_meta, _top_db) = mel_meta;
     let n_mels = full_mel.nrows();
@@ -706,9 +742,10 @@ fn render_audio_plot(
     let plot_response = Plot::new("audio_spectrogram_plot")
         .width(plot_w)
         .height(plot_h)
-        .allow_zoom([true, false])
+        .allow_zoom(false)
+        .allow_scroll(false)
         .allow_drag([true, false])
-        .allow_scroll([true, false])
+        .allow_axis_zoom_drag(true)
         .allow_boxed_zoom(false)
         .allow_double_click_reset(true)
         .show_x(true)
@@ -735,29 +772,34 @@ fn render_audio_plot(
             if mel < -0.5 || mel > mel_max + 0.5 {
                 return String::new();
             }
-            let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
-            if hz >= 1000.0 {
-                format!("{:.0}k", hz / 1000.0)
+            let hz = mel_to_hz(mel);
+            if hz >= 995.0 {
+                format!("{:.1}k", hz / 1000.0)
             } else if hz < 1.0 {
                 String::from("0")
             } else {
                 format!("{:.0}", hz)
             }
         })
-        .y_grid_spacer({
-            let hz_ticks = hz_ticks.clone();
-            move |_input| {
-                hz_ticks
-                    .iter()
-                    .map(|hz| {
-                        let mel = 2595.0 * (1.0 + hz / 700.0).log10();
-                        GridMark {
-                            value: mel,
-                            step_size: mel_max / 6.0,
-                        }
-                    })
-                    .collect()
+        .y_grid_spacer(move |input| {
+            // Ticks adapt to the visible range so zoomed-in views keep
+            // getting grid lines. Work in Hz (nice 1/2/5 steps), then map
+            // back to mel for the plot.
+            let (mel_lo, mel_hi) = input.bounds;
+            let hz_lo = mel_to_hz(mel_lo.max(0.0));
+            let hz_hi = mel_to_hz(mel_hi.min(mel_max));
+            let raw_step = ((hz_hi - hz_lo) / 6.0).max(1.0);
+            let step = nice_step(raw_step);
+            let mut marks = Vec::new();
+            let mut hz = (hz_lo / step).ceil() * step;
+            while hz <= hz_hi + 1e-6 {
+                marks.push(GridMark {
+                    value: hz_to_mel(hz),
+                    step_size: mel_max / 6.0,
+                });
+                hz += step;
             }
+            marks
         })
         .label_formatter(move |hover| {
             let (name, pos) = match hover {
@@ -786,7 +828,7 @@ fn render_audio_plot(
             };
             let mut lines: Vec<String> = vec![time_str];
             if mel >= 0.0 && mel <= mel_max {
-                let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
+                let hz = mel_to_hz(mel);
                 let hz_str = if hz >= 1000.0 {
                     format!("{:.2} kHz", hz / 1000.0)
                 } else {
@@ -838,16 +880,11 @@ fn render_audio_plot(
             // External state takes precedence: snap the plot to our requested
             // view range on the frame that requested it. Bounds modifications
             // are queued and applied AFTER this closure runs (last-write-wins),
-            // so we issue exactly one SetX/SetY pair per frame.
-            //
-            // y is never touched by interaction (drag/zoom/scroll are x-only),
-            // so we only need to set y bounds when we're also forcing x.
+            // so we issue exactly one modification per axis per frame.
             if apply_bounds {
-                plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                    [x_min, 0.0],
-                    [x_max, y_max],
-                ));
+                plot_ui.set_plot_bounds_x(x_min..=x_max);
             }
+            plot_ui.set_plot_bounds_y(y_view.0..=y_view.1);
 
             plot_ui.image(
                 PlotImage::new(
@@ -916,8 +953,8 @@ fn render_audio_plot(
             for (idx, b) in boxes.iter().enumerate() {
                 let x1 = b.xyxy.x1 as f64;
                 let x2 = b.xyxy.x2 as f64;
-                let y1 = 2595.0 * (1.0 + b.xyxy.y1 as f64 / 700.0).log10();
-                let y2 = 2595.0 * (1.0 + b.xyxy.y2 as f64 / 700.0).log10();
+                let y1 = hz_to_mel(b.xyxy.y1 as f64);
+                let y2 = hz_to_mel(b.xyxy.y2 as f64);
                 let c = class_color(b.xyxy.class_id);
                 let color = Color32::from_rgb(c[0], c[1], c[2]);
                 let pts: Vec<[f64; 2]> = vec![[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
@@ -962,7 +999,7 @@ fn render_audio_plot(
         });
 
     // Read back the plot's bounds — these reflect any pan/zoom interaction —
-    // and clamp to [0, duration].
+    // and clamp to the audio / content range.
     let bounds = plot_response.transform.bounds();
     let new_min = bounds.min()[0].max(0.0);
     let new_max = bounds.max()[0].min(duration).max(new_min + 1e-6);
@@ -972,10 +1009,25 @@ fn render_audio_plot(
         None
     };
 
-    // Detect a pure click (no drag) for seek-to-time.
-    let mut clicked_time: Option<f64> = None;
     let resp = &plot_response.response;
-    if resp.clicked() {
+    let new_y_range = if resp.double_clicked() {
+        Some((0.0, y_max))
+    } else {
+        // Ruler zoom is applied by the plot after our bounds are set, so clip
+        // it to the content; the vertical pan is ours alone (the plot's y drag
+        // is off), which is what keeps it from fighting the clamp.
+        let zoomed = (bounds.min()[1].max(0.0), bounds.max()[1].min(y_max));
+        let pan = -resp.drag_delta().y as f64 * plot_response.transform.dvalue_dpos()[1];
+        let panned = clamp_y_view((zoomed.0 + pan, zoomed.1 + pan), y_max);
+        let changed = (panned.0 - y_view.0).abs() > 1e-4 || (panned.1 - y_view.1).abs() > 1e-4;
+        changed.then_some(panned)
+    };
+
+    // Detect a pure click (no drag) for seek-to-time. The second press of a
+    // double-click is excluded — double-click resets the view and must not
+    // seek again on top of it.
+    let mut clicked_time: Option<f64> = None;
+    if resp.clicked() && !resp.double_clicked() {
         if let Some(screen_pos) = resp.interact_pointer_pos() {
             let plot_pos = plot_response.transform.value_from_position(screen_pos);
             let t = plot_pos.x.clamp(0.0, duration);
@@ -988,14 +1040,28 @@ fn render_audio_plot(
 
     PlotInteraction {
         new_view_range,
+        new_y_range,
         clicked_time,
     }
+}
+
+/// 256-entry ramp for one column tint (`None` = the default viridis ramp), so
+/// the per-pixel colormap maths becomes a lookup.
+fn color_ramp(tint: Option<[u8; 3]>) -> [egui::Color32; 256] {
+    std::array::from_fn(|i| {
+        let t = i as f32 / 255.0;
+        let [r, g, b] = match tint {
+            Some(c) => class_colormap(c, t),
+            None => viridis(t),
+        };
+        egui::Color32::from_rgb(r, g, b)
+    })
 }
 
 /// Render a texture for an arbitrary visible time range from a precomputed mel
 /// spectrogram covering the entire audio. The mel's time-axis indexing
 /// (`time = frame * hop_length / sample_rate`) drives the bilinear sampling.
-fn mel_slice_to_imgbuf(
+fn mel_slice_to_color_image(
     full_mel: &ndarray::Array2<f32>,
     sample_rate: u32,
     hop_length: usize,
@@ -1006,52 +1072,64 @@ fn mel_slice_to_imgbuf(
     target_height: usize,
     window_preds: &[AudioProb],
     column_winner: &[Option<usize>],
-) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+) -> egui::ColorImage {
     let (n_mels, n_time) = full_mel.dim();
-    let mut pixels = Vec::with_capacity(target_width * target_height * 4);
+    let mel_rows = full_mel.as_standard_layout();
+    let mel = mel_rows.as_slice().expect("standard layout");
 
-    let column_color: Vec<Option<[u8; 3]>> = column_winner
+    let mut ramps = vec![color_ramp(None)];
+    let mut tints: Vec<[u8; 3]> = Vec::new();
+    let column_ramp: Vec<usize> = column_winner
         .iter()
-        .map(|w| w.map(|i| class_color(window_preds[i].prediction.class_id)))
+        .map(|w| match w {
+            None => 0,
+            Some(i) => {
+                let tint = class_color(window_preds[*i].prediction.class_id);
+                tints.iter().position(|t| *t == tint).unwrap_or_else(|| {
+                    tints.push(tint);
+                    ramps.push(color_ramp(Some(tint)));
+                    tints.len() - 1
+                }) + 1
+            }
+        })
         .collect();
 
     let frames_per_sec = sample_rate as f64 / hop_length as f64;
     let view_dur = (view_end - view_start).max(1e-9);
+    // Source columns are the same for every row, so resolve them once.
+    let columns: Vec<(usize, usize, f32, &[egui::Color32; 256])> = (0..target_width)
+        .map(|col| {
+            let t = view_start + ((col as f64 + 0.5) / target_width as f64) * view_dur;
+            let src = (t * frames_per_sec).clamp(0.0, (n_time - 1) as f64);
+            let lo = src.floor() as usize;
+            (
+                lo,
+                (lo + 1).min(n_time - 1),
+                (src - lo as f64) as f32,
+                &ramps[column_ramp[col]],
+            )
+        })
+        .collect();
 
-    // For each y-row of the target texture, sample the appropriate mel-bin row.
     let sy = target_height as f32 / n_mels as f32;
+    let mut pixels = Vec::with_capacity(target_width * target_height);
 
     for row in 0..target_height {
         let src_row = ((target_height - 1 - row) as f32 / sy).min(n_mels as f32 - 1.0);
         let row_lo = src_row.floor() as usize;
         let row_hi = (row_lo + 1).min(n_mels - 1);
         let fr = src_row - row_lo as f32;
+        let (lo_row, hi_row) = (&mel[row_lo * n_time..], &mel[row_hi * n_time..]);
 
-        for col in 0..target_width {
-            // Column center time → mel frame index (fractional).
-            let t = view_start + ((col as f64 + 0.5) / target_width as f64) * view_dur;
-            let src_col_f = (t * frames_per_sec).clamp(0.0, (n_time - 1) as f64);
-            let col_lo = src_col_f.floor() as usize;
-            let col_hi = (col_lo + 1).min(n_time - 1);
-            let fc = (src_col_f - col_lo as f64) as f32;
-            let v = full_mel[[row_lo, col_lo]] * (1.0 - fc) * (1.0 - fr)
-                + full_mel[[row_lo, col_hi]] * fc * (1.0 - fr)
-                + full_mel[[row_hi, col_lo]] * (1.0 - fc) * fr
-                + full_mel[[row_hi, col_hi]] * fc * fr;
+        for &(col_lo, col_hi, fc, ramp) in &columns {
+            let top = lo_row[col_lo] + (lo_row[col_hi] - lo_row[col_lo]) * fc;
+            let bottom = hi_row[col_lo] + (hi_row[col_hi] - hi_row[col_lo]) * fc;
+            let v = top + (bottom - top) * fr;
             let t_norm = ((v + top_db) / top_db).clamp(0.0, 1.0);
-            match column_color[col] {
-                Some(c) => {
-                    let [r, g, b] = class_colormap(c, t_norm);
-                    pixels.extend_from_slice(&[r, g, b, 255]);
-                }
-                None => {
-                    let [r, g, b] = viridis(t_norm);
-                    pixels.extend_from_slice(&[r, g, b, 255]);
-                }
-            }
+            pixels.push(ramp[(t_norm * 255.0) as usize]);
         }
     }
-    ImageBuffer::from_raw(target_width as u32, target_height as u32, pixels).unwrap()
+    egui::ColorImage::new([target_width, target_height], pixels)
 }
 
 pub(super) struct AudioBufferSource {

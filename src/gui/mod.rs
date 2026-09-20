@@ -90,9 +90,14 @@ pub struct Gui {
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
     audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
-    audio_tex_dims: Option<(usize, usize)>,
+    audio_tex_dirty: bool,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
+    // Frequency-axis zoom, in mel units, clamped to a sub-range of
+    // [0, mel_max]. `None` means "fit": the whole spectrogram (plus the
+    // class strip) is visible. Kept out of PlotMemory so it can always be
+    // snapped back deterministically (double-click / Fit button).
+    audio_y_range: Option<(f64, f64)>,
     audio_playing: bool,
     audio_play_start: Option<Instant>,
     audio_play_start_pos: f64,
@@ -534,7 +539,7 @@ impl Gui {
                 // Mel params may differ for the new audio model — invalidate cache.
                 self.audio_full_mel = None;
                 self.audio_mel_meta = None;
-                self.audio_state.texture = None;
+                self.audio_tex_dirty = true;
             }
             let model_path = self.ais[self.ai_selected.unwrap()].get_path();
             if GlobalBQ::First.set_model(
@@ -821,11 +826,11 @@ impl Gui {
         self.audio_data = None;
         self.audio_full_mel = None;
         self.audio_mel_meta = None;
-        self.audio_tex_dims = None;
-        self.audio_state.texture = None;
+        self.audio_tex_dirty = true;
         self.audio_playhead = None;
         self.audio_play_start = None;
         self.audio_play_start_pos = 0.0;
+        self.audio_y_range = None;
 
         let Some(pred) = self
             .selected_audios
