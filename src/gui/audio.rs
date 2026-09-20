@@ -746,7 +746,7 @@ fn render_audio_plot(
         .allow_scroll(true)
         .allow_drag([true, false])
         .allow_axis_zoom_drag(true)
-        .allow_boxed_zoom(false)
+        .allow_boxed_zoom(true)
         .allow_double_click_reset(true)
         .show_x(true)
         .show_y(true)
@@ -1013,7 +1013,12 @@ fn render_audio_plot(
     let new_y_range = if resp.double_clicked() {
         Some((0.0, y_max))
     } else {
-        let pan = -resp.drag_delta().y as f64 * plot_response.transform.dvalue_dpos()[1];
+        let drag_y = if resp.dragged_by(egui::PointerButton::Primary) {
+            resp.drag_delta().y
+        } else {
+            0.0
+        };
+        let pan = -drag_y as f64 * plot_response.transform.dvalue_dpos()[1];
         let panned = clamp_y_view((bounds.min()[1] + pan, bounds.max()[1] + pan), y_max);
         let changed = (panned.0 - y_view.0).abs() > 1e-4 || (panned.1 - y_view.1).abs() > 1e-4;
         changed.then_some(panned)
