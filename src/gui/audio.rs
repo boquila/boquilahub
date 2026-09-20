@@ -21,7 +21,7 @@ const STRIP_H_FRAC: f64 = 0.12;
 const OSCILLOGRAM_FRAC: f32 = 0.15;
 // Both plots pin their y axis to this width so their x axes line up. It is a
 // floor, not a cap: keep every tick label narrower than this or the panes drift.
-const Y_AXIS_W: f32 = 56.0;
+const Y_AXIS_W: f32 = 64.0;
 // Both plots must keep show_x on — egui_plot drops the whole hover path, and
 // with it this link, when neither show_x nor show_y is set.
 const CURSOR_GROUP: &str = "audio_time_cursor";
@@ -38,7 +38,7 @@ struct WaveBlock {
 /// never miss a peak.
 pub(super) struct WaveSummary {
     blocks: Vec<WaveBlock>,
-    peak: f32,
+    display_peak: f32,
 }
 
 impl WaveSummary {
@@ -51,10 +51,20 @@ impl WaveSummary {
                 mean_square: chunk.iter().map(|s| s * s).sum::<f32>() / chunk.len() as f32,
             })
             .collect();
-        let peak = blocks
-            .iter()
-            .fold(0.0f32, |acc, b| acc.max(b.low.abs()).max(b.high));
-        Self { blocks, peak }
+        // The axis scales to the 99.5th percentile, not the maximum: one stray
+        // click would otherwise flatten the rest of the file. The few louder
+        // blocks clip against the top, which is the honest thing to show.
+        let mut amplitudes: Vec<f32> = blocks.iter().map(|b| b.low.abs().max(b.high)).collect();
+        amplitudes.sort_unstable_by(f32::total_cmp);
+        let dropped = (amplitudes.len() / 200).max(2);
+        let display_peak = amplitudes
+            .get(amplitudes.len().saturating_sub(dropped + 1))
+            .copied()
+            .unwrap_or(0.0);
+        Self {
+            blocks,
+            display_peak,
+        }
     }
 
     /// (low, high, rms) over `range`, from whole blocks when the column spans
@@ -516,15 +526,6 @@ impl Gui {
                     self.audio_y_range = None;
                     self.audio_view_range_dirty = true;
                     self.audio_tex_dirty = true;
-                }
-                if let Some(summary) = self.audio_wave.as_ref() {
-                    ui.separator();
-                    let dbfs = (20.0 * summary.peak.max(1e-6).log10()).round() + 0.0;
-                    ui.label(
-                        egui::RichText::new(format!("{:.0} dBFS", dbfs))
-                            .weak()
-                            .small(),
-                    );
                 }
             });
 
@@ -1190,10 +1191,18 @@ fn render_oscillogram(
         rms_high.push(rms.min(high) as f64);
     }
 
-    // Snap to a power-of-two ceiling so quiet recordings fill the pane while
-    // level differences between files stay visible as whole steps.
-    let limit = (summary.peak.max(1.0 / 64.0) as f64).log2().ceil().exp2();
-    let decimals = if limit >= 0.1 { 2 } else { 3 };
+    // Round up to two significant digits: the waveform always fills at least
+    // 90% of the pane and the tick labels stay short.
+    let headroom = (summary.display_peak as f64 * 1.05).max(1e-3);
+    let magnitude = 10f64.powf(headroom.log10().floor() - 1.0);
+    let limit = (headroom / magnitude).ceil() * magnitude;
+    let decimals = if limit >= 0.1 {
+        2
+    } else if limit >= 0.01 {
+        3
+    } else {
+        4
+    };
     let (envelope_color, body_color) = if ui.visuals().dark_mode {
         (Color32::from_rgb(25, 108, 57), Color32::from_rgb(51, 218, 114))
     } else {
@@ -1349,7 +1358,6 @@ mod tests {
         samples[123_456] = 0.9;
         samples[77] = -0.9;
         let summary = WaveSummary::build(&samples);
-        assert_eq!(summary.peak, 0.9);
         // Whole file in one column: the block path must still see both spikes.
         assert_eq!(summary.envelope(&samples, 0..samples.len()).1, 0.9);
         assert_eq!(summary.envelope(&samples, 0..samples.len()).0, -0.9);
@@ -1359,9 +1367,17 @@ mod tests {
     }
 
     #[test]
+    fn one_loud_click_does_not_set_the_scale() {
+        let mut samples = vec![0.25f32; 1_000_000];
+        samples[500_000] = 1.0;
+        let summary = WaveSummary::build(&samples);
+        assert_eq!(summary.display_peak, 0.25);
+    }
+
+    #[test]
     fn envelope_survives_an_empty_file() {
         let summary = WaveSummary::build(&[]);
-        assert_eq!(summary.peak, 0.0);
+        assert_eq!(summary.display_peak, 0.0);
         assert_eq!(summary.envelope(&[], 0..0), (0.0, 0.0, 0.0));
     }
 }
