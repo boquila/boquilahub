@@ -13,6 +13,11 @@ use std::time::Instant;
 
 pub(super) const AUDIO_DISPLAY_SR: u32 = 22050;
 
+// Height of the class-label strip above the spectrogram, as fractions of
+// the full mel range (pad between spectrogram and strip, then strip height).
+const STRIP_PAD_FRAC: f64 = 0.04;
+const STRIP_H_FRAC: f64 = 0.12;
+
 impl Gui {
     pub(super) fn is_audio_model(&self) -> bool {
         self.ai_selected
@@ -319,6 +324,10 @@ impl Gui {
         // without the user needing to navigate away and back.
         if touched_current {
             self.audio_state.texture = None;
+            // Predictions add the class strip above the spectrogram, which
+            // raises the content's top edge; re-apply the view bounds so a
+            // fit view includes it.
+            self.audio_view_range_dirty = true;
         }
 
         if closed {
@@ -432,6 +441,7 @@ impl Gui {
                     .clicked()
                 {
                     self.audio_view_range = (0.0, duration);
+                    self.audio_y_range = None;
                     self.audio_view_range_dirty = true;
                     self.audio_state.texture = None;
                 }
@@ -537,6 +547,7 @@ impl Gui {
                         &window_boxes,
                         self.audio_playhead,
                         apply_bounds,
+                        self.audio_y_range,
                         plot_w,
                         plot_h,
                         target_tex_w,
@@ -546,6 +557,11 @@ impl Gui {
                 if let Some(new_range) = result.new_view_range {
                     self.audio_view_range = new_range;
                     self.audio_state.texture = None;
+                }
+
+                if let Some(y) = result.new_y_range {
+                    self.audio_y_range = Some(y);
+                    self.audio_view_range_dirty = true;
                 }
 
                 if let Some(t) = result.clicked_time {
@@ -563,23 +579,34 @@ impl Gui {
     }
 }
 
-fn freq_axis_ticks(nyquist: f64) -> Vec<f64> {
-    let raw_step = (nyquist / 6.0).max(1.0);
-    let mag = 10f64.powf(raw_step.log10().floor());
-    let nice = match raw_step / mag {
+fn mel_to_hz(mel: f64) -> f64 {
+    700.0 * (10f64.powf(mel / 2595.0) - 1.0)
+}
+
+fn hz_to_mel(hz: f64) -> f64 {
+    2595.0 * (1.0 + hz / 700.0).log10()
+}
+
+/// Round a raw tick step down to a nice 1/2/5 number.
+fn nice_step(raw: f64) -> f64 {
+    let mag = 10f64.powf(raw.log10().floor());
+    let nice = match raw / mag {
         n if n < 1.5 => 1.0,
         n if n < 3.0 => 2.0,
         n if n < 7.0 => 5.0,
         _ => 10.0,
     };
-    let step = nice * mag;
-    let mut ticks = Vec::new();
-    let mut hz = 0.0;
-    while hz <= nyquist + 1e-6 {
-        ticks.push(hz);
-        hz += step;
+    nice * mag
+}
+
+/// Keep a frequency view inside `[0, y_max]` and no narrower than 5% of it.
+fn clamp_y_view((lo, hi): (f64, f64), y_max: f64) -> (f64, f64) {
+    if !lo.is_finite() || !hi.is_finite() {
+        return (0.0, y_max);
     }
-    ticks
+    let span = (hi - lo).clamp(y_max * 0.05, y_max);
+    let lo = lo.clamp(0.0, y_max - span);
+    (lo, lo + span)
 }
 
 /// For each pixel column of the spectrogram, the index (into `preds`) of the
@@ -653,6 +680,8 @@ fn segments_from_columns(preds: &[AudioProb], columns: &[Option<usize>]) -> Vec<
 struct PlotInteraction {
     /// New view range if the user panned/zoomed (or None if unchanged).
     new_view_range: Option<(f64, f64)>,
+    /// New frequency (Y) view if the user panned/zoomed it (or None if unchanged).
+    new_y_range: Option<(f64, f64)>,
     /// Time the user clicked at (no drag), if any.
     clicked_time: Option<f64>,
 }
@@ -670,6 +699,7 @@ fn render_audio_plot(
     boxes: &[XYXYc],
     playhead: Option<f64>,
     apply_bounds: bool,
+    y_zoom: Option<(f64, f64)>,
     plot_w: f32,
     plot_h: f32,
     n_cols: usize,
@@ -681,13 +711,15 @@ fn render_audio_plot(
     };
 
     let nyquist = display_sr as f64 / 2.0;
-    let mel_max = 2595.0 * (1.0 + nyquist / 700.0).log10();
+    let mel_max = hz_to_mel(nyquist);
     let has_strip = !window_preds.is_empty();
-    let strip_pad = if has_strip { mel_max * 0.04 } else { 0.0 };
-    let strip_h = if has_strip { mel_max * 0.12 } else { 0.0 };
+    let strip_pad = if has_strip { mel_max * STRIP_PAD_FRAC } else { 0.0 };
+    let strip_h = if has_strip { mel_max * STRIP_H_FRAC } else { 0.0 };
     let strip_y_lo = mel_max + strip_pad;
     let strip_y_hi = strip_y_lo + strip_h;
     let y_max = strip_y_hi;
+
+    let y_view = y_zoom.map_or((0.0, y_max), |y| clamp_y_view(y, y_max));
 
     let (x_min, x_max) = view_range;
     let span = (x_max - x_min).max(1e-9);
@@ -695,8 +727,6 @@ fn render_audio_plot(
     let segments = segments_from_columns(window_preds, column_winner);
     let texture_id = texture.id();
     let dark_mode = ui.visuals().dark_mode;
-
-    let hz_ticks = freq_axis_ticks(nyquist);
 
     let (_n_fft, hop_length, _n_mels_meta, _top_db) = mel_meta;
     let n_mels = full_mel.nrows();
@@ -706,9 +736,10 @@ fn render_audio_plot(
     let plot_response = Plot::new("audio_spectrogram_plot")
         .width(plot_w)
         .height(plot_h)
-        .allow_zoom([true, false])
-        .allow_drag([true, false])
-        .allow_scroll([true, false])
+        .allow_zoom(false)
+        .allow_scroll(false)
+        .allow_drag(true)
+        .allow_axis_zoom_drag(true)
         .allow_boxed_zoom(false)
         .allow_double_click_reset(true)
         .show_x(true)
@@ -735,29 +766,34 @@ fn render_audio_plot(
             if mel < -0.5 || mel > mel_max + 0.5 {
                 return String::new();
             }
-            let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
-            if hz >= 1000.0 {
-                format!("{:.0}k", hz / 1000.0)
+            let hz = mel_to_hz(mel);
+            if hz >= 995.0 {
+                format!("{:.1}k", hz / 1000.0)
             } else if hz < 1.0 {
                 String::from("0")
             } else {
                 format!("{:.0}", hz)
             }
         })
-        .y_grid_spacer({
-            let hz_ticks = hz_ticks.clone();
-            move |_input| {
-                hz_ticks
-                    .iter()
-                    .map(|hz| {
-                        let mel = 2595.0 * (1.0 + hz / 700.0).log10();
-                        GridMark {
-                            value: mel,
-                            step_size: mel_max / 6.0,
-                        }
-                    })
-                    .collect()
+        .y_grid_spacer(move |input| {
+            // Ticks adapt to the visible range so zoomed-in views keep
+            // getting grid lines. Work in Hz (nice 1/2/5 steps), then map
+            // back to mel for the plot.
+            let (mel_lo, mel_hi) = input.bounds;
+            let hz_lo = mel_to_hz(mel_lo.max(0.0));
+            let hz_hi = mel_to_hz(mel_hi.min(mel_max));
+            let raw_step = ((hz_hi - hz_lo) / 6.0).max(1.0);
+            let step = nice_step(raw_step);
+            let mut marks = Vec::new();
+            let mut hz = (hz_lo / step).ceil() * step;
+            while hz <= hz_hi + 1e-6 {
+                marks.push(GridMark {
+                    value: hz_to_mel(hz),
+                    step_size: mel_max / 6.0,
+                });
+                hz += step;
             }
+            marks
         })
         .label_formatter(move |hover| {
             let (name, pos) = match hover {
@@ -786,7 +822,7 @@ fn render_audio_plot(
             };
             let mut lines: Vec<String> = vec![time_str];
             if mel >= 0.0 && mel <= mel_max {
-                let hz = 700.0 * (10f64.powf(mel / 2595.0) - 1.0);
+                let hz = mel_to_hz(mel);
                 let hz_str = if hz >= 1000.0 {
                     format!("{:.2} kHz", hz / 1000.0)
                 } else {
@@ -838,14 +874,11 @@ fn render_audio_plot(
             // External state takes precedence: snap the plot to our requested
             // view range on the frame that requested it. Bounds modifications
             // are queued and applied AFTER this closure runs (last-write-wins),
-            // so we issue exactly one SetX/SetY pair per frame.
-            //
-            // y is never touched by interaction (drag/zoom/scroll are x-only),
-            // so we only need to set y bounds when we're also forcing x.
+            // so we issue exactly one modification per axis per frame.
             if apply_bounds {
                 plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                    [x_min, 0.0],
-                    [x_max, y_max],
+                    [x_min, y_view.0],
+                    [x_max, y_view.1],
                 ));
             }
 
@@ -916,8 +949,8 @@ fn render_audio_plot(
             for (idx, b) in boxes.iter().enumerate() {
                 let x1 = b.xyxy.x1 as f64;
                 let x2 = b.xyxy.x2 as f64;
-                let y1 = 2595.0 * (1.0 + b.xyxy.y1 as f64 / 700.0).log10();
-                let y2 = 2595.0 * (1.0 + b.xyxy.y2 as f64 / 700.0).log10();
+                let y1 = hz_to_mel(b.xyxy.y1 as f64);
+                let y2 = hz_to_mel(b.xyxy.y2 as f64);
                 let c = class_color(b.xyxy.class_id);
                 let color = Color32::from_rgb(c[0], c[1], c[2]);
                 let pts: Vec<[f64; 2]> = vec![[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
@@ -962,7 +995,7 @@ fn render_audio_plot(
         });
 
     // Read back the plot's bounds — these reflect any pan/zoom interaction —
-    // and clamp to [0, duration].
+    // and clamp to the audio / content range.
     let bounds = plot_response.transform.bounds();
     let new_min = bounds.min()[0].max(0.0);
     let new_max = bounds.max()[0].min(duration).max(new_min + 1e-6);
@@ -972,10 +1005,18 @@ fn render_audio_plot(
         None
     };
 
-    // Detect a pure click (no drag) for seek-to-time.
+    let raw_y = (bounds.min()[1], bounds.max()[1]);
+    let clamped_y = clamp_y_view(raw_y, y_max);
+    let drifted = (clamped_y.0 - raw_y.0).abs() > 1e-4 || (clamped_y.1 - raw_y.1).abs() > 1e-4;
+    let moved = (clamped_y.0 - y_view.0).abs() > 1e-4 || (clamped_y.1 - y_view.1).abs() > 1e-4;
+    let new_y_range = (drifted || moved).then_some(clamped_y);
+
+    // Detect a pure click (no drag) for seek-to-time. The second press of a
+    // double-click is excluded — double-click resets the view and must not
+    // seek again on top of it.
     let mut clicked_time: Option<f64> = None;
     let resp = &plot_response.response;
-    if resp.clicked() {
+    if resp.clicked() && !resp.double_clicked() {
         if let Some(screen_pos) = resp.interact_pointer_pos() {
             let plot_pos = plot_response.transform.value_from_position(screen_pos);
             let t = plot_pos.x.clamp(0.0, duration);
@@ -988,6 +1029,7 @@ fn render_audio_plot(
 
     PlotInteraction {
         new_view_range,
+        new_y_range,
         clicked_time,
     }
 }

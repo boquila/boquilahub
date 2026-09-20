@@ -93,6 +93,11 @@ pub struct Gui {
     audio_tex_dims: Option<(usize, usize)>,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
+    // Frequency-axis zoom, in mel units, clamped to a sub-range of
+    // [0, mel_max]. `None` means "fit": the whole spectrogram (plus the
+    // class strip) is visible. Kept out of PlotMemory so it can always be
+    // snapped back deterministically (double-click / Fit button).
+    audio_y_range: Option<(f64, f64)>,
     audio_playing: bool,
     audio_play_start: Option<Instant>,
     audio_play_start_pos: f64,
@@ -826,6 +831,7 @@ impl Gui {
         self.audio_playhead = None;
         self.audio_play_start = None;
         self.audio_play_start_pos = 0.0;
+        self.audio_y_range = None;
 
         let Some(pred) = self
             .selected_audios
