@@ -89,6 +89,7 @@ pub struct Gui {
     // currently displayed audio file — switching invalidates and reloads.
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
+    audio_wave: Option<audio::WaveSummary>,
     audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
     audio_tex_dirty: bool,
     audio_view_range: (f64, f64),
@@ -825,6 +826,7 @@ impl Gui {
         self.stop_playback();
         self.audio_data = None;
         self.audio_full_mel = None;
+        self.audio_wave = None;
         self.audio_mel_meta = None;
         self.audio_tex_dirty = true;
         self.audio_playhead = None;

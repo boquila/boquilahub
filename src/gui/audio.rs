@@ -17,6 +17,81 @@ pub(super) const AUDIO_DISPLAY_SR: u32 = 22050;
 const STRIP_PAD_FRAC: f64 = 0.04;
 const STRIP_H_FRAC: f64 = 0.12;
 
+// Share of the audio view given to the waveform pane.
+const OSCILLOGRAM_FRAC: f32 = 0.15;
+// Both plots pin their y axis to this width so their x axes line up. It is a
+// floor, not a cap: keep every tick label narrower than this or the panes drift.
+const Y_AXIS_W: f32 = 64.0;
+// Both plots must keep show_x on — egui_plot drops the whole hover path, and
+// with it this link, when neither show_x nor show_y is set.
+const CURSOR_GROUP: &str = "audio_time_cursor";
+const WAVE_BLOCK: usize = 1024;
+
+struct WaveBlock {
+    low: f32,
+    high: f32,
+    mean_square: f32,
+}
+
+/// Fixed-size block reduction of the whole waveform, built once per file. Block
+/// ranges round outward, so a wide column can over-report slightly but can
+/// never miss a peak.
+pub(super) struct WaveSummary {
+    blocks: Vec<WaveBlock>,
+    display_peak: f32,
+}
+
+impl WaveSummary {
+    fn build(samples: &[f32]) -> Self {
+        let blocks: Vec<WaveBlock> = samples
+            .chunks(WAVE_BLOCK)
+            .map(|chunk| WaveBlock {
+                low: chunk.iter().copied().fold(f32::INFINITY, f32::min),
+                high: chunk.iter().copied().fold(f32::NEG_INFINITY, f32::max),
+                mean_square: chunk.iter().map(|s| s * s).sum::<f32>() / chunk.len() as f32,
+            })
+            .collect();
+        // The axis scales to the 99.5th percentile, not the maximum: one stray
+        // click would otherwise flatten the rest of the file. The few louder
+        // blocks clip against the top, which is the honest thing to show.
+        let mut amplitudes: Vec<f32> = blocks.iter().map(|b| b.low.abs().max(b.high)).collect();
+        amplitudes.sort_unstable_by(f32::total_cmp);
+        let dropped = (amplitudes.len() / 200).max(2);
+        let display_peak = amplitudes
+            .get(amplitudes.len().saturating_sub(dropped + 1))
+            .copied()
+            .unwrap_or(0.0);
+        Self {
+            blocks,
+            display_peak,
+        }
+    }
+
+    /// (low, high, rms) over `range`, from whole blocks when the column spans
+    /// at least one, else from the raw samples.
+    fn envelope(&self, samples: &[f32], range: std::ops::Range<usize>) -> (f32, f32, f32) {
+        let (mut low, mut high, mut sum_squares, mut terms) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+        if range.len() >= WAVE_BLOCK {
+            let first = range.start / WAVE_BLOCK;
+            let last = range.end.div_ceil(WAVE_BLOCK).min(self.blocks.len());
+            for block in &self.blocks[first..last] {
+                low = low.min(block.low);
+                high = high.max(block.high);
+                sum_squares += block.mean_square;
+                terms += 1.0;
+            }
+        } else {
+            for &sample in &samples[range] {
+                low = low.min(sample);
+                high = high.max(sample);
+                sum_squares += sample * sample;
+                terms += 1.0;
+            }
+        }
+        (low, high, (sum_squares / terms.max(1.0)).sqrt())
+    }
+}
+
 impl Gui {
     pub(super) fn is_audio_model(&self) -> bool {
         self.ai_selected
@@ -372,12 +447,20 @@ impl Gui {
                 self.audio_mel_meta = Some((n_fft, hop_length, n_mels, top_db));
                 self.audio_tex_dirty = true;
             }
+            if self.audio_wave.is_none() {
+                self.audio_wave = Some(WaveSummary::build(
+                    &self.audio_data.as_ref().unwrap().samples,
+                ));
+            }
 
-            // Clamp view range to audio bounds; require a minimum span.
+            // The one place the view range is clamped, for both plots. It
+            // shifts rather than squeezes, so dragging into an edge stops
+            // there instead of zooming in.
             const MIN_VIEW_SECS: f64 = 0.1;
             let (vs, ve) = self.audio_view_range;
-            let vs = vs.max(0.0).min((duration - MIN_VIEW_SECS).max(0.0));
-            let ve = ve.max(vs + MIN_VIEW_SECS).min(duration);
+            let span = (ve - vs).clamp(MIN_VIEW_SECS, duration);
+            let vs = vs.clamp(0.0, duration - span);
+            let ve = vs + span;
             if (vs - self.audio_view_range.0).abs() > 1e-6
                 || (ve - self.audio_view_range.1).abs() > 1e-6
             {
@@ -453,7 +536,8 @@ impl Gui {
             // readable; below this the plot was overflowing narrow windows
             // because the mins exceeded `avail.x`/`avail.y`.
             let plot_w = avail.x.max(360.0);
-            let plot_h = (avail.y - 4.0).max(220.0);
+            let osc_h = (avail.y * OSCILLOGRAM_FRAC).clamp(90.0, 220.0);
+            let plot_h = (avail.y - osc_h - 14.0).max(180.0);
             let target_tex_w = (plot_w as usize).clamp(360, 4096);
             // ~72% of the plot height is the spectrogram itself
             // (the rest is the label strip + time axis).
@@ -535,6 +619,29 @@ impl Gui {
                 }
             }
 
+            let audio = self.audio_data.as_ref().unwrap();
+            let (osc_range, osc_clicked) = render_oscillogram(
+                ui,
+                &audio.samples,
+                self.audio_wave.as_ref().unwrap(),
+                audio.sample_rate,
+                self.audio_view_range,
+                self.audio_playhead,
+                plot_w,
+                osc_h,
+                target_tex_w,
+            );
+            ui.separator();
+
+            // Before the spectrogram takes audio_view_range_dirty: without the
+            // flag it re-applies its own stale bounds and the pan is undone.
+            if let Some(range) = osc_range {
+                self.audio_view_range = range;
+                self.audio_view_range_dirty = true;
+                self.audio_tex_dirty = true;
+            }
+            let mut clicked_time = osc_clicked;
+
             if let Some(texture) = self.audio_state.texture.clone() {
                 let apply_bounds =
                     std::mem::take(&mut self.audio_view_range_dirty);
@@ -571,13 +678,15 @@ impl Gui {
                     self.audio_y_range = Some(y);
                 }
 
-                if let Some(t) = result.clicked_time {
-                    let was_playing = self.audio_playing;
-                    self.stop_playback();
-                    self.audio_playhead = Some(t);
-                    if was_playing {
-                        self.start_playback_from_data(t);
-                    }
+                clicked_time = result.clicked_time.or(clicked_time);
+            }
+
+            if let Some(t) = clicked_time {
+                let was_playing = self.audio_playing;
+                self.stop_playback();
+                self.audio_playhead = Some(t);
+                if was_playing {
+                    self.start_playback_from_data(t);
                 }
             }
         }
@@ -746,7 +855,7 @@ fn render_audio_plot(
         .allow_scroll(true)
         .allow_drag([true, false])
         .allow_axis_zoom_drag(true)
-        .allow_boxed_zoom(false)
+        .allow_boxed_zoom(true)
         .allow_double_click_reset(true)
         .show_x(true)
         .show_y(true)
@@ -754,7 +863,9 @@ fn render_audio_plot(
         .show_axes([true, true])
         .show_background(false)
         .show_crosshair(true)
+        .link_cursor(CURSOR_GROUP, [true, false])
         .set_margin_fraction(egui::vec2(0.0, 0.0))
+        .y_axis_min_width(Y_AXIS_W)
         .default_x_bounds(x_min, x_max)
         .default_y_bounds(0.0, y_max)
         .x_axis_formatter(move |mark, _range| {
@@ -998,11 +1109,10 @@ fn render_audio_plot(
             }
         });
 
-    // Read back the plot's bounds — these reflect any pan/zoom interaction —
-    // and clamp to the audio / content range.
+    // Read back the plot's bounds — these reflect any pan/zoom interaction.
     let bounds = plot_response.transform.bounds();
-    let new_min = bounds.min()[0].max(0.0);
-    let new_max = bounds.max()[0].min(duration).max(new_min + 1e-6);
+    let new_min = bounds.min()[0];
+    let new_max = bounds.max()[0];
     let new_view_range = if (new_min - x_min).abs() > 1e-4 || (new_max - x_max).abs() > 1e-4 {
         Some((new_min, new_max))
     } else {
@@ -1013,7 +1123,12 @@ fn render_audio_plot(
     let new_y_range = if resp.double_clicked() {
         Some((0.0, y_max))
     } else {
-        let pan = -resp.drag_delta().y as f64 * plot_response.transform.dvalue_dpos()[1];
+        let drag_y = if resp.dragged_by(egui::PointerButton::Primary) {
+            resp.drag_delta().y
+        } else {
+            0.0
+        };
+        let pan = -drag_y as f64 * plot_response.transform.dvalue_dpos()[1];
         let panned = clamp_y_view((bounds.min()[1] + pan, bounds.max()[1] + pan), y_max);
         let changed = (panned.0 - y_view.0).abs() > 1e-4 || (panned.1 - y_view.1).abs() > 1e-4;
         changed.then_some(panned)
@@ -1039,6 +1154,111 @@ fn render_audio_plot(
         new_y_range,
         clicked_time,
     }
+}
+
+/// Waveform panel above the spectrogram, pinned to the same time range: a
+/// min/max peak envelope with the RMS body drawn inside it.
+fn render_oscillogram(
+    ui: &mut egui::Ui,
+    samples: &[f32],
+    summary: &WaveSummary,
+    sample_rate: u32,
+    (x_min, x_max): (f64, f64),
+    playhead: Option<f64>,
+    plot_w: f32,
+    plot_h: f32,
+    n_cols: usize,
+) -> (Option<(f64, f64)>, Option<f64>) {
+    use egui::Color32;
+    use egui_plot::{FilledArea, GridMark, Plot, VLine};
+
+    let span = (x_max - x_min).max(1e-9);
+    let mut times = Vec::with_capacity(n_cols);
+    let mut peak_low = Vec::with_capacity(n_cols);
+    let mut peak_high = Vec::with_capacity(n_cols);
+    let mut rms_low = Vec::with_capacity(n_cols);
+    let mut rms_high = Vec::with_capacity(n_cols);
+    for col in 0..n_cols {
+        let t_start = x_min + (col as f64 / n_cols as f64) * span;
+        let t_end = x_min + ((col + 1) as f64 / n_cols as f64) * span;
+        let first = ((t_start * sample_rate as f64).max(0.0) as usize).min(samples.len());
+        let last = (((t_end * sample_rate as f64).ceil() as usize).max(first + 1)).min(samples.len());
+        let (low, high, rms) = summary.envelope(samples, first..last);
+        times.push((t_start + t_end) / 2.0);
+        peak_low.push(low as f64);
+        peak_high.push(high as f64);
+        rms_low.push((-rms).max(low) as f64);
+        rms_high.push(rms.min(high) as f64);
+    }
+
+    // Round up to two significant digits: the waveform always fills at least
+    // 90% of the pane and the tick labels stay short.
+    let headroom = (summary.display_peak as f64 * 1.05).max(1e-3);
+    let magnitude = 10f64.powf(headroom.log10().floor() - 1.0);
+    let limit = (headroom / magnitude).ceil() * magnitude;
+    let decimals = if limit >= 0.1 {
+        2
+    } else if limit >= 0.01 {
+        3
+    } else {
+        4
+    };
+    let (envelope_color, body_color) = if ui.visuals().dark_mode {
+        (Color32::from_rgb(25, 108, 57), Color32::from_rgb(51, 218, 114))
+    } else {
+        (Color32::from_rgb(96, 205, 140), Color32::from_rgb(23, 122, 65))
+    };
+    let playhead_color = if ui.visuals().dark_mode {
+        Color32::WHITE
+    } else {
+        Color32::from_rgb(20, 20, 20)
+    };
+
+    let response = Plot::new("audio_oscillogram")
+        .width(plot_w)
+        .height(plot_h)
+        .allow_zoom(false)
+        .allow_scroll([true, false])
+        .allow_drag([true, false])
+        .allow_boxed_zoom(false)
+        .allow_axis_zoom_drag(false)
+        .allow_double_click_reset(false)
+        .show_x(true)
+        .show_y(false)
+        .link_cursor(CURSOR_GROUP, [true, false])
+        .show_grid([false, true])
+        .show_axes([false, true])
+        .show_background(false)
+        .y_axis_min_width(Y_AXIS_W)
+        .y_axis_formatter(move |mark, _| format!("{:.*}", decimals, mark.value))
+        .y_grid_spacer(move |_| {
+            [-limit, 0.0, limit]
+                .into_iter()
+                .map(|value| GridMark { value, step_size: limit })
+                .collect()
+        })
+        .show(ui, |plot_ui| {
+            plot_ui.set_plot_bounds_x(x_min..=x_max);
+            plot_ui.set_plot_bounds_y(-limit * 1.12..=limit * 1.12);
+            plot_ui.add(
+                FilledArea::new("peaks", &times, &peak_low, &peak_high).fill_color(envelope_color),
+            );
+            plot_ui.add(FilledArea::new("rms", &times, &rms_low, &rms_high).fill_color(body_color));
+            if let Some(ph) = playhead {
+                plot_ui.add(VLine::new("playhead", ph).color(playhead_color).width(2.0));
+            }
+        });
+
+    let bounds = response.transform.bounds();
+    let panned = (bounds.min()[0], bounds.max()[0]);
+    let new_view_range = ((panned.0 - x_min).abs() > 1e-4 || (panned.1 - x_max).abs() > 1e-4)
+        .then_some(panned);
+    let clicked_time = response
+        .response
+        .interact_pointer_pos()
+        .filter(|_| response.response.clicked() && !response.response.double_clicked())
+        .map(|pos| response.transform.value_from_position(pos).x);
+    (new_view_range, clicked_time)
 }
 
 /// 256-entry ramp for one column tint (`None` = the default viridis ramp), so
@@ -1128,8 +1348,42 @@ fn mel_slice_to_color_image(
     egui::ColorImage::new([target_width, target_height], pixels)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn envelope_never_misses_a_transient() {
+        let mut samples = vec![0.0f32; 200_000];
+        samples[123_456] = 0.9;
+        samples[77] = -0.9;
+        let summary = WaveSummary::build(&samples);
+        // Whole file in one column: the block path must still see both spikes.
+        assert_eq!(summary.envelope(&samples, 0..samples.len()).1, 0.9);
+        assert_eq!(summary.envelope(&samples, 0..samples.len()).0, -0.9);
+        // Raw path, on a column far too narrow for a block.
+        assert_eq!(summary.envelope(&samples, 123_450..123_460).1, 0.9);
+        assert_eq!(summary.envelope(&samples, 70..80).0, -0.9);
+    }
+
+    #[test]
+    fn one_loud_click_does_not_set_the_scale() {
+        let mut samples = vec![0.25f32; 1_000_000];
+        samples[500_000] = 1.0;
+        let summary = WaveSummary::build(&samples);
+        assert_eq!(summary.display_peak, 0.25);
+    }
+
+    #[test]
+    fn envelope_survives_an_empty_file() {
+        let summary = WaveSummary::build(&[]);
+        assert_eq!(summary.display_peak, 0.0);
+        assert_eq!(summary.envelope(&[], 0..0), (0.0, 0.0, 0.0));
+    }
+}
+
 pub(super) struct AudioBufferSource {
-    samples: std::sync::Arc<Vec<f32>>,
+    samples: Vec<f32>,
     sample_rate: u32,
     channels: u16,
     pos: usize,
@@ -1137,20 +1391,11 @@ pub(super) struct AudioBufferSource {
 
 impl AudioBufferSource {
     fn new_from(audio: &AudioData, start_secs: f64) -> Self {
-        let mut mono = audio.clone();
-        if mono.channels > 1 {
-            mono = mono.to_mono();
-        }
-        let start_sample = (start_secs * mono.sample_rate as f64).round() as usize;
-        let samples = if start_sample < mono.samples.len() {
-            mono.samples[start_sample..].to_vec()
-        } else {
-            vec![]
-        };
+        let start_sample = (start_secs * audio.sample_rate as f64).round() as usize;
         Self {
-            samples: std::sync::Arc::new(samples),
-            sample_rate: mono.sample_rate,
-            channels: mono.channels.max(1),
+            samples: audio.samples.get(start_sample..).unwrap_or(&[]).to_vec(),
+            sample_rate: audio.sample_rate,
+            channels: audio.channels.max(1),
             pos: 0,
         }
     }
