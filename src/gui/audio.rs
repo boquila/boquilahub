@@ -743,7 +743,7 @@ fn render_audio_plot(
         .width(plot_w)
         .height(plot_h)
         .allow_zoom(false)
-        .allow_scroll(false)
+        .allow_scroll(true)
         .allow_drag([true, false])
         .allow_axis_zoom_drag(true)
         .allow_boxed_zoom(false)
@@ -1013,12 +1013,8 @@ fn render_audio_plot(
     let new_y_range = if resp.double_clicked() {
         Some((0.0, y_max))
     } else {
-        // Ruler zoom is applied by the plot after our bounds are set, so clip
-        // it to the content; the vertical pan is ours alone (the plot's y drag
-        // is off), which is what keeps it from fighting the clamp.
-        let zoomed = (bounds.min()[1].max(0.0), bounds.max()[1].min(y_max));
         let pan = -resp.drag_delta().y as f64 * plot_response.transform.dvalue_dpos()[1];
-        let panned = clamp_y_view((zoomed.0 + pan, zoomed.1 + pan), y_max);
+        let panned = clamp_y_view((bounds.min()[1] + pan, bounds.max()[1] + pan), y_max);
         let changed = (panned.0 - y_view.0).abs() > 1e-4 || (panned.1 - y_view.1).abs() > 1e-4;
         changed.then_some(panned)
     };
