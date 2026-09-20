@@ -90,7 +90,7 @@ pub struct Gui {
     audio_data: Option<AudioData>,
     audio_full_mel: Option<ndarray::Array2<f32>>,
     audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
-    audio_tex_dims: Option<(usize, usize)>,
+    audio_tex_dirty: bool,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
     // Frequency-axis zoom, in mel units, clamped to a sub-range of
@@ -539,7 +539,7 @@ impl Gui {
                 // Mel params may differ for the new audio model — invalidate cache.
                 self.audio_full_mel = None;
                 self.audio_mel_meta = None;
-                self.audio_state.texture = None;
+                self.audio_tex_dirty = true;
             }
             let model_path = self.ais[self.ai_selected.unwrap()].get_path();
             if GlobalBQ::First.set_model(
@@ -826,8 +826,7 @@ impl Gui {
         self.audio_data = None;
         self.audio_full_mel = None;
         self.audio_mel_meta = None;
-        self.audio_tex_dims = None;
-        self.audio_state.texture = None;
+        self.audio_tex_dirty = true;
         self.audio_playhead = None;
         self.audio_play_start = None;
         self.audio_play_start_pos = 0.0;
