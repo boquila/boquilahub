@@ -248,6 +248,25 @@ impl Gui {
         self.video_last_displayed_frame = None;
     }
 
+    pub(super) fn set_video_overlay_for_frame(&mut self, ui: &egui::Ui, frame_idx: u64) {
+        let overlay_frame = self
+            .current_video()
+            .and_then(|pv| pv.last_processed_at_or_before(frame_idx));
+        if self.video_overlay_frame == overlay_frame {
+            return;
+        }
+
+        let mask_textures = overlay_frame
+            .and_then(|idx| {
+                self.current_video()
+                    .and_then(|pv| pv.prediction_at(idx))
+                    .map(|aio| super::image_view::build_video_mask_textures(aio, ui, idx))
+            })
+            .unwrap_or_default();
+        self.video_overlay_frame = overlay_frame;
+        self.video_mask_textures = mask_textures;
+    }
+
     fn update_streamed_video_texture(&mut self, ui: &egui::Ui, target_frame: u64) {
         let single_frame_seek = !self.video_playing && self.video_seek_target.is_some();
         let mut chosen = None;
@@ -286,24 +305,7 @@ impl Gui {
         }
 
         if let Some(frame) = chosen {
-            let mut img = frame.img;
-            if single_frame_seek
-                && let Some((prediction, source_width, source_height)) = self
-                    .current_video()
-                    .and_then(|pv| {
-                        pv.prediction_at(frame.index)
-                            .cloned()
-                            .map(|aio| (aio, pv.width, pv.height))
-                    })
-            {
-                let scaled = super::scale_aioutput(
-                    &prediction,
-                    img.width() as f32 / source_width.max(1) as f32,
-                    img.height() as f32 / source_height.max(1) as f32,
-                );
-                draw_aioutput(&mut img, &scaled);
-            }
-
+            let img = frame.img;
             let size = [img.width() as usize, img.height() as usize];
             let color = egui::ColorImage::from_rgb(size, img.as_raw());
             match self.video_state.texture.as_mut() {
@@ -318,6 +320,7 @@ impl Gui {
                     ));
                 }
             }
+            self.set_video_overlay_for_frame(ui, frame.index);
             self.video_last_displayed_frame = Some(frame.index);
 
             if single_frame_seek {
@@ -353,6 +356,9 @@ impl Gui {
         let Ok(dynimg) = image::load_from_memory(jpeg) else { return; };
         let rgba = dynimg.to_rgba8();
         self.video_state.texture = imgbuf_to_texture(&rgba, ui);
+        // Analysis thumbnails already have their predictions burned in.
+        self.video_overlay_frame = None;
+        self.video_mask_textures.clear();
         self.video_last_displayed_frame = Some(src_frame);
     }
 
@@ -641,11 +647,25 @@ impl Gui {
                     (avail.x / s.x.max(1.0)).min(preview_h / s.y.max(1.0));
                 let disp =
                     egui::vec2((s.x * scale).max(1.0), (s.y * scale).max(1.0));
-                ui.add(
+                let response = ui.add(
                     egui::Image::new(&tex)
                         .fit_to_exact_size(disp)
                         .corner_radius(8.0),
                 );
+                if let Some(overlay_frame) = self.video_overlay_frame
+                    && let Some(pv) = self.current_video()
+                    && let Some(aio) = pv.prediction_at(overlay_frame)
+                {
+                    super::image_view::draw_video_overlay(
+                        ui,
+                        response.rect,
+                        &response,
+                        aio,
+                        egui::vec2(pv.width as f32, pv.height as f32),
+                        &self.video_mask_textures,
+                        &self.lang,
+                    );
+                }
             } else {
                 let (rect, _) = ui.allocate_exact_size(
                     egui::vec2(avail.x * 0.6, preview_h),

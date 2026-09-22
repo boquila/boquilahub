@@ -313,7 +313,7 @@ pub struct PredVideo {
     pub frames: Vec<Option<AIOutputs>>,
     pub wasprocessed: bool,
     #[serde(skip)]
-    processed_count_cache: usize,
+    processed_indices: Vec<u64>,
 }
 
 impl PredVideo {
@@ -329,7 +329,12 @@ impl PredVideo {
                 serde_json::from_reader::<_, PredVideo>(std::io::BufReader::new(file))
         {
             cached.file_path = file_path;
-            cached.processed_count_cache = cached.frames.iter().filter(|f| f.is_some()).count();
+            cached.processed_indices = cached
+                .frames
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, frame)| frame.as_ref().map(|_| idx as u64))
+                .collect();
             return cached;
         }
         Self {
@@ -341,7 +346,7 @@ impl PredVideo {
             step: 1,
             frames: Vec::new(),
             wasprocessed: false,
-            processed_count_cache: 0,
+            processed_indices: Vec::new(),
         }
     }
 
@@ -363,11 +368,12 @@ impl PredVideo {
         self.fps = fps;
         self.n_frames = n_frames;
         self.frames.clear();
+        self.processed_indices.clear();
     }
 
     pub fn reset(&mut self) {
         self.frames.clear();
-        self.processed_count_cache = 0;
+        self.processed_indices.clear();
         self.wasprocessed = false;
     }
 
@@ -377,14 +383,10 @@ impl PredVideo {
 
     /// Most recent analyzed frame index at or before `frame_idx`, if any.
     pub fn last_processed_at_or_before(&self, frame_idx: u64) -> Option<u64> {
-        let end = usize::try_from(frame_idx)
-            .unwrap_or(usize::MAX)
-            .min(self.frames.len().saturating_sub(1));
-        self.frames
-            .get(..=end)?
-            .iter()
-            .rposition(Option::is_some)
-            .map(|idx| idx as u64)
+        let end = self
+            .processed_indices
+            .partition_point(|processed| *processed <= frame_idx);
+        end.checked_sub(1).map(|idx| self.processed_indices[idx])
     }
 
     pub fn prediction_at(&self, frame_idx: u64) -> Option<&AIOutputs> {
@@ -398,21 +400,22 @@ impl PredVideo {
             self.frames.resize_with(index + 1, || None);
         }
         if self.frames[index].is_none() {
-            self.processed_count_cache += 1;
+            let insert_at = self
+                .processed_indices
+                .binary_search(&frame_idx)
+                .unwrap_or_else(|idx| idx);
+            self.processed_indices.insert(insert_at, frame_idx);
         }
         self.frames[index] = Some(aioutput);
     }
 
     pub fn processed_count(&self) -> usize {
-        self.processed_count_cache
+        self.processed_indices.len()
     }
 
     /// Highest analyzed frame index, or `None` if nothing has been analyzed yet.
     pub fn max_processed_frame(&self) -> Option<u64> {
-        self.frames
-            .iter()
-            .rposition(|f| f.is_some())
-            .map(|i| i as u64)
+        self.processed_indices.last().copied()
     }
 
     /// Fraction of *intended* frame-work that's done (i.e. processed

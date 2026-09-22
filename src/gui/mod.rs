@@ -131,6 +131,8 @@ pub struct Gui {
     video_playback_receiver: Option<std::sync::mpsc::Receiver<PlaybackFrame>>,
     video_playback_pending: Option<PlaybackFrame>,
     video_seek_target: Option<u64>,
+    video_overlay_frame: Option<u64>,
+    video_mask_textures: Vec<egui::TextureHandle>,
     video_export_receiver: Option<std::sync::mpsc::Receiver<ExportProgress>>,
     video_export_path: Option<String>,
     video_playhead_frame: Option<u64>,
@@ -902,6 +904,8 @@ impl Gui {
         self.video_state.texture = None;
         self.video_last_displayed_frame = None;
         self.video_playhead_frame = Some(0);
+        self.video_overlay_frame = None;
+        self.video_mask_textures.clear();
 
         let idx = self.video_texture_n.saturating_sub(1);
         let Some(path_str) = self
@@ -941,6 +945,7 @@ impl Gui {
                 &image::DynamicImage::ImageRgb8(display_rgb).to_rgba8(),
                 ui,
             );
+            self.set_video_overlay_for_frame(ui, 0);
         }
 
         self.video_state.progress_bar = self

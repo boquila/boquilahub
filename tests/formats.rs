@@ -108,9 +108,15 @@ fn video_metadata_does_not_allocate_per_frame_predictions() {
     video.record(90, AIOutputs::ObjectDetection(Vec::new()));
     assert_eq!(video.frames.len(), 91);
     assert_eq!(video.processed_count(), 1);
+    assert_eq!(video.last_processed_at_or_before(89), None);
+    assert_eq!(video.last_processed_at_or_before(100), Some(90));
 
     video.record(90, AIOutputs::ObjectDetection(Vec::new()));
     assert_eq!(video.processed_count(), 1);
+    video.record(30, AIOutputs::ObjectDetection(Vec::new()));
+    assert_eq!(video.last_processed_at_or_before(50), Some(30));
+    assert_eq!(video.max_processed_frame(), Some(90));
+    assert_eq!(video.processed_count(), 2);
     video.reset();
     assert!(video.frames.is_empty());
     assert_eq!(video.processed_count(), 0);

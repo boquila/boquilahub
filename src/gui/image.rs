@@ -799,6 +799,36 @@ fn draw_image_overlay(
     }
 }
 
+/// Draw predictions over a video frame as lightweight egui primitives. This
+/// keeps the decoded pixels untouched and lets segmentation masks stay cached
+/// on the GPU while consecutive movie frames share the same prediction.
+pub(super) fn draw_video_overlay(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    response: &egui::Response,
+    aio: &AIOutputs,
+    original_size: egui::Vec2,
+    mask_textures: &[egui::TextureHandle],
+    lang: &Lang,
+) {
+    if aio.is_empty() {
+        return;
+    }
+    let hover_pos = response.hover_pos().filter(|pos| rect.contains(*pos));
+    let _ = draw_image_overlay(
+        ui,
+        ImageInteraction {
+            rect,
+            hover_pos,
+            response,
+        },
+        aio,
+        original_size,
+        mask_textures,
+        lang,
+    );
+}
+
 /// Small rounded label chip anchored to `rect`'s top-left corner.
 fn draw_corner_chip(
     painter: &egui::Painter,
@@ -998,7 +1028,26 @@ pub(super) fn build_mask_textures(
     predimg: &PredImg,
     ui: &egui::Ui,
 ) -> Vec<egui::TextureHandle> {
-    let Some(AIOutputs::Segmentation(segs)) = predimg.aioutput.as_ref() else {
+    let Some(aio) = predimg.aioutput.as_ref() else {
+        return Vec::new();
+    };
+    build_mask_textures_for(aio, ui, "seg_mask")
+}
+
+pub(super) fn build_video_mask_textures(
+    aio: &AIOutputs,
+    ui: &egui::Ui,
+    frame_idx: u64,
+) -> Vec<egui::TextureHandle> {
+    build_mask_textures_for(aio, ui, &format!("video_seg_mask_{frame_idx}"))
+}
+
+fn build_mask_textures_for(
+    aio: &AIOutputs,
+    ui: &egui::Ui,
+    texture_name: &str,
+) -> Vec<egui::TextureHandle> {
+    let AIOutputs::Segmentation(segs) = aio else {
         return Vec::new();
     };
     const MASK_ALPHA: u8 = 102; // ≈ 0.4 × 255
@@ -1019,7 +1068,7 @@ pub(super) fn build_mask_textures(
             let color_img =
                 egui::ColorImage::from_rgba_unmultiplied([w, h], &pixels);
             ui.ctx().load_texture(
-                format!("seg_mask_{idx}"),
+                format!("{texture_name}_{idx}"),
                 color_img,
                 egui::TextureOptions::NEAREST,
             )
