@@ -517,10 +517,9 @@ impl Gui {
             }
 
             // '+' button, select a escond AI
-            if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty() && self.is_image_model()
+            if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
             {
-                let task = self.ais[self.ai_selected.unwrap()].task;
-                if task == Task::Detect || task == Task::Segment {
+                if self.current_ai().can_add_cls() {
                     if ui
                         .button("+")
                         .on_hover_text(self.t(Key::add_classification_model_to_complement))
@@ -533,10 +532,12 @@ impl Gui {
         });
 
         if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-            if self.is_audio_model() {
+            if !self.current_ai().can_add_cls() {
                 self.show_ai_cls = false;
                 self.ai_cls_selected = None;
                 GlobalBQ::Second.clear();
+            }
+            if self.is_audio_model() {
                 // Mel params may differ for the new audio model — invalidate cache.
                 self.audio_full_mel = None;
                 self.audio_mel_meta = None;

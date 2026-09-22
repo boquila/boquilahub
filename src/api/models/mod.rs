@@ -24,6 +24,7 @@ pub enum Task {
     Classify,
     Segment,
     Detect,
+    PointDetect,
     Embed,
 }
 
@@ -33,6 +34,7 @@ impl Task {
             Task::Classify => "classify",
             Task::Segment => "segment",
             Task::Detect => "detect",
+            Task::PointDetect => "point-detect",
             Task::Embed => "embed",
         }
     }
@@ -42,6 +44,7 @@ impl From<&str> for Task {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "detect" => Task::Detect,
+            "point-detect" => Task::PointDetect,
             "classify" => Task::Classify,
             "segment" => Task::Segment,
             "embed" => Task::Embed,

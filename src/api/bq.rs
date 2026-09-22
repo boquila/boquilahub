@@ -407,6 +407,12 @@ impl AIMetadata {
     pub fn get_path(&self) -> String {
         format!("models/{}.bq", self.name)
     }
+
+    /// Only boxed image outputs have an `extra_cls` field to refine.
+    pub const fn can_add_cls(&self) -> bool {
+        matches!(self.modality, Modality::Image)
+            && matches!(self.task, Task::Detect | Task::Segment)
+    }
 }
 
 impl AsRef<str> for AIMetadata {
