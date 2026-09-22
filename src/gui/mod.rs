@@ -112,6 +112,7 @@ pub struct Gui {
     // Per-segment alpha masks for the currently displayed image. Rebuilt in
     // `paint()` so we don't re-upload every frame.
     mask_textures: Vec<egui::TextureHandle>,
+    image_view: ImageView,
 
     // Feed buffer + scrub state. `feed_playhead_frame == None` means "follow
     // live"; otherwise the user is parked on a specific cached frame.
@@ -258,6 +259,29 @@ struct ShowConfig {
     _img: bool,
     video: bool,
     feed: bool,
+}
+
+#[derive(Clone, Copy)]
+struct ImageView {
+    /// Multiplier relative to the fitted image size. A value of 1 is "fit".
+    zoom: f32,
+    /// Screen-space offset from the centre of the preview viewport.
+    pan: egui::Vec2,
+}
+
+impl ImageView {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+impl Default for ImageView {
+    fn default() -> Self {
+        Self {
+            zoom: 1.0,
+            pan: egui::Vec2::ZERO,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -710,6 +734,7 @@ impl Gui {
                                 if !image_files.is_empty() {
                                     self.selected_imgs = image_files.into_preds(PredImg::new_simple);
                                     self.image_texture_n = 1;
+                                    self.image_view.reset();
                                     self.paint(ui, 0);
                                     self.img_state.progress_bar =
                                         self.selected_imgs.get_progress();
@@ -761,6 +786,7 @@ impl Gui {
                     {
                         self.selected_imgs = paths.into_preds(PredImg::new_simple);
                         self.image_texture_n = 1;
+                        self.image_view.reset();
                         self.paint(ui, 0);
                         self.mode = Mode::Image;
                         self.img_state.progress_bar = self.selected_imgs.get_progress()

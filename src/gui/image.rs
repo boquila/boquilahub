@@ -8,6 +8,8 @@ use crate::localization::*;
 use std::fs;
 
 const MIN_PREVIEW_H: f32 = 240.0;
+const MAX_IMAGE_ZOOM: f32 = 12.0;
+const SCROLL_ZOOM_SPEED: f32 = 1.0 / 200.0;
 
 impl Gui {
     // ---------- texture loading ----------
@@ -309,6 +311,7 @@ impl Gui {
 
         if new_index != self.image_texture_n {
             self.image_texture_n = new_index;
+            self.image_view.reset();
             self.paint(ui, new_index - 1);
         }
 
@@ -341,41 +344,139 @@ impl Gui {
         if tex_size.x < 1.0 || tex_size.y < 1.0 {
             return None;
         }
-        let scale = (max_w / tex_size.x).min(max_h / tex_size.y).min(1.0);
-        let disp_w = (tex_size.x * scale).max(1.0);
-        let disp_h = (tex_size.y * scale).max(1.0);
+        let viewport_size = egui::vec2(max_w.max(1.0), max_h.max(1.0));
+        let (viewport, response) =
+            ui.allocate_exact_size(viewport_size, egui::Sense::click_and_drag());
 
-        ui.vertical_centered(|ui| -> Option<HoverEcho> {
-            let img_resp = ui.add(
-                egui::Image::new(&tex)
-                    .max_size(egui::vec2(disp_w, disp_h))
-                    .corner_radius(8.0),
-            );
+        if response.double_clicked() {
+            self.image_view.reset();
+        }
 
-            let i = self.image_texture_n - 1;
-            let predimg = &self.selected_imgs[i];
+        let fit_scale = (viewport.width() / tex_size.x)
+            .min(viewport.height() / tex_size.y)
+            .min(1.0);
+        let fitted_size = tex_size * fit_scale;
+        let current_image_size = fitted_size * self.image_view.zoom;
+        self.image_view.pan = clamp_image_pan(
+            self.image_view.pan,
+            current_image_size,
+            viewport.size(),
+        );
+        let current_image_rect = egui::Rect::from_center_size(
+            viewport.center() + self.image_view.pan,
+            current_image_size,
+        );
 
-            if predimg.wasprocessed {
-                match predimg.aioutput.as_ref() {
-                    Some(aio) if !aio.is_empty() => draw_image_overlay(
-                        ui,
-                        &img_resp,
-                        aio,
-                        tex_size,
-                        &self.mask_textures,
-                        &self.lang,
-                    ),
-                    Some(_) => {
-                        draw_empty_predictions_chip(ui, &img_resp, &self.lang);
-                        None
-                    }
-                    None => None,
-                }
-            } else {
-                None
+        let (scroll, native_zoom, touch) = ui.input(|input| {
+            (
+                input.smooth_scroll_delta(),
+                input.zoom_delta(),
+                input.multi_touch(),
+            )
+        });
+        let mouse_pos = response.hover_pos();
+        let touch = touch.filter(|gesture| viewport.contains(gesture.center_pos));
+        if touch.is_none()
+            && self.image_view.zoom > 1.0
+            && response.dragged_by(egui::PointerButton::Primary)
+        {
+            self.image_view.pan += response.drag_delta();
+        }
+        let pointer = touch
+            .map(|gesture| gesture.center_pos)
+            .or(mouse_pos);
+        let old_zoom = self.image_view.zoom;
+        let mouse_can_zoom = mouse_pos.is_some_and(|pos| {
+            old_zoom > 1.0 || native_zoom != 1.0 || current_image_rect.contains(pos)
+        });
+        let can_zoom = touch.is_some() || mouse_can_zoom;
+
+        if let Some(gesture) = touch
+            && old_zoom > 1.0
+        {
+            self.image_view.pan += gesture.translation_delta;
+        }
+
+        if can_zoom {
+            // Vertical wheel movement zooms; native zoom covers Ctrl/Cmd+wheel
+            // and pinch gestures without treating horizontal scrolling as zoom.
+            let wheel_zoom = (SCROLL_ZOOM_SPEED * scroll.y).exp();
+            let new_zoom = (old_zoom * wheel_zoom * native_zoom).clamp(1.0, MAX_IMAGE_ZOOM);
+
+            if new_zoom != old_zoom {
+                self.image_view.pan = zoom_pan_around_pointer(
+                    self.image_view.pan,
+                    viewport.center(),
+                    pointer.unwrap_or(viewport.center()),
+                    new_zoom / old_zoom,
+                );
+                self.image_view.zoom = new_zoom;
             }
-        })
-        .inner
+
+            // Once zooming begins, the image owns vertical wheel input. At fit,
+            // a zoom-out gesture falls through to the page scroll instead.
+            if scroll.y != 0.0 && (new_zoom != old_zoom || old_zoom > 1.0) {
+                ui.input_mut(|input| input.smooth_scroll_delta = egui::Vec2::ZERO);
+            }
+        }
+
+        let image_size = fitted_size * self.image_view.zoom;
+        self.image_view.pan = clamp_image_pan(self.image_view.pan, image_size, viewport.size());
+        let image_rect =
+            egui::Rect::from_center_size(viewport.center() + self.image_view.pan, image_size);
+
+        if self.image_view.zoom > 1.0 {
+            let cursor = if response.dragged() {
+                egui::CursorIcon::Grabbing
+            } else {
+                egui::CursorIcon::Grab
+            };
+            response.clone().on_hover_and_drag_cursor(cursor);
+        }
+
+        let mut preview_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .id_salt("zoomable_image")
+                .max_rect(viewport),
+        );
+        preview_ui.set_clip_rect(viewport);
+        egui::Image::new(&tex)
+            .corner_radius(8.0)
+            .paint_at(&preview_ui, image_rect);
+
+        let hover_pos = response
+            .hover_pos()
+            .filter(|pos| image_rect.contains(*pos) && !response.dragged());
+        let i = self.image_texture_n - 1;
+        let predimg = &self.selected_imgs[i];
+
+        if predimg.wasprocessed {
+            match predimg.aioutput.as_ref() {
+                Some(aio) if !aio.is_empty() => draw_image_overlay(
+                    &preview_ui,
+                    ImageInteraction {
+                        rect: image_rect,
+                        hover_pos,
+                        response: &response,
+                    },
+                    aio,
+                    tex_size,
+                    &self.mask_textures,
+                    &self.lang,
+                ),
+                Some(_) => {
+                    draw_empty_predictions_chip(
+                        &preview_ui,
+                        image_rect.intersect(viewport),
+                        &self.lang,
+                    );
+                    None
+                }
+                None => None,
+            }
+        } else {
+            None
+        }
     }
 
 }
@@ -556,15 +657,47 @@ fn bbox_screen_rect(
     )
 }
 
+fn zoom_pan_around_pointer(
+    pan: egui::Vec2,
+    viewport_center: egui::Pos2,
+    pointer: egui::Pos2,
+    zoom_ratio: f32,
+) -> egui::Vec2 {
+    let pointer_from_center = pointer - viewport_center;
+    pointer_from_center - (pointer_from_center - pan) * zoom_ratio
+}
+
+fn clamp_image_pan(
+    pan: egui::Vec2,
+    image_size: egui::Vec2,
+    viewport_size: egui::Vec2,
+) -> egui::Vec2 {
+    let limit = ((image_size - viewport_size) * 0.5).max(egui::Vec2::ZERO);
+    egui::vec2(
+        pan.x.clamp(-limit.x, limit.x),
+        pan.y.clamp(-limit.y, limit.y),
+    )
+}
+
+struct ImageInteraction<'a> {
+    rect: egui::Rect,
+    hover_pos: Option<egui::Pos2>,
+    response: &'a egui::Response,
+}
+
 fn draw_image_overlay(
     ui: &egui::Ui,
-    img_resp: &egui::Response,
+    interaction: ImageInteraction<'_>,
     aio: &AIOutputs,
     original_size: egui::Vec2,
     mask_textures: &[egui::TextureHandle],
     lang: &Lang,
 ) -> Option<HoverEcho> {
-    let rect = img_resp.rect;
+    let ImageInteraction {
+        rect,
+        hover_pos,
+        response,
+    } = interaction;
     if rect.width() < 1.0 || rect.height() < 1.0 {
         return None;
     }
@@ -572,8 +705,8 @@ fn draw_image_overlay(
         rect.width() / original_size.x.max(1.0),
         rect.height() / original_size.y.max(1.0),
     );
-    let hover_pos = img_resp.hover_pos();
     let painter = ui.painter_at(rect);
+    let visible_rect = rect.intersect(ui.clip_rect());
 
     match aio {
         AIOutputs::ObjectDetection(bboxes) => {
@@ -581,14 +714,14 @@ fn draw_image_overlay(
             for (idx, b) in bboxes.iter().enumerate() {
                 draw_box_with_label(
                     &painter,
-                    rect,
+                    visible_rect,
                     bbox_screen_rect(b, rect.min, scale),
                     b,
                     Some(idx) == hovered,
                 );
             }
             if let Some(idx) = hovered {
-                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                response.clone().on_hover_ui_at_pointer(|ui| {
                     bbox_tooltip_ui(ui, &bboxes[idx], lang);
                 });
             }
@@ -606,9 +739,9 @@ fn draw_image_overlay(
                 painter.circle_filled(center, r + 1.5, egui::Color32::WHITE);
                 painter.circle_filled(center, r, color);
             }
-            draw_point_legend(&painter, rect, points);
+            draw_point_legend(&painter, visible_rect, points);
             if let Some(idx) = hovered {
-                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                response.clone().on_hover_ui_at_pointer(|ui| {
                     point_tooltip_ui(ui, &points[idx], lang);
                 });
             }
@@ -635,30 +768,32 @@ fn draw_image_overlay(
 
                 draw_box_with_label(
                     &painter,
-                    rect,
+                    visible_rect,
                     bbox_rect,
                     &s.bbox,
                     Some(idx) == hovered,
                 );
             }
             if let Some(idx) = hovered {
-                img_resp.clone().on_hover_ui_at_pointer(|ui| {
+                response.clone().on_hover_ui_at_pointer(|ui| {
                     seg_tooltip_ui(ui, &segs[idx], lang);
                 });
             }
             hovered.map(|idx| HoverEcho::from_bbox(&segs[idx].bbox, true))
         }
         AIOutputs::Classification(probs) => {
-            draw_classification_ribbon(&painter, rect, probs);
-            img_resp.clone().on_hover_ui_at_pointer(|ui| {
-                classification_tooltip_ui(ui, probs, lang);
-            });
+            draw_classification_ribbon(&painter, visible_rect, probs);
+            if hover_pos.is_some() {
+                response.clone().on_hover_ui_at_pointer(|ui| {
+                    classification_tooltip_ui(ui, probs, lang);
+                });
+            }
             None
         }
         AIOutputs::AudioClassification(_) => None,
         AIOutputs::Embed(emb) => {
             let chip = format!("{} · {}", translate(Key::embedding, lang), emb.model);
-            draw_corner_chip(&painter, rect, &chip, 12.0, 22.0, 10.0);
+            draw_corner_chip(&painter, visible_rect, &chip, 12.0, 22.0, 10.0);
             None
         }
     }
@@ -810,6 +945,10 @@ fn draw_box_with_label(
         egui::StrokeKind::Inside,
     );
 
+    if !r.intersects(clip) {
+        return;
+    }
+
     // Mirror render::str_label — two lines when extra_cls refined this
     // detection so the refined class+confidence are always visible on the
     // image (not just in a hover tooltip).
@@ -823,10 +962,15 @@ fn draw_box_with_label(
         let y = if r.min.y - label_h >= clip.min.y {
             r.min.y - label_h
         } else {
-            r.min.y
-        };
+            r.min.y.max(clip.min.y)
+        }
+        .min((clip.max.y - label_h).max(clip.min.y));
+        let x = r
+            .min
+            .x
+            .clamp(clip.min.x, (clip.max.x - label_w).max(clip.min.x));
         let bg = egui::Rect::from_min_size(
-            egui::pos2(r.min.x, y),
+            egui::pos2(x, y),
             egui::vec2(label_w, label_h),
         );
         painter.rect_filled(bg, 2.0, color);
@@ -925,10 +1069,10 @@ fn draw_classification_ribbon(
     }
 }
 
-fn draw_empty_predictions_chip(ui: &egui::Ui, img_resp: &egui::Response, lang: &Lang) {
-    let painter = ui.painter_at(img_resp.rect);
+fn draw_empty_predictions_chip(ui: &egui::Ui, rect: egui::Rect, lang: &Lang) {
+    let painter = ui.painter_at(rect);
     let text = translate(Key::no_predictions, lang);
-    draw_corner_chip(&painter, img_resp.rect, text, 13.0, 24.0, 12.0);
+    draw_corner_chip(&painter, rect, text, 13.0, 24.0, 12.0);
 }
 
 fn bbox_tooltip_ui(ui: &mut egui::Ui, detection: &XYXYc, lang: &Lang) {
@@ -1021,6 +1165,42 @@ fn classification_tooltip_ui(ui: &mut egui::Ui, probs: &[Prob], lang: &Lang) {
     if probs.len() > 6 {
         ui.label(
             egui::RichText::new(super::and_more(probs.len() - 6, lang)).weak(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{clamp_image_pan, zoom_pan_around_pointer};
+
+    #[test]
+    fn zoom_keeps_the_point_under_the_pointer_stationary() {
+        let center = egui::pos2(100.0, 100.0);
+        let pointer = egui::pos2(140.0, 80.0);
+        let pan = zoom_pan_around_pointer(egui::Vec2::ZERO, center, pointer, 2.0);
+
+        assert_eq!(pan, egui::vec2(-40.0, 20.0));
+    }
+
+    #[test]
+    fn pan_is_limited_to_image_edges() {
+        let viewport = egui::vec2(200.0, 100.0);
+
+        assert_eq!(
+            clamp_image_pan(
+                egui::vec2(500.0, -500.0),
+                egui::vec2(300.0, 180.0),
+                viewport,
+            ),
+            egui::vec2(50.0, -40.0),
+        );
+        assert_eq!(
+            clamp_image_pan(
+                egui::vec2(20.0, 20.0),
+                egui::vec2(150.0, 80.0),
+                viewport,
+            ),
+            egui::Vec2::ZERO,
         );
     }
 }
