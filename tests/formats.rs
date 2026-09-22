@@ -1,8 +1,9 @@
 // We cherck that every format in 'api/formats.rs' can be loaded
 
+use boquilahub::api::abstractions::{AIOutputs, PredVideo};
 use boquilahub::api::audio::AudioData;
 use boquilahub::api::formats::{AUDIO_FORMATS, IMAGE_FORMATS, VIDEO_FORMATS};
-use boquilahub::api::video_file::VideofileProcessor;
+use boquilahub::api::video_file::{playback_stream, VideofileProcessor};
 
 #[test]
 fn every_listed_format_has_an_asset() {
@@ -69,4 +70,54 @@ fn video_formats_decode() {
             "video.{ext}: empty first frame"
         );
     }
+}
+
+#[test]
+fn video_playback_stream_seeks_and_scales() {
+    let path = "tests/assets/formats/video/video.mp4";
+    let probe = VideofileProcessor::probe(path).expect("probe playback fixture");
+    let target = (probe.fps * 10.0) as u64;
+    let receiver = playback_stream(path.into(), target, probe.fps, 320, 180);
+
+    let first = receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("decode a frame after seeking");
+    assert!(first.index >= target);
+    assert!(first.img.width() <= 320);
+    assert!(first.img.height() <= 180);
+
+    let second = receiver
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .expect("decode the following frame");
+    assert!(second.index > first.index);
+}
+
+#[test]
+fn video_probe_estimates_missing_frame_count_from_duration() {
+    let probe = VideofileProcessor::probe("tests/assets/formats/video/video.webm")
+        .expect("probe WebM fixture");
+    assert!(probe.n_frames > 0);
+}
+
+#[test]
+fn video_metadata_does_not_allocate_per_frame_predictions() {
+    let mut video = PredVideo::new_simple("no-sidecar-test.mp4".into());
+    video.hydrate(3840, 2160, 60.0, 10_000_000);
+    assert!(video.frames.is_empty());
+
+    video.record(90, AIOutputs::ObjectDetection(Vec::new()));
+    assert_eq!(video.frames.len(), 91);
+    assert_eq!(video.processed_count(), 1);
+    assert_eq!(video.last_processed_at_or_before(89), None);
+    assert_eq!(video.last_processed_at_or_before(100), Some(90));
+
+    video.record(90, AIOutputs::ObjectDetection(Vec::new()));
+    assert_eq!(video.processed_count(), 1);
+    video.record(30, AIOutputs::ObjectDetection(Vec::new()));
+    assert_eq!(video.last_processed_at_or_before(50), Some(30));
+    assert_eq!(video.max_processed_frame(), Some(90));
+    assert_eq!(video.processed_count(), 2);
+    video.reset();
+    assert!(video.frames.is_empty());
+    assert_eq!(video.processed_count(), 0);
 }
