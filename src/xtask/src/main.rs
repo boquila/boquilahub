@@ -8,7 +8,8 @@
 // The ffmpeg fetched here is a prebuilt shared lib, used for ordinary/debug
 // builds. `cargo build --features ffmpeg-static` (release builds; see
 // Cargo.toml) instead compiles ffmpeg from source and links it statically on
-// Linux, ignoring this fetch for ffmpeg — it still runs, just unused.
+// Linux/macOS, ignoring this fetch for ffmpeg. The macOS release workflow skips
+// this task entirely; ORT is fetched by the `ort` crate on that platform.
 
 // On macOS only ffmpeg is fetched (ORT comes from the `ort` crate), so the
 // download/extract helpers below go unused there.

@@ -70,6 +70,16 @@ sudo apt install pkg-config yasm nasm libx264-dev   # ffmpeg's own build deps
 cargo build --release --features ffmpeg-static
 ```
 
-The first build compiles ffmpeg from source and takes noticeably longer; later builds are cached as usual. Because the result statically links GPL-licensed ffmpeg (with `libx264` for H.264 encoding), the resulting binary is a GPL-derived work — BoquilaHUB's AGPLv3 is compatible with (and stricter than) that.
+The **macOS release workflow** also builds FFmpeg from source and links its libraries statically. To reproduce that build, use the linker shim shown above and run:
+
+```shell
+brew install pkg-config x264 nasm  # nasm is needed on Intel Macs
+export PKG_CONFIG_PATH="$(brew --prefix x264)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+cargo build --release --features ffmpeg-static
+```
+
+This macOS build does not need `brew install ffmpeg@7` or `cargo xtask fetch`. Release packaging still bundles non-system shared dependencies such as x264 and ONNX Runtime, and checks that neither the executable nor the bundled dylibs dynamically link FFmpeg. Ordinary macOS builds and the macOS test workflow continue using Homebrew FFmpeg.
+
+The first static build compiles ffmpeg from source and takes noticeably longer; later builds are cached as usual. Because the result statically links GPL-licensed ffmpeg (with `libx264` for H.264 encoding), the resulting binary is a GPL-derived work — BoquilaHUB's AGPLv3 is compatible with (and stricter than) that.
 
 Probably instead of cloning from main, you should prefer to get the source code from a tagged version
