@@ -106,7 +106,7 @@ impl Tui {
     fn can_add_cls(&self) -> bool {
         !self.cls_active
             && !self.cls_ais.is_empty()
-            && self.ai.selected.is_some_and(|i| matches!(self.ais[i].task, Task::Detect | Task::Segment))
+            && self.ai.selected.is_some_and(|i| self.ais[i].can_add_cls())
     }
     fn has_side_btn(&self) -> bool {
         match self.cur_row() {
@@ -199,6 +199,12 @@ fn handle_dropdown(code: KeyCode, len: usize, dd: &mut Dropdown) -> Option<bool>
 
 fn load_ai_model(app: &mut Tui) {
     if let Some(ai_idx) = app.ai.selected {
+        if !app.ais[ai_idx].can_add_cls() {
+            app.cls_active = false;
+            app.cls.selected = None;
+            GlobalBQ::Second.clear();
+            app.clamp();
+        }
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.ais[ai_idx].get_path();
         app.status_msg = GlobalBQ::First.set_model(&model_path, ep, None)
