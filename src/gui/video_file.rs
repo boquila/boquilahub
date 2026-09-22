@@ -708,8 +708,9 @@ impl Gui {
                     .button("⏮")
                     .on_hover_text(self.t(Key::prev))
                     .clicked()
-                    && let Some(prev) = prev_analysed_frame(self.current_video(), playhead)
+                    && playhead > 0
                 {
+                    let prev = playhead - 1;
                     self.stop_video_playback();
                     self.video_playhead_frame = Some(prev);
                     self.seek_video_frame(prev);
@@ -718,8 +719,9 @@ impl Gui {
                     .button("⏭")
                     .on_hover_text(self.t(Key::next))
                     .clicked()
-                    && let Some(next) = next_analysed_frame(self.current_video(), playhead)
+                    && playhead < last_frame
                 {
+                    let next = playhead + 1;
                     self.stop_video_playback();
                     self.video_playhead_frame = Some(next);
                     self.seek_video_frame(next);
@@ -912,24 +914,6 @@ impl Gui {
 
 fn format_time_pair(now: f64, total: f64) -> String {
     format!("{} / {}", super::format_time(now), super::format_time(total))
-}
-
-fn prev_analysed_frame(pv: Option<&PredVideo>, current: u64) -> Option<u64> {
-    let pv = pv?;
-    if current == 0 {
-        return None;
-    }
-    pv.last_processed_at_or_before(current.saturating_sub(1))
-}
-
-fn next_analysed_frame(pv: Option<&PredVideo>, current: u64) -> Option<u64> {
-    let pv = pv?;
-    let start = usize::try_from(current).ok()?.saturating_add(1);
-    pv.frames
-        .iter()
-        .enumerate()
-        .skip(start)
-        .find_map(|(idx, prediction)| prediction.as_ref().map(|_| idx as u64))
 }
 
 /// One contiguous run of same-dominant-class pixel columns inside the analysed
