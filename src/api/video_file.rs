@@ -3,9 +3,16 @@ use super::utils::{rgb_frame_to_imgbuf, SendScaler};
 use ffmpeg_next as ffmpeg;
 use ffmpeg_next::Rescale;
 use image::{ImageBuffer, Rgb};
-use std::{iter::Iterator, path::Path};
+use std::iter::Iterator;
+use std::path::{Path, PathBuf};
 
 pub type Time = i64;
+
+/// A display-sized frame produced by the bounded movie-playback decoder.
+pub struct PlaybackFrame {
+    pub index: u64,
+    pub img: ImageBuffer<Rgb<u8>, Vec<u8>>,
+}
 
 /// Decoded video frame paired with its ordinal frame index (0-based).
 struct DecodedFrame {
@@ -82,7 +89,9 @@ impl VideofileProcessor {
             .unwrap(),
         );
 
-        let (tx, rx) = std::sync::mpsc::sync_channel::<DecodedFrame>(8);
+        // Two decoded frames are enough to keep inference fed without letting
+        // 4K RGB frames quietly consume hundreds of megabytes.
+        let (tx, rx) = std::sync::mpsc::sync_channel::<DecodedFrame>(2);
 
         std::thread::spawn(move || {
             let mut decoder = decoder;
@@ -145,7 +154,9 @@ impl VideofileProcessor {
                 .best(ffmpeg::media::Type::Video)
                 .ok_or("No video stream found")?;
             let idx = video_stream.index();
-            let n = video_stream.frames().max(0) as u64;
+            let reported_frames = video_stream.frames().max(0) as u64;
+            let stream_duration = video_stream.duration();
+            let stream_time_base = video_stream.time_base();
             let avg = video_stream.avg_frame_rate();
             let fps_from_stream = if avg.denominator() != 0 {
                 avg.numerator() as f64 / avg.denominator() as f64
@@ -165,6 +176,19 @@ impl VideofileProcessor {
                 } else {
                     30.0
                 }
+            };
+            let duration_secs = if stream_duration > 0 && stream_time_base.denominator() != 0 {
+                stream_duration as f64 * stream_time_base.numerator() as f64
+                    / stream_time_base.denominator() as f64
+            } else if input_ctx.duration() > 0 {
+                input_ctx.duration() as f64 / 1_000_000.0
+            } else {
+                0.0
+            };
+            let n = if reported_frames > 0 {
+                reported_frames
+            } else {
+                (duration_secs * fps).round().max(0.0) as u64
             };
             (idx, n, fps, dec)
         };
@@ -206,6 +230,119 @@ impl VideofileProcessor {
 
         Err("No frames found".into())
     }
+}
+
+/// Spawn a seekable, bounded decoder for interactive movie playback.
+///
+/// Frames are scaled by FFmpeg before crossing the channel, and the channel
+/// only holds three frames. Memory therefore depends on display resolution,
+/// not video duration or file size. Dropping the receiver stops the worker.
+pub fn playback_stream(
+    file_path: PathBuf,
+    start_frame: u64,
+    fps: f64,
+    max_width: u32,
+    max_height: u32,
+) -> std::sync::mpsc::Receiver<PlaybackFrame> {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<PlaybackFrame>(3);
+
+    std::thread::spawn(move || {
+        if ffmpeg::init().is_err() {
+            return;
+        }
+        ffmpeg::util::log::set_level(ffmpeg::util::log::Level::Quiet);
+
+        let Ok(mut input_ctx) = ffmpeg::format::input(&file_path) else {
+            return;
+        };
+        let Some(video_stream) = input_ctx.streams().best(ffmpeg::media::Type::Video) else {
+            return;
+        };
+        let stream_index = video_stream.index();
+        let time_base = video_stream.time_base();
+        let stream_start = video_stream.start_time();
+        let Ok(codec) = ffmpeg::codec::context::Context::from_parameters(video_stream.parameters())
+        else {
+            return;
+        };
+        let Ok(mut decoder) = codec.decoder().video() else {
+            return;
+        };
+
+        let source_width = decoder.width().max(1);
+        let source_height = decoder.height().max(1);
+        let scale = (max_width as f64 / source_width as f64)
+            .min(max_height as f64 / source_height as f64)
+            .min(1.0);
+        let output_width = (source_width as f64 * scale).round().max(1.0) as u32;
+        let output_height = (source_height as f64 * scale).round().max(1.0) as u32;
+        let Ok(mut scaler) = ffmpeg::software::scaling::Context::get(
+            decoder.format(),
+            source_width,
+            source_height,
+            ffmpeg::format::Pixel::RGB24,
+            output_width,
+            output_height,
+            ffmpeg::software::scaling::Flags::BILINEAR,
+        ) else {
+            return;
+        };
+
+        let valid_start = if stream_start == i64::MIN { 0 } else { stream_start };
+        if start_frame > 0 && fps > 0.0 {
+            let stream_start_secs = valid_start as f64 * time_base.numerator() as f64
+                / time_base.denominator().max(1) as f64;
+            let target_us = ((stream_start_secs + start_frame as f64 / fps) * 1_000_000.0)
+                .round() as i64;
+            let _ = input_ctx.seek(target_us, ..target_us);
+        }
+
+        let mut decoded = ffmpeg::frame::Video::empty();
+        let mut fallback_index = start_frame;
+
+        let mut emit = |decoded: &ffmpeg::frame::Video| -> bool {
+            let index = decoded
+                .pts()
+                .filter(|_| time_base.denominator() != 0 && fps > 0.0)
+                .map(|pts| {
+                    let seconds = (pts - valid_start) as f64 * time_base.numerator() as f64
+                        / time_base.denominator() as f64;
+                    (seconds * fps).round().max(0.0) as u64
+                })
+                .unwrap_or(fallback_index);
+            fallback_index = index.saturating_add(1);
+            if index < start_frame {
+                return true;
+            }
+
+            let mut rgb_frame = ffmpeg::frame::Video::empty();
+            if scaler.run(decoded, &mut rgb_frame).is_err() {
+                return true;
+            }
+            let img = rgb_frame_to_imgbuf(&rgb_frame);
+            tx.send(PlaybackFrame { index, img }).is_ok()
+        };
+
+        for (stream, packet) in input_ctx.packets() {
+            if stream.index() != stream_index || decoder.send_packet(&packet).is_err() {
+                continue;
+            }
+            while decoder.receive_frame(&mut decoded).is_ok() {
+                if !emit(&decoded) {
+                    return;
+                }
+            }
+        }
+
+        let _ = decoder.send_eof();
+        while decoder.receive_frame(&mut decoded).is_ok() {
+            if !emit(&decoded) {
+                return;
+            }
+        }
+    });
+
+    rx
 }
 
 pub struct VideoProbe {
@@ -436,7 +573,7 @@ where
 pub fn export_video_with_predictions(
     pred_video: &super::abstractions::PredVideo,
     output_path: &Path,
-    mut progress: impl FnMut(u64, u64),
+    progress: impl FnMut(u64, u64),
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let input_str = pred_video
         .file_path
@@ -444,26 +581,22 @@ pub fn export_video_with_predictions(
         .ok_or("Non-UTF-8 input path")?;
     let total = pred_video.n_frames;
 
-    let mut sticky: Vec<Option<AIOutputs>> = Vec::with_capacity(total as usize);
-    let mut last: Option<AIOutputs> = None;
-    for slot in pred_video.frames.iter() {
-        if let Some(a) = slot {
-            last = Some(a.clone());
-        }
-        sticky.push(last.clone());
-    }
+    let mut last_prediction: Option<&AIOutputs> = None;
 
     export_annotated_video(
         input_str,
         output_path,
         total,
         |idx, img| {
-            if let Some(Some(a)) = sticky.get(idx as usize) {
-                if !a.is_empty() {
-                    super::render::draw_aioutput(img, a);
-                }
+            if let Some(Some(prediction)) = pred_video.frames.get(idx as usize) {
+                last_prediction = Some(prediction);
+            }
+            if let Some(prediction) = last_prediction
+                && !prediction.is_empty()
+            {
+                super::render::draw_aioutput(img, prediction);
             }
         },
-        |i, n| progress(i, n),
+        progress,
     )
 }

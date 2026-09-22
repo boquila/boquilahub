@@ -18,7 +18,7 @@ use std::fs::{self};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use crate::api::video_file::VideofileProcessor;
+use crate::api::video_file::{PlaybackFrame, VideofileProcessor};
 use crate::gui::feed::FeedFrame;
 use crate::gui::video_file::{AnalysisFrame, ExportProgress};
 
@@ -121,11 +121,16 @@ pub struct Gui {
     feed_playhead_frame: Option<u64>,
     feed_last_displayed_frame: Option<u64>,
 
-    // Video pipeline state. Thumbnails + decoder are only ever for the
-    // currently displayed video; switching wipes them and rebuilds lazily.
+    // Video pipeline state. Analysis thumbnails are byte-bounded; movie
+    // playback uses a separate three-frame decoder queue. Switching videos
+    // drops both pipelines.
     selected_videos: Vec<PredVideo>,
     video_thumbnails: HashMap<u64, Vec<u8>>,
+    video_thumbnail_bytes: usize,
     video_file_processor: Arc<Mutex<Option<VideofileProcessor>>>,
+    video_playback_receiver: Option<std::sync::mpsc::Receiver<PlaybackFrame>>,
+    video_playback_pending: Option<PlaybackFrame>,
+    video_seek_target: Option<u64>,
     video_export_receiver: Option<std::sync::mpsc::Receiver<ExportProgress>>,
     video_export_path: Option<String>,
     video_playhead_frame: Option<u64>,
@@ -208,14 +213,6 @@ impl<T> State<T> {
         self.cancel_sender = Some(cancel_tx);
         self.is_processing = true;
         (tx, cancel_rx)
-    }
-
-    /// Begin a receive-only streaming job (no cancel channel, no
-    /// `is_processing` flag). The worker runs to EOF on its own.
-    fn start_streaming(&mut self) -> tokio::sync::mpsc::UnboundedSender<T> {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.rx = Some(rx);
-        tx
     }
 
     /// Drain available messages. Returns `(messages, channel_closed)`.
@@ -899,6 +896,7 @@ impl Gui {
     pub(super) fn load_current_video(&mut self, ui: &egui::Ui) {
         self.stop_video_playback();
         self.video_thumbnails.clear();
+        self.video_thumbnail_bytes = 0;
         *self.video_file_processor.lock().unwrap() = None;
         self.video_state.cancel();
         self.video_state.texture = None;
@@ -1115,6 +1113,10 @@ impl eframe::App for Gui {
                     ui.selectable_value(&mut self.mode, Mode::Audio, text);
                 }
             });
+
+            if self.mode != Mode::Video && self.video_playback_receiver.is_some() {
+                self.stop_video_playback();
+            }
 
             if img_mode || video_mode || feed_mode || audio_mode {
                 ui.separator();

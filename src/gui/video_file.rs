@@ -7,7 +7,11 @@ use crate::api::rest::rgb_image_to_jpeg_buffer;
 use crate::api::video_file;
 use crate::localization::*;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+const VIDEO_THUMBNAIL_CACHE_MAX_BYTES: usize = 64 * 1024 * 1024;
+const VIDEO_PLAYBACK_MAX_WIDTH: u32 = 1920;
+const VIDEO_PLAYBACK_MAX_HEIGHT: u32 = 1080;
 
 /// One analysed frame, posted from the worker task back to the UI thread.
 pub(super) struct AnalysisFrame {
@@ -27,14 +31,6 @@ impl Gui {
     // ---------- analysis ----------
 
     pub(super) fn start_video_analysis(&mut self) {
-        // If a raw preview decode is running, tear it down — its decoder is
-        // already partway through the file, and reusing it here would skip
-        // every frame the preview already consumed.
-        if !self.video_state.is_processing && self.video_state.is_active() {
-            self.video_state.cancel();
-            *self.video_file_processor.lock().unwrap() = None;
-        }
-
         let step_u32 = self.video_step_frame as u32;
         let needs_fresh_decoder;
         let path_for_decoder: Option<String>;
@@ -65,15 +61,16 @@ impl Gui {
         }
         if wiped {
             self.video_thumbnails.clear();
+            self.video_thumbnail_bytes = 0;
             self.video_playhead_frame = Some(0);
             self.video_last_displayed_frame = None;
         }
 
-        if needs_fresh_decoder {
-            if let Some(path) = path_for_decoder {
-                let fresh = video_file::VideofileProcessor::new(&path);
-                *self.video_file_processor.lock().unwrap() = Some(fresh);
-            }
+        if needs_fresh_decoder
+            && let Some(path) = path_for_decoder
+        {
+            let fresh = video_file::VideofileProcessor::new(&path);
+            *self.video_file_processor.lock().unwrap() = Some(fresh);
         }
 
         self.video_state.progress_bar = self
@@ -142,142 +139,83 @@ impl Gui {
         self.video_state.cancel();
     }
 
-    /// Decode-only worker: streams frames at the current step, builds thumbnails
-    /// (with overlays from any predictions already loaded — e.g. a sidecar JSON),
-    /// and pushes them through the same channel `start_video_analysis` uses.
-    /// No AI work, no `is_processing` flag — so playback controls stay live and
-    /// the user can play / scrub a freshly-loaded video without selecting a model.
-    pub(super) fn start_video_preview(&mut self) {
-        if self.video_state.is_active() {
-            return;
-        }
-        let step = self.video_step_frame.max(1) as u64;
-        let step_u32 = self.video_step_frame as u32;
-        let (path_str, predictions) = {
-            let Some(pv) = self.current_video() else { return; };
-            if pv.n_frames == 0 {
-                return;
-            }
-            // Cheap done-check: if the last step-aligned frame is cached, the
-            // decoder reached EOF on a prior run. Avoids an O(n_frames/step)
-            // sweep on every UI tick once decoding is complete.
-            let last_keyframe = (pv.n_frames.saturating_sub(1) / step) * step;
-            if self.video_thumbnails.contains_key(&last_keyframe) {
-                return;
-            }
-            let Some(path_str) = pv.file_path.to_str().map(str::to_owned) else { return; };
-            (path_str, pv.frames.clone())
-        };
-
-        if let Some(pv) = self.current_video_mut() {
-            pv.set_step(step_u32);
-        }
-
-        // Always open a fresh decoder — a prior analysis may have left the
-        // processor exhausted, and seeking the existing one isn't supported.
-        *self.video_file_processor.lock().unwrap() =
-            Some(video_file::VideofileProcessor::new(&path_str));
-
-        let tx = self.video_state.start_streaming();
-
-        let processor = Arc::clone(&self.video_file_processor);
-        let empty_overlay = AIOutputs::ObjectDetection(Vec::new());
-
-        tokio::spawn(async move {
-            loop {
-                let next = {
-                    let mut guard = processor.lock().unwrap();
-                    guard.as_mut().and_then(|p| p.next())
-                };
-                let (frame_idx, img) = match next {
-                    Some(item) => item,
-                    None => break,
-                };
-                if frame_idx % step != 0 {
-                    continue;
-                }
-                let aio = predictions
-                    .get(frame_idx as usize)
-                    .and_then(|p| p.clone())
-                    .unwrap_or_else(|| empty_overlay.clone());
-                let thumb = super::thumbnail_with_overlay(&img, &aio, super::THUMBNAIL_MAX_W);
-                let jpeg = rgb_image_to_jpeg_buffer(&thumb, 80);
-                if tx
-                    .send(AnalysisFrame {
-                        frame_idx,
-                        aioutput: aio,
-                        thumbnail_jpeg: jpeg,
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-    }
-
     pub(super) fn video_handle_results(&mut self, ui: &egui::Ui) {
         let (messages, closed) = self.video_state.drain();
         if messages.is_empty() && !closed {
             return;
         }
 
-        let is_analysis = self.video_state.is_processing;
-
         let mut latest_idx: Option<u64> = None;
         for msg in messages {
-            if is_analysis {
-                if let Some(pv) = self.current_video_mut() {
-                    pv.record(msg.frame_idx, msg.aioutput);
-                }
+            if let Some(pv) = self.current_video_mut() {
+                pv.record(msg.frame_idx, msg.aioutput);
             }
-            self.video_thumbnails
-                .insert(msg.frame_idx, msg.thumbnail_jpeg);
+            self.cache_video_thumbnail(msg.frame_idx, msg.thumbnail_jpeg);
             latest_idx = Some(msg.frame_idx);
         }
-        if let Some(idx) = latest_idx {
-            if !self.video_playing {
-                // Surface the newest frame when nothing else is driving the
-                // texture: during analysis this is the "watch it progress"
-                // affordance; during idle preview decode it just keeps the
-                // displayed frame near the playhead as thumbnails fill in.
-                if is_analysis {
-                    self.video_playhead_frame = Some(idx);
-                }
-                let target = self.video_playhead_frame.unwrap_or(idx);
-                self.refresh_video_texture(ui, target);
-            }
+        if let Some(idx) = latest_idx
+            && !self.video_playing
+        {
+            // Surface the newest frame while analysis progresses.
+            self.video_playhead_frame = Some(idx);
+            let target = self.video_playhead_frame.unwrap_or(idx);
+            self.refresh_video_texture(ui, target);
         }
-        if is_analysis {
-            if let Some(pv) = self.current_video() {
-                self.video_state.progress_bar = pv.frame_progress();
-            }
+        if let Some(pv) = self.current_video() {
+            self.video_state.progress_bar = pv.frame_progress();
         }
         if closed {
-            if is_analysis {
-                self.video_state.progress_bar = 1.0;
-                if let Some(pv) = self.current_video_mut() {
-                    pv.wasprocessed = true;
-                }
-            } else {
-                // Preview ran to EOF — drop the exhausted decoder so a later
-                // Analyse / replay rebuilds one rather than reusing a dead one.
-                *self.video_file_processor.lock().unwrap() = None;
+            self.video_state.progress_bar = 1.0;
+            if let Some(pv) = self.current_video_mut() {
+                pv.wasprocessed = true;
             }
             self.video_state.finish();
         }
         ui.request_repaint();
     }
 
+    fn cache_video_thumbnail(&mut self, frame_idx: u64, jpeg: Vec<u8>) {
+        self.video_thumbnail_bytes += jpeg.len();
+        if let Some(old) = self.video_thumbnails.insert(frame_idx, jpeg) {
+            self.video_thumbnail_bytes = self.video_thumbnail_bytes.saturating_sub(old.len());
+        }
+
+        while self.video_thumbnail_bytes > VIDEO_THUMBNAIL_CACHE_MAX_BYTES
+            && self.video_thumbnails.len() > 1
+        {
+            let Some(oldest) = self.video_thumbnails.keys().copied().min() else {
+                break;
+            };
+            if let Some(removed) = self.video_thumbnails.remove(&oldest) {
+                self.video_thumbnail_bytes =
+                    self.video_thumbnail_bytes.saturating_sub(removed.len());
+            }
+        }
+    }
+
     // ---------- playback ----------
 
     pub(super) fn start_video_playback(&mut self, start_frame: u64) {
-        let n_frames = match self.current_video() {
-            Some(pv) if pv.n_frames > 0 => pv.n_frames,
+        let (path, fps, n_frames) = match self.current_video() {
+            Some(pv) if pv.n_frames > 0 => (
+                pv.file_path.clone(),
+                pv.fps.max(0.1),
+                pv.n_frames,
+            ),
             _ => return,
         };
+        let start_frame = start_frame.min(n_frames.saturating_sub(1));
+        self.video_playback_receiver = Some(video_file::playback_stream(
+            path,
+            start_frame,
+            fps,
+            VIDEO_PLAYBACK_MAX_WIDTH,
+            VIDEO_PLAYBACK_MAX_HEIGHT,
+        ));
+        self.video_playback_pending = None;
+        self.video_seek_target = None;
         self.video_play_start = Some(Instant::now());
-        self.video_play_start_frame = start_frame.min(n_frames.saturating_sub(1));
+        self.video_play_start_frame = start_frame;
         self.video_playhead_frame = Some(self.video_play_start_frame);
         self.video_playing = true;
         self.video_last_displayed_frame = None;
@@ -286,32 +224,124 @@ impl Gui {
     pub(super) fn stop_video_playback(&mut self) {
         self.video_playing = false;
         self.video_play_start = None;
+        self.video_playback_receiver = None;
+        self.video_playback_pending = None;
+        self.video_seek_target = None;
+    }
+
+    fn seek_video_frame(&mut self, target_frame: u64) {
+        let Some(pv) = self.current_video() else { return; };
+        let path = pv.file_path.clone();
+        let fps = pv.fps.max(0.1);
+        let target = target_frame.min(pv.n_frames.saturating_sub(1));
+
+        self.stop_video_playback();
+        self.video_playback_receiver = Some(video_file::playback_stream(
+            path,
+            target,
+            fps,
+            VIDEO_PLAYBACK_MAX_WIDTH,
+            VIDEO_PLAYBACK_MAX_HEIGHT,
+        ));
+        self.video_seek_target = Some(target);
+        self.video_playhead_frame = Some(target);
+        self.video_last_displayed_frame = None;
+    }
+
+    fn update_streamed_video_texture(&mut self, ui: &egui::Ui, target_frame: u64) {
+        let single_frame_seek = !self.video_playing && self.video_seek_target.is_some();
+        let mut chosen = None;
+        let mut disconnected = false;
+
+        if let Some(frame) = self.video_playback_pending.take() {
+            if frame.index <= target_frame || single_frame_seek {
+                chosen = Some(frame);
+            } else {
+                self.video_playback_pending = Some(frame);
+            }
+        }
+
+        if self.video_playback_pending.is_none()
+            && let Some(receiver) = self.video_playback_receiver.as_ref()
+        {
+            loop {
+                match receiver.try_recv() {
+                    Ok(frame) if frame.index <= target_frame || single_frame_seek => {
+                        chosen = Some(frame);
+                        if single_frame_seek {
+                            break;
+                        }
+                    }
+                    Ok(frame) => {
+                        self.video_playback_pending = Some(frame);
+                        break;
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        disconnected = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(frame) = chosen {
+            let mut img = frame.img;
+            if single_frame_seek
+                && let Some((prediction, source_width, source_height)) = self
+                    .current_video()
+                    .and_then(|pv| {
+                        pv.prediction_at(frame.index)
+                            .cloned()
+                            .map(|aio| (aio, pv.width, pv.height))
+                    })
+            {
+                let scaled = super::scale_aioutput(
+                    &prediction,
+                    img.width() as f32 / source_width.max(1) as f32,
+                    img.height() as f32 / source_height.max(1) as f32,
+                );
+                draw_aioutput(&mut img, &scaled);
+            }
+
+            let size = [img.width() as usize, img.height() as usize];
+            let color = egui::ColorImage::from_rgb(size, img.as_raw());
+            match self.video_state.texture.as_mut() {
+                Some(texture) if texture.size() == size => {
+                    texture.set(color, egui::TextureOptions::LINEAR);
+                }
+                _ => {
+                    self.video_state.texture = Some(ui.ctx().load_texture(
+                        "video_playback",
+                        color,
+                        egui::TextureOptions::LINEAR,
+                    ));
+                }
+            }
+            self.video_last_displayed_frame = Some(frame.index);
+
+            if single_frame_seek {
+                self.video_playback_receiver = None;
+                self.video_playback_pending = None;
+                self.video_seek_target = None;
+            }
+        }
+
+        if disconnected && self.video_playback_pending.is_none() {
+            self.video_playback_receiver = None;
+            self.video_seek_target = None;
+            if self.video_playing {
+                self.video_playing = false;
+                self.video_play_start = None;
+            }
+        }
     }
 
     fn nearest_thumbnail_frame(&self, target: u64) -> Option<u64> {
-        if self.video_thumbnails.is_empty() {
-            return None;
-        }
-        let pv = self.current_video()?;
-        let step = pv.step.max(1) as u64;
-        let mut candidate = (target / step) * step;
-        loop {
-            if self.video_thumbnails.contains_key(&candidate) {
-                return Some(candidate);
-            }
-            if candidate == 0 {
-                break;
-            }
-            candidate = candidate.saturating_sub(step);
-        }
-        let mut candidate = ((target / step) + 1) * step;
-        while candidate < pv.n_frames {
-            if self.video_thumbnails.contains_key(&candidate) {
-                return Some(candidate);
-            }
-            candidate = candidate.saturating_add(step);
-        }
-        None
+        self.video_thumbnails
+            .keys()
+            .copied()
+            .min_by_key(|frame| frame.abs_diff(target))
     }
 
     fn refresh_video_texture(&mut self, ui: &egui::Ui, target_frame: u64) {
@@ -564,11 +594,6 @@ impl Gui {
             self.video_texture_n = n;
         }
 
-        // The user picked a video — start decoding thumbnails so they can play
-        // / scrub immediately. Idempotent: no-op if a worker is already running
-        // or every step-aligned frame is already cached.
-        self.start_video_preview();
-
         self.draw_video_header(ui, n);
 
         let Some(n_frames) = self.current_video().map(|p| p.n_frames) else { return; };
@@ -584,12 +609,17 @@ impl Gui {
                 let frame_now = self.video_play_start_frame as f64 + elapsed * fps;
                 let idx = (frame_now as u64).min(last_frame);
                 self.video_playhead_frame = Some(idx);
-                if idx >= last_frame {
+                self.update_streamed_video_texture(ui, idx);
+                if idx >= last_frame
+                    && self.video_last_displayed_frame.is_some_and(|shown| shown >= last_frame)
+                {
                     self.stop_video_playback();
                 }
-                self.refresh_video_texture(ui, idx);
             }
-            ui.ctx().request_repaint();
+            ui.ctx().request_repaint_after(Duration::from_secs_f64(1.0 / fps));
+        } else if let Some(target) = self.video_seek_target {
+            self.update_streamed_video_texture(ui, target);
+            ui.ctx().request_repaint_after(Duration::from_millis(5));
         }
 
         let avail = ui.available_size_before_wrap();
@@ -658,23 +688,21 @@ impl Gui {
                     .button("⏮")
                     .on_hover_text(self.t(Key::prev))
                     .clicked()
+                    && let Some(prev) = prev_analysed_frame(self.current_video(), playhead)
                 {
-                    if let Some(prev) = prev_analysed_frame(self.current_video(), playhead) {
-                        self.stop_video_playback();
-                        self.video_playhead_frame = Some(prev);
-                        self.refresh_video_texture(ui, prev);
-                    }
+                    self.stop_video_playback();
+                    self.video_playhead_frame = Some(prev);
+                    self.seek_video_frame(prev);
                 }
                 if ui
                     .button("⏭")
                     .on_hover_text(self.t(Key::next))
                     .clicked()
+                    && let Some(next) = next_analysed_frame(self.current_video(), playhead)
                 {
-                    if let Some(next) = next_analysed_frame(self.current_video(), playhead) {
-                        self.stop_video_playback();
-                        self.video_playhead_frame = Some(next);
-                        self.refresh_video_texture(ui, next);
-                    }
+                    self.stop_video_playback();
+                    self.video_playhead_frame = Some(next);
+                    self.seek_video_frame(next);
                 }
 
                 ui.add_space(8.0);
@@ -699,9 +727,10 @@ impl Gui {
             let was_playing = self.video_playing;
             self.stop_video_playback();
             self.video_playhead_frame = Some(idx);
-            self.refresh_video_texture(ui, idx);
             if was_playing {
                 self.start_video_playback(idx);
+            } else {
+                self.seek_video_frame(idx);
             }
         }
 
@@ -848,12 +877,12 @@ impl Gui {
             );
         }
 
-        if response.clicked() || response.dragged() {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let t = ((pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
-                let frame = (t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64;
-                return Some(frame);
-            }
+        if (response.clicked() || response.drag_stopped())
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            let t = ((pos.x - bar_rect.left()) / bar_rect.width()).clamp(0.0, 1.0);
+            let frame = (t as f64 * n_frames.saturating_sub(1).max(1) as f64) as u64;
+            return Some(frame);
         }
         None
     }
@@ -875,15 +904,12 @@ fn prev_analysed_frame(pv: Option<&PredVideo>, current: u64) -> Option<u64> {
 
 fn next_analysed_frame(pv: Option<&PredVideo>, current: u64) -> Option<u64> {
     let pv = pv?;
-    let step = pv.step.max(1) as u64;
-    let mut candidate = ((current / step) + 1) * step;
-    while candidate < pv.n_frames {
-        if pv.frames.get(candidate as usize).and_then(|s| s.as_ref()).is_some() {
-            return Some(candidate);
-        }
-        candidate = candidate.saturating_add(step);
-    }
-    None
+    let start = usize::try_from(current).ok()?.saturating_add(1);
+    pv.frames
+        .iter()
+        .enumerate()
+        .skip(start)
+        .find_map(|(idx, prediction)| prediction.as_ref().map(|_| idx as u64))
 }
 
 /// One contiguous run of same-dominant-class pixel columns inside the analysed

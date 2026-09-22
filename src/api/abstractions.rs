@@ -312,6 +312,8 @@ pub struct PredVideo {
     pub step: u32,
     pub frames: Vec<Option<AIOutputs>>,
     pub wasprocessed: bool,
+    #[serde(skip)]
+    processed_count_cache: usize,
 }
 
 impl PredVideo {
@@ -327,6 +329,7 @@ impl PredVideo {
                 serde_json::from_reader::<_, PredVideo>(std::io::BufReader::new(file))
         {
             cached.file_path = file_path;
+            cached.processed_count_cache = cached.frames.iter().filter(|f| f.is_some()).count();
             return cached;
         }
         Self {
@@ -338,6 +341,7 @@ impl PredVideo {
             step: 1,
             frames: Vec::new(),
             wasprocessed: false,
+            processed_count_cache: 0,
         }
     }
 
@@ -347,9 +351,9 @@ impl PredVideo {
         self.n_frames != 0 || !self.frames.is_empty()
     }
 
-    /// Fill in probe metadata + allocate `frames`. No-op if already hydrated
-    /// (sidecar already loaded it, or a prior open did). Called the first
-    /// time the user navigates to this video.
+    /// Fill in probe metadata without allocating one prediction slot per video
+    /// frame. The sparse tail grows only if analysis actually records results.
+    /// No-op if a sidecar or a prior probe already hydrated this video.
     pub fn hydrate(&mut self, width: u32, height: u32, fps: f64, n_frames: u64) {
         if self.is_hydrated() {
             return;
@@ -358,13 +362,12 @@ impl PredVideo {
         self.height = height;
         self.fps = fps;
         self.n_frames = n_frames;
-        self.frames = vec![None; n_frames as usize];
+        self.frames.clear();
     }
 
     pub fn reset(&mut self) {
-        for slot in self.frames.iter_mut() {
-            *slot = None;
-        }
+        self.frames.clear();
+        self.processed_count_cache = 0;
         self.wasprocessed = false;
     }
 
@@ -374,19 +377,14 @@ impl PredVideo {
 
     /// Most recent analyzed frame index at or before `frame_idx`, if any.
     pub fn last_processed_at_or_before(&self, frame_idx: u64) -> Option<u64> {
-        let step = self.step.max(1) as u64;
-        let mut candidate = if step <= 1 { frame_idx } else { (frame_idx / step) * step };
-        loop {
-            if (candidate as usize) < self.frames.len()
-                && self.frames[candidate as usize].is_some()
-            {
-                return Some(candidate);
-            }
-            if candidate == 0 {
-                return None;
-            }
-            candidate = candidate.saturating_sub(1);
-        }
+        let end = usize::try_from(frame_idx)
+            .unwrap_or(usize::MAX)
+            .min(self.frames.len().saturating_sub(1));
+        self.frames
+            .get(..=end)?
+            .iter()
+            .rposition(Option::is_some)
+            .map(|idx| idx as u64)
     }
 
     pub fn prediction_at(&self, frame_idx: u64) -> Option<&AIOutputs> {
@@ -395,13 +393,18 @@ impl PredVideo {
     }
 
     pub fn record(&mut self, frame_idx: u64, aioutput: AIOutputs) {
-        if let Some(slot) = self.frames.get_mut(frame_idx as usize) {
-            *slot = Some(aioutput);
+        let Ok(index) = usize::try_from(frame_idx) else { return; };
+        if self.frames.len() <= index {
+            self.frames.resize_with(index + 1, || None);
         }
+        if self.frames[index].is_none() {
+            self.processed_count_cache += 1;
+        }
+        self.frames[index] = Some(aioutput);
     }
 
     pub fn processed_count(&self) -> usize {
-        self.frames.iter().filter(|f| f.is_some()).count()
+        self.processed_count_cache
     }
 
     /// Highest analyzed frame index, or `None` if nothing has been analyzed yet.
