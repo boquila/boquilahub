@@ -3,6 +3,7 @@ use font_subset::FontReader;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
+#[cfg(any(windows, not(feature = "ffmpeg-static")))]
 const FFMPEG_DIR: &str = "deps/ffmpeg";
 #[cfg(feature = "cuda")]
 const ORT_DIR: &str = "deps/onnxruntime";
@@ -41,6 +42,7 @@ pub fn main() {
 }
 
 fn require_deps() {
+    #[cfg(any(windows, not(feature = "ffmpeg-static")))]
     assert!(
         Path::new(FFMPEG_DIR).exists(),
         "missing native deps: `{FFMPEG_DIR}` not found.\n\

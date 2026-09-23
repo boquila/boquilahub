@@ -45,7 +45,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.variant }}-ffmpeg-7
+          key: ${{ matrix.variant }}-ffmpeg-static-v2
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -66,9 +66,17 @@ jobs:
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
-        run: brew install ffmpeg@7 dylibbundler
+        run: brew install pkg-config x264 dylibbundler
+
+      - name: Test macOS FFmpeg build helpers
+        if: runner.os == 'macOS'
+        run: |
+          bash .github/tests/macos-cc-shim.sh
+          bash .github/tests/assert-macos-ffmpeg-static.sh
 
       - name: Fetch native deps
+        # macOS static builds compile FFmpeg via Cargo; ORT is fetched by ort.
+        if: runner.os != 'macOS'
         run: cargo xtask fetch
 
       - name: Set package name
@@ -81,12 +89,14 @@ jobs:
           if [ "${{ runner.os }}" = "macOS" ]; then
             chmod +x .github/macos-cc-shim.sh
             export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER="$PWD/.github/macos-cc-shim.sh"
+            # ffmpeg-sys-next uses pkg-config to find the external H.264 codec.
+            export PKG_CONFIG_PATH="$(brew --prefix x264)/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           fi
-          # Release binaries statically link ffmpeg on Linux (see the
+          # Release binaries statically link ffmpeg on Linux and macOS (see the
           # `ffmpeg-static` feature in Cargo.toml); debug/test builds stay on
           # the prebuilt shared lib as before.
           EXTRA_FEATURES=""
-          if [ "${{ runner.os }}" = "Linux" ]; then
+          if [ "${{ runner.os }}" != "Windows" ]; then
             EXTRA_FEATURES="ffmpeg-static"
           fi
           if [ "${{ matrix.variant }}" = "cuda" ]; then
@@ -103,6 +113,10 @@ jobs:
             exit 1
           fi
 
+      - name: Assert macOS ffmpeg is statically linked
+        if: runner.os == 'macOS'
+        run: sh .github/assert-macos-ffmpeg-static.sh target/release/${{ matrix.artifact }}
+
       - name: Smoke test - pull models
         shell: bash
         run: |
@@ -118,7 +132,6 @@ jobs:
         run: |
           mkdir pkg
           cp target/release/${{ matrix.artifact }} pkg/
-          cp -Recurse target/release/assets pkg/assets
           cp target/release/*.dll pkg/
           cp -Recurse models pkg/models
           7z a $env:PKG ./pkg/*
@@ -128,7 +141,6 @@ jobs:
         run: |
           mkdir pkg
           cp target/release/${{ matrix.artifact }} pkg/
-          cp -r target/release/assets pkg/assets
           chmod +x pkg/${{ matrix.artifact }}
           if [ "${{ matrix.variant }}" = "cuda" ]; then
             find deps/onnxruntime/lib -maxdepth 1 -name '*.so*' ! -name '*tensorrt*' -exec cp -Ln {} pkg/ \;
@@ -146,13 +158,16 @@ jobs:
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
+        shell: bash
         run: |
           mkdir pkg
           dylibbundler -of -b -x target/release/${{ matrix.artifact }} \
             -d pkg -p @executable_path/ -s target/release
           cp target/release/${{ matrix.artifact }} pkg/
-          cp -R target/release/assets pkg/assets
           cp -r models pkg/models
+          # Also catch FFmpeg pulled in transitively by a bundled dependency.
+          shopt -s nullglob
+          sh .github/assert-macos-ffmpeg-static.sh pkg/${{ matrix.artifact }} pkg/*.dylib
           find pkg -name '*.dylib' -exec codesign --force --sign - {} +
           codesign --force --sign - pkg/${{ matrix.artifact }}
           chmod +x pkg/${{ matrix.artifact }}
