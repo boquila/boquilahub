@@ -618,7 +618,7 @@ impl Gui {
         // decode (or hasn't loaded yet) we don't have anything to draw.
         if self.audio_data.is_some() {
             let duration =
-                self.audio_data.as_ref().unwrap().duration().max(0.1);
+                self.audio_data.as_ref().unwrap().duration().max(0.01);
             let display_sr = self.audio_data.as_ref().unwrap().sample_rate;
             if self.audio_wave.is_none() {
                 self.audio_wave = Some(WaveSummary::build(
@@ -629,7 +629,7 @@ impl Gui {
             // The one place the view range is clamped, for both plots. It
             // shifts rather than squeezes, so dragging into an edge stops
             // there instead of zooming in.
-            const MIN_VIEW_SECS: f64 = 0.1;
+            const MIN_VIEW_SECS: f64 = 0.01;
             let (vs, ve) = self.audio_view_range;
             let span = (ve - vs).clamp(MIN_VIEW_SECS, duration);
             let vs = vs.clamp(0.0, duration - span);
@@ -1077,8 +1077,10 @@ fn render_audio_plot(
                 format!("{:.0}s", t)
             } else if span >= 2.0 {
                 format!("{:.1}s", t)
-            } else {
+            } else if span >= 0.1 {
                 format!("{:.2}s", t)
+            } else {
+                format!("{:.3}s", t)
             }
         })
         .y_axis_formatter(move |mark, _range| {
