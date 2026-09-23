@@ -454,7 +454,6 @@ pub fn magma(t: f32) -> [u8; 3] {
 }
 
 pub fn mako(t: f32) -> [u8; 3] {
-    // Evenly sampled from seaborn's mako colormap.
     let stops: [[u8; 3]; 9] = [
         [11, 4, 5],
         [43, 28, 53],
@@ -470,7 +469,6 @@ pub fn mako(t: f32) -> [u8; 3] {
 }
 
 pub fn turbo(t: f32) -> [u8; 3] {
-    // Evenly sampled from matplotlib's Turbo colormap.
     let stops: [[u8; 3]; 9] = [
         [48, 18, 59],
         [70, 107, 227],
