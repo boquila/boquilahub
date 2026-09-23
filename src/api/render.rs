@@ -388,6 +388,7 @@ pub enum Palette {
     Viridis,
     Magma,
     Mako,
+    Turbo,
     Plasma,
     Inferno,
     Cividis,
@@ -396,10 +397,11 @@ pub enum Palette {
 }
 
 impl Palette {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Viridis,
         Self::Magma,
         Self::Mako,
+        Self::Turbo,
         Self::Plasma,
         Self::Inferno,
         Self::Cividis,
@@ -412,6 +414,7 @@ impl Palette {
             Self::Viridis => "Viridis",
             Self::Magma => "Magma",
             Self::Mako => "Mako",
+            Self::Turbo => "Turbo",
             Self::Plasma => "Plasma",
             Self::Inferno => "Inferno",
             Self::Cividis => "Cividis",
@@ -426,6 +429,7 @@ pub fn palette(kind: Palette, t: f32) -> [u8; 3] {
         Palette::Viridis => viridis(t),
         Palette::Magma => magma(t),
         Palette::Mako => mako(t),
+        Palette::Turbo => turbo(t),
         Palette::Plasma => plasma(t),
         Palette::Inferno => inferno(t),
         Palette::Cividis => cividis(t),
@@ -461,6 +465,22 @@ pub fn mako(t: f32) -> [u8; 3] {
         [73, 193, 173],
         [150, 221, 181],
         [222, 245, 229],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn turbo(t: f32) -> [u8; 3] {
+    // Evenly sampled from matplotlib's Turbo colormap.
+    let stops: [[u8; 3]; 9] = [
+        [48, 18, 59],
+        [70, 107, 227],
+        [40, 188, 235],
+        [50, 242, 152],
+        [164, 252, 60],
+        [236, 209, 58],
+        [251, 129, 34],
+        [210, 49, 5],
+        [122, 4, 3],
     ];
     colormap_lerp(&stops, t)
 }
