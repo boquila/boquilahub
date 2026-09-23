@@ -718,7 +718,7 @@ impl Gui {
                 if self.audio_fft_size != old_fft {
                     self.audio_tex_dirty = true;
                 }
-                ui.label("Palette");
+                ui.label(self.t(Key::palette));
                 let old_palette = self.audio_palette;
                 egui::ComboBox::from_id_salt("audio_palette")
                     .selected_text(self.audio_palette.label())
