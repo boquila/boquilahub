@@ -860,7 +860,7 @@ impl Gui {
             .selected_audios
             .get(self.audio_texture_n.saturating_sub(1))
         else {
-            self.audio_view_range = (0.0, 0.1);
+            self.audio_view_range = (0.0, 0.01);
             self.audio_view_range_dirty = true;
             return Ok(());
         };
@@ -870,7 +870,7 @@ impl Gui {
                 let mono = audio.to_mono();
                 let dur = mono.duration();
                 self.audio_data = Some(mono);
-                self.audio_view_range = (0.0, dur.max(0.1));
+                self.audio_view_range = (0.0, dur.max(0.01));
                 self.audio_view_range_dirty = true;
                 Ok(())
             }
