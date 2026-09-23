@@ -88,14 +88,16 @@ pub struct Gui {
     // AudioData is heavy (hours of float samples). We only keep it for the
     // currently displayed audio file — switching invalidates and reloads.
     audio_data: Option<AudioData>,
-    audio_full_mel: Option<ndarray::Array2<f32>>,
+    audio_spectrogram: Option<audio::DisplaySpectrogram>,
     audio_wave: Option<audio::WaveSummary>,
-    audio_mel_meta: Option<(usize, usize, usize, f32)>, // n_fft, hop_length, n_mels, top_db
+    audio_wave_view: Option<audio::WaveEnvelope>,
+    audio_fft_size: usize,
+    audio_palette: Palette,
     audio_tex_dirty: bool,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
-    // Frequency-axis zoom, in mel units, clamped to a sub-range of
-    // [0, mel_max]. `None` means "fit": the whole spectrogram (plus the
+    // Frequency-axis zoom, in Hz, clamped to a sub-range of
+    // [0, Nyquist]. `None` means "fit": the whole spectrogram (plus the
     // class strip) is visible. Kept out of PlotMemory so it can always be
     // snapped back deterministically (double-click / Fit button).
     audio_y_range: Option<(f64, f64)>,
@@ -560,12 +562,6 @@ impl Gui {
                 self.ai_cls_selected = None;
                 GlobalBQ::Second.clear();
             }
-            if self.is_audio_model() {
-                // Mel params may differ for the new audio model — invalidate cache.
-                self.audio_full_mel = None;
-                self.audio_mel_meta = None;
-                self.audio_tex_dirty = true;
-            }
             let model_path = self.ais[self.ai_selected.unwrap()].get_path();
             if GlobalBQ::First.set_model(
                 &model_path,
@@ -846,14 +842,14 @@ impl Gui {
     }
 
     /// Load (decode) the AudioData for the currently-selected audio file and
-    /// reset all derived view state (mel, texture, view range, playhead). The
+    /// reset all derived view state (spectrum, texture, view range, playhead). The
     /// returned `Ok(())` / `Err(())` reflects whether the file could be opened.
     pub(super) fn load_current_audio(&mut self) -> Result<(), ()> {
         self.stop_playback();
         self.audio_data = None;
-        self.audio_full_mel = None;
+        self.audio_spectrogram = None;
         self.audio_wave = None;
-        self.audio_mel_meta = None;
+        self.audio_wave_view = None;
         self.audio_tex_dirty = true;
         self.audio_playhead = None;
         self.audio_play_start = None;
