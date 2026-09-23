@@ -92,6 +92,7 @@ pub struct Gui {
     audio_wave: Option<audio::WaveSummary>,
     audio_wave_view: Option<audio::WaveEnvelope>,
     audio_fft_size: usize,
+    audio_palette: Palette,
     audio_tex_dirty: bool,
     audio_view_range: (f64, f64),
     audio_view_range_dirty: bool,
