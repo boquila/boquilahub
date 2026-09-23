@@ -29,6 +29,8 @@ const WAVE_BLOCK: usize = 1024;
 
 pub(super) struct DisplaySpectrogram {
     db: ndarray::Array2<f32>,
+    view: (f64, f64),
+    width: usize,
     start_sample: usize,
     hop_length: usize,
     n_fft: usize,
@@ -137,6 +139,8 @@ impl DisplaySpectrogram {
         }
         (Self {
             db,
+            view,
+            width,
             start_sample,
             hop_length,
             n_fft,
@@ -145,6 +149,13 @@ impl DisplaySpectrogram {
             window,
             full_scale_power,
         }, computed)
+    }
+
+    fn matches_view(&self, audio: &AudioData, n_fft: usize, view: (f64, f64), width: usize) -> bool {
+        self.sample_rate == audio.sample_rate
+            && self.n_fft == n_fft
+            && self.view == view
+            && self.width == width
     }
 
     fn frame_at(&self, time: f64) -> usize {
@@ -657,7 +668,7 @@ impl Gui {
                 ui.ctx().request_repaint();
             }
 
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if self.audio_playing {
                     if ui.button("⏸").clicked() {
                         self.stop_playback();
@@ -705,6 +716,18 @@ impl Gui {
                         }
                     });
                 if self.audio_fft_size != old_fft {
+                    self.audio_tex_dirty = true;
+                }
+                ui.label("Palette");
+                let old_palette = self.audio_palette;
+                egui::ComboBox::from_id_salt("audio_palette")
+                    .selected_text(self.audio_palette.label())
+                    .show_ui(ui, |ui| {
+                        for choice in Palette::ALL {
+                            ui.selectable_value(&mut self.audio_palette, choice, choice.label());
+                        }
+                    });
+                if self.audio_palette != old_palette {
                     self.audio_tex_dirty = true;
                 }
                 ui.label(format!("0–{:.1} kHz", display_sr as f64 / 2000.0));
@@ -770,22 +793,34 @@ impl Gui {
                 .unwrap_or_default();
 
             if self.audio_tex_dirty {
-                let (spectrum, _) = DisplaySpectrogram::compute_reusing(
-                    self.audio_data.as_ref().unwrap(),
-                    self.display_fft_size(),
-                    self.audio_view_range,
-                    target_tex_w,
-                    self.audio_spectrogram.as_ref(),
-                );
+                let fft_size = self.display_fft_size();
+                if !self.audio_spectrogram.as_ref().is_some_and(|spectrum| {
+                    spectrum.matches_view(
+                        self.audio_data.as_ref().unwrap(),
+                        fft_size,
+                        self.audio_view_range,
+                        target_tex_w,
+                    )
+                }) {
+                    let (spectrum, _) = DisplaySpectrogram::compute_reusing(
+                        self.audio_data.as_ref().unwrap(),
+                        fft_size,
+                        self.audio_view_range,
+                        target_tex_w,
+                        self.audio_spectrogram.as_ref(),
+                    );
+                    self.audio_spectrogram = Some(spectrum);
+                }
+                let spectrum = self.audio_spectrogram.as_ref().unwrap();
                 let img = spectrogram_to_color_image(
-                    &spectrum,
+                    spectrum,
+                    self.audio_palette,
                     self.audio_view_range,
                     target_tex_w,
                     target_tex_h,
                     &window_preds,
                     &column_winner,
                 );
-                self.audio_spectrogram = Some(spectrum);
                 let opts = egui::TextureOptions::default();
                 // Reuse the GPU allocation while the size holds — a fresh
                 // load_texture every drag frame is what made panning chug.
@@ -1401,14 +1436,22 @@ fn render_oscillogram(
     (new_view_range, clicked_time)
 }
 
-/// 256-entry ramp for one column tint (`None` = the default viridis ramp), so
+/// 256-entry ramp for one column tint (`None` = the selected palette), so
 /// the per-pixel colormap maths becomes a lookup.
-fn color_ramp(tint: Option<[u8; 3]>) -> [egui::Color32; 256] {
+fn color_ramp(selected: Palette, tint: Option<[u8; 3]>) -> [egui::Color32; 256] {
     std::array::from_fn(|i| {
         let t = i as f32 / 255.0;
+        let base = palette(selected, t);
         let [r, g, b] = match tint {
-            Some(c) => class_colormap(c, t),
-            None => viridis(t),
+            Some(c) => {
+                // Prediction tint stays visible while the selected palette
+                // still changes every spectrogram column.
+                let overlay = class_colormap(c, t);
+                std::array::from_fn(|channel| {
+                    ((base[channel] as u16 + overlay[channel] as u16) / 2) as u8
+                })
+            }
+            None => base,
         };
         egui::Color32::from_rgb(r, g, b)
     })
@@ -1417,6 +1460,7 @@ fn color_ramp(tint: Option<[u8; 3]>) -> [egui::Color32; 256] {
 /// Color the visible STFT, with linear frequency from zero to Nyquist.
 fn spectrogram_to_color_image(
     spectrum: &DisplaySpectrogram,
+    selected: Palette,
     view: (f64, f64),
     target_width: usize,
     target_height: usize,
@@ -1427,7 +1471,7 @@ fn spectrogram_to_color_image(
     let rows = spectrum.db.as_standard_layout();
     let db = rows.as_slice().expect("standard layout");
 
-    let mut ramps = vec![color_ramp(None)];
+    let mut ramps = vec![color_ramp(selected, None)];
     let mut tints: Vec<[u8; 3]> = Vec::new();
     let column_ramp: Vec<usize> = column_winner
         .iter()
@@ -1437,7 +1481,7 @@ fn spectrogram_to_color_image(
                 let tint = class_color(window_preds[*i].prediction.class_id);
                 tints.iter().position(|t| *t == tint).unwrap_or_else(|| {
                     tints.push(tint);
-                    ramps.push(color_ramp(Some(tint)));
+                    ramps.push(color_ramp(selected, Some(tint)));
                     tints.len() - 1
                 }) + 1
             }
@@ -1485,6 +1529,18 @@ fn spectrogram_to_color_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn palette_changes_plain_and_prediction_tinted_spectrogram_colors() {
+        assert_ne!(
+            color_ramp(Palette::Viridis, None),
+            color_ramp(Palette::Magma, None)
+        );
+        assert_ne!(
+            color_ramp(Palette::Viridis, Some([220, 20, 60])),
+            color_ramp(Palette::Magma, Some([220, 20, 60]))
+        );
+    }
 
     #[test]
     fn envelope_never_misses_a_transient() {

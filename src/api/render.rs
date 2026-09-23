@@ -382,6 +382,54 @@ impl PredImg {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Palette {
+    #[default]
+    Viridis,
+    Magma,
+    Plasma,
+    Inferno,
+    Cividis,
+    Twilight,
+    Grayscale,
+}
+
+impl Palette {
+    pub const ALL: [Self; 7] = [
+        Self::Viridis,
+        Self::Magma,
+        Self::Plasma,
+        Self::Inferno,
+        Self::Cividis,
+        Self::Twilight,
+        Self::Grayscale,
+    ];
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Viridis => "Viridis",
+            Self::Magma => "Magma",
+            Self::Plasma => "Plasma",
+            Self::Inferno => "Inferno",
+            Self::Cividis => "Cividis",
+            Self::Twilight => "Twilight",
+            Self::Grayscale => "Grayscale",
+        }
+    }
+}
+
+pub fn palette(kind: Palette, t: f32) -> [u8; 3] {
+    match kind {
+        Palette::Viridis => viridis(t),
+        Palette::Magma => magma(t),
+        Palette::Plasma => plasma(t),
+        Palette::Inferno => inferno(t),
+        Palette::Cividis => cividis(t),
+        Palette::Twilight => twilight(t),
+        Palette::Grayscale => grayscale(t),
+    }
+}
+
 pub fn magma(t: f32) -> [u8; 3] {
     let stops: [[u8; 3]; 9] = [
         [0, 0, 4],
@@ -410,6 +458,71 @@ pub fn viridis(t: f32) -> [u8; 3] {
         [253, 231, 37],
     ];
     colormap_lerp(&stops, t)
+}
+
+pub fn plasma(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [13, 8, 135],
+        [72, 1, 163],
+        [114, 0, 168],
+        [156, 23, 158],
+        [191, 63, 128],
+        [219, 92, 104],
+        [242, 132, 75],
+        [253, 182, 46],
+        [240, 249, 33],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn inferno(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [0, 0, 4],
+        [31, 12, 72],
+        [85, 15, 109],
+        [136, 34, 106],
+        [187, 55, 84],
+        [227, 89, 51],
+        [249, 140, 10],
+        [249, 201, 50],
+        [252, 255, 164],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn cividis(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [0, 34, 78],
+        [31, 52, 111],
+        [55, 71, 117],
+        [76, 90, 115],
+        [100, 111, 112],
+        [126, 131, 107],
+        [154, 153, 101],
+        [194, 179, 82],
+        [254, 232, 56],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn twilight(t: f32) -> [u8; 3] {
+    let stops: [[u8; 3]; 9] = [
+        [226, 217, 226],
+        [147, 180, 198],
+        [98, 118, 186],
+        [89, 42, 143],
+        [48, 20, 55],
+        [116, 30, 79],
+        [178, 86, 82],
+        [204, 162, 135],
+        [226, 217, 226],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn grayscale(t: f32) -> [u8; 3] {
+    let value = (t.clamp(0.0, 1.0) * 255.0) as u8;
+    [value; 3]
 }
 
 fn colormap_lerp(stops: &[[u8; 3]; 9], t: f32) -> [u8; 3] {
