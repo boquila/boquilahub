@@ -387,6 +387,7 @@ pub enum Palette {
     #[default]
     Viridis,
     Magma,
+    Mako,
     Plasma,
     Inferno,
     Cividis,
@@ -395,9 +396,10 @@ pub enum Palette {
 }
 
 impl Palette {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Viridis,
         Self::Magma,
+        Self::Mako,
         Self::Plasma,
         Self::Inferno,
         Self::Cividis,
@@ -409,6 +411,7 @@ impl Palette {
         match self {
             Self::Viridis => "Viridis",
             Self::Magma => "Magma",
+            Self::Mako => "Mako",
             Self::Plasma => "Plasma",
             Self::Inferno => "Inferno",
             Self::Cividis => "Cividis",
@@ -422,6 +425,7 @@ pub fn palette(kind: Palette, t: f32) -> [u8; 3] {
     match kind {
         Palette::Viridis => viridis(t),
         Palette::Magma => magma(t),
+        Palette::Mako => mako(t),
         Palette::Plasma => plasma(t),
         Palette::Inferno => inferno(t),
         Palette::Cividis => cividis(t),
@@ -441,6 +445,22 @@ pub fn magma(t: f32) -> [u8; 3] {
         [237, 149, 27],
         [249, 213, 70],
         [252, 253, 191],
+    ];
+    colormap_lerp(&stops, t)
+}
+
+pub fn mako(t: f32) -> [u8; 3] {
+    // Evenly sampled from seaborn's mako colormap.
+    let stops: [[u8; 3]; 9] = [
+        [11, 4, 5],
+        [43, 28, 53],
+        [62, 53, 107],
+        [59, 86, 152],
+        [53, 123, 163],
+        [53, 158, 170],
+        [73, 193, 173],
+        [150, 221, 181],
+        [222, 245, 229],
     ];
     colormap_lerp(&stops, t)
 }
