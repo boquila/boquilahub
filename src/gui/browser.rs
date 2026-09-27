@@ -54,8 +54,15 @@ impl Browser {
             return false;
         }
         let mut analyze_clicked = false;
+        // Align the header with the slider track, leaving room for its value editor.
+        let width = if files.len() > 1 {
+            (ui.available_width() - 110.0).max(180.0)
+        } else {
+            ui.available_width()
+        };
         // Bound the row's height before aligning Sort at the right edge.
         ui.horizontal(|ui| {
+            ui.set_max_width(width);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 self.sort_menu(ui, files, index, lang);
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -99,7 +106,7 @@ impl Browser {
         });
         if let Some(position) = self.order.iter().position(|i| *i + 1 == *index) {
             let mut position = position + 1;
-            nav_slider(ui, &mut position, self.order.len());
+            nav_slider(ui, &mut position, self.order.len(), width);
             *index = self.order[position - 1] + 1;
         }
         analyze_clicked

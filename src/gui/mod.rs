@@ -1188,14 +1188,11 @@ pub(super) fn nav_filename(ui: &mut egui::Ui, name: &str, index: usize, n: usize
 }
 
 /// Wide slider for jumping to an arbitrary file, drawn below the header row.
-pub(super) fn nav_slider(ui: &mut egui::Ui, index: &mut usize, n: usize) {
+pub(super) fn nav_slider(ui: &mut egui::Ui, index: &mut usize, n: usize, width: f32) {
     if n <= 1 {
         return;
     }
-    // Leave room for the slider's trailing value editor (~70px) plus padding —
-    // without this it gets clipped off the right edge.
-    let slider_w = (ui.available_width() - 110.0).max(180.0);
-    ui.spacing_mut().slider_width = slider_w;
+    ui.spacing_mut().slider_width = width;
     ui.add(egui::Slider::new(index, 1..=n).text(""));
 }
 
