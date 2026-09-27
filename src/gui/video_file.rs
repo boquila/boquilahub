@@ -537,48 +537,30 @@ impl Gui {
 
     // ---------- main video-player UI ----------
 
-    fn draw_video_header(&mut self, ui: &mut egui::Ui, n: usize) {
+    fn draw_video_header(&mut self, ui: &mut egui::Ui) {
         let mut new_index = self.video_texture_n;
 
-        ui.horizontal_wrapped(|ui| {
-            super::nav_prev_next(
-                ui,
-                &mut new_index,
-                n,
-                self.t(Key::prev),
-                self.t(Key::next),
-            );
-            let pv = &self.selected_videos[new_index - 1];
-            let name = pv
-                .file_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or(self.t(Key::unknown_file));
-            super::nav_filename(ui, name, new_index, n);
-            if pv.processed_count() > 0 {
-                ui.separator();
-                let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
-                ui.label(
-                    egui::RichText::new(format!(
+        let lang = &self.lang;
+        self.video_browser.show(
+            ui,
+            &self.selected_videos,
+            &mut new_index,
+            lang,
+            None,
+            |pv| {
+                if pv.processed_count() > 0 {
+                    let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
+                    Some(format!(
                         "{} / {} {}",
                         pv.processed_count(),
                         total.max(1),
-                        self.t(Key::frames_analysed),
+                        translate(Key::frames_analysed, lang),
                     ))
-                    .weak()
-                    .small(),
-                );
-            } else {
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(self.t(Key::not_analysed))
-                        .weak()
-                        .small(),
-                );
-            }
-        });
-
-        super::nav_slider(ui, &mut new_index, n);
+                } else {
+                    Some(translate(Key::not_analysed, lang).to_owned())
+                }
+            },
+        );
 
         if new_index != self.video_texture_n {
             self.video_texture_n = new_index;
@@ -589,18 +571,14 @@ impl Gui {
     }
 
     pub(super) fn ui_video(&mut self, ui: &mut egui::Ui) {
+        self.video_handle_results(ui);
+        self.video_handle_export(ui);
         if self.selected_videos.is_empty() {
             return;
         }
-        let n = self.selected_videos.len();
-        if self.video_texture_n < 1 {
-            self.video_texture_n = 1;
-        }
-        if self.video_texture_n > n {
-            self.video_texture_n = n;
-        }
+        self.video_texture_n = self.video_texture_n.clamp(1, self.selected_videos.len());
 
-        self.draw_video_header(ui, n);
+        self.draw_video_header(ui);
 
         let Some(n_frames) = self.current_video().map(|p| p.n_frames) else { return; };
         if n_frames == 0 {
@@ -755,9 +733,6 @@ impl Gui {
                 self.seek_video_frame(idx);
             }
         }
-
-        self.video_handle_results(ui);
-        self.video_handle_export(ui);
     }
 
     /// Returns Some(frame_index) when the user clicks or drags on the bar.

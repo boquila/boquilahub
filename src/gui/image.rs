@@ -222,18 +222,13 @@ impl Gui {
     // ---------- main image viewer ----------
 
     pub(super) fn ui_image(&mut self, ui: &mut egui::Ui) {
+        self.img_handle_results(ui);
         if self.selected_imgs.is_empty() {
             return;
         }
-        let n = self.selected_imgs.len();
-        if self.image_texture_n < 1 {
-            self.image_texture_n = 1;
-        }
-        if self.image_texture_n > n {
-            self.image_texture_n = n;
-        }
+        self.image_texture_n = self.image_texture_n.clamp(1, self.selected_imgs.len());
 
-        self.draw_image_header(ui, n);
+        self.draw_image_header(ui);
 
         let i = self.image_texture_n - 1;
         let has_spatial_output = matches!(
@@ -261,53 +256,21 @@ impl Gui {
                 draw_echo_strip(ui, echo.as_ref(), echo_strip_h, preview_w);
             }
         });
-
-        self.img_handle_results(ui);
     }
 
-    fn draw_image_header(&mut self, ui: &mut egui::Ui, n: usize) {
+    fn draw_image_header(&mut self, ui: &mut egui::Ui) {
         let mut new_index = self.image_texture_n;
-        let can_analyze = self.can_run_image_ai();
-        let mut analyze_this = false;
-
-        ui.horizontal_wrapped(|ui| {
-            super::nav_prev_next(
-                ui,
-                &mut new_index,
-                n,
-                self.t(Key::prev),
-                self.t(Key::next),
-            );
-            let predimg = &self.selected_imgs[new_index - 1];
-            let name = predimg
-                .file_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or(self.t(Key::unknown_file));
-            super::nav_filename(ui, name, new_index, n);
-
-            if !predimg.wasprocessed {
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(self.t(Key::not_analysed))
-                        .weak()
-                        .small(),
-                );
-            }
-
-            if can_analyze {
-                ui.separator();
-                let resp = ui.add_enabled(
-                    !self.img_state.is_processing,
-                    egui::Button::new(self.t(Key::analyze)),
-                );
-                if resp.clicked() {
-                    analyze_this = true;
-                }
-            }
-        });
-
-        super::nav_slider(ui, &mut new_index, n);
+        let analyze = self
+            .can_run_image_ai()
+            .then_some(!self.img_state.is_processing);
+        let analyze_this = self.image_browser.show(
+            ui,
+            &self.selected_imgs,
+            &mut new_index,
+            &self.lang,
+            analyze,
+            |_| None,
+        );
 
         if new_index != self.image_texture_n {
             self.image_texture_n = new_index;

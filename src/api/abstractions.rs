@@ -1,4 +1,3 @@
-use crate::api::exif::{ExifDateTime, ExifMetadata};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -160,14 +159,6 @@ fn load_sidecar_aioutput(file_path: &std::path::Path) -> Option<AIOutputs> {
 pub trait Pred {
     fn file_path(&self) -> &std::path::Path;
     fn is_processed(&self) -> bool;
-    fn exif(&self) -> Option<&ExifMetadata>;
-
-    /// EXIF creation time for GUI sorting, without IO in the sort comparator.
-    /// Use `.local` for camera-local ordering, or `.to_utc()` when an offset
-    /// exists. Missing dates and offsets remain explicit for the caller.
-    fn created_at(&self) -> Option<ExifDateTime> {
-        self.exif().and_then(ExifMetadata::created_at)
-    }
 
     /// JSON written to the sidecar `_predictions.json`. Image and audio dump
     /// the bare `AIOutputs` (one prediction per file); video dumps the whole
@@ -213,17 +204,15 @@ impl<T: Pred> PredListSugar for Vec<T> {
 #[derive(Clone)]
 pub struct PredImg {
     pub file_path: std::path::PathBuf,
-    pub exif: Option<ExifMetadata>,
     pub aioutput: Option<AIOutputs>,
     pub wasprocessed: bool,
 }
 
 impl PredImg {
-    /// Load predictions from the sidecar and fresh EXIF from the source file.
+    /// Load predictions from the sidecar, if present.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         let aioutput = load_sidecar_aioutput(&file_path);
         PredImg {
-            exif: ExifMetadata::from_file(&file_path).ok(),
             wasprocessed: aioutput.is_some(),
             aioutput,
             file_path,
@@ -236,9 +225,6 @@ impl PredImg {
 }
 
 impl Pred for PredImg {
-    fn exif(&self) -> Option<&ExifMetadata> {
-        self.exif.as_ref()
-    }
     fn file_path(&self) -> &std::path::Path {
         &self.file_path
     }
@@ -266,17 +252,15 @@ impl AudioProbSugar for Vec<AudioProb> {
 #[derive(Clone)]
 pub struct PredAudio {
     pub file_path: std::path::PathBuf,
-    pub exif: Option<ExifMetadata>,
     pub aioutput: Option<AIOutputs>,
     pub wasprocessed: bool,
 }
 
 impl PredAudio {
-    /// Load predictions and optional EXIF. Audio container tags are not EXIF.
+    /// Load predictions from the sidecar, if present.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         let aioutput = load_sidecar_aioutput(&file_path);
         PredAudio {
-            exif: ExifMetadata::from_file(&file_path).ok(),
             wasprocessed: aioutput.is_some(),
             aioutput,
             file_path,
@@ -304,9 +288,6 @@ impl PredAudio {
 }
 
 impl Pred for PredAudio {
-    fn exif(&self) -> Option<&ExifMetadata> {
-        self.exif.as_ref()
-    }
     fn file_path(&self) -> &std::path::Path {
         &self.file_path
     }
@@ -326,8 +307,6 @@ impl Pred for PredAudio {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PredVideo {
     pub file_path: std::path::PathBuf,
-    #[serde(skip)]
-    pub exif: Option<ExifMetadata>,
     pub width: u32,
     pub height: u32,
     pub fps: f64,
@@ -340,20 +319,18 @@ pub struct PredVideo {
 }
 
 impl PredVideo {
-    /// Cheap constructor: reads optional EXIF from the source and loads a sidecar
+    /// Cheap constructor: loads a sidecar
     /// `_predictions.json` if one exists (same shape as `PredImg::new_simple`
     /// / `PredAudio::new_simple`). The ffmpeg probe is deferred to
     /// [`Self::hydrate`] so picking 100 videos doesn't pay a 100x
     /// ffmpeg-init cost upfront.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
-        let exif = ExifMetadata::from_file(&file_path).ok();
         if let Ok(path) = sidecar_predictions_path(&file_path)
             && let Ok(file) = std::fs::File::open(&path)
             && let Ok(mut cached) =
                 serde_json::from_reader::<_, PredVideo>(std::io::BufReader::new(file))
         {
             cached.file_path = file_path;
-            cached.exif = exif;
             cached.processed_indices = cached
                 .frames
                 .iter()
@@ -364,7 +341,6 @@ impl PredVideo {
         }
         Self {
             file_path,
-            exif,
             width: 0,
             height: 0,
             fps: 0.0,
@@ -458,9 +434,6 @@ impl PredVideo {
 }
 
 impl Pred for PredVideo {
-    fn exif(&self) -> Option<&ExifMetadata> {
-        self.exif.as_ref()
-    }
     fn file_path(&self) -> &std::path::Path {
         &self.file_path
     }

@@ -150,10 +150,27 @@ pub enum Key {
     audio_processing,
     frame_label,
     embedding,
+    sort,
+    file_modified,
+    file_created,
+    date_ascending,
+    date_descending,
+}
+
+const fn localized(lang: &Lang, labels: [&'static str; 9]) -> &'static str {
+    labels[match lang {
+        Lang::EN => 0, Lang::ES => 1, Lang::FR => 2, Lang::DE => 3,
+        Lang::ZH => 4, Lang::JA => 5, Lang::PT => 6, Lang::VI => 7, Lang::NK => 8,
+    }]
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
     match key {
+        Key::sort => localized(lang, ["Sort", "Ordenar", "Trier", "Sortieren", "排序", "並べ替え", "Ordenar", "Sắp xếp", "Sortiraj"]),
+        Key::file_modified => localized(lang, ["File modified", "Modificación del archivo", "Modification du fichier", "Datei geändert", "文件修改日期", "ファイルの更新日時", "Modificação do arquivo", "Ngày sửa đổi tệp", "Izmjena datoteke"]),
+        Key::file_created => localized(lang, ["File created", "Creación del archivo", "Création du fichier", "Datei erstellt", "文件创建日期", "ファイルの作成日時", "Criação do arquivo", "Ngày tạo tệp", "Kreiranje datoteke"]),
+        Key::date_ascending => localized(lang, ["Ascending (oldest first)", "Ascendente (más antiguos primero)", "Croissant (plus anciens d’abord)", "Aufsteigend (älteste zuerst)", "升序（最早优先）", "昇順（古い順）", "Crescente (mais antigos primeiro)", "Tăng dần (cũ nhất trước)", "Uzlazno (najstarije prvo)"]),
+        Key::date_descending => localized(lang, ["Descending (newest first)", "Descendente (más recientes primero)", "Décroissant (plus récents d’abord)", "Absteigend (neueste zuerst)", "降序（最新优先）", "降順（新しい順）", "Decrescente (mais recentes primeiro)", "Giảm dần (mới nhất trước)", "Silazno (najnovije prvo)"]),
         Key::select_ai => match lang {
             Lang::EN => "AI",
             Lang::ES => "IA",

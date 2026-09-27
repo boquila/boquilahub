@@ -1,4 +1,5 @@
 mod audio;
+mod browser;
 mod feed;
 #[path = "image.rs"]
 mod image_view;
@@ -85,6 +86,9 @@ pub struct Gui {
     ais_cls_only: Vec<AIMetadata>,
     selected_imgs: Vec<PredImg>,
     selected_audios: Vec<PredAudio>,
+    image_browser: browser::Browser,
+    audio_browser: browser::Browser,
+    video_browser: browser::Browser,
     // AudioData is heavy (hours of float samples). We only keep it for the
     // currently displayed audio file — switching invalidates and reloads.
     audio_data: Option<AudioData>,
@@ -728,6 +732,7 @@ impl Gui {
 
                                 if !image_files.is_empty() {
                                     self.selected_imgs = image_files.into_preds(PredImg::new_simple);
+                                    self.image_browser = Default::default();
                                     self.image_texture_n = 1;
                                     self.image_view.reset();
                                     self.paint(ui, 0);
@@ -737,6 +742,7 @@ impl Gui {
 
                                 if !audio_files.is_empty() {
                                     self.selected_audios = audio_files.into_preds(PredAudio::new_simple);
+                                    self.audio_browser = Default::default();
                                     self.audio_texture_n = 1;
                                     self.audio_state.progress_bar =
                                         self.selected_audios.get_progress();
@@ -745,6 +751,7 @@ impl Gui {
 
                                 if !video_files.is_empty() {
                                     self.selected_videos = video_files.into_preds(PredVideo::new_simple);
+                                    self.video_browser = Default::default();
                                     self.video_texture_n = 1;
                                     self.load_current_video(ui);
                                 }
@@ -780,6 +787,7 @@ impl Gui {
                         .pick_files()
                     {
                         self.selected_imgs = paths.into_preds(PredImg::new_simple);
+                        self.image_browser = Default::default();
                         self.image_texture_n = 1;
                         self.image_view.reset();
                         self.paint(ui, 0);
@@ -800,6 +808,7 @@ impl Gui {
                     {
                         if !paths.is_empty() {
                             self.selected_videos = paths.into_preds(PredVideo::new_simple);
+                            self.video_browser = Default::default();
                             self.video_texture_n = 1;
                             self.mode = Mode::Video;
                             self.load_current_video(ui);
@@ -829,6 +838,7 @@ impl Gui {
                         .pick_files()
                     {
                         self.selected_audios = paths.into_preds(PredAudio::new_simple);
+                        self.audio_browser = Default::default();
                         self.audio_texture_n = 1;
                         self.mode = Mode::Audio;
                         self.audio_state.progress_bar = self.selected_audios.get_progress();
@@ -1168,16 +1178,16 @@ pub(super) fn nav_prev_next(
     ui.separator();
 }
 
-/// Filename in strong + " · i / n" counter when more than one file is loaded.
+/// Compact counter and filename; long names remain available on hover.
 pub(super) fn nav_filename(ui: &mut egui::Ui, name: &str, index: usize, n: usize) {
-    ui.label(egui::RichText::new(name).strong());
     if n > 1 {
         ui.label(egui::RichText::new(format!("·  {} / {}", index, n)).weak());
     }
+    ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
+        .on_hover_text(name);
 }
 
-/// Wide slider for jumping to an arbitrary file. Caller is responsible for
-/// `horizontal_wrapped` containment — this is drawn below it, not inside it.
+/// Wide slider for jumping to an arbitrary file, drawn below the header row.
 pub(super) fn nav_slider(ui: &mut egui::Ui, index: &mut usize, n: usize) {
     if n <= 1 {
         return;
