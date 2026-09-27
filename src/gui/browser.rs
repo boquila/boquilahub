@@ -113,17 +113,26 @@ impl Browser {
         *index = (*index).clamp(1, files.len());
         let mut analyze_clicked = false;
         ui.scope(|ui| {
-            ui.spacing_mut().interact_size = egui::vec2(28.0, 28.0);
             let file = &files[*index - 1];
             // Horizontal rows bound the height, including inside a ScrollArea.
-            ui.horizontal(|ui| {
-                let status = if file.is_processed() {
-                    Key::analysed
-                } else {
-                    Key::not_analysed
-                };
-                ui.label(egui::RichText::new(translate(status, lang)).weak().small());
+            ui.horizontal_wrapped(|ui| {
+                let name = file
+                    .file_path()
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(translate(Key::unknown_file, lang));
+                ui.label(egui::RichText::new(name).strong())
+                    .on_hover_text(name);
+                if !file.is_processed() {
+                    ui.separator();
+                    ui.label(
+                        egui::RichText::new(translate(Key::not_analysed, lang))
+                            .weak()
+                            .small(),
+                    );
+                }
                 if let Some(enabled) = analyze {
+                    ui.separator();
                     let key = if enabled {
                         Key::analyze
                     } else {
@@ -133,15 +142,9 @@ impl Browser {
                         .add_enabled(enabled, egui::Button::new(translate(key, lang)))
                         .clicked();
                 }
-                let name = file
-                    .file_path()
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or(translate(Key::unknown_file, lang));
-                ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
-                    .on_hover_text(name);
             });
             if files.len() > 1 {
+                ui.spacing_mut().interact_size = egui::vec2(28.0, 28.0);
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         self.sort_menu(ui, files, index, lang);

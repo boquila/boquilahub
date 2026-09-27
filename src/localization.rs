@@ -119,7 +119,6 @@ pub enum Key {
     saved_next_to_originals,
     unknown_file,
     not_analysed,
-    analysed,
     not_analysed_parens,
     predictions,
     classification,
@@ -174,7 +173,6 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::file_created => localized(lang, ["Created date", "Fecha de creación", "Date de création", "Erstellungsdatum", "文件创建日期", "作成日時", "Data de criação", "Ngày tạo tệp", "Datum stvaranja"]),
         Key::date_ascending => localized(lang, ["Ascending (oldest first)", "Ascendente (más antiguos primero)", "Croissant (plus anciens d’abord)", "Aufsteigend (älteste zuerst)", "升序（最早优先）", "昇順（古い順）", "Crescente (mais antigos primeiro)", "Tăng dần (cũ nhất trước)", "Uzlazno (najstarije prvo)"]),
         Key::date_descending => localized(lang, ["Descending (newest first)", "Descendente (más recientes primero)", "Décroissant (plus récents d’abord)", "Absteigend (neueste zuerst)", "降序（最新优先）", "降順（新しい順）", "Decrescente (mais recentes primeiro)", "Giảm dần (mới nhất trước)", "Silazno (najnovije prvo)"]),
-        Key::analysed => localized(lang, ["analysed", "analizado", "analysé", "analysiert", "已分析", "解析済み", "analisado", "đã phân tích", "analizirano"]),
         Key::original_order => localized(lang, ["Original order", "Orden original", "Ordre d’origine", "Ursprüngliche Reihenfolge", "原始顺序", "元の順序", "Ordem original", "Thứ tự ban đầu", "Izvorni redoslijed"]),
         Key::file_number_hint => localized(lang, ["Click to enter a file number", "Haz clic para introducir un número de archivo", "Cliquez pour saisir un numéro de fichier", "Klicken, um eine Dateinummer einzugeben", "点击输入文件编号", "クリックしてファイル番号を入力", "Clique para introduzir um número de ficheiro", "Nhấp để nhập số thứ tự tệp", "Klikni za unos broja datoteke"]),
         Key::select_ai => match lang {
@@ -840,7 +838,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "(nepoznato)",
         },
         Key::not_analysed => match lang {
-            Lang::EN => "not analysed",
+            Lang::EN => "not analyzed",
             Lang::ES => "sin analizar",
             Lang::FR => "non analysé",
             Lang::DE => "nicht analysiert",
@@ -851,7 +849,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "neanalizirano",
         },
         Key::not_analysed_parens => match lang {
-            Lang::EN => "(not analysed)",
+            Lang::EN => "(not analyzed)",
             Lang::ES => "(sin analizar)",
             Lang::FR => "(non analysé)",
             Lang::DE => "(nicht analysiert)",
@@ -972,7 +970,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "% pouzdanost",
         },
         Key::analysing => match lang {
-            Lang::EN => "analysing…",
+            Lang::EN => "analyzing…",
             Lang::ES => "analizando…",
             Lang::FR => "analyse en cours…",
             Lang::DE => "wird analysiert…",
@@ -1137,7 +1135,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "Pusti",
         },
         Key::frames_analysed => match lang {
-            Lang::EN => "frames analysed",
+            Lang::EN => "frames analyzed",
             Lang::ES => "cuadros analizados",
             Lang::FR => "images analysées",
             Lang::DE => "Bilder analysiert",
