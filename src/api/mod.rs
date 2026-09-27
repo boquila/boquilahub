@@ -1,6 +1,7 @@
 pub mod abstractions;
 pub mod bq;
 pub mod export;
+pub mod exif;
 pub mod formats;
 pub mod models;
 pub mod processing;
