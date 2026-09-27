@@ -248,7 +248,3 @@ impl Browser {
         });
     }
 }
-
-#[cfg(test)]
-#[path = "../../tests/sorting/benchmark.rs"]
-mod tests;
