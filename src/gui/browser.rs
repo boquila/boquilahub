@@ -117,33 +117,29 @@ impl Browser {
             let file = &files[*index - 1];
             // Horizontal rows bound the height, including inside a ScrollArea.
             ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some(enabled) = analyze {
-                        let key = if enabled {
-                            Key::analyze
-                        } else {
-                            Key::analysing
-                        };
-                        analyze_clicked = ui
-                            .add_enabled(enabled, egui::Button::new(translate(key, lang)))
-                            .clicked();
-                    }
-                    let status = if file.is_processed() {
-                        Key::analysed
+                let status = if file.is_processed() {
+                    Key::analysed
+                } else {
+                    Key::not_analysed
+                };
+                ui.label(egui::RichText::new(translate(status, lang)).weak().small());
+                if let Some(enabled) = analyze {
+                    let key = if enabled {
+                        Key::analyze
                     } else {
-                        Key::not_analysed
+                        Key::analysing
                     };
-                    ui.label(egui::RichText::new(translate(status, lang)).weak().small());
-                    let name = file
-                        .file_path()
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or(translate(Key::unknown_file, lang));
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
-                            .on_hover_text(name);
-                    });
-                });
+                    analyze_clicked = ui
+                        .add_enabled(enabled, egui::Button::new(translate(key, lang)))
+                        .clicked();
+                }
+                let name = file
+                    .file_path()
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(translate(Key::unknown_file, lang));
+                ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
+                    .on_hover_text(name);
             });
             if files.len() > 1 {
                 ui.horizontal(|ui| {
@@ -228,19 +224,21 @@ impl Browser {
         }
         egui::ComboBox::from_id_salt("file_sort")
             .width(0.0)
-            .selected_text(
+            .selected_text(format!(
+                "{} {}",
+                translate(Key::sort_by, lang),
                 self.field
                     .map(|field| field.label(lang))
-                    .unwrap_or(translate(Key::sort, lang)),
-            )
+                    .unwrap_or(translate(Key::original_order, lang)),
+            ))
             .show_ui(ui, |ui| {
                 changed |= ui
                     .selectable_value(&mut self.field, None, translate(Key::original_order, lang))
-                    .clicked();
+                    .changed();
                 for field in DateField::ALL {
                     changed |= ui
                         .selectable_value(&mut self.field, Some(field), field.label(lang))
-                        .clicked();
+                        .changed();
                 }
             });
         if changed || self.order.len() != files.len() {

@@ -151,7 +151,7 @@ pub enum Key {
     audio_processing,
     frame_label,
     embedding,
-    sort,
+    sort_by,
     file_modified,
     file_created,
     date_ascending,
@@ -169,7 +169,7 @@ const fn localized(lang: &Lang, labels: [&'static str; 9]) -> &'static str {
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
     match key {
-        Key::sort => localized(lang, ["Sort", "Ordenar", "Trier", "Sortieren", "排序", "並べ替え", "Ordenar", "Sắp xếp", "Sortiraj"]),
+        Key::sort_by => localized(lang, ["Sort by:", "Ordenar por:", "Trier par :", "Sortieren nach:", "排序方式：", "並べ替え：", "Ordenar por:", "Sắp xếp theo:", "Sortiraj po:"]),
         Key::file_modified => localized(lang, ["Modified date", "Fecha de modificación", "Date de modification", "Änderungsdatum", "文件修改日期", "更新日時", "Data de modificação", "Ngày sửa đổi tệp", "Datum izmjene"]),
         Key::file_created => localized(lang, ["Created date", "Fecha de creación", "Date de création", "Erstellungsdatum", "文件创建日期", "作成日時", "Data de criação", "Ngày tạo tệp", "Datum stvaranja"]),
         Key::date_ascending => localized(lang, ["Ascending (oldest first)", "Ascendente (más antiguos primero)", "Croissant (plus anciens d’abord)", "Aufsteigend (älteste zuerst)", "升序（最早优先）", "昇順（古い順）", "Crescente (mais antigos primeiro)", "Tăng dần (cũ nhất trước)", "Uzlazno (najstarije prvo)"]),
