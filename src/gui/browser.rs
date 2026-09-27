@@ -22,7 +22,7 @@ impl DateField {
     }
 
     fn read(self, file: &impl Pred) -> Option<SystemTime> {
-        let metadata = std::fs::metadata(file.file_path()).ok()?;
+        let metadata = file.metadata()?;
         match self {
             Self::Modified => metadata.modified(),
             Self::Created => metadata.created(),
@@ -147,7 +147,6 @@ impl Browser {
         let Some(field) = self.field else {
             return;
         };
-        // Read filesystem dates once per sort, never inside the comparator.
         let dates: Vec<_> = files.iter().map(|file| field.read(file)).collect();
         self.order.sort_by(|a, b| match (dates[*a], dates[*b]) {
             (Some(a), Some(b)) => {
@@ -162,3 +161,7 @@ impl Browser {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/sorting/benchmark.rs"]
+mod tests;
