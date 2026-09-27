@@ -112,18 +112,21 @@ impl Browser {
         index: &mut usize,
         lang: &Lang,
     ) {
-        let (icon, key) = if self.descending {
-            ("↓", Key::date_descending)
-        } else {
-            ("↑", Key::date_ascending)
-        };
-        // The row flows right to left, so draw the arrow before Sort.
-        let mut changed = ui
-            .button(icon)
-            .on_hover_text(translate(key, lang))
-            .clicked();
-        if changed {
-            self.descending = !self.descending;
+        let mut changed = false;
+        if self.field.is_some() {
+            let (icon, key) = if self.descending {
+                ("↓", Key::date_descending)
+            } else {
+                ("↑", Key::date_ascending)
+            };
+            // The row flows right to left, so draw the arrow before Sort.
+            changed = ui
+                .button(icon)
+                .on_hover_text(translate(key, lang))
+                .clicked();
+            if changed {
+                self.descending = !self.descending;
+            }
         }
         egui::Popup::menu(&ui.button(translate(Key::sort, lang)))
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
