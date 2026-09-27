@@ -1150,52 +1150,6 @@ impl eframe::App for Gui {
     }
 }
 
-// ---------- Multi-file navigation chrome (shared by image/audio/video headers) ----------
-
-/// Prev / next buttons + trailing separator. Mutates `index` in place so each
-/// caller observes the post-click value immediately (the per-modality status
-/// widgets are drawn after this and need the new index).
-pub(super) fn nav_prev_next(
-    ui: &mut egui::Ui,
-    index: &mut usize,
-    n: usize,
-    prev_hint: &str,
-    next_hint: &str,
-) {
-    if n <= 1 {
-        return;
-    }
-    ui.add_enabled_ui(*index > 1, |ui| {
-        if ui.button("⏮").on_hover_text(prev_hint).clicked() {
-            *index = index.saturating_sub(1).max(1);
-        }
-    });
-    ui.add_enabled_ui(*index < n, |ui| {
-        if ui.button("⏭").on_hover_text(next_hint).clicked() {
-            *index = (*index + 1).min(n);
-        }
-    });
-    ui.separator();
-}
-
-/// Compact counter and filename; long names remain available on hover.
-pub(super) fn nav_filename(ui: &mut egui::Ui, name: &str, index: usize, n: usize) {
-    if n > 1 {
-        ui.label(egui::RichText::new(format!("·  {} / {}", index, n)).weak());
-    }
-    ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
-        .on_hover_text(name);
-}
-
-/// Wide slider for jumping to an arbitrary file, drawn below the header row.
-pub(super) fn nav_slider(ui: &mut egui::Ui, index: &mut usize, n: usize, width: f32) {
-    if n <= 1 {
-        return;
-    }
-    ui.spacing_mut().slider_width = width;
-    ui.add(egui::Slider::new(index, 1..=n).text(""));
-}
-
 #[inline(always)]
 fn imgbuf_to_texture(
     img: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,

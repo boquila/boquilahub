@@ -537,48 +537,13 @@ impl Gui {
 
     // ---------- main video-player UI ----------
 
-    fn draw_video_header(&mut self, ui: &mut egui::Ui) {
-        let mut new_index = self.video_texture_n;
-
-        let lang = &self.lang;
-        self.video_browser.show(
-            ui,
-            &self.selected_videos,
-            &mut new_index,
-            lang,
-            None,
-            |pv| {
-                if pv.processed_count() > 0 {
-                    let total = (0..pv.n_frames).step_by(pv.step.max(1) as usize).count();
-                    Some(format!(
-                        "{} / {} {}",
-                        pv.processed_count(),
-                        total.max(1),
-                        translate(Key::frames_analysed, lang),
-                    ))
-                } else {
-                    Some(translate(Key::not_analysed, lang).to_owned())
-                }
-            },
-        );
-
-        if new_index != self.video_texture_n {
-            self.video_texture_n = new_index;
-            self.load_current_video(ui);
-        }
-
-        ui.add_space(4.0);
-    }
-
     pub(super) fn ui_video(&mut self, ui: &mut egui::Ui) {
         self.video_handle_results(ui);
         self.video_handle_export(ui);
         if self.selected_videos.is_empty() {
             return;
         }
-        self.video_texture_n = self.video_texture_n.clamp(1, self.selected_videos.len());
-
-        self.draw_video_header(ui);
+        self.file_header(ui);
 
         let Some(n_frames) = self.current_video().map(|p| p.n_frames) else { return; };
         if n_frames == 0 {
@@ -940,6 +905,12 @@ fn tooltip_ui(
         .strong(),
     );
     let Some(pv) = pv else { return; };
+    ui.label(format!(
+        "{} / {} {}",
+        pv.processed_count(),
+        pv.n_frames.div_ceil(pv.step.max(1) as u64).max(1),
+        translate(Key::frames_analysed, lang),
+    ));
     let Some(nearest) = pv.last_processed_at_or_before(frame) else {
         ui.label(egui::RichText::new(translate(Key::not_analysed_parens, lang)).weak());
         return;

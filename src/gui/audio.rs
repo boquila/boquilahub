@@ -501,33 +501,6 @@ impl Gui {
         self.audio_play_start = None;
     }
 
-    fn draw_audio_header(&mut self, ui: &mut egui::Ui) {
-        let mut new_index = self.audio_texture_n;
-        let analyze = (self.is_audio_model() || !self.ep_selected.is_local())
-            .then_some(!self.audio_state.is_processing);
-        let analyze_this = self.audio_browser.show(
-            ui,
-            &self.selected_audios,
-            &mut new_index,
-            &self.lang,
-            analyze,
-            |_| None,
-        );
-
-        if new_index != self.audio_texture_n {
-            self.audio_texture_n = new_index;
-            if self.load_current_audio().is_err() {
-                self.push_toast(super::Message::Error);
-            }
-        }
-
-        if analyze_this {
-            self.start_single_audio_analysis(new_index - 1);
-        }
-
-        ui.add_space(4.0);
-    }
-
     pub(super) fn audio_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.audio_state.drain();
         let current_idx = self.audio_texture_n.saturating_sub(1);
@@ -576,9 +549,7 @@ impl Gui {
         if self.selected_audios.is_empty() {
             return;
         }
-        self.audio_texture_n = self.audio_texture_n.clamp(1, self.selected_audios.len());
-
-        self.draw_audio_header(ui);
+        self.file_header(ui);
 
         // Header may have switched files — if the new selection failed to
         // decode (or hasn't loaded yet) we don't have anything to draw.

@@ -1,6 +1,63 @@
-use super::{nav_filename, nav_prev_next, nav_slider};
+use super::{Gui, Message, Mode};
 use crate::{api::abstractions::Pred, localization::*};
 use std::time::SystemTime;
+
+impl Gui {
+    pub(super) fn file_header(&mut self, ui: &mut egui::Ui) {
+        let can_analyze = match self.mode {
+            Mode::Audio if self.ep_selected.is_local() => self.is_audio_model(),
+            Mode::Audio => self.rest_client.is_some(),
+            _ => self.can_run_image_ai(),
+        };
+        let (changed, analyze) = match self.mode {
+            Mode::Image => self.image_browser.show(
+                ui,
+                &self.selected_imgs,
+                &mut self.image_texture_n,
+                &self.lang,
+                can_analyze.then_some(!self.img_state.is_processing),
+            ),
+            Mode::Audio => self.audio_browser.show(
+                ui,
+                &self.selected_audios,
+                &mut self.audio_texture_n,
+                &self.lang,
+                can_analyze.then_some(!self.audio_state.is_processing),
+            ),
+            Mode::Video => self.video_browser.show(
+                ui,
+                &self.selected_videos,
+                &mut self.video_texture_n,
+                &self.lang,
+                can_analyze.then_some(!self.video_state.is_processing),
+            ),
+            Mode::Feed => return,
+        };
+        if changed {
+            match self.mode {
+                Mode::Image => {
+                    self.image_view.reset();
+                    self.paint(ui, self.image_texture_n - 1);
+                }
+                Mode::Audio => {
+                    if self.load_current_audio().is_err() {
+                        self.push_toast(Message::Error);
+                    }
+                }
+                Mode::Video => self.load_current_video(ui),
+                Mode::Feed => unreachable!(),
+            }
+        }
+        if analyze {
+            match self.mode {
+                Mode::Image => self.start_single_img_analysis(self.image_texture_n - 1),
+                Mode::Audio => self.start_single_audio_analysis(self.audio_texture_n - 1),
+                Mode::Video => self.start_video_analysis(),
+                Mode::Feed => unreachable!(),
+            }
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum DateField {
@@ -40,20 +97,22 @@ pub(super) struct Browser {
 }
 
 impl Browser {
-    /// Shared file controls. `analyze` is None when unavailable, otherwise its enabled state.
-    pub(super) fn show<T: Pred>(
+    /// Returns (selection changed, Analyze clicked). `analyze` controls button availability.
+    fn show(
         &mut self,
         ui: &mut egui::Ui,
-        files: &[T],
+        files: &[impl Pred],
         index: &mut usize,
         lang: &Lang,
         analyze: Option<bool>,
-        status: impl FnOnce(&T) -> Option<String>,
-    ) -> bool {
+    ) -> (bool, bool) {
         if files.is_empty() {
-            return false;
+            return (false, false);
         }
+        let old_index = *index;
+        *index = (*index).clamp(1, files.len());
         let mut analyze_clicked = false;
+        let mut position = 1;
         // Align the header with the slider track, leaving room for its value editor.
         let width = if files.len() > 1 {
             (ui.available_width() - 110.0).max(180.0)
@@ -66,28 +125,38 @@ impl Browser {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 self.sort_menu(ui, files, index, lang);
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    let mut position = self
+                    position = self
                         .order
                         .iter()
                         .position(|i| *i + 1 == *index)
                         .unwrap_or(0)
                         + 1;
-                    nav_prev_next(
-                        ui,
-                        &mut position,
-                        files.len(),
-                        translate(Key::prev, lang),
-                        translate(Key::next, lang),
-                    );
-                    *index = self.order[position - 1] + 1;
-                    let file = &files[*index - 1];
-                    let status = status(file).or_else(|| {
-                        (!file.is_processed())
-                            .then(|| translate(Key::not_analysed, lang).to_owned())
-                    });
-                    if let Some(status) = status {
+                    if files.len() > 1 {
+                        for (target, icon, key) in [
+                            (position - 1, "⏮", Key::prev),
+                            (position + 1, "⏭", Key::next),
+                        ] {
+                            if ui
+                                .add_enabled(
+                                    (1..=files.len()).contains(&target),
+                                    egui::Button::new(icon),
+                                )
+                                .on_hover_text(translate(key, lang))
+                                .clicked()
+                            {
+                                position = target;
+                            }
+                        }
                         ui.separator();
-                        ui.label(egui::RichText::new(status).weak().small());
+                    }
+                    let file = &files[self.order[position - 1]];
+                    if !file.is_processed() {
+                        ui.separator();
+                        ui.label(
+                            egui::RichText::new(translate(Key::not_analysed, lang))
+                                .weak()
+                                .small(),
+                        );
                     }
                     if let Some(enabled) = analyze {
                         ui.separator();
@@ -100,22 +169,30 @@ impl Browser {
                         .file_name()
                         .and_then(|name| name.to_str())
                         .unwrap_or(translate(Key::unknown_file, lang));
-                    nav_filename(ui, name, position, files.len());
+                    if files.len() > 1 {
+                        ui.label(
+                            egui::RichText::new(format!("·  {} / {}", position, files.len()))
+                                .weak(),
+                        );
+                    }
+                    ui.add(egui::Label::new(egui::RichText::new(name).strong()).truncate())
+                        .on_hover_text(name);
                 });
             });
         });
-        if let Some(position) = self.order.iter().position(|i| *i + 1 == *index) {
-            let mut position = position + 1;
-            nav_slider(ui, &mut position, self.order.len(), width);
-            *index = self.order[position - 1] + 1;
+        if files.len() > 1 {
+            ui.spacing_mut().slider_width = width;
+            ui.add(egui::Slider::new(&mut position, 1..=files.len()));
         }
-        analyze_clicked
+        *index = self.order[position - 1] + 1;
+        ui.add_space(4.0);
+        (old_index != *index, analyze_clicked)
     }
 
-    fn sort_menu<T: Pred>(
+    fn sort_menu(
         &mut self,
         ui: &mut egui::Ui,
-        files: &[T],
+        files: &[impl Pred],
         index: &mut usize,
         lang: &Lang,
     ) {
@@ -152,7 +229,7 @@ impl Browser {
         }
     }
 
-    fn sort_by_date<T: Pred>(&mut self, files: &[T]) {
+    fn sort_by_date(&mut self, files: &[impl Pred]) {
         self.order = (0..files.len()).collect();
         let Some(field) = self.field else {
             return;

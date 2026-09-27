@@ -226,9 +226,7 @@ impl Gui {
         if self.selected_imgs.is_empty() {
             return;
         }
-        self.image_texture_n = self.image_texture_n.clamp(1, self.selected_imgs.len());
-
-        self.draw_image_header(ui);
+        self.file_header(ui);
 
         let i = self.image_texture_n - 1;
         let has_spatial_output = matches!(
@@ -256,31 +254,6 @@ impl Gui {
                 draw_echo_strip(ui, echo.as_ref(), echo_strip_h, preview_w);
             }
         });
-    }
-
-    fn draw_image_header(&mut self, ui: &mut egui::Ui) {
-        let mut new_index = self.image_texture_n;
-        let analyze = self
-            .can_run_image_ai()
-            .then_some(!self.img_state.is_processing);
-        let analyze_this = self.image_browser.show(
-            ui,
-            &self.selected_imgs,
-            &mut new_index,
-            &self.lang,
-            analyze,
-            |_| None,
-        );
-
-        if new_index != self.image_texture_n {
-            self.image_texture_n = new_index;
-            self.image_view.reset();
-            self.paint(ui, new_index - 1);
-        }
-
-        if analyze_this {
-            self.start_single_img_analysis(new_index - 1);
-        }
     }
 
     fn draw_image_preview(
