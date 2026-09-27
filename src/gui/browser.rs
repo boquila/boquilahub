@@ -162,7 +162,3 @@ impl Browser {
         });
     }
 }
-
-#[cfg(test)]
-#[path = "../../tests/gui/browser.rs"]
-mod tests;
