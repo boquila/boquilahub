@@ -102,6 +102,7 @@ impl Gui {
             match result {
                 Some(aio) => {
                     self.selected_imgs[i].aioutput = Some(aio);
+                    self.embedding_plot = None;
                     self.selected_imgs[i].wasprocessed = true;
                     if i == self.image_texture_n - 1 {
                         self.paint(ui, i);
@@ -227,6 +228,7 @@ impl Gui {
             return;
         }
         self.file_header(ui);
+        self.show_embedding_plot(ui);
 
         let i = self.image_texture_n - 1;
         let has_spatial_output = matches!(
