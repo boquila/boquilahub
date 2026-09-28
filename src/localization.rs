@@ -150,6 +150,10 @@ pub enum Key {
     audio_processing,
     frame_label,
     embedding,
+    plot,
+    embedding_space,
+    no_embeddings,
+    plot_help,
     sort_by,
     file_modified,
     file_created,
@@ -168,6 +172,10 @@ const fn localized(lang: &Lang, labels: [&'static str; 9]) -> &'static str {
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
     match key {
+        Key::plot => localized(lang, ["Plot", "Gráfico", "Graphique", "Diagramm", "绘图", "プロット", "Gráfico", "Biểu đồ", "Graf"]),
+        Key::embedding_space => localized(lang, ["Embedding space", "Espacio de embeddings", "Espace des embeddings", "Embedding-Raum", "嵌入空间", "埋め込み空間", "Espaço de embeddings", "Không gian embedding", "Prostor ugradnji"]),
+        Key::no_embeddings => localized(lang, ["Analyze the images with an embedding model, then open Plot.", "Analiza las imágenes con un modelo de embeddings y abre Gráfico.", "Analysez les images avec un modèle d’embeddings, puis ouvrez Graphique.", "Analysiere die Bilder mit einem Embedding-Modell und öffne Diagramm.", "先用嵌入模型分析图像，再打开绘图。", "埋め込みモデルで画像を解析してからプロットを開いてください。", "Analise as imagens com um modelo de embeddings e abra Gráfico.", "Phân tích ảnh bằng mô hình embedding rồi mở Biểu đồ.", "Analiziraj slike modelom ugradnji, zatim otvori Graf."]),
+        Key::plot_help => localized(lang, ["Hover to preview · click a dot to open", "Pasa el cursor para ver · haz clic para abrir", "Survolez pour voir · cliquez pour ouvrir", "Vorschau beim Zeigen · Punkt anklicken zum Öffnen", "悬停预览 · 点击圆点打开", "ホバーでプレビュー · 点をクリックして開く", "Passe o cursor para pré-visualizar · clica para abrir", "Di chuột để xem trước · nhấp vào điểm để mở", "Prijeđi za pregled · klikni točku za otvaranje"]),
         Key::sort_by => localized(lang, ["Sort by:", "Ordenar por:", "Trier par :", "Sortieren nach:", "排序方式：", "並べ替え：", "Ordenar por:", "Sắp xếp theo:", "Sortiraj po:"]),
         Key::file_modified => localized(lang, ["Modified date", "Fecha de modificación", "Date de modification", "Änderungsdatum", "文件修改日期", "更新日時", "Data de modificação", "Ngày sửa đổi tệp", "Datum izmjene"]),
         Key::file_created => localized(lang, ["Created date", "Fecha de creación", "Date de création", "Erstellungsdatum", "文件创建日期", "作成日時", "Data de criação", "Ngày tạo tệp", "Datum stvaranja"]),

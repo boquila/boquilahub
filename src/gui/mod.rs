@@ -1,5 +1,6 @@
 mod audio;
 mod browser;
+mod embedding_plot;
 mod feed;
 #[path = "image.rs"]
 mod image_view;
@@ -87,6 +88,7 @@ pub struct Gui {
     selected_imgs: Vec<PredImg>,
     selected_audios: Vec<PredAudio>,
     image_browser: browser::Browser,
+    embedding_plot: Option<embedding_plot::EmbeddingPlot>,
     audio_browser: browser::Browser,
     video_browser: browser::Browser,
     // AudioData is heavy (hours of float samples). We only keep it for the
@@ -732,6 +734,7 @@ impl Gui {
 
                                 if !image_files.is_empty() {
                                     self.selected_imgs = image_files.into_preds(PredImg::new_simple);
+                                    self.embedding_plot = None;
                                     self.image_browser = Default::default();
                                     self.image_texture_n = 1;
                                     self.image_view.reset();
@@ -787,6 +790,7 @@ impl Gui {
                         .pick_files()
                     {
                         self.selected_imgs = paths.into_preds(PredImg::new_simple);
+                        self.embedding_plot = None;
                         self.image_browser = Default::default();
                         self.image_texture_n = 1;
                         self.image_view.reset();

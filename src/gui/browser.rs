@@ -9,13 +9,14 @@ impl Gui {
             Mode::Audio => self.rest_client.is_some(),
             _ => self.can_run_image_ai(),
         };
-        let (changed, analyze) = match self.mode {
+        let (changed, analyze, plot) = match self.mode {
             Mode::Image => self.image_browser.show(
                 ui,
                 &self.selected_imgs,
                 &mut self.image_texture_n,
                 &self.lang,
                 can_analyze.then_some(!self.img_state.is_processing),
+                true,
             ),
             Mode::Audio => self.audio_browser.show(
                 ui,
@@ -23,6 +24,7 @@ impl Gui {
                 &mut self.audio_texture_n,
                 &self.lang,
                 can_analyze.then_some(!self.audio_state.is_processing),
+                false,
             ),
             Mode::Video => self.video_browser.show(
                 ui,
@@ -30,9 +32,19 @@ impl Gui {
                 &mut self.video_texture_n,
                 &self.lang,
                 can_analyze.then_some(!self.video_state.is_processing),
+                false,
             ),
             Mode::Feed => return,
         };
+        if plot {
+            if let Some(existing) = self.embedding_plot.as_mut() {
+                existing.open = true;
+            } else {
+                self.embedding_plot = Some(super::embedding_plot::EmbeddingPlot::new(
+                    &self.selected_imgs,
+                ));
+            }
+        }
         if changed {
             match self.mode {
                 Mode::Image => {
@@ -97,7 +109,7 @@ pub(super) struct Browser {
 }
 
 impl Browser {
-    /// Returns (selection changed, Analyze clicked). `analyze` controls button availability.
+    /// Returns (selection changed, Analyze clicked, Plot clicked).
     fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -105,13 +117,15 @@ impl Browser {
         index: &mut usize,
         lang: &Lang,
         analyze: Option<bool>,
-    ) -> (bool, bool) {
+        show_plot: bool,
+    ) -> (bool, bool, bool) {
         if files.is_empty() {
-            return (false, false);
+            return (false, false, false);
         }
         let old_index = *index;
         *index = (*index).clamp(1, files.len());
         let mut analyze_clicked = false;
+        let mut plot_clicked = false;
         ui.scope(|ui| {
             let file = &files[*index - 1];
             // Horizontal rows bound the height, including inside a ScrollArea.
@@ -148,6 +162,9 @@ impl Browser {
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         self.sort_menu(ui, files, index, lang);
+                        if show_plot {
+                            plot_clicked = ui.button(translate(Key::plot, lang)).clicked();
+                        }
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             let mut position = self
                                 .order
@@ -199,7 +216,7 @@ impl Browser {
             ui.ctx().request_repaint();
         }
         ui.add_space(4.0);
-        (changed, analyze_clicked)
+        (changed, analyze_clicked, plot_clicked)
     }
 
     fn sort_menu(
