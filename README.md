@@ -12,10 +12,6 @@ Cross-platform app to run AI models to monitor and protect nature.
 
 </h3>
 
-
-[![Linux](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-linux.yml/badge.svg)](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-linux.yml)
-[![macOS](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-macos.yml/badge.svg)](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-macos.yml)
-[![Windows](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-windows.yml/badge.svg)](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-windows.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-33da72)](LICENSE)
 
 </div>
