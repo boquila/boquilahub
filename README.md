@@ -1,10 +1,8 @@
 <div align="center">
 
 <picture>
-  <img alt="Boquila" src="assets/boquila-logo.svg" width="34%">
+  <img alt="BoquilaHUB" src="assets/boquila-logo.svg" width="34%">
 </picture>
-
-<h1>BoquilaHUB</h1>
 
 Cross-platform app to run AI models to monitor and protect nature. Locally, no cloud.
 
