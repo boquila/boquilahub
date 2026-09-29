@@ -1,6 +1,26 @@
-# BoquilaHUB
+<div align="center">
 
-Cross-platform app to run AI models to monitor and protect nature. Locally, no cloud.
+<picture>
+  <img alt="BoquilaHUB" src="assets/boquilahub-logo.svg" width="60%">
+</picture>
+
+Cross-platform app to run AI models to monitor and protect nature.
+
+<h3>
+
+[Features](#features) | [Installation](#installation)
+
+</h3>
+
+
+[![Linux](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-linux.yml/badge.svg)](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-linux.yml)
+[![macOS](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-macos.yml/badge.svg)](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-macos.yml)
+[![Windows](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-windows.yml/badge.svg)](https://github.com/boquila/boquilahub/actions/workflows/cargo-test-windows.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-33da72)](LICENSE)
+
+</div>
+
+---
 
 ![readme](assets/readme.jpg)
 
@@ -8,19 +28,17 @@ Cross-platform app to run AI models to monitor and protect nature. Locally, no c
 
 - Cross-platform
 - GUI, TUI and CLI tool
-- Run AIs for computer vision and audio, locally
-- Process image, video, live feed or audio files
+- Run AIs to process image, video, live feed or audio files
 - Deploy and consume REST APIs, with maximum efficiency. Powered by [axum](https://github.com/tokio-rs/axum)
+- Scalable, same binary works for IoT systems, simple GUI workflows or multiple GPU servers.
 
 ## Installation
 
 Download the latest binaries from [releases](https://github.com/boquila/boquilahub/releases)
 
-We offer two versions, one with both dependencies (ffmpeg and onnxruntime) and one without, in case you have them in your computer already.
-
 ## AIs
 
-You can load any [.bq model](https://github.com/boquila/.bq). You can find them on our [website](https://boquila.org/hub).
+Download supported models on [website](https://boquila.org/hub). You can also use or port your own, it's super easy.
 
 ## List of Platforms
 
