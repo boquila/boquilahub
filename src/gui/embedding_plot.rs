@@ -1,5 +1,6 @@
 use super::Gui;
 use crate::api::abstractions::{AIOutputs, Embedding, PredImg, XYXY};
+use crate::api::ml::{KMeans, Pca};
 use crate::localization::{Key, translate};
 use egui_plot::{Plot, PlotPoint, Points};
 use std::collections::VecDeque;
@@ -10,8 +11,10 @@ use std::time::Duration;
 pub(super) struct EmbeddingPlot {
     pub open: bool,
     points: Vec<PlotPoint>,
+    points_3d: Vec<[f64; 3]>,
     cloud_3d: super::embedding_plot_3d::Cloud3D,
     view_3d: bool,
+    view_3d_options: super::embedding_plot_3d::ViewOptions,
     indexes: Vec<usize>,
     boxes: Vec<Option<XYXY>>,
     labels: Vec<String>,
@@ -20,6 +23,7 @@ pub(super) struct EmbeddingPlot {
     color_clusters: bool,
     cluster_count: usize,
     computed_cluster_count: usize,
+    error: Option<String>,
     clusters: Vec<Vec<PlotPoint>>,
     cluster_ids: Vec<usize>,
     hovered: Option<usize>,
@@ -68,6 +72,7 @@ impl EmbeddingPlot {
             }
         }
         entries.retain(|(_, _, _, embedding)| valid_embedding(embedding));
+        let mut error = None;
         let (model, indexes, boxes, labels, points, points_3d) =
             if let Some((_, _, _, first)) = entries.first() {
                 let model = first.model.clone();
@@ -82,11 +87,14 @@ impl EmbeddingPlot {
                     .iter()
                     .map(|(_, _, label, _)| label.clone())
                     .collect();
-                let embeddings: Vec<_> = entries
-                    .iter()
-                    .map(|(index, _, _, emb)| (*index, *emb))
-                    .collect();
-                let (points, points_3d) = project(&embeddings);
+                let embeddings: Vec<_> = entries.iter().map(|(_, _, _, emb)| *emb).collect();
+                let (points, points_3d) = match project(&embeddings) {
+                    Ok(points) => points,
+                    Err(err) => {
+                        error = Some(err.to_string());
+                        (Vec::new(), Vec::new())
+                    }
+                };
                 (model, indexes, boxes, labels, points, points_3d)
             } else {
                 (
@@ -130,8 +138,12 @@ impl EmbeddingPlot {
         Self {
             open: true,
             points,
-            cloud_3d: super::embedding_plot_3d::Cloud3D::new(points_3d),
+            cloud_3d: super::embedding_plot_3d::Cloud3D::new(
+                points_3d.iter().map(|p| p.map(|x| x as f32)).collect(),
+            ),
+            points_3d,
             view_3d: false,
+            view_3d_options: Default::default(),
             indexes,
             boxes,
             labels,
@@ -140,6 +152,7 @@ impl EmbeddingPlot {
             color_clusters: false,
             cluster_count: 8,
             computed_cluster_count: 0,
+            error,
             clusters: Vec::new(),
             cluster_ids: Vec::new(),
             hovered: None,
@@ -184,7 +197,26 @@ impl EmbeddingPlot {
     }
 
     fn recluster(&mut self) {
-        self.cluster_ids = k_means_3d(self.cloud_3d.positions(), self.cluster_count);
+        if self.points.is_empty() {
+            return;
+        }
+        let points: Vec<Vec<f64>> = if self.view_3d {
+            self.points_3d.iter().map(|p| p.to_vec()).collect()
+        } else {
+            self.points.iter().map(|p| vec![p.x, p.y]).collect()
+        };
+        let fit = match KMeans::fit(&points, self.cluster_count) {
+            Ok(fit) => fit,
+            Err(err) => {
+                self.error = Some(err.to_string());
+                self.color_clusters = false;
+                self.clusters.clear();
+                self.cluster_ids.clear();
+                return;
+            }
+        };
+        self.error = None;
+        self.cluster_ids = fit.labels;
         self.clusters = vec![Vec::new(); self.cluster_ids.iter().max().map_or(0, |id| id + 1)];
         for (&point, &cluster) in self.points.iter().zip(&self.cluster_ids) {
             self.clusters[cluster].push(point);
@@ -199,193 +231,34 @@ fn valid_embedding(embedding: &Embedding) -> bool {
     !embedding.values.is_empty() && embedding.values.iter().all(|value| value.is_finite())
 }
 
-// Fit on a bounded sample; assign every displayed point to the nearest centre.
-fn k_means_3d(points: &[[f32; 3]], count: usize) -> Vec<usize> {
-    if points.is_empty() {
-        return Vec::new();
-    }
-    let stride = points.len().div_ceil(2048).max(1);
-    let sample: Vec<_> = points.iter().step_by(stride).copied().collect();
-    let distance = |a: [f32; 3], b: [f32; 3]| {
-        a.into_iter()
-            .zip(b)
-            .map(|(x, y)| (x - y).powi(2))
-            .sum::<f32>()
-    };
-    let mut centers = vec![sample[0]];
-    while centers.len() < count.min(sample.len()) {
-        let next = sample
-            .iter()
-            .copied()
-            .max_by(|a, b| {
-                let nearest = |point: [f32; 3]| {
-                    centers
-                        .iter()
-                        .map(|&center| distance(point, center))
-                        .fold(f32::INFINITY, f32::min)
-                };
-                nearest(*a).total_cmp(&nearest(*b))
-            })
-            .unwrap();
-        if centers
-            .iter()
-            .any(|&center| distance(next, center) <= 1e-20)
-        {
-            break;
-        }
-        centers.push(next);
-    }
-    let nearest = |point: [f32; 3], centers: &[[f32; 3]]| {
-        centers
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| distance(point, **a).total_cmp(&distance(point, **b)))
-            .unwrap()
-            .0
-    };
-    for _ in 0..20 {
-        let mut sums = vec![([0.0_f32; 3], 0usize); centers.len()];
-        for &point in &sample {
-            let (sum, n) = &mut sums[nearest(point, &centers)];
-            for (total, value) in sum.iter_mut().zip(point) {
-                *total += value;
-            }
-            *n += 1;
-        }
-        let mut movement = 0.0_f32;
-        for (center, (sum, n)) in centers.iter_mut().zip(sums) {
-            if n > 0 {
-                let next = sum.map(|value| value / n as f32);
-                movement = movement.max(distance(*center, next));
-                *center = next;
-            }
-        }
-        if movement < 1e-8 {
-            break;
-        }
-    }
-    points
-        .iter()
-        .map(|&point| nearest(point, &centers))
-        .collect()
-}
-
 pub(super) fn cluster_color(index: usize, count: usize) -> egui::Color32 {
     egui::ecolor::Hsva::new((index as f32 / count as f32 + 0.04) % 1.0, 0.78, 0.85, 1.0).into()
 }
 
-// Three principal components, fitted on at most 512 evenly spaced images.
-// Projection of the full collection stays linear in image count and dimensions.
-fn project(data: &[(usize, &Embedding)]) -> (Vec<PlotPoint>, Vec<[f32; 3]>) {
-    let dimensions = data[0].1.values.len();
-    let stride = data.len().div_ceil(512).max(1);
-    let sample: Vec<_> = data.iter().step_by(stride).map(|(_, emb)| *emb).collect();
-    let mut mean = vec![0.0; dimensions];
-    for emb in &sample {
-        for (avg, value) in mean.iter_mut().zip(&emb.values) {
-            *avg += value.to_f32() as f64;
-        }
+// Fit PCA once; the same first two coordinates are used in both plot views.
+fn project(data: &[&Embedding]) -> anyhow::Result<(Vec<PlotPoint>, Vec<[f64; 3]>)> {
+    if data.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
     }
-    for avg in &mut mean {
-        *avg /= sample.len() as f64;
-    }
-
-    let x = axis(&sample, &mean, &[]);
-    let y = axis(&sample, &mean, &[&x]);
-    let z = axis(&sample, &mean, &[&x, &y]);
-    let projected: Vec<_> = data
+    let values: Vec<Vec<f64>> = data
         .iter()
-        .map(|(_, emb)| {
-            let projection = |axis: &[f64]| {
-                emb.values
-                    .iter()
-                    .zip(&mean)
-                    .zip(axis)
-                    .map(|((value, avg), direction)| (value.to_f32() as f64 - avg) * direction)
-                    .sum::<f64>()
-            };
-            [projection(&x), projection(&y), projection(&z)]
-        })
+        .map(|emb| emb.values.iter().map(|x| x.to_f64()).collect())
         .collect();
+    let pca = Pca::fit(&values, 3)?;
+    let projected: Vec<[f64; 3]> = values
+        .iter()
+        .map(|row| {
+            let scores = pca.transform(row)?;
+            let mut point = [0.0; 3];
+            point[..scores.len()].copy_from_slice(&scores);
+            Ok(point)
+        })
+        .collect::<anyhow::Result<_>>()?;
     let points = projected
         .iter()
         .map(|p| PlotPoint::new(p[0], p[1]))
         .collect();
-    let points_3d = projected
-        .iter()
-        .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
-        .collect();
-    (points, points_3d)
-}
-
-fn axis(sample: &[&Embedding], mean: &[f64], previous: &[&[f64]]) -> Vec<f64> {
-    let mut axis = sample
-        .iter()
-        .map(|emb| {
-            emb.values
-                .iter()
-                .zip(mean)
-                .map(|(value, avg)| value.to_f32() as f64 - avg)
-                .collect::<Vec<_>>()
-        })
-        .find(|candidate| {
-            let residual: f64 = previous
-                .iter()
-                .map(|prev| dot(candidate, prev).powi(2))
-                .sum();
-            dot(candidate, candidate) - residual > 1e-12
-        })
-        .unwrap_or_else(|| vec![0.0; mean.len()]);
-    for prev in previous {
-        let component = dot(&axis, prev);
-        for (value, prior) in axis.iter_mut().zip(prev.iter()) {
-            *value -= component * prior;
-        }
-    }
-    if !normalize(&mut axis) {
-        return axis;
-    }
-    for _ in 0..24 {
-        let mut next = vec![0.0; mean.len()];
-        for emb in sample {
-            let score: f64 = emb
-                .values
-                .iter()
-                .zip(mean)
-                .zip(&axis)
-                .map(|((value, avg), direction)| (value.to_f32() as f64 - avg) * direction)
-                .sum();
-            for ((sum, value), avg) in next.iter_mut().zip(&emb.values).zip(mean) {
-                *sum += (value.to_f32() as f64 - avg) * score;
-            }
-        }
-        for prev in previous {
-            let component = dot(&next, prev);
-            for (value, prior) in next.iter_mut().zip(prev.iter()) {
-                *value -= component * prior;
-            }
-        }
-        if !normalize(&mut next) {
-            break;
-        }
-        axis = next;
-    }
-    axis
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-fn normalize(values: &mut [f64]) -> bool {
-    let norm = dot(values, values).sqrt();
-    if norm <= 1e-12 {
-        return false;
-    }
-    for value in values {
-        *value /= norm;
-    }
-    true
+    Ok((points, projected))
 }
 
 impl Gui {
@@ -437,21 +310,79 @@ impl Gui {
                         }
                     });
                 }
+                if let Some(error) = &plot.error {
+                    ui.colored_label(egui::Color32::RED, translate(Key::error_ocurred, lang))
+                        .on_hover_text(error);
+                }
                 if plot.points.is_empty() {
-                    ui.label(translate(
-                        if plot.objects {
-                            Key::no_object_embeddings
-                        } else {
-                            Key::no_embeddings
-                        },
-                        lang,
-                    ));
+                    if plot.error.is_none() {
+                        ui.label(translate(
+                            if plot.objects {
+                                Key::no_object_embeddings
+                            } else {
+                                Key::no_embeddings
+                            },
+                            lang,
+                        ));
+                    }
                     return;
                 }
+                let mut zoom_2d = None;
+                let was_3d = plot.view_3d;
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut plot.view_3d, false, "2D");
                     ui.selectable_value(&mut plot.view_3d, true, "3D");
+                    if plot.view_3d {
+                        ui.menu_button(translate(Key::plot_3d_options, lang), |ui| {
+                            ui.checkbox(
+                                &mut plot.view_3d_options.grid,
+                                translate(Key::plot_3d_grid, lang),
+                            );
+                            ui.checkbox(
+                                &mut plot.view_3d_options.frame,
+                                translate(Key::plot_3d_frame, lang),
+                            );
+                            ui.checkbox(
+                                &mut plot.view_3d_options.expand_depth,
+                                translate(Key::plot_3d_expand_depth, lang),
+                            )
+                            .on_hover_text(translate(Key::plot_3d_expand_depth_hint, lang));
+                            ui.separator();
+                            if ui
+                                .button(translate(Key::plot_3d_reset_view, lang))
+                                .clicked()
+                            {
+                                plot.cloud_3d.reset_camera();
+                                ui.close();
+                            }
+                        });
+                    } else {
+                        ui.separator();
+                        if ui
+                            .add_sized(
+                                [34.0, 28.0],
+                                egui::Button::new(egui::RichText::new("+").size(18.0)),
+                            )
+                            .on_hover_text(translate(Key::plot_zoom_in, lang))
+                            .clicked()
+                        {
+                            zoom_2d = Some(1.25);
+                        }
+                        if ui
+                            .add_sized(
+                                [34.0, 28.0],
+                                egui::Button::new(egui::RichText::new("-").size(18.0)),
+                            )
+                            .on_hover_text(translate(Key::plot_zoom_out, lang))
+                            .clicked()
+                        {
+                            zoom_2d = Some(0.8);
+                        }
+                    }
                 });
+                if was_3d != plot.view_3d && plot.color_clusters {
+                    plot.recluster();
+                }
                 ui.horizontal(|ui| {
                     if ui.checkbox(&mut plot.color_clusters, "K-means").changed()
                         && plot.color_clusters
@@ -508,6 +439,7 @@ impl Gui {
                             &cloud_renderer,
                             current_point,
                             plot.color_clusters,
+                            plot.view_3d_options,
                         )
                     } else {
                         let result = Plot::new(id)
@@ -517,6 +449,10 @@ impl Gui {
                             .show_axes([false, false])
                             .show_grid([false, false])
                             .show(ui, |plot_ui| {
+                                if let Some(factor) = zoom_2d {
+                                    let center = plot_ui.plot_bounds().center();
+                                    plot_ui.zoom_bounds(egui::Vec2::splat(factor), center);
+                                }
                                 if plot.color_clusters {
                                     for (index, points) in plot.clusters.iter().enumerate() {
                                         if !points.is_empty() {
@@ -650,18 +586,6 @@ impl Gui {
                                 format!("{} {}", translate(Key::cluster, lang), cluster + 1),
                             );
                         }
-                        ui.label(
-                            egui::RichText::new(translate(Key::plot_help, lang))
-                                .weak()
-                                .small(),
-                        );
-                        if plot.view_3d {
-                            ui.label(
-                                egui::RichText::new(translate(Key::plot_3d_help, lang))
-                                    .weak()
-                                    .small(),
-                            );
-                        }
                     });
                 });
             });
@@ -672,6 +596,7 @@ impl Gui {
             replacement.cluster_count = plot.cluster_count;
             replacement.highlight_selection = plot.highlight_selection;
             replacement.view_3d = plot.view_3d;
+            replacement.view_3d_options = plot.view_3d_options;
             if replacement.color_clusters && !replacement.points.is_empty() {
                 replacement.recluster();
             }
@@ -698,6 +623,62 @@ mod tests {
     use crate::api::abstractions::XYXYc;
 
     #[test]
+    fn reclustering_uses_the_current_view_dimensions() {
+        let mut plot = EmbeddingPlot::new(&[]);
+        plot.points_3d = vec![
+            [-0.1, 0.0, -1.0],
+            [0.1, 0.0, -1.0],
+            [-0.1, 0.0, 1.0],
+            [0.1, 0.0, 1.0],
+        ];
+        plot.points = plot
+            .points_3d
+            .iter()
+            .map(|p| PlotPoint::new(p[0], p[1]))
+            .collect();
+        plot.cluster_count = 2;
+        plot.recluster();
+        let labels_2d = plot.cluster_ids.clone();
+        assert_eq!(labels_2d[0], labels_2d[2]);
+        assert_ne!(labels_2d[0], labels_2d[1]);
+        plot.view_3d = true;
+        plot.recluster();
+        assert_eq!(plot.cluster_ids[0], plot.cluster_ids[1]);
+        assert_ne!(plot.cluster_ids[0], plot.cluster_ids[2]);
+        plot.view_3d = false;
+        plot.recluster();
+        assert_eq!(plot.cluster_ids, labels_2d);
+    }
+
+    #[test]
+    fn clustering_keeps_precision_before_rendering() {
+        let mut plot = EmbeddingPlot::new(&[]);
+        plot.points_3d = vec![[1.0, 0.0, 0.0], [1.0 + 1e-10, 0.0, 0.0]];
+        plot.points = plot
+            .points_3d
+            .iter()
+            .map(|p| PlotPoint::new(p[0], p[1]))
+            .collect();
+        plot.view_3d = true;
+        plot.cluster_count = 2;
+        plot.recluster();
+        assert_ne!(plot.cluster_ids[0], plot.cluster_ids[1]);
+    }
+
+    #[test]
+    fn empty_and_one_dimensional_projections_are_safe() {
+        assert!(project(&[]).unwrap().0.is_empty());
+        let embeddings = [
+            Embedding::from_raw(&[1.0], "test".into()),
+            Embedding::from_raw(&[-1.0], "test".into()),
+        ];
+        let data: Vec<_> = embeddings.iter().collect();
+        let (_, positions) = project(&data).unwrap();
+        assert!(positions.iter().all(|p| p[1] == 0.0 && p[2] == 0.0));
+        assert_ne!(positions[0][0], positions[1][0]);
+    }
+
+    #[test]
     fn k_means_colors_separated_groups_together() {
         let points = [
             [0.0, 0.0, -5.0],
@@ -707,7 +688,8 @@ mod tests {
             [0.1, 0.0, 5.1],
             [0.0, 0.1, 4.9],
         ];
-        let groups = k_means_3d(&points, 2);
+        let data: Vec<_> = points.iter().map(|p| p.to_vec()).collect();
+        let groups = KMeans::fit(&data, 2).unwrap().labels;
         assert_eq!(groups[0], groups[1]);
         assert_eq!(groups[1], groups[2]);
         assert_eq!(groups[3], groups[4]);
@@ -768,13 +750,14 @@ mod tests {
         .into_iter()
         .map(|values| Embedding::from_raw(&values, "test".into()))
         .collect();
-        let data: Vec<_> = embeddings.iter().enumerate().collect();
-        let (points_2d, points_3d) = project(&data);
+        let data: Vec<_> = embeddings.iter().collect();
+        let (points_2d, points_3d) = project(&data).unwrap();
         assert_eq!(points_2d.len(), points_3d.len());
-        assert!(points_3d.iter().any(|point| point[2].abs() > 0.9));
+        // Equal eigenvalues permit any orthogonal basis; each axis retains variance.
+        assert!((points_3d.iter().map(|p| p[2].powi(2)).sum::<f64>() - 2.0).abs() < 1e-12);
         for (two, three) in points_2d.iter().zip(points_3d) {
-            assert!((two.x - three[0] as f64).abs() < 1e-5);
-            assert!((two.y - three[1] as f64).abs() < 1e-5);
+            assert_eq!(two.x, three[0]);
+            assert_eq!(two.y, three[1]);
         }
     }
 }
