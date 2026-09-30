@@ -23,10 +23,25 @@ struct Camera {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            yaw: 0.35,
-            pitch: 0.3,
-            zoom: 1.0,
+            yaw: 0.55,
+            pitch: 0.5,
+            zoom: 0.62,
             pan: egui::Vec2::ZERO,
+        }
+    }
+}
+
+impl Camera {
+    fn rotate(&mut self, delta: egui::Vec2) {
+        self.yaw = (self.yaw - delta.x * 0.008).rem_euclid(std::f32::consts::TAU);
+        self.pitch = (self.pitch + delta.y * 0.008).clamp(-1.5, 1.5);
+    }
+
+    fn fitted(self, rect: egui::Rect) -> Self {
+        let fit = (rect.width() / rect.height().max(1.0) / 0.85).min(1.0);
+        Self {
+            zoom: self.zoom * fit,
+            ..self
         }
     }
 }
@@ -39,10 +54,11 @@ struct Projection {
     zoom: f32,
     center: egui::Pos2,
     half_height: f32,
+    depth_scale: f32,
 }
 
 impl Projection {
-    fn new(camera: Camera, rect: egui::Rect) -> Self {
+    fn new(camera: Camera, rect: egui::Rect, depth_scale: f32) -> Self {
         let (sy, cy) = camera.yaw.sin_cos();
         let (sp, cp) = camera.pitch.sin_cos();
         Self {
@@ -53,13 +69,14 @@ impl Projection {
             zoom: camera.zoom,
             center: rect.center() + camera.pan,
             half_height: rect.height() * 0.5,
+            depth_scale,
         }
     }
 
     fn screen_position(&self, position: [f32; 3]) -> Option<(egui::Pos2, f32)> {
         let (sy, cy, sp, cp) = (self.sy, self.cy, self.sp, self.cp);
-        let x = position[0] * cy - position[2] * sy;
-        let z = position[0] * sy + position[2] * cy;
+        let x = position[0] * cy - position[2] * self.depth_scale * sy;
+        let z = position[0] * sy + position[2] * self.depth_scale * cy;
         let y = position[1] * cp - z * sp;
         let z = position[1] * sp + z * cp;
         let depth = 3.5 - z;
@@ -76,6 +93,48 @@ pub(super) struct Cloud3D {
     positions: Vec<[f32; 3]>,
     vertices: Arc<Vec<Vertex>>,
     camera: Camera,
+    depth_scale: f32,
+    floor_count: usize,
+    frame_count: usize,
+    intro_remaining: f32,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ViewOptions {
+    pub grid: bool,
+    pub frame: bool,
+    pub expand_depth: bool,
+}
+
+impl Default for ViewOptions {
+    fn default() -> Self {
+        Self {
+            grid: true,
+            frame: true,
+            expand_depth: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct DrawOptions {
+    view: ViewOptions,
+    point_count: usize,
+    floor_count: usize,
+    frame_count: usize,
+    depth_scale: f32,
+    clustered: bool,
+}
+
+const GUIDE_EXTENT: f32 = 1.08;
+
+fn guide_line(vertices: &mut Vec<Vertex>, start: [f32; 3], end: [f32; 3]) {
+    for position in [start, end] {
+        vertices.push(Vertex {
+            position,
+            color: [255; 4],
+        });
+    }
 }
 
 pub(super) struct Interaction {
@@ -86,6 +145,7 @@ pub(super) struct Interaction {
 
 impl Cloud3D {
     pub fn new(mut positions: Vec<[f32; 3]>) -> Self {
+        let mut depth_scale = 1.0;
         if !positions.is_empty() {
             let mut low = [f32::INFINITY; 3];
             let mut high = [f32::NEG_INFINITY; 3];
@@ -100,25 +160,52 @@ impl Cloud3D {
                 .map(|axis| (high[axis] - low[axis]) * 0.5)
                 .fold(0.0_f32, f32::max)
                 .max(1e-9);
+            let depth_radius = (high[2] - low[2]) * 0.5;
+            if depth_radius > radius * 1e-4 {
+                depth_scale = (radius / depth_radius).clamp(1.0, 4.0);
+            }
             for point in &mut positions {
                 for axis in 0..3 {
                     point[axis] = (point[axis] - center[axis]) / radius;
                 }
             }
         }
-        let vertices = Arc::new(
-            positions
-                .iter()
-                .map(|&position| Vertex {
-                    position,
-                    color: [180, 190, 210, 255],
-                })
-                .collect(),
-        );
+        let mut vertices: Vec<Vertex> = positions
+            .iter()
+            .map(|&position| Vertex {
+                position,
+                color: [180, 190, 210, 255],
+            })
+            .collect();
+        let e = GUIDE_EXTENT;
+        for step in -2..=2 {
+            let v = step as f32 * e * 0.5;
+            guide_line(&mut vertices, [-e, -e, v], [e, -e, v]);
+            guide_line(&mut vertices, [v, -e, -e], [v, -e, e]);
+        }
+        let floor_count = vertices.len() - positions.len();
+        for &y in &[-e, e] {
+            for &z in &[-e, e] {
+                guide_line(&mut vertices, [-e, y, z], [e, y, z]);
+            }
+            for &x in &[-e, e] {
+                guide_line(&mut vertices, [x, y, -e], [x, y, e]);
+            }
+        }
+        for &x in &[-e, e] {
+            for &z in &[-e, e] {
+                guide_line(&mut vertices, [x, -e, z], [x, e, z]);
+            }
+        }
+        let frame_count = vertices.len() - positions.len() - floor_count;
         Self {
             positions,
-            vertices,
+            vertices: Arc::new(vertices),
             camera: Camera::default(),
+            depth_scale,
+            floor_count,
+            frame_count,
+            intro_remaining: 1.4,
         }
     }
 
@@ -128,8 +215,14 @@ impl Cloud3D {
         }
     }
 
+    #[cfg(test)]
     pub fn positions(&self) -> &[[f32; 3]] {
         &self.positions
+    }
+
+    pub fn reset_camera(&mut self) {
+        self.camera = Camera::default();
+        self.intro_remaining = 0.0;
     }
 
     pub fn show(
@@ -139,37 +232,52 @@ impl Cloud3D {
         renderer: &Arc<Mutex<CloudRenderer>>,
         selected: Option<usize>,
         clustered: bool,
+        view: ViewOptions,
     ) -> Interaction {
         let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
         let mut changed = false;
         if response.double_clicked() {
-            self.camera = Camera::default();
+            self.reset_camera();
             changed = true;
         } else if response.dragged() {
+            self.intro_remaining = 0.0;
             let delta = response.drag_delta();
             if ui.input(|input| input.modifiers.shift)
                 || response.dragged_by(egui::PointerButton::Secondary)
             {
                 self.camera.pan += delta;
             } else {
-                self.camera.yaw =
-                    (self.camera.yaw + delta.x * 0.008).rem_euclid(std::f32::consts::TAU);
-                self.camera.pitch = (self.camera.pitch + delta.y * 0.008).clamp(-1.5, 1.5);
+                self.camera.rotate(delta);
             }
             changed = true;
         }
         if response.hovered() {
             let scroll = ui.input(|input| input.smooth_scroll_delta.y);
             if scroll != 0.0 {
+                self.intro_remaining = 0.0;
                 self.camera.zoom = (self.camera.zoom * (scroll * 0.0015).exp()).clamp(0.4, 12.0);
                 changed = true;
             }
+        }
+        if response.hovered() {
+            self.intro_remaining = 0.0;
+        } else if self.intro_remaining > 0.0 {
+            let dt = ui.input(|input| input.stable_dt).min(0.05);
+            self.camera.yaw = (self.camera.yaw + dt * 0.38).rem_euclid(std::f32::consts::TAU);
+            self.intro_remaining = (self.intro_remaining - dt).max(0.0);
+            changed = true;
         }
         if changed {
             ui.ctx().request_repaint();
         }
 
-        let projection = Projection::new(self.camera, rect);
+        let depth_scale = if view.expand_depth {
+            self.depth_scale
+        } else {
+            1.0
+        };
+        let camera = self.camera.fitted(rect);
+        let projection = Projection::new(camera, rect, depth_scale);
         let hovered = response.hover_pos().and_then(|pointer| {
             let mut best: Option<(usize, f32, f32)> = None;
             for (index, &point) in self.positions.iter().enumerate() {
@@ -178,8 +286,8 @@ impl Cloud3D {
                 };
                 let distance = screen.distance_sq(pointer);
                 // Same circular footprint as the point sprite in the vertex shader.
-                let radius_sq = (56.0 / depth).clamp(4.0, 81.0);
-                if distance > radius_sq {
+                let radius = (14.0 / depth).clamp(2.0, 9.0);
+                if distance > radius * radius {
                     continue;
                 }
                 if best.is_none_or(|(_, nearest, front)| {
@@ -214,7 +322,14 @@ impl Cloud3D {
         };
         let vertices = self.vertices.clone();
         let callback_renderer = renderer.clone();
-        let camera = self.camera;
+        let draw = DrawOptions {
+            view,
+            point_count: self.positions.len(),
+            floor_count: self.floor_count,
+            frame_count: self.frame_count,
+            depth_scale,
+            clustered,
+        };
         let ctx = ui.ctx().clone();
         ui.painter().add(egui::PaintCallback {
             rect,
@@ -226,7 +341,7 @@ impl Cloud3D {
                     info,
                     &vertices,
                     camera,
-                    clustered,
+                    draw,
                     plain,
                     background,
                 ) {
@@ -246,6 +361,17 @@ impl Cloud3D {
         });
 
         let painter = ui.painter_at(rect);
+        if let Some(index) = hovered.or(selected).filter(|_| view.grid) {
+            let point = self.positions[index];
+            if let (Some((top, _)), Some((floor, _))) = (
+                projection.screen_position(point),
+                projection.screen_position([point[0], -GUIDE_EXTENT, point[2]]),
+            ) {
+                let color = ui.visuals().selection.stroke.color.gamma_multiply(0.55);
+                painter.line_segment([top, floor], egui::Stroke::new(1.0, color));
+                painter.circle_filled(floor, 3.0, color);
+            }
+        }
         for (axis, label, color) in [
             ([1.0, 0.0, 0.0], "PC1", egui::Color32::from_rgb(225, 95, 95)),
             (
@@ -259,6 +385,7 @@ impl Cloud3D {
                 egui::Color32::from_rgb(95, 145, 235),
             ),
         ] {
+            let axis = [axis[0], axis[1], axis[2] / depth_scale];
             if let (Some((origin, _)), Some((end, _))) = (
                 projection.screen_position([0.0; 3]),
                 projection.screen_position(axis),
@@ -331,7 +458,7 @@ impl CloudRenderer {
         info: egui::PaintCallbackInfo,
         vertices: &Arc<Vec<Vertex>>,
         camera: Camera,
-        clustered: bool,
+        draw: DrawOptions,
         plain: [f32; 4],
         background: [f32; 4],
     ) -> Result<(), String> {
@@ -407,10 +534,52 @@ impl CloudRenderer {
             );
             gl.uniform_1_i32(
                 gl.get_uniform_location(program, "u_clustered").as_ref(),
-                clustered as i32,
+                draw.clustered as i32,
+            );
+            gl.uniform_1_f32(
+                gl.get_uniform_location(program, "u_depth_scale").as_ref(),
+                draw.depth_scale,
             );
             gl.uniform_4_f32(
-                gl.get_uniform_location(program, "u_plain").as_ref(),
+                gl.get_uniform_location(program, "u_background").as_ref(),
+                background[0],
+                background[1],
+                background[2],
+                background[3],
+            );
+            let guide_uniform = gl.get_uniform_location(program, "u_guide");
+            gl.uniform_1_i32(guide_uniform.as_ref(), 1);
+            let plain_uniform = gl.get_uniform_location(program, "u_plain");
+            let dark = background[0] < 0.5;
+            if draw.view.grid {
+                let color = if dark {
+                    [0.17, 0.22, 0.29]
+                } else {
+                    [0.83, 0.86, 0.9]
+                };
+                gl.uniform_4_f32(plain_uniform.as_ref(), color[0], color[1], color[2], 1.0);
+                gl.draw_arrays(
+                    glow::LINES,
+                    draw.point_count as i32,
+                    draw.floor_count as i32,
+                );
+            }
+            if draw.view.frame {
+                let color = if dark {
+                    [0.28, 0.36, 0.46]
+                } else {
+                    [0.67, 0.72, 0.78]
+                };
+                gl.uniform_4_f32(plain_uniform.as_ref(), color[0], color[1], color[2], 1.0);
+                gl.draw_arrays(
+                    glow::LINES,
+                    (draw.point_count + draw.floor_count) as i32,
+                    draw.frame_count as i32,
+                );
+            }
+            gl.uniform_1_i32(guide_uniform.as_ref(), 0);
+            gl.uniform_4_f32(
+                plain_uniform.as_ref(),
                 plain[0],
                 plain[1],
                 plain[2],
@@ -419,7 +588,7 @@ impl CloudRenderer {
             gl.draw_arrays(
                 glow::POINTS,
                 0,
-                vertices.len().min(i32::MAX as usize) as i32,
+                draw.point_count.min(i32::MAX as usize) as i32,
             );
             gl.bind_vertex_array(None);
             gl.use_program(None);
@@ -611,31 +780,93 @@ uniform float u_aspect;
 uniform float u_dpi;
 uniform vec2 u_pan;
 uniform int u_clustered;
+uniform int u_guide;
+uniform float u_depth_scale;
 uniform vec4 u_plain;
+uniform vec4 u_background;
 out vec4 v_color;
 void main() {
     float sy = sin(u_angles.x), cy = cos(u_angles.x);
     float sp = sin(u_angles.y), cp = cos(u_angles.y);
-    float x = a_position.x * cy - a_position.z * sy;
-    float z = a_position.x * sy + a_position.z * cy;
+    float source_z = a_position.z * (u_guide != 0 ? 1.0 : u_depth_scale);
+    float x = a_position.x * cy - source_z * sy;
+    float z = a_position.x * sy + source_z * cy;
     float y = a_position.y * cp - z * sp;
     z = a_position.y * sp + z * cp;
     float depth = 3.5 - z;
     float scale = 2.4 * u_zoom / depth;
     gl_Position = vec4(x * scale / u_aspect + u_pan.x,
                        y * scale + u_pan.y, -z * 0.4, 1.0);
-    gl_PointSize = clamp(8.0 * u_dpi * sqrt(3.5 / depth), 4.0 * u_dpi, 18.0 * u_dpi);
-    v_color = u_clustered != 0 ? a_color : u_plain;
-    v_color.rgb *= 0.72 + 0.28 * (z + 1.0) * 0.5;
+    gl_PointSize = clamp(8.0 * u_dpi * 3.5 / depth, 4.0 * u_dpi, 18.0 * u_dpi);
+    v_color = u_guide != 0 ? u_plain : (u_clustered != 0 ? a_color : u_plain);
+    if (u_guide == 0) {
+        float nearness = clamp((z + 1.7) / 3.4, 0.0, 1.0);
+        v_color.rgb = mix(u_background.rgb, v_color.rgb, 0.52 + 0.48 * nearness);
+    }
 }
 "#;
 
 const FRAGMENT_SHADER: &str = r#"
 in vec4 v_color;
+uniform int u_guide;
 out vec4 out_color;
 void main() {
-    vec2 offset = gl_PointCoord * 2.0 - 1.0;
-    if (dot(offset, offset) > 1.0) discard;
+    if (u_guide == 0) {
+        vec2 offset = gl_PointCoord * 2.0 - 1.0;
+        float radius2 = dot(offset, offset);
+        if (radius2 > 1.0) discard;
+    }
     out_color = v_color;
 }
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn depth_expansion_preserves_cluster_distances_and_guide_ranges() {
+        let cloud = Cloud3D::new(vec![[-1.0, 0.0, -0.1], [1.0, 0.0, 0.1]]);
+        assert_eq!(cloud.positions().len(), 2);
+        assert_eq!(cloud.floor_count, 20);
+        assert_eq!(cloud.frame_count, 24);
+        assert_eq!(cloud.depth_scale, 4.0);
+        assert_eq!(cloud.vertices.len(), 2 + 20 + 24);
+        assert_eq!(cloud.positions()[0][2], -0.1);
+    }
+
+    #[test]
+    fn default_camera_fits_frame_in_a_narrow_plot() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 300.0));
+        let projection = Projection::new(Camera::default().fitted(rect), rect, 1.0);
+        for x in [-GUIDE_EXTENT, GUIDE_EXTENT] {
+            for y in [-GUIDE_EXTENT, GUIDE_EXTENT] {
+                for z in [-GUIDE_EXTENT, GUIDE_EXTENT] {
+                    let (screen, _) = projection.screen_position([x, y, z]).unwrap();
+                    assert!(
+                        rect.contains(screen),
+                        "frame corner {x}, {y}, {z} is outside plot"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn dragging_right_moves_pc1_axis_right() {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0));
+        let mut camera = Camera::default();
+        let before = Projection::new(camera, rect, 1.0)
+            .screen_position([1.0, 0.0, 0.0])
+            .unwrap()
+            .0
+            .x;
+        camera.rotate(egui::vec2(20.0, 0.0));
+        let after = Projection::new(camera, rect, 1.0)
+            .screen_position([1.0, 0.0, 0.0])
+            .unwrap()
+            .0
+            .x;
+        assert!(after > before);
+    }
+}

@@ -540,6 +540,7 @@ dependencies = [
  "half",
  "image",
  "imageproc",
+ "nalgebra",
  "ndarray",
  "ort",
  "ratatui",
