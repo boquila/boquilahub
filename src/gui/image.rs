@@ -1081,6 +1081,9 @@ fn bbox_tooltip_ui(ui: &mut egui::Ui, detection: &XYXYc, lang: &Lang) {
             .small(),
     );
     refined_extras_ui(ui, detection.extra_cls.as_ref(), lang);
+    if let Some(embedding) = &detection.embedding {
+        ui.label(format!("{} · {}", translate(Key::embedding, lang), embedding.model));
+    }
 }
 
 fn seg_tooltip_ui(ui: &mut egui::Ui, segment: &SEGc, lang: &Lang) {
@@ -1112,6 +1115,9 @@ fn seg_tooltip_ui(ui: &mut egui::Ui, segment: &SEGc, lang: &Lang) {
             .small(),
     );
     refined_extras_ui(ui, segment.bbox.extra_cls.as_ref(), lang);
+    if let Some(embedding) = &segment.bbox.embedding {
+        ui.label(format!("{} · {}", translate(Key::embedding, lang), embedding.model));
+    }
 }
 
 /// The "Refined: ..." block shown under a bbox/segment tooltip when

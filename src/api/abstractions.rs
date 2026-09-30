@@ -472,6 +472,8 @@ pub struct XYXYc {
     pub xyxy: XYXY,
     pub label: String,
     pub extra_cls: Option<Vec<Prob>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Embedding>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -482,7 +484,7 @@ pub struct XYc {
 
 impl XYXYc {
     pub fn new(xyxy: XYXY, label: String) -> Self {
-        XYXYc {xyxy, label, extra_cls: None,}
+        XYXYc {xyxy, label, extra_cls: None, embedding: None}
     }
 }
 

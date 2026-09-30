@@ -1,5 +1,5 @@
 use super::Gui;
-use crate::api::abstractions::{AIOutputs, Embedding, PredImg};
+use crate::api::abstractions::{AIOutputs, Embedding, PredImg, XYXY};
 use crate::localization::{Key, translate};
 use egui_plot::{Plot, PlotPoint, Points};
 use std::collections::VecDeque;
@@ -11,53 +11,83 @@ pub(super) struct EmbeddingPlot {
     pub open: bool,
     points: Vec<PlotPoint>,
     indexes: Vec<usize>,
+    boxes: Vec<Option<XYXY>>,
+    labels: Vec<String>,
+    objects: bool,
     model: String,
     hovered: Option<usize>,
     preview_point: Option<usize>,
+    selected_point: Option<usize>,
     thumbnails: VecDeque<(usize, Option<egui::TextureHandle>)>,
     pending: Vec<usize>,
-    requests: Sender<(usize, PathBuf)>,
+    requests: Sender<(usize, PathBuf, Option<XYXY>)>,
     results: Receiver<(usize, Option<egui::ColorImage>)>,
 }
 
 impl EmbeddingPlot {
     pub fn new(files: &[PredImg]) -> Self {
-        let embeddings: Vec<_> = files
-            .iter()
-            .enumerate()
-            .filter_map(|(index, file)| match file.aioutput.as_ref() {
-                Some(AIOutputs::Embed(embedding))
-                    if !embedding.values.is_empty()
-                        && embedding.values.iter().all(|value| value.is_finite()) =>
-                {
-                    Some((index, embedding))
+        let has_images = files.iter().any(|file| matches!(&file.aioutput, Some(AIOutputs::Embed(embedding)) if valid_embedding(embedding)));
+        Self::for_kind(files, !has_images)
+    }
+
+    fn for_kind(files: &[PredImg], objects: bool) -> Self {
+        let mut entries: Vec<(usize, Option<XYXY>, String, &Embedding)> = Vec::new();
+        for (index, file) in files.iter().enumerate() {
+            match file.aioutput.as_ref() {
+                Some(AIOutputs::Embed(embedding)) if !objects => {
+                    entries.push((index, None, String::new(), embedding));
                 }
-                _ => None,
-            })
-            .collect();
-        let (model, indexes, points) = if let Some((_, first)) = embeddings.first() {
+                Some(AIOutputs::ObjectDetection(boxes)) if objects => {
+                    for bbox in boxes {
+                        if let Some(embedding) = &bbox.embedding {
+                            entries.push((index, Some(bbox.xyxy), bbox.label.clone(), embedding));
+                        }
+                    }
+                }
+                Some(AIOutputs::Segmentation(segments)) if objects => {
+                    for segment in segments {
+                        if let Some(embedding) = &segment.bbox.embedding {
+                            entries.push((index, Some(segment.bbox.xyxy), segment.bbox.label.clone(), embedding));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        entries.retain(|(_, _, _, embedding)| valid_embedding(embedding));
+        let (model, indexes, boxes, labels, points) = if let Some((_, _, _, first)) = entries.first() {
             let model = first.model.clone();
             let dimensions = first.values.len();
-            let embeddings: Vec<_> = embeddings
+            let entries: Vec<_> = entries
                 .into_iter()
-                .filter(|(_, emb)| emb.model == model && emb.values.len() == dimensions)
+                .filter(|(_, _, _, emb)| emb.model == model && emb.values.len() == dimensions)
                 .collect();
-            let indexes = embeddings.iter().map(|(index, _)| *index).collect();
+            let indexes = entries.iter().map(|(index, _, _, _)| *index).collect();
+            let boxes = entries.iter().map(|(_, bbox, _, _)| *bbox).collect();
+            let labels = entries.iter().map(|(_, _, label, _)| label.clone()).collect();
+            let embeddings: Vec<_> = entries.iter().map(|(index, _, _, emb)| (*index, *emb)).collect();
             let points = project(&embeddings);
-            (model, indexes, points)
+            (model, indexes, boxes, labels, points)
         } else {
-            (String::new(), Vec::new(), Vec::new())
+            (String::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
-        let (requests, incoming) = mpsc::channel::<(usize, PathBuf)>();
+        let (requests, incoming) = mpsc::channel::<(usize, PathBuf, Option<XYXY>)>();
         let (outgoing, results) = mpsc::channel();
         std::thread::spawn(move || {
-            for (index, path) in incoming {
-                let thumbnail = image::open(path).ok().map(|image| {
+            for (index, path, bbox) in incoming {
+                let thumbnail = image::open(path).ok().and_then(|image| {
+                    let image = if let Some(bbox) = bbox {
+                        let x1 = (bbox.x1.max(0.0) as u32).min(image.width());
+                        let y1 = (bbox.y1.max(0.0) as u32).min(image.height());
+                        let x2 = (bbox.x2.max(0.0) as u32).min(image.width());
+                        let y2 = (bbox.y2.max(0.0) as u32).min(image.height());
+                        if x2 <= x1 || y2 <= y1 { None } else { Some(image.crop_imm(x1, y1, x2 - x1, y2 - y1)) }
+                    } else { Some(image) }?;
                     let image = image.thumbnail(320, 240).to_rgba8();
-                    egui::ColorImage::from_rgba_unmultiplied(
+                    Some(egui::ColorImage::from_rgba_unmultiplied(
                         [image.width() as usize, image.height() as usize],
                         image.as_raw(),
-                    )
+                    ))
                 });
                 if outgoing.send((index, thumbnail)).is_err() {
                     break;
@@ -68,9 +98,13 @@ impl EmbeddingPlot {
             open: true,
             points,
             indexes,
+            boxes,
+            labels,
+            objects,
             model,
             hovered: None,
             preview_point: None,
+            selected_point: None,
             thumbnails: VecDeque::new(),
             pending: Vec::new(),
             requests,
@@ -98,7 +132,7 @@ impl EmbeddingPlot {
             && self.pending.len() < 2
             && self
                 .requests
-                .send((point_index, path.to_path_buf()))
+                .send((point_index, path.to_path_buf(), self.boxes[point_index]))
                 .is_ok()
         {
             self.pending.push(point_index);
@@ -107,6 +141,10 @@ impl EmbeddingPlot {
             ctx.request_repaint_after(Duration::from_millis(50));
         }
     }
+}
+
+fn valid_embedding(embedding: &Embedding) -> bool {
+    !embedding.values.is_empty() && embedding.values.iter().all(|value| value.is_finite())
 }
 
 // Two principal components, fitted on at most 512 evenly spaced images.
@@ -222,30 +260,49 @@ impl Gui {
         let lang = &self.lang;
         let mut open = true;
         let mut selected = None;
+        let mut next_kind = None;
+        let has_images = files.iter().any(|file| matches!(&file.aioutput, Some(AIOutputs::Embed(embedding)) if valid_embedding(embedding)));
+        let has_objects = files.iter().any(|file| match file.aioutput.as_ref() {
+            Some(AIOutputs::ObjectDetection(boxes)) => boxes.iter().any(|bbox| bbox.embedding.as_ref().is_some_and(valid_embedding)),
+            Some(AIOutputs::Segmentation(segments)) => segments.iter().any(|seg| seg.bbox.embedding.as_ref().is_some_and(valid_embedding)),
+            _ => false,
+        });
         egui::Window::new(translate(Key::embedding_space, lang))
             .open(&mut open)
             .default_size([860.0, 500.0])
             .min_width(400.0)
             .min_height(360.0)
             .show(ui.ctx(), |ui| {
+                if has_images && has_objects {
+                    ui.horizontal(|ui| {
+                        if ui.selectable_label(!plot.objects, translate(Key::image, lang)).clicked() && plot.objects {
+                            next_kind = Some(false);
+                        }
+                        if ui.selectable_label(plot.objects, translate(Key::detections, lang)).clicked() && !plot.objects {
+                            next_kind = Some(true);
+                        }
+                    });
+                }
                 if plot.points.is_empty() {
-                    ui.label(translate(Key::no_embeddings, lang));
+                    ui.label(translate(if plot.objects { Key::no_object_embeddings } else { Key::no_embeddings }, lang));
                     return;
                 }
-                ui.label(format!(
-                    "{} / {} · {}",
-                    plot.points.len(),
-                    files.len(),
-                    plot.model
-                ));
+                if plot.objects {
+                    ui.label(format!("{} · {}", plot.points.len(), plot.model));
+                } else {
+                    ui.label(format!("{} / {} · {}", plot.points.len(), files.len(), plot.model));
+                }
                 let id = egui::Id::new((
                     "image_embeddings",
                     &files[0].file_path,
                     files.len(),
                     plot.points.len(),
                     &plot.model,
+                    plot.objects,
                 ));
-                let current_point = plot.indexes.iter().position(|&index| index + 1 == current);
+                let current_point = plot.selected_point
+                    .filter(|&point| plot.indexes[point] + 1 == current)
+                    .or_else(|| plot.indexes.iter().position(|&index| index + 1 == current));
                 let inspector_width = (ui.available_width() * 0.30).clamp(160.0, 240.0);
                 let plot_width = (ui.available_width() - inspector_width - 12.0).max(200.0);
                 let plot_height = ui.available_height().max(300.0);
@@ -308,7 +365,7 @@ impl Gui {
                             .clone()
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
                         if result.response.clicked() {
-                            selected = Some(plot.indexes[point_index]);
+                            selected = Some(point_index);
                         }
                     }
 
@@ -353,6 +410,9 @@ impl Gui {
                                 .unwrap_or("?"),
                         )
                         .on_hover_text(file.file_path.display().to_string());
+                        if plot.objects {
+                            ui.label(&plot.labels[shown]);
+                        }
                         ui.label(
                             egui::RichText::new(translate(Key::plot_help, lang))
                                 .weak()
@@ -362,7 +422,13 @@ impl Gui {
                 });
             });
         plot.open = open;
-        if let Some(index) = selected {
+        if let Some(objects) = next_kind {
+            self.embedding_plot = Some(EmbeddingPlot::for_kind(files, objects));
+            return;
+        }
+        if let Some(point_index) = selected {
+            plot.selected_point = Some(point_index);
+            let index = plot.indexes[point_index];
             if index + 1 != current {
                 plot.open = false;
                 self.image_texture_n = index + 1;
@@ -377,6 +443,7 @@ impl Gui {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::abstractions::XYXYc;
 
     #[test]
     fn sample_images_group_by_similarity() {
@@ -396,5 +463,25 @@ mod tests {
         // Images 1/4 show deer; 2/3 show elephants.
         assert!(distance(0, 3) < distance(0, 1));
         assert!(distance(1, 2) < distance(1, 0));
+    }
+
+    #[test]
+    fn detection_embeddings_plot_each_crop_and_read_legacy_boxes() {
+        let mut file = PredImg::new_simple("missing-plot-test-image.jpg".into());
+        let mut first = XYXYc::new(XYXY::new(1.0, 2.0, 11.0, 12.0, 0.9, 0), "deer".into());
+        first.embedding = Some(Embedding::from_raw(&[1.0, 0.0, 0.0], "encoder".into()));
+        let mut second = XYXYc::new(XYXY::new(20.0, 21.0, 30.0, 31.0, 0.8, 1), "elk".into());
+        second.embedding = Some(Embedding::from_raw(&[0.0, 1.0, 0.0], "encoder".into()));
+        file.aioutput = Some(AIOutputs::ObjectDetection(vec![first, second]));
+        let plot = EmbeddingPlot::new(&[file]);
+        assert!(plot.objects);
+        assert_eq!(plot.points.len(), 2);
+        assert_eq!(plot.indexes, [0, 0]);
+        assert_eq!(plot.labels, ["deer", "elk"]);
+        assert_eq!(plot.boxes[1].unwrap().x1, 20.0);
+
+        let legacy = r#"{"xyxy":{"x1":0.0,"y1":0.0,"x2":1.0,"y2":1.0,"prob":0.5,"class_id":0},"label":"old","extra_cls":null}"#;
+        let box_from_old_sidecar: XYXYc = serde_json::from_str(legacy).unwrap();
+        assert!(box_from_old_sidecar.embedding.is_none());
     }
 }
