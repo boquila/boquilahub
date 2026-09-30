@@ -1,5 +1,6 @@
 use crate::api::{
     bq::{AIMetadata, BQModel, Ep, GlobalBQ},
+    models::Task,
     rest::{get_ipv4_address, Rest},
 };
 use clap::{Args, Parser, Subcommand};
@@ -16,6 +17,10 @@ pub struct ServeArgs {
     /// Model name to deploy, complementary classification model
     #[arg(long, value_name = "MODEL_CLS_PATH", required = false)]
     pub model_cls: Option<String>,
+
+    /// Complementary image embedding model for detected objects
+    #[arg(long, value_name = "MODEL_EMBED_PATH")]
+    pub model_embed: Option<String>,
 
     /// Port number for the server
     #[arg(long, value_name = "PORT", default_value = "8791")]
@@ -90,16 +95,37 @@ impl Cli {
 
                 if let Some(cls_name) = &args.model_cls {
                     let cls = resolve_model(cls_name, &ais);
-                    let _ = GlobalBQ::Second.set_model(&cls.get_path(), Ep::gpu(), None);
+                    if cls.task != Task::Classify {
+                        eprintln!("{cls_name} is not a classification model");
+                        return;
+                    }
+                    if let Err(error) = GlobalBQ::Second.set_model(&cls.get_path(), Ep::gpu(), None) {
+                        eprintln!("Could not load classifier {cls_name}: {error}");
+                        return;
+                    }
                 }
 
-                let _ = GlobalBQ::First.set_model(&model.get_path(), Ep::gpu(), None);
+                if let Some(embed_name) = &args.model_embed {
+                    let embed = resolve_model(embed_name, &ais);
+                    if embed.task != Task::Embed {
+                        eprintln!("{embed_name} is not an embedding model");
+                        return;
+                    }
+                    if let Err(error) = GlobalBQ::Third.set_model(&embed.get_path(), Ep::gpu(), None) {
+                        eprintln!("Could not load embedding model {embed_name}: {error}");
+                        return;
+                    }
+                }
+
+                if let Err(error) = GlobalBQ::First.set_model(&model.get_path(), Ep::gpu(), None) {
+                    eprintln!("Could not load model {}: {error}", model.name);
+                    return;
+                }
 
                 println!("\x1b[38;2;51;218;114m{ASCII_ART}\x1b[0m");
-                match &args.model_cls {
-                    Some(cls) => println!("Model deployed: {} with {}", model.name, cls),
-                    None => println!("Model deployed: {}", model.name),
-                }
+                println!("Model deployed: {}{}{}", model.name,
+                    args.model_cls.as_ref().map(|name| format!(" with classifier {name}")).unwrap_or_default(),
+                    args.model_embed.as_ref().map(|name| format!(" with embedding {name}")).unwrap_or_default());
                 println!("IP Address: http://{}:{}", get_ipv4_address().unwrap(),args.port);
 
                 if let Err(e) = Rest::deploy(args.port).await {

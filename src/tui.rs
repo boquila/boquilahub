@@ -26,7 +26,7 @@ fn at(area: Rect, y: u16) -> Rect { Rect { y, height: 1, ..area } }
 
 // ── types ────────────────────────────────────────────────────────────
 #[derive(Clone, Copy, PartialEq)]
-enum Row { Ai, ClsAi, Ep, Deploy }
+enum Row { Ai, ClsAi, EmbedAi, Ep, Deploy }
 
 #[derive(Default)]
 struct Dropdown {
@@ -50,6 +50,8 @@ pub struct Tui {
     cls_ais: Vec<AIMetadata>,
     cls_active: bool,
     cls: Dropdown,
+    embed_ais: Vec<AIMetadata>,
+    embed: Dropdown,
     eps: Vec<Ep>,
     ep: Dropdown,
     api_deployed: bool,
@@ -75,11 +77,13 @@ impl Tui {
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
         let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image).cloned().collect();
+        let embed_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Embed && ai.modality == Modality::Image).cloned().collect();
         Self {
             lang,
             row: 0, side_btn: false, open: None,
             ais, ai: Dropdown::default(),
             cls_ais, cls_active: false, cls: Dropdown::default(),
+            embed_ais, embed: Dropdown::default(),
             eps: Ep::locals(), ep: Dropdown::default(),
             api_deployed: false,
             host_url: None,
@@ -92,6 +96,7 @@ impl Tui {
     fn rows(&self) -> Vec<Row> {
         let mut v = vec![Row::Ai];
         if self.cls_active { v.push(Row::ClsAi); }
+        if self.ai.selected.is_some_and(|i| self.ais[i].can_add_cls()) && !self.embed_ais.is_empty() { v.push(Row::EmbedAi); }
         v.push(Row::Ep);
         if self.can_deploy() || self.api_deployed { v.push(Row::Deploy); }
         v
@@ -112,6 +117,7 @@ impl Tui {
         match self.cur_row() {
             Row::Ai => self.can_add_cls(),
             Row::ClsAi => true,
+            Row::EmbedAi => self.embed.selected.is_some(),
             _ => false,
         }
     }
@@ -131,16 +137,25 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
         let changed = match which {
             Row::Ai => handle_dropdown(code, app.ais.len(), &mut app.ai),
             Row::ClsAi => handle_dropdown(code, app.cls_ais.len(), &mut app.cls),
+            Row::EmbedAi => handle_dropdown(code, app.embed_ais.len(), &mut app.embed),
             Row::Ep => handle_dropdown(code, app.eps.len(), &mut app.ep),
             Row::Deploy => None,
         };
         if let Some(changed) = changed {
             app.open = None;
             if changed {
+                app.status_msg = None;
                 match which {
                     Row::Ai => load_ai_model(app),
                     Row::ClsAi => load_cls_model(app),
-                    Row::Ep => { load_ai_model(app); load_cls_model(app); }
+                    Row::EmbedAi => load_embed_model(app),
+                    Row::Ep => {
+                        load_ai_model(app);
+                        if app.ai.selected.is_some() {
+                            load_cls_model(app);
+                            load_embed_model(app);
+                        }
+                    }
                     Row::Deploy => {}
                 }
             }
@@ -159,6 +174,7 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
                 match app.cur_row() {
                     Row::Ai => { app.cls_active = true; app.side_btn = false; app.row = 1; }
                     Row::ClsAi => { app.cls_active = false; app.cls.selected = None; GlobalBQ::Second.clear(); app.side_btn = false; app.clamp(); }
+                    Row::EmbedAi => { app.embed.selected = None; GlobalBQ::Third.clear(); app.side_btn = false; }
                     _ => {}
                 }
             } else {
@@ -171,6 +187,7 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
                     match row {
                         Row::Ai => app.ai.reset_cursor(),
                         Row::ClsAi => app.cls.reset_cursor(),
+                        Row::EmbedAi => app.embed.reset_cursor(),
                         Row::Ep => app.ep.reset_cursor(),
                         Row::Deploy => unreachable!(),
                     }
@@ -203,12 +220,36 @@ fn load_ai_model(app: &mut Tui) {
             app.cls_active = false;
             app.cls.selected = None;
             GlobalBQ::Second.clear();
+            app.embed.selected = None;
+            GlobalBQ::Third.clear();
             app.clamp();
         }
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.ais[ai_idx].get_path();
-        app.status_msg = GlobalBQ::First.set_model(&model_path, ep, None)
-            .err().map(|e| format!("{}: {}", app.t(Key::error_ocurred), e));
+        GlobalBQ::First.clear();
+        if let Err(e) = GlobalBQ::First.set_model(&model_path, ep, None) {
+            let error = format!("{}: {}", app.t(Key::error_ocurred), e);
+            app.status_msg.get_or_insert(error);
+            app.ai.selected = None;
+            app.cls_active = false;
+            app.cls.selected = None;
+            GlobalBQ::Second.clear();
+            app.embed.selected = None;
+            GlobalBQ::Third.clear();
+            app.clamp();
+        }
+    }
+}
+
+fn load_embed_model(app: &mut Tui) {
+    if let Some(index) = app.embed.selected {
+        let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
+        GlobalBQ::Third.clear();
+        if let Err(e) = GlobalBQ::Third.set_model(&app.embed_ais[index].get_path(), ep, None) {
+            let error = format!("{}: {}", app.t(Key::error_ocurred), e);
+            app.status_msg.get_or_insert(error);
+            app.embed.selected = None;
+        }
     }
 }
 
@@ -216,8 +257,12 @@ fn load_cls_model(app: &mut Tui) {
     if let Some(cls_idx) = app.cls.selected {
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.cls_ais[cls_idx].get_path();
-        app.status_msg = GlobalBQ::Second.set_model(&model_path, ep, None)
-            .err().map(|e| format!("{}: {}", app.t(Key::error_ocurred), e));
+        GlobalBQ::Second.clear();
+        if let Err(e) = GlobalBQ::Second.set_model(&model_path, ep, None) {
+            let error = format!("{}: {}", app.t(Key::error_ocurred), e);
+            app.status_msg.get_or_insert(error);
+            app.cls.selected = None;
+        }
     }
 }
 
@@ -255,14 +300,15 @@ fn draw(frame: &mut Frame, app: &Tui) {
     }
 }
 
-fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect) {
+fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect, Rect) {
     let block = Block::default().borders(Borders::RIGHT).border_style(dim());
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     let cls_rows: u16 = if app.cls_active { 3 } else { 0 };
-    let [head, ai, cls_area, ep, _gap, btn, _rest, hints] = Layout::vertical([
-        Constraint::Length(3), Constraint::Length(3), Constraint::Length(cls_rows), Constraint::Length(3),
+    let embed_rows: u16 = if app.rows().contains(&Row::EmbedAi) { 3 } else { 0 };
+    let [head, ai, cls_area, embed_area, ep, _gap, btn, _rest, hints] = Layout::vertical([
+        Constraint::Length(3), Constraint::Length(3), Constraint::Length(cls_rows), Constraint::Length(embed_rows), Constraint::Length(3),
         Constraint::Length(2), Constraint::Length(3), Constraint::Min(0), Constraint::Length(2),
     ]).areas(inner);
 
@@ -286,6 +332,13 @@ fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect) 
         draw_combo(frame, cls_area, app.t(Key::select_2nd_ai), &app.cls_ais, app.cls.selected, app.cur_row() == Row::ClsAi && !app.side_btn);
         let focused = app.cur_row() == Row::ClsAi && app.side_btn;
         draw_side_btn(frame, cls_area, "-", focused);
+    }
+
+    if embed_rows > 0 {
+        draw_combo(frame, embed_area, app.t(Key::embedding), &app.embed_ais, app.embed.selected, app.cur_row() == Row::EmbedAi && !app.side_btn);
+        if app.embed.selected.is_some() {
+            draw_side_btn(frame, embed_area, "-", app.cur_row() == Row::EmbedAi && app.side_btn);
+        }
     }
 
     draw_combo(frame, ep, app.t(Key::select_ep), &app.eps, app.ep.selected, app.cur_row() == Row::Ep);
@@ -315,7 +368,7 @@ fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect) 
         at(hints, hints.y + 1),
     );
 
-    (ai, cls_area, ep)
+    (ai, cls_area, embed_area, ep)
 }
 
 fn draw_side_btn(frame: &mut Frame, row_area: Rect, symbol: &str, focused: bool) {
@@ -378,11 +431,12 @@ fn draw_status_bar(frame: &mut Frame, app: &Tui, area: Rect) {
     }
 }
 
-fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, Rect, Rect)) {
+fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, Rect, Rect, Rect)) {
     let (names, dd, title, row_area): (Vec<&str>, &Dropdown, &str, Rect) = match which {
         Row::Ai => (app.ais.iter().map(|a| a.name.as_str()).collect(), &app.ai, app.t(Key::select_ai), rows.0),
         Row::ClsAi => (app.cls_ais.iter().map(|a| a.name.as_str()).collect(), &app.cls, app.t(Key::select_2nd_ai), rows.1),
-        Row::Ep => (app.eps.iter().map(|e| e.name()).collect(), &app.ep, app.t(Key::select_ep), rows.2),
+        Row::EmbedAi => (app.embed_ais.iter().map(|a| a.name.as_str()).collect(), &app.embed, app.t(Key::embedding), rows.2),
+        Row::Ep => (app.eps.iter().map(|e| e.name()).collect(), &app.ep, app.t(Key::select_ep), rows.3),
         Row::Deploy => return,
     };
 
