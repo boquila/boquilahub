@@ -1,6 +1,7 @@
 mod audio;
 mod browser;
 mod embedding_plot;
+mod embedding_plot_3d;
 mod feed;
 #[path = "image.rs"]
 mod image_view;
@@ -89,6 +90,7 @@ pub struct Gui {
     selected_audios: Vec<PredAudio>,
     image_browser: browser::Browser,
     embedding_plot: Option<embedding_plot::EmbeddingPlot>,
+    cloud_renderer: Arc<Mutex<embedding_plot_3d::CloudRenderer>>,
     audio_browser: browser::Browser,
     video_browser: browser::Browser,
     // AudioData is heavy (hours of float samples). We only keep it for the
@@ -1115,6 +1117,14 @@ impl Gui {
 }
 
 impl eframe::App for Gui {
+    fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
+        if let Some(gl) = gl {
+            if let Ok(mut renderer) = self.cloud_renderer.lock() {
+                renderer.destroy(gl);
+            }
+        }
+    }
+
     fn ui(&mut self, main_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::Panel::top("top_panel").show(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {

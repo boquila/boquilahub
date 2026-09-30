@@ -10,6 +10,8 @@ use std::time::Duration;
 pub(super) struct EmbeddingPlot {
     pub open: bool,
     points: Vec<PlotPoint>,
+    cloud_3d: super::embedding_plot_3d::Cloud3D,
+    view_3d: bool,
     indexes: Vec<usize>,
     boxes: Vec<Option<XYXY>>,
     labels: Vec<String>,
@@ -53,7 +55,12 @@ impl EmbeddingPlot {
                 Some(AIOutputs::Segmentation(segments)) if objects => {
                     for segment in segments {
                         if let Some(embedding) = &segment.bbox.embedding {
-                            entries.push((index, Some(segment.bbox.xyxy), segment.bbox.label.clone(), embedding));
+                            entries.push((
+                                index,
+                                Some(segment.bbox.xyxy),
+                                segment.bbox.label.clone(),
+                                embedding,
+                            ));
                         }
                     }
                 }
@@ -61,22 +68,36 @@ impl EmbeddingPlot {
             }
         }
         entries.retain(|(_, _, _, embedding)| valid_embedding(embedding));
-        let (model, indexes, boxes, labels, points) = if let Some((_, _, _, first)) = entries.first() {
-            let model = first.model.clone();
-            let dimensions = first.values.len();
-            let entries: Vec<_> = entries
-                .into_iter()
-                .filter(|(_, _, _, emb)| emb.model == model && emb.values.len() == dimensions)
-                .collect();
-            let indexes = entries.iter().map(|(index, _, _, _)| *index).collect();
-            let boxes = entries.iter().map(|(_, bbox, _, _)| *bbox).collect();
-            let labels = entries.iter().map(|(_, _, label, _)| label.clone()).collect();
-            let embeddings: Vec<_> = entries.iter().map(|(index, _, _, emb)| (*index, *emb)).collect();
-            let points = project(&embeddings);
-            (model, indexes, boxes, labels, points)
-        } else {
-            (String::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
-        };
+        let (model, indexes, boxes, labels, points, points_3d) =
+            if let Some((_, _, _, first)) = entries.first() {
+                let model = first.model.clone();
+                let dimensions = first.values.len();
+                let entries: Vec<_> = entries
+                    .into_iter()
+                    .filter(|(_, _, _, emb)| emb.model == model && emb.values.len() == dimensions)
+                    .collect();
+                let indexes = entries.iter().map(|(index, _, _, _)| *index).collect();
+                let boxes = entries.iter().map(|(_, bbox, _, _)| *bbox).collect();
+                let labels = entries
+                    .iter()
+                    .map(|(_, _, label, _)| label.clone())
+                    .collect();
+                let embeddings: Vec<_> = entries
+                    .iter()
+                    .map(|(index, _, _, emb)| (*index, *emb))
+                    .collect();
+                let (points, points_3d) = project(&embeddings);
+                (model, indexes, boxes, labels, points, points_3d)
+            } else {
+                (
+                    String::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                )
+            };
         let (requests, incoming) = mpsc::channel::<(usize, PathBuf, Option<XYXY>)>();
         let (outgoing, results) = mpsc::channel();
         std::thread::spawn(move || {
@@ -87,8 +108,14 @@ impl EmbeddingPlot {
                         let y1 = (bbox.y1.max(0.0) as u32).min(image.height());
                         let x2 = (bbox.x2.max(0.0) as u32).min(image.width());
                         let y2 = (bbox.y2.max(0.0) as u32).min(image.height());
-                        if x2 <= x1 || y2 <= y1 { None } else { Some(image.crop_imm(x1, y1, x2 - x1, y2 - y1)) }
-                    } else { Some(image) }?;
+                        if x2 <= x1 || y2 <= y1 {
+                            None
+                        } else {
+                            Some(image.crop_imm(x1, y1, x2 - x1, y2 - y1))
+                        }
+                    } else {
+                        Some(image)
+                    }?;
                     let image = image.thumbnail(320, 240).to_rgba8();
                     Some(egui::ColorImage::from_rgba_unmultiplied(
                         [image.width() as usize, image.height() as usize],
@@ -103,6 +130,8 @@ impl EmbeddingPlot {
         Self {
             open: true,
             points,
+            cloud_3d: super::embedding_plot_3d::Cloud3D::new(points_3d),
+            view_3d: false,
             indexes,
             boxes,
             labels,
@@ -155,11 +184,13 @@ impl EmbeddingPlot {
     }
 
     fn recluster(&mut self) {
-        self.cluster_ids = k_means_2d(&self.points, self.cluster_count);
+        self.cluster_ids = k_means_3d(self.cloud_3d.positions(), self.cluster_count);
         self.clusters = vec![Vec::new(); self.cluster_ids.iter().max().map_or(0, |id| id + 1)];
         for (&point, &cluster) in self.points.iter().zip(&self.cluster_ids) {
             self.clusters[cluster].push(point);
         }
+        self.cloud_3d
+            .set_clusters(&self.cluster_ids, self.clusters.len());
         self.computed_cluster_count = self.cluster_count;
     }
 }
@@ -169,59 +200,83 @@ fn valid_embedding(embedding: &Embedding) -> bool {
 }
 
 // Fit on a bounded sample; assign every displayed point to the nearest centre.
-fn k_means_2d(points: &[PlotPoint], count: usize) -> Vec<usize> {
+fn k_means_3d(points: &[[f32; 3]], count: usize) -> Vec<usize> {
     if points.is_empty() {
         return Vec::new();
     }
     let stride = points.len().div_ceil(2048).max(1);
     let sample: Vec<_> = points.iter().step_by(stride).copied().collect();
-    let distance = |a: PlotPoint, b: PlotPoint| (a.x - b.x).powi(2) + (a.y - b.y).powi(2);
+    let distance = |a: [f32; 3], b: [f32; 3]| {
+        a.into_iter()
+            .zip(b)
+            .map(|(x, y)| (x - y).powi(2))
+            .sum::<f32>()
+    };
     let mut centers = vec![sample[0]];
     while centers.len() < count.min(sample.len()) {
-        let next = sample.iter().copied().max_by(|a, b| {
-            let nearest = |point: PlotPoint| centers.iter().map(|&center| distance(point, center)).fold(f64::INFINITY, f64::min);
-            nearest(*a).total_cmp(&nearest(*b))
-        }).unwrap();
-        if centers.iter().any(|&center| distance(next, center) <= 1e-20) {
+        let next = sample
+            .iter()
+            .copied()
+            .max_by(|a, b| {
+                let nearest = |point: [f32; 3]| {
+                    centers
+                        .iter()
+                        .map(|&center| distance(point, center))
+                        .fold(f32::INFINITY, f32::min)
+                };
+                nearest(*a).total_cmp(&nearest(*b))
+            })
+            .unwrap();
+        if centers
+            .iter()
+            .any(|&center| distance(next, center) <= 1e-20)
+        {
             break;
         }
         centers.push(next);
     }
-    let nearest = |point: PlotPoint, centers: &[PlotPoint]| {
-        centers.iter().enumerate().min_by(|(_, a), (_, b)| {
-            distance(point, **a).total_cmp(&distance(point, **b))
-        }).unwrap().0
+    let nearest = |point: [f32; 3], centers: &[[f32; 3]]| {
+        centers
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| distance(point, **a).total_cmp(&distance(point, **b)))
+            .unwrap()
+            .0
     };
     for _ in 0..20 {
-        let mut sums = vec![(0.0, 0.0, 0usize); centers.len()];
+        let mut sums = vec![([0.0_f32; 3], 0usize); centers.len()];
         for &point in &sample {
-            let (x, y, n) = &mut sums[nearest(point, &centers)];
-            *x += point.x;
-            *y += point.y;
+            let (sum, n) = &mut sums[nearest(point, &centers)];
+            for (total, value) in sum.iter_mut().zip(point) {
+                *total += value;
+            }
             *n += 1;
         }
-        let mut movement = 0.0_f64;
-        for (center, (x, y, n)) in centers.iter_mut().zip(sums) {
+        let mut movement = 0.0_f32;
+        for (center, (sum, n)) in centers.iter_mut().zip(sums) {
             if n > 0 {
-                let next = PlotPoint::new(x / n as f64, y / n as f64);
+                let next = sum.map(|value| value / n as f32);
                 movement = movement.max(distance(*center, next));
                 *center = next;
             }
         }
-        if movement < 1e-12 {
+        if movement < 1e-8 {
             break;
         }
     }
-    points.iter().map(|&point| nearest(point, &centers)).collect()
+    points
+        .iter()
+        .map(|&point| nearest(point, &centers))
+        .collect()
 }
 
-fn cluster_color(index: usize, count: usize) -> egui::Color32 {
+pub(super) fn cluster_color(index: usize, count: usize) -> egui::Color32 {
     egui::ecolor::Hsva::new((index as f32 / count as f32 + 0.04) % 1.0, 0.78, 0.85, 1.0).into()
 }
 
-// Two principal components, fitted on at most 512 evenly spaced images.
+// Three principal components, fitted on at most 512 evenly spaced images.
 // Projection of the full collection stays linear in image count and dimensions.
-fn project(data: &[(usize, &Embedding)]) -> Vec<PlotPoint> {
+fn project(data: &[(usize, &Embedding)]) -> (Vec<PlotPoint>, Vec<[f32; 3]>) {
     let dimensions = data[0].1.values.len();
     let stride = data.len().div_ceil(512).max(1);
     let sample: Vec<_> = data.iter().step_by(stride).map(|(_, emb)| *emb).collect();
@@ -235,9 +290,11 @@ fn project(data: &[(usize, &Embedding)]) -> Vec<PlotPoint> {
         *avg /= sample.len() as f64;
     }
 
-    let x = axis(&sample, &mean, None);
-    let y = axis(&sample, &mean, Some(&x));
-    data.iter()
+    let x = axis(&sample, &mean, &[]);
+    let y = axis(&sample, &mean, &[&x]);
+    let z = axis(&sample, &mean, &[&x, &y]);
+    let projected: Vec<_> = data
+        .iter()
         .map(|(_, emb)| {
             let projection = |axis: &[f64]| {
                 emb.values
@@ -247,12 +304,21 @@ fn project(data: &[(usize, &Embedding)]) -> Vec<PlotPoint> {
                     .map(|((value, avg), direction)| (value.to_f32() as f64 - avg) * direction)
                     .sum::<f64>()
             };
-            PlotPoint::new(projection(&x), projection(&y))
+            [projection(&x), projection(&y), projection(&z)]
         })
-        .collect()
+        .collect();
+    let points = projected
+        .iter()
+        .map(|p| PlotPoint::new(p[0], p[1]))
+        .collect();
+    let points_3d = projected
+        .iter()
+        .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
+        .collect();
+    (points, points_3d)
 }
 
-fn axis(sample: &[&Embedding], mean: &[f64], previous: Option<&[f64]>) -> Vec<f64> {
+fn axis(sample: &[&Embedding], mean: &[f64], previous: &[&[f64]]) -> Vec<f64> {
     let mut axis = sample
         .iter()
         .map(|emb| {
@@ -263,13 +329,16 @@ fn axis(sample: &[&Embedding], mean: &[f64], previous: Option<&[f64]>) -> Vec<f6
                 .collect::<Vec<_>>()
         })
         .find(|candidate| {
-            let residual = previous.map_or(0.0, |prev| dot(candidate, prev).powi(2));
+            let residual: f64 = previous
+                .iter()
+                .map(|prev| dot(candidate, prev).powi(2))
+                .sum();
             dot(candidate, candidate) - residual > 1e-12
         })
         .unwrap_or_else(|| vec![0.0; mean.len()]);
-    if let Some(prev) = previous {
+    for prev in previous {
         let component = dot(&axis, prev);
-        for (value, prior) in axis.iter_mut().zip(prev) {
+        for (value, prior) in axis.iter_mut().zip(prev.iter()) {
             *value -= component * prior;
         }
     }
@@ -290,9 +359,9 @@ fn axis(sample: &[&Embedding], mean: &[f64], previous: Option<&[f64]>) -> Vec<f6
                 *sum += (value.to_f32() as f64 - avg) * score;
             }
         }
-        if let Some(prev) = previous {
+        for prev in previous {
             let component = dot(&next, prev);
-            for (value, prior) in next.iter_mut().zip(prev) {
+            for (value, prior) in next.iter_mut().zip(prev.iter()) {
                 *value -= component * prior;
             }
         }
@@ -321,6 +390,7 @@ fn normalize(values: &mut [f64]) -> bool {
 
 impl Gui {
     pub(super) fn show_embedding_plot(&mut self, ui: &egui::Ui) {
+        let cloud_renderer = self.cloud_renderer.clone();
         let Some(plot) = self.embedding_plot.as_mut() else {
             return;
         };
@@ -335,8 +405,12 @@ impl Gui {
         let mut next_kind = None;
         let has_images = files.iter().any(|file| matches!(&file.aioutput, Some(AIOutputs::Embed(embedding)) if valid_embedding(embedding)));
         let has_objects = files.iter().any(|file| match file.aioutput.as_ref() {
-            Some(AIOutputs::ObjectDetection(boxes)) => boxes.iter().any(|bbox| bbox.embedding.as_ref().is_some_and(valid_embedding)),
-            Some(AIOutputs::Segmentation(segments)) => segments.iter().any(|seg| seg.bbox.embedding.as_ref().is_some_and(valid_embedding)),
+            Some(AIOutputs::ObjectDetection(boxes)) => boxes
+                .iter()
+                .any(|bbox| bbox.embedding.as_ref().is_some_and(valid_embedding)),
+            Some(AIOutputs::Segmentation(segments)) => segments
+                .iter()
+                .any(|seg| seg.bbox.embedding.as_ref().is_some_and(valid_embedding)),
             _ => false,
         });
         egui::Window::new(translate(Key::embedding_space, lang))
@@ -347,27 +421,49 @@ impl Gui {
             .show(ui.ctx(), |ui| {
                 if has_images && has_objects {
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(!plot.objects, translate(Key::image, lang)).clicked() && plot.objects {
+                        if ui
+                            .selectable_label(!plot.objects, translate(Key::image, lang))
+                            .clicked()
+                            && plot.objects
+                        {
                             next_kind = Some(false);
                         }
-                        if ui.selectable_label(plot.objects, translate(Key::detections, lang)).clicked() && !plot.objects {
+                        if ui
+                            .selectable_label(plot.objects, translate(Key::detections, lang))
+                            .clicked()
+                            && !plot.objects
+                        {
                             next_kind = Some(true);
                         }
                     });
                 }
                 if plot.points.is_empty() {
-                    ui.label(translate(if plot.objects { Key::no_object_embeddings } else { Key::no_embeddings }, lang));
+                    ui.label(translate(
+                        if plot.objects {
+                            Key::no_object_embeddings
+                        } else {
+                            Key::no_embeddings
+                        },
+                        lang,
+                    ));
                     return;
                 }
                 ui.horizontal(|ui| {
+                    ui.selectable_value(&mut plot.view_3d, false, "2D");
+                    ui.selectable_value(&mut plot.view_3d, true, "3D");
+                });
+                ui.horizontal(|ui| {
                     if ui.checkbox(&mut plot.color_clusters, "K-means").changed()
-                        && plot.color_clusters && plot.clusters.is_empty()
+                        && plot.color_clusters
+                        && plot.clusters.is_empty()
                     {
                         plot.recluster();
                     }
                     if plot.color_clusters {
-                        let slider = ui.add(egui::Slider::new(&mut plot.cluster_count, 2..=20)
-                            .text(translate(Key::groups, lang)));
+                        let slider = ui.add(
+                            egui::Slider::new(&mut plot.cluster_count, 2..=20)
+                                .text(translate(Key::groups, lang)),
+                        );
                         if !slider.is_pointer_button_down_on()
                             && plot.cluster_count != plot.computed_cluster_count
                         {
@@ -378,7 +474,12 @@ impl Gui {
                 if plot.objects {
                     ui.label(format!("{} · {}", plot.points.len(), plot.model));
                 } else {
-                    ui.label(format!("{} / {} · {}", plot.points.len(), files.len(), plot.model));
+                    ui.label(format!(
+                        "{} / {} · {}",
+                        plot.points.len(),
+                        files.len(),
+                        plot.model
+                    ));
                 }
                 let id = egui::Id::new((
                     "image_embeddings",
@@ -400,74 +501,95 @@ impl Gui {
                 let plot_height = ui.available_height().max(300.0);
                 let accent = ui.visuals().selection.stroke.color;
                 ui.horizontal(|ui| {
-                    let result = Plot::new(id)
-                        .width(plot_width)
-                        .height(plot_height)
-                        .data_aspect(1.0)
-                        .show_axes([false, false])
-                        .show_grid([false, false])
-                        .show(ui, |plot_ui| {
-                            if plot.color_clusters {
-                                for (index, points) in plot.clusters.iter().enumerate() {
-                                    if !points.is_empty() {
-                                        plot_ui.points(Points::new(format!("Cluster {}", index + 1), points.as_slice())
-                                            .radius(5.0)
-                                            .color(cluster_color(index, plot.clusters.len()))
-                                            .allow_hover(false));
+                    let interaction = if plot.view_3d {
+                        plot.cloud_3d.show(
+                            ui,
+                            egui::vec2(plot_width, plot_height),
+                            &cloud_renderer,
+                            current_point,
+                            plot.color_clusters,
+                        )
+                    } else {
+                        let result = Plot::new(id)
+                            .width(plot_width)
+                            .height(plot_height)
+                            .data_aspect(1.0)
+                            .show_axes([false, false])
+                            .show_grid([false, false])
+                            .show(ui, |plot_ui| {
+                                if plot.color_clusters {
+                                    for (index, points) in plot.clusters.iter().enumerate() {
+                                        if !points.is_empty() {
+                                            plot_ui.points(
+                                                Points::new(
+                                                    format!("Cluster {}", index + 1),
+                                                    points.as_slice(),
+                                                )
+                                                .radius(5.0)
+                                                .color(cluster_color(index, plot.clusters.len()))
+                                                .allow_hover(false),
+                                            );
+                                        }
                                     }
+                                } else {
+                                    plot_ui.points(
+                                        Points::new("Images", plot.points.as_slice())
+                                            .radius(5.0)
+                                            .allow_hover(false),
+                                    );
                                 }
-                            } else {
-                                plot_ui.points(Points::new("Images", plot.points.as_slice())
-                                    .radius(5.0)
-                                    .allow_hover(false));
+                                if let Some(point_index) = current_point {
+                                    let point = plot.points[point_index];
+                                    plot_ui.points(
+                                        Points::new("Selected", [point.x, point.y])
+                                            .radius(8.0)
+                                            .color(accent)
+                                            .allow_hover(false),
+                                    );
+                                }
+                                if let Some(point_index) = plot.hovered {
+                                    let point = plot.points[point_index];
+                                    plot_ui.points(
+                                        Points::new("Hovered", [point.x, point.y])
+                                            .radius(10.0)
+                                            .filled(false)
+                                            .color(accent)
+                                            .allow_hover(false),
+                                    );
+                                }
+                            });
+                        let hovered = result.response.hover_pos().and_then(|pointer| {
+                            let mut nearest = None;
+                            let mut distance = 12.0_f32.powi(2);
+                            for (index, point) in plot.points.iter().enumerate() {
+                                let candidate = result
+                                    .transform
+                                    .position_from_point(point)
+                                    .distance_sq(pointer);
+                                if candidate < distance {
+                                    nearest = Some(index);
+                                    distance = candidate;
+                                }
                             }
-                            if let Some(point_index) = current_point {
-                                let point = plot.points[point_index];
-                                plot_ui.points(
-                                    Points::new("Selected", [point.x, point.y])
-                                        .radius(8.0)
-                                        .color(accent)
-                                        .allow_hover(false),
-                                );
-                            }
-                            if let Some(point_index) = plot.hovered {
-                                let point = plot.points[point_index];
-                                plot_ui.points(
-                                    Points::new("Hovered", [point.x, point.y])
-                                        .radius(10.0)
-                                        .filled(false)
-                                        .color(accent)
-                                        .allow_hover(false),
-                                );
-                            }
+                            nearest
                         });
-                    let hovered = result.response.hover_pos().and_then(|pointer| {
-                        let mut nearest = None;
-                        let mut distance = 12.0_f32.powi(2);
-                        for (index, point) in plot.points.iter().enumerate() {
-                            let candidate = result
-                                .transform
-                                .position_from_point(point)
-                                .distance_sq(pointer);
-                            if candidate < distance {
-                                nearest = Some(index);
-                                distance = candidate;
-                            }
+                        if hovered.is_some() {
+                            result
+                                .response
+                                .clone()
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
                         }
-                        nearest
-                    });
-                    if plot.hovered != hovered {
-                        plot.hovered = hovered;
+                        super::embedding_plot_3d::Interaction {
+                            hovered,
+                            clicked: result.response.clicked().then_some(hovered),
+                        }
+                    };
+                    if plot.hovered != interaction.hovered {
+                        plot.hovered = interaction.hovered;
                         ui.ctx().request_repaint();
                     }
-                    if hovered.is_some() {
-                        result
-                            .response
-                            .clone()
-                            .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    }
-                    if result.response.clicked() {
-                        if let Some(point_index) = hovered {
+                    if let Some(clicked) = interaction.clicked {
+                        if let Some(point_index) = clicked {
                             selected = Some(point_index);
                         } else {
                             plot.selected_point = None;
@@ -476,7 +598,8 @@ impl Gui {
                         }
                     }
 
-                    let shown = hovered
+                    let shown = interaction
+                        .hovered
                         .or(plot.preview_point)
                         .or(current_point)
                         .unwrap_or(0);
@@ -522,14 +645,23 @@ impl Gui {
                         }
                         if plot.color_clusters {
                             let cluster = plot.cluster_ids[shown];
-                            ui.colored_label(cluster_color(cluster, plot.clusters.len()),
-                                format!("{} {}", translate(Key::cluster, lang), cluster + 1));
+                            ui.colored_label(
+                                cluster_color(cluster, plot.clusters.len()),
+                                format!("{} {}", translate(Key::cluster, lang), cluster + 1),
+                            );
                         }
                         ui.label(
                             egui::RichText::new(translate(Key::plot_help, lang))
                                 .weak()
                                 .small(),
                         );
+                        if plot.view_3d {
+                            ui.label(
+                                egui::RichText::new(translate(Key::plot_3d_help, lang))
+                                    .weak()
+                                    .small(),
+                            );
+                        }
                     });
                 });
             });
@@ -539,6 +671,7 @@ impl Gui {
             replacement.color_clusters = plot.color_clusters;
             replacement.cluster_count = plot.cluster_count;
             replacement.highlight_selection = plot.highlight_selection;
+            replacement.view_3d = plot.view_3d;
             if replacement.color_clusters && !replacement.points.is_empty() {
                 replacement.recluster();
             }
@@ -567,14 +700,14 @@ mod tests {
     #[test]
     fn k_means_colors_separated_groups_together() {
         let points = [
-            PlotPoint::new(0.0, 0.0),
-            PlotPoint::new(0.1, 0.0),
-            PlotPoint::new(0.0, 0.1),
-            PlotPoint::new(10.0, 10.0),
-            PlotPoint::new(10.1, 10.0),
-            PlotPoint::new(10.0, 10.1),
+            [0.0, 0.0, -5.0],
+            [0.1, 0.0, -5.1],
+            [0.0, 0.1, -4.9],
+            [0.0, 0.0, 5.0],
+            [0.1, 0.0, 5.1],
+            [0.0, 0.1, 4.9],
         ];
-        let groups = k_means_2d(&points, 2);
+        let groups = k_means_3d(&points, 2);
         assert_eq!(groups[0], groups[1]);
         assert_eq!(groups[1], groups[2]);
         assert_eq!(groups[3], groups[4]);
@@ -620,5 +753,28 @@ mod tests {
         let legacy = r#"{"xyxy":{"x1":0.0,"y1":0.0,"x2":1.0,"y2":1.0,"prob":0.5,"class_id":0},"label":"old","extra_cls":null}"#;
         let box_from_old_sidecar: XYXYc = serde_json::from_str(legacy).unwrap();
         assert!(box_from_old_sidecar.embedding.is_none());
+    }
+
+    #[test]
+    fn three_dimensional_projection_keeps_independent_direction() {
+        let embeddings: Vec<_> = [
+            [1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0],
+        ]
+        .into_iter()
+        .map(|values| Embedding::from_raw(&values, "test".into()))
+        .collect();
+        let data: Vec<_> = embeddings.iter().enumerate().collect();
+        let (points_2d, points_3d) = project(&data);
+        assert_eq!(points_2d.len(), points_3d.len());
+        assert!(points_3d.iter().any(|point| point[2].abs() > 0.9));
+        for (two, three) in points_2d.iter().zip(points_3d) {
+            assert!((two.x - three[0] as f64).abs() < 1e-5);
+            assert!((two.y - three[1] as f64).abs() < 1e-5);
+        }
     }
 }
