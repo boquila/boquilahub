@@ -430,7 +430,6 @@ impl Gui {
             plot.selected_point = Some(point_index);
             let index = plot.indexes[point_index];
             if index + 1 != current {
-                plot.open = false;
                 self.image_texture_n = index + 1;
                 self.image_view.reset();
                 self.paint(ui, index);
