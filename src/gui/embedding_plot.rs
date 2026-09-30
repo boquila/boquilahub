@@ -15,9 +15,15 @@ pub(super) struct EmbeddingPlot {
     labels: Vec<String>,
     objects: bool,
     model: String,
+    color_clusters: bool,
+    cluster_count: usize,
+    computed_cluster_count: usize,
+    clusters: Vec<Vec<PlotPoint>>,
+    cluster_ids: Vec<usize>,
     hovered: Option<usize>,
     preview_point: Option<usize>,
     selected_point: Option<usize>,
+    highlight_selection: bool,
     thumbnails: VecDeque<(usize, Option<egui::TextureHandle>)>,
     pending: Vec<usize>,
     requests: Sender<(usize, PathBuf, Option<XYXY>)>,
@@ -102,9 +108,15 @@ impl EmbeddingPlot {
             labels,
             objects,
             model,
+            color_clusters: false,
+            cluster_count: 8,
+            computed_cluster_count: 0,
+            clusters: Vec::new(),
+            cluster_ids: Vec::new(),
             hovered: None,
             preview_point: None,
             selected_point: None,
+            highlight_selection: true,
             thumbnails: VecDeque::new(),
             pending: Vec::new(),
             requests,
@@ -141,10 +153,70 @@ impl EmbeddingPlot {
             ctx.request_repaint_after(Duration::from_millis(50));
         }
     }
+
+    fn recluster(&mut self) {
+        self.cluster_ids = k_means_2d(&self.points, self.cluster_count);
+        self.clusters = vec![Vec::new(); self.cluster_ids.iter().max().map_or(0, |id| id + 1)];
+        for (&point, &cluster) in self.points.iter().zip(&self.cluster_ids) {
+            self.clusters[cluster].push(point);
+        }
+        self.computed_cluster_count = self.cluster_count;
+    }
 }
 
 fn valid_embedding(embedding: &Embedding) -> bool {
     !embedding.values.is_empty() && embedding.values.iter().all(|value| value.is_finite())
+}
+
+// Fit on a bounded sample; assign every displayed point to the nearest centre.
+fn k_means_2d(points: &[PlotPoint], count: usize) -> Vec<usize> {
+    if points.is_empty() {
+        return Vec::new();
+    }
+    let stride = points.len().div_ceil(2048).max(1);
+    let sample: Vec<_> = points.iter().step_by(stride).copied().collect();
+    let distance = |a: PlotPoint, b: PlotPoint| (a.x - b.x).powi(2) + (a.y - b.y).powi(2);
+    let mut centers = vec![sample[0]];
+    while centers.len() < count.min(sample.len()) {
+        let next = sample.iter().copied().max_by(|a, b| {
+            let nearest = |point: PlotPoint| centers.iter().map(|&center| distance(point, center)).fold(f64::INFINITY, f64::min);
+            nearest(*a).total_cmp(&nearest(*b))
+        }).unwrap();
+        if centers.iter().any(|&center| distance(next, center) <= 1e-20) {
+            break;
+        }
+        centers.push(next);
+    }
+    let nearest = |point: PlotPoint, centers: &[PlotPoint]| {
+        centers.iter().enumerate().min_by(|(_, a), (_, b)| {
+            distance(point, **a).total_cmp(&distance(point, **b))
+        }).unwrap().0
+    };
+    for _ in 0..20 {
+        let mut sums = vec![(0.0, 0.0, 0usize); centers.len()];
+        for &point in &sample {
+            let (x, y, n) = &mut sums[nearest(point, &centers)];
+            *x += point.x;
+            *y += point.y;
+            *n += 1;
+        }
+        let mut movement = 0.0_f64;
+        for (center, (x, y, n)) in centers.iter_mut().zip(sums) {
+            if n > 0 {
+                let next = PlotPoint::new(x / n as f64, y / n as f64);
+                movement = movement.max(distance(*center, next));
+                *center = next;
+            }
+        }
+        if movement < 1e-12 {
+            break;
+        }
+    }
+    points.iter().map(|&point| nearest(point, &centers)).collect()
+}
+
+fn cluster_color(index: usize, count: usize) -> egui::Color32 {
+    egui::ecolor::Hsva::new((index as f32 / count as f32 + 0.04) % 1.0, 0.78, 0.85, 1.0).into()
 }
 
 // Two principal components, fitted on at most 512 evenly spaced images.
@@ -287,6 +359,22 @@ impl Gui {
                     ui.label(translate(if plot.objects { Key::no_object_embeddings } else { Key::no_embeddings }, lang));
                     return;
                 }
+                ui.horizontal(|ui| {
+                    if ui.checkbox(&mut plot.color_clusters, "K-means").changed()
+                        && plot.color_clusters && plot.clusters.is_empty()
+                    {
+                        plot.recluster();
+                    }
+                    if plot.color_clusters {
+                        let slider = ui.add(egui::Slider::new(&mut plot.cluster_count, 2..=20)
+                            .text(translate(Key::groups, lang)));
+                        if !slider.is_pointer_button_down_on()
+                            && plot.cluster_count != plot.computed_cluster_count
+                        {
+                            plot.recluster();
+                        }
+                    }
+                });
                 if plot.objects {
                     ui.label(format!("{} · {}", plot.points.len(), plot.model));
                 } else {
@@ -300,9 +388,13 @@ impl Gui {
                     &plot.model,
                     plot.objects,
                 ));
-                let current_point = plot.selected_point
-                    .filter(|&point| plot.indexes[point] + 1 == current)
-                    .or_else(|| plot.indexes.iter().position(|&index| index + 1 == current));
+                let current_point = if plot.highlight_selection {
+                    plot.selected_point
+                        .filter(|&point| plot.indexes[point] + 1 == current)
+                        .or_else(|| plot.indexes.iter().position(|&index| index + 1 == current))
+                } else {
+                    None
+                };
                 let inspector_width = (ui.available_width() * 0.30).clamp(160.0, 240.0);
                 let plot_width = (ui.available_width() - inspector_width - 12.0).max(200.0);
                 let plot_height = ui.available_height().max(300.0);
@@ -315,11 +407,20 @@ impl Gui {
                         .show_axes([false, false])
                         .show_grid([false, false])
                         .show(ui, |plot_ui| {
-                            plot_ui.points(
-                                Points::new("Images", plot.points.as_slice())
+                            if plot.color_clusters {
+                                for (index, points) in plot.clusters.iter().enumerate() {
+                                    if !points.is_empty() {
+                                        plot_ui.points(Points::new(format!("Cluster {}", index + 1), points.as_slice())
+                                            .radius(5.0)
+                                            .color(cluster_color(index, plot.clusters.len()))
+                                            .allow_hover(false));
+                                    }
+                                }
+                            } else {
+                                plot_ui.points(Points::new("Images", plot.points.as_slice())
                                     .radius(5.0)
-                                    .allow_hover(false),
-                            );
+                                    .allow_hover(false));
+                            }
                             if let Some(point_index) = current_point {
                                 let point = plot.points[point_index];
                                 plot_ui.points(
@@ -359,13 +460,19 @@ impl Gui {
                         plot.hovered = hovered;
                         ui.ctx().request_repaint();
                     }
-                    if let Some(point_index) = hovered {
+                    if hovered.is_some() {
                         result
                             .response
                             .clone()
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
-                        if result.response.clicked() {
+                    }
+                    if result.response.clicked() {
+                        if let Some(point_index) = hovered {
                             selected = Some(point_index);
+                        } else {
+                            plot.selected_point = None;
+                            plot.highlight_selection = false;
+                            ui.ctx().request_repaint();
                         }
                     }
 
@@ -413,6 +520,11 @@ impl Gui {
                         if plot.objects {
                             ui.label(&plot.labels[shown]);
                         }
+                        if plot.color_clusters {
+                            let cluster = plot.cluster_ids[shown];
+                            ui.colored_label(cluster_color(cluster, plot.clusters.len()),
+                                format!("{} {}", translate(Key::cluster, lang), cluster + 1));
+                        }
                         ui.label(
                             egui::RichText::new(translate(Key::plot_help, lang))
                                 .weak()
@@ -423,17 +535,25 @@ impl Gui {
             });
         plot.open = open;
         if let Some(objects) = next_kind {
-            self.embedding_plot = Some(EmbeddingPlot::for_kind(files, objects));
+            let mut replacement = EmbeddingPlot::for_kind(files, objects);
+            replacement.color_clusters = plot.color_clusters;
+            replacement.cluster_count = plot.cluster_count;
+            replacement.highlight_selection = plot.highlight_selection;
+            if replacement.color_clusters && !replacement.points.is_empty() {
+                replacement.recluster();
+            }
+            self.embedding_plot = Some(replacement);
             return;
         }
         if let Some(point_index) = selected {
             plot.selected_point = Some(point_index);
+            plot.highlight_selection = true;
+            ui.ctx().request_repaint();
             let index = plot.indexes[point_index];
             if index + 1 != current {
                 self.image_texture_n = index + 1;
                 self.image_view.reset();
                 self.paint(ui, index);
-                ui.ctx().request_repaint();
             }
         }
     }
@@ -443,6 +563,24 @@ impl Gui {
 mod tests {
     use super::*;
     use crate::api::abstractions::XYXYc;
+
+    #[test]
+    fn k_means_colors_separated_groups_together() {
+        let points = [
+            PlotPoint::new(0.0, 0.0),
+            PlotPoint::new(0.1, 0.0),
+            PlotPoint::new(0.0, 0.1),
+            PlotPoint::new(10.0, 10.0),
+            PlotPoint::new(10.1, 10.0),
+            PlotPoint::new(10.0, 10.1),
+        ];
+        let groups = k_means_2d(&points, 2);
+        assert_eq!(groups[0], groups[1]);
+        assert_eq!(groups[1], groups[2]);
+        assert_eq!(groups[3], groups[4]);
+        assert_eq!(groups[4], groups[5]);
+        assert_ne!(groups[0], groups[3]);
+    }
 
     #[test]
     fn sample_images_group_by_similarity() {
