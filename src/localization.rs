@@ -157,6 +157,7 @@ pub enum Key {
     groups,
     cluster,
     plot_help,
+    plot_3d_help,
     sort_by,
     file_modified,
     file_created,
@@ -175,6 +176,7 @@ const fn localized(lang: &Lang, labels: [&'static str; 9]) -> &'static str {
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
     match key {
+        Key::plot_3d_help => localized(lang, ["Drag to rotate · scroll to zoom · Shift+drag to pan · double-click to reset", "Arrastra para girar · rueda para acercar · Mayús+arrastrar para mover · doble clic para restablecer", "Glisser pour tourner · molette pour zoomer · Maj+glisser pour déplacer · double-clic pour réinitialiser", "Ziehen: drehen · Scrollen: zoomen · Umschalt+Ziehen: verschieben · Doppelklick: zurücksetzen", "拖动旋转 · 滚轮缩放 · Shift+拖动平移 · 双击重置", "ドラッグで回転 · スクロールでズーム · Shift+ドラッグで移動 · ダブルクリックでリセット", "Arrasta para rodar · roda para ampliar · Shift+arrastar para mover · duplo clique para repor", "Kéo để xoay · cuộn để phóng to · Shift+kéo để di chuyển · nhấp đúp để đặt lại", "Povuci za okretanje · kotačić za zumiranje · Shift+povuci za pomak · dvoklik za reset"]),
         Key::plot => localized(lang, ["Plot", "Gráfico", "Graphique", "Diagramm", "绘图", "プロット", "Gráfico", "Biểu đồ", "Graf"]),
         Key::embedding_space => localized(lang, ["Embedding space", "Espacio de embeddings", "Espace des embeddings", "Embedding-Raum", "嵌入空间", "埋め込み空間", "Espaço de embeddings", "Không gian embedding", "Prostor ugradnji"]),
         Key::no_embeddings => localized(lang, ["Analyze the images with an embedding model, then open Plot.", "Analiza las imágenes con un modelo de embeddings y abre Gráfico.", "Analysez les images avec un modèle d’embeddings, puis ouvrez Graphique.", "Analysiere die Bilder mit einem Embedding-Modell und öffne Diagramm.", "先用嵌入模型分析图像，再打开绘图。", "埋め込みモデルで画像を解析してからプロットを開いてください。", "Analise as imagens com um modelo de embeddings e abra Gráfico.", "Phân tích ảnh bằng mô hình embedding rồi mở Biểu đồ.", "Analiziraj slike modelom ugradnji, zatim otvori Graf."]),
