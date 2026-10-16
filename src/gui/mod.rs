@@ -16,9 +16,9 @@ use models::Task;
 use processing::post::PostProcessing;
 use render::*;
 use rest::{get_ipv4_address, Rest};
-use std::collections::{HashMap, VecDeque};
-use std::fs::{self};
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::api::video_file::{PlaybackFrame, VideofileProcessor};
@@ -781,60 +781,26 @@ impl Gui {
                     .add_sized([85.0, 40.0], egui::Button::new(self.t(Key::folder)))
                     .clicked()
                 {
-                    if let Some(folder_path) = rfd::FileDialog::new().pick_folder() {
-                        match fs::read_dir(&folder_path) {
-                            Ok(entries) => {
-                                let (image_files, audio_files, video_files) =
-                                    partition_media_in_dir(entries);
-
-                                let had_any = !image_files.is_empty()
-                                    || !audio_files.is_empty()
-                                    || !video_files.is_empty();
-
-                                if !image_files.is_empty() {
-                                    self.selected_imgs = image_files.into_preds(PredImg::new_simple);
-                                    self.embedding_plot = None;
-                                    self.image_browser = Default::default();
-                                    self.image_texture_n = 1;
-                                    self.image_view.reset();
-                                    self.paint(ui, 0);
-                                    self.img_state.progress_bar =
-                                        self.selected_imgs.get_progress();
-                                }
-
-                                if !audio_files.is_empty() {
-                                    self.selected_audios = audio_files.into_preds(PredAudio::new_simple);
-                                    self.audio_browser = Default::default();
-                                    self.audio_texture_n = 1;
-                                    self.audio_state.progress_bar =
-                                        self.selected_audios.get_progress();
-                                    let _ = self.load_current_audio();
-                                }
-
-                                if !video_files.is_empty() {
-                                    self.selected_videos = video_files.into_preds(PredVideo::new_simple);
-                                    self.video_browser = Default::default();
-                                    self.video_texture_n = 1;
-                                    self.load_current_video(ui);
-                                }
-
-                                // Pick a sensible default mode. Image wins when
-                                // present (matches the prior single-modality
-                                // behaviour); otherwise fall back to whichever
-                                // modality the folder actually contained.
-                                if had_any {
-                                    if !self.selected_imgs.is_empty() {
-                                        self.mode = Mode::Image;
-                                    } else if !self.selected_videos.is_empty() {
-                                        self.mode = Mode::Video;
-                                    } else if !self.selected_audios.is_empty() {
-                                        self.mode = Mode::Audio;
-                                    }
-                                }
-                            }
-                            Err(_e) => {
-                                self.push_toast(Message::Error);
-                            }
+                    if let Some(folders) = rfd::FileDialog::new().pick_folders() {
+                        let files = MediaFiles::from_folders(folders);
+                        // Choose from this import, even when other media was loaded earlier.
+                        let mode = if !files.images.is_empty() {
+                            Some(Mode::Image)
+                        } else if !files.videos.is_empty() {
+                            Some(Mode::Video)
+                        } else if !files.audios.is_empty() {
+                            Some(Mode::Audio)
+                        } else {
+                            None
+                        };
+                        self.add_images(ui, files.images);
+                        self.add_audios(files.audios);
+                        self.add_videos(ui, files.videos);
+                        if let Some(mode) = mode {
+                            self.mode = mode;
+                        }
+                        if files.had_errors {
+                            self.push_toast(Message::Error);
                         }
                     }
                 }
@@ -848,14 +814,8 @@ impl Gui {
                         .add_filter("Image", &formats::IMAGE_FORMATS)
                         .pick_files()
                     {
-                        self.selected_imgs = paths.into_preds(PredImg::new_simple);
-                        self.embedding_plot = None;
-                        self.image_browser = Default::default();
-                        self.image_texture_n = 1;
-                        self.image_view.reset();
-                        self.paint(ui, 0);
+                        self.add_images(ui, paths);
                         self.mode = Mode::Image;
-                        self.img_state.progress_bar = self.selected_imgs.get_progress()
                     }
                 }
                 ui.end_row();
@@ -870,11 +830,8 @@ impl Gui {
                         .pick_files()
                     {
                         if !paths.is_empty() {
-                            self.selected_videos = paths.into_preds(PredVideo::new_simple);
-                            self.video_browser = Default::default();
-                            self.video_texture_n = 1;
+                            self.add_videos(ui, paths);
                             self.mode = Mode::Video;
-                            self.load_current_video(ui);
                         }
                     }
                 }
@@ -900,18 +857,45 @@ impl Gui {
                         .add_filter("Audio", &formats::AUDIO_FORMATS)
                         .pick_files()
                     {
-                        self.selected_audios = paths.into_preds(PredAudio::new_simple);
-                        self.audio_browser = Default::default();
-                        self.audio_texture_n = 1;
+                        self.add_audios(paths);
                         self.mode = Mode::Audio;
-                        self.audio_state.progress_bar = self.selected_audios.get_progress();
-                        if let Err(()) = self.load_current_audio() {
-                            self.push_toast(Message::Error);
-                            self.selected_audios.clear();
-                        }
                     }
                 }
             });
+    }
+
+    fn add_images(&mut self, ui: &egui::Ui, paths: Vec<PathBuf>) {
+        let was_empty = self.selected_imgs.is_empty();
+        if append_files(&mut self.selected_imgs, paths, PredImg::new_simple) {
+            self.embedding_plot = None;
+            self.img_state.progress_bar = self.selected_imgs.get_progress();
+            if was_empty {
+                self.image_texture_n = 1;
+                self.image_view.reset();
+                self.paint(ui, 0);
+            }
+        }
+    }
+
+    fn add_audios(&mut self, paths: Vec<PathBuf>) {
+        let was_empty = self.selected_audios.is_empty();
+        if append_files(&mut self.selected_audios, paths, PredAudio::new_simple) {
+            self.audio_state.progress_bar = self.selected_audios.get_progress();
+            if was_empty {
+                self.audio_texture_n = 1;
+                if self.load_current_audio().is_err() {
+                    self.push_toast(Message::Error);
+                }
+            }
+        }
+    }
+
+    fn add_videos(&mut self, ui: &egui::Ui, paths: Vec<PathBuf>) {
+        let was_empty = self.selected_videos.is_empty();
+        if append_files(&mut self.selected_videos, paths, PredVideo::new_simple) && was_empty {
+            self.video_texture_n = 1;
+            self.load_current_video(ui);
+        }
     }
 
     /// Load (decode) the AudioData for the currently-selected audio file and
@@ -1447,16 +1431,6 @@ pub(super) fn merge_class_segments(
     segments
 }
 
-trait PathsExt {
-    fn into_preds<T>(self, new_simple: impl Fn(PathBuf) -> T) -> Vec<T>;
-}
-
-impl PathsExt for Vec<PathBuf> {
-    fn into_preds<T>(self, new_simple: impl Fn(PathBuf) -> T) -> Vec<T> {
-        self.into_iter().map(new_simple).collect()
-    }
-}
-
 #[derive(Default, PartialEq)]
 enum Mode {
     #[default]
@@ -1466,31 +1440,86 @@ enum Mode {
     Audio,
 }
 
-fn partition_media_in_dir(
-    entries: fs::ReadDir,
-) -> (Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>) {
-    let mut images = Vec::new();
-    let mut audios = Vec::new();
-    let mut videos = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-            continue;
-        };
-        if has_ext(ext, formats::IMAGE_FORMATS) {
-            images.push(path);
-        } else if has_ext(ext, formats::AUDIO_FORMATS) {
-            audios.push(path);
-        } else if has_ext(ext, formats::VIDEO_FORMATS) {
-            videos.push(path);
-        }
-    }
-    (images, audios, videos)
+fn path_key(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn has_ext<const N: usize>(ext: &str, formats: [&str; N]) -> bool {
-    formats.iter().any(|f| ext.eq_ignore_ascii_case(f))
+/// Preserve existing predictions and indexes used by active workers.
+fn append_files<T: Pred>(
+    selected: &mut Vec<T>,
+    paths: Vec<PathBuf>,
+    new: impl Fn(PathBuf) -> T,
+) -> bool {
+    if paths.is_empty() {
+        return false;
+    }
+    let mut known: HashSet<_> = selected.iter().map(|file| path_key(file.file_path())).collect();
+    let old_len = selected.len();
+    for path in paths {
+        if known.insert(path_key(&path)) {
+            selected.push(new(path));
+        }
+    }
+    selected.len() != old_len
+}
+
+#[derive(Default)]
+struct MediaFiles {
+    images: Vec<PathBuf>,
+    audios: Vec<PathBuf>,
+    videos: Vec<PathBuf>,
+    had_errors: bool,
+}
+
+impl MediaFiles {
+    fn from_folders(folders: Vec<PathBuf>) -> Self {
+        let mut files = Self::default();
+        let mut pending = folders;
+        pending.reverse();
+        let mut visited = HashSet::new();
+        while let Some(folder) = pending.pop() {
+            // Prevent cycles through directory links and overlapping selections.
+            if !visited.insert(path_key(&folder)) {
+                continue;
+            }
+            let entries = match fs::read_dir(folder) {
+                Ok(entries) => entries,
+                Err(_) => {
+                    files.had_errors = true;
+                    continue;
+                }
+            };
+            let mut children = Vec::new();
+            for entry in entries {
+                let path = match entry {
+                    Ok(entry) => entry.path(),
+                    Err(_) => {
+                        files.had_errors = true;
+                        continue;
+                    }
+                };
+                if path.is_dir() {
+                    children.push(path);
+                } else if path.is_file() {
+                    let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+                        continue;
+                    };
+                    if has_ext(ext, &formats::IMAGE_FORMATS) {
+                        files.images.push(path);
+                    } else if has_ext(ext, &formats::AUDIO_FORMATS) {
+                        files.audios.push(path);
+                    } else if has_ext(ext, &formats::VIDEO_FORMATS) {
+                        files.videos.push(path);
+                    }
+                }
+            }
+            children.reverse();
+            pending.extend(children);
+        }
+        files
+    }
+}
+
+fn has_ext(ext: &str, formats: &[&str]) -> bool {
+    formats.iter().any(|format| ext.eq_ignore_ascii_case(format))
 }
