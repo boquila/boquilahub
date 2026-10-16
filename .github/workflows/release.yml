@@ -45,7 +45,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.variant }}-ffmpeg-static-v2
+          key: ${{ matrix.variant }}-ffmpeg-9-static-v1
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
