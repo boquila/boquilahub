@@ -41,6 +41,7 @@ impl AiConfigSlot {
             return;
         }
         egui::Window::new(translate(Key::configure_ai, lang))
+            .id(egui::Id::new(("ai_config", variant)))
             .collapsible(false)
             .resizable(false)
             .show(ui, |ui| {
@@ -80,12 +81,19 @@ impl AiConfigSlot {
     }
 }
 
+const EXTRA_AI_SLOTS: [GlobalBQ; 2] = [GlobalBQ::Second, GlobalBQ::Third];
+
+#[derive(Default)]
+struct ExtraAiSlot {
+    selected: Option<usize>,
+    settings: AiConfigSlot,
+}
+
 #[derive(Default)]
 pub struct Gui {
     // Large types first
     ais: Vec<AIMetadata>,
-    ais_cls_only: Vec<AIMetadata>,
-    ais_embed_only: Vec<AIMetadata>,
+    extra_ais: Vec<ExtraAiSlot>,
     selected_imgs: Vec<PredImg>,
     selected_audios: Vec<PredAudio>,
     image_browser: browser::Browser,
@@ -155,12 +163,9 @@ pub struct Gui {
 
     // Model Configurations
     ai: AiConfigSlot,
-    ai_cls: AiConfigSlot,
 
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
-    ai_cls_selected: Option<usize>,
-    ai_embed_selected: Option<usize>,
     ep_selected: Ep,
     video_step_frame: usize,
     feed_step_frame: usize,
@@ -175,8 +180,6 @@ pub struct Gui {
     temp: Temp,
 
     // bool fields grouped together (1 byte each, but will be padded)
-    show_ai_cls: bool,
-    show_ai_embed: bool,
     isapi_deployed: bool,
     save_img_from_feed: bool,
     process_all_imgs: bool,
@@ -377,21 +380,8 @@ impl Gui {
 
     fn new() -> Self {
         let ais: Vec<AIMetadata> = BQModel::get_list();
-        let classify_ais: Vec<AIMetadata> = ais
-            .iter()
-            .filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image)
-            .cloned()
-            .collect();
-        let embed_ais: Vec<AIMetadata> = ais
-            .iter()
-            .filter(|ai| ai.task == Task::Embed && ai.modality == Modality::Image)
-            .cloned()
-            .collect();
-
         Self {
             ais: ais,
-            ais_cls_only: classify_ais,
-            ais_embed_only: embed_ais,
             image_texture_n: 1,
             audio_texture_n: 1,
             video_texture_n: 1,
@@ -430,10 +420,6 @@ impl Gui {
 
     fn current_ai(&self) -> &AIMetadata {
         return &self.ais[self.ai_selected.unwrap()];
-    }
-
-    fn current_ai_cls(&self) -> &AIMetadata {
-        return &self.ais_cls_only[self.ai_cls_selected.unwrap()];
     }
 
     fn is_image_model(&self) -> bool {
@@ -557,30 +543,14 @@ impl Gui {
                 }
             }
 
-            if self.ai_selected.is_some() && self.current_ai().can_add_cls() {
-                if !self.show_ai_cls && !self.ais_cls_only.is_empty()
-                    && ui.button("+ C").on_hover_text(self.t(Key::add_classification_model_to_complement)).clicked()
-                {
-                    self.show_ai_cls = true;
-                }
-                if !self.show_ai_embed && !self.ais_embed_only.is_empty()
-                    && ui.button("+ E").on_hover_text(self.t(Key::embedding)).clicked()
-                {
-                    self.show_ai_embed = true;
-                }
+            if self.can_add_extra_ai()
+                && ui.button("+").on_hover_text(self.t(Key::add_ai)).clicked()
+            {
+                self.extra_ais.push(ExtraAiSlot::default());
             }
         });
 
         if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
-            if !self.current_ai().can_add_cls() {
-                self.show_ai_cls = false;
-                self.ai_cls_selected = None;
-                self.ai_cls.show = false;
-                GlobalBQ::Second.clear();
-                self.show_ai_embed = false;
-                self.ai_embed_selected = None;
-                GlobalBQ::Third.clear();
-            }
             if self.set_ai(self.ep_selected).is_err() {
                 self.push_toast(Message::Error);
             }
@@ -595,108 +565,112 @@ impl Gui {
     
     }
 
-    fn ai_cls_widget(&mut self, ui: &mut egui::Ui) {
-        if !(self.ep_selected.is_local() && self.show_ai_cls) {
-            return;
-        }
-        
-        let previous_ai = self.ai_cls_selected;
-        ui.label(self.t(Key::select_2nd_ai));
-        ui.horizontal(|ui| {
-            let combo_width = ui.spacing().combo_width + 32.0;
-            ui.allocate_ui(egui::vec2(combo_width, ui.spacing().interact_size.y), |ui| {
-                egui::ComboBox::from_id_salt("AI_CLS")
-                    .truncate()
-                    .selected_text(match self.ai_cls_selected {
-                        Some(i) => self.ais_cls_only[i].name.as_str(),
-                        None => "",
-                    })
-                    .show_ui(ui, |ui| {
-                        for (i, ai) in self.ais_cls_only.iter().enumerate() {
-                            ui.selectable_value(&mut self.ai_cls_selected, Some(i), &ai.name)
-                                .on_hover_text(&ai.classes.join(", "));
-                        }
-                    });
-            });
-
-            // Button to remove AI, and unload it from memory.
-            if self.ai_cls_selected.is_some() {
-                if ui
-                    .button("⚙")
-                    .on_hover_text(self.t(Key::configure_ai))
-                    .clicked()
-                {
-                    self.ai_cls.show = true;
-                }
-            }
-            if ui.button("-").clicked() {
-                self.show_ai_cls = false;
-                self.ai_cls_selected = None;
-                self.ai_cls.show = false;
-                GlobalBQ::Second.clear();
-            }
-        });
-        if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
-            let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
-            GlobalBQ::Second.clear();
-            if GlobalBQ::Second.set_model(
-                &model_path,
-                self.ep_selected,
-                Some(self.ai_cls.config.clone()),
-            ).is_err() {
-                self.ai_cls_selected = None;
-                self.ai_cls.show = false;
-                self.push_toast(Message::Error);
-            }
-        }
-
-        if self.ai_cls.show {
-            let current_ai_cls = self.current_ai_cls().clone();
-            self.ai_cls.window(ui, &self.lang, GlobalBQ::Second, &current_ai_cls);
-        }
-
-        ui.add_space(8.0);
-        
+    // Each detection stores one classification and one embedding. Offer either
+    // task in either slot, but never silently overwrite a result with a duplicate.
+    fn extra_ai_choices(&self, slot: usize) -> Vec<usize> {
+        self.ais.iter().enumerate().filter_map(|(index, ai)| {
+            let available = ai.modality == Modality::Image
+                && matches!(ai.task, Task::Classify | Task::Embed)
+                && !self.extra_ais.iter().enumerate().any(|(other, extra)| {
+                    other != slot && extra.selected.is_some_and(|i| self.ais[i].task == ai.task)
+                });
+            available.then_some(index)
+        }).collect()
     }
 
-    fn ai_embed_widget(&mut self, ui: &mut egui::Ui) {
-        if !(self.ep_selected.is_local() && self.show_ai_embed) {
+    fn can_add_extra_ai(&self) -> bool {
+        self.ai_selected.is_some_and(|i| self.ais[i].can_add_cls())
+            && self.extra_ais.len() < EXTRA_AI_SLOTS.len()
+            && self.extra_ais.iter().all(|slot| slot.selected.is_some())
+            && !self.extra_ai_choices(self.extra_ais.len()).is_empty()
+    }
+
+    fn clear_extra_ais(&mut self) {
+        self.extra_ais.clear();
+        for slot in EXTRA_AI_SLOTS {
+            slot.clear();
+        }
+    }
+
+    fn remove_extra_ai(&mut self, index: usize) {
+        self.extra_ais.remove(index);
+        EXTRA_AI_SLOTS[index].clear();
+        if index < self.extra_ais.len() {
+            GlobalBQ::Second.move_model_from(GlobalBQ::Third);
+        }
+    }
+
+    fn extra_ai_widgets(&mut self, ui: &mut egui::Ui) {
+        if !self.ep_selected.is_local() {
             return;
         }
-        let previous = self.ai_embed_selected;
-        ui.label(self.t(Key::embedding));
-        ui.horizontal(|ui| {
-            let combo_width = ui.spacing().combo_width + 32.0;
-            ui.allocate_ui(egui::vec2(combo_width, ui.spacing().interact_size.y), |ui| {
-                egui::ComboBox::from_id_salt("AI_EMBED")
-                    .truncate()
-                    .selected_text(self.ai_embed_selected.map_or("", |i| self.ais_embed_only[i].name.as_str()))
-                    .show_ui(ui, |ui| {
-                        for (i, ai) in self.ais_embed_only.iter().enumerate() {
-                            ui.selectable_value(&mut self.ai_embed_selected, Some(i), &ai.name);
-                        }
+        let mut remove = None;
+        for index in 0..self.extra_ais.len() {
+            let previous = self.extra_ais[index].selected;
+            let choices = self.extra_ai_choices(index);
+            ui.label(self.t(if index == 0 { Key::select_2nd_ai } else { Key::select_3rd_ai }));
+            ui.push_id(("extra_ai", index), |ui| {
+                ui.horizontal(|ui| {
+                    let combo_width = ui.spacing().combo_width + 32.0;
+                    ui.allocate_ui(egui::vec2(combo_width, ui.spacing().interact_size.y), |ui| {
+                        egui::ComboBox::from_id_salt("model")
+                            .truncate()
+                            .selected_text(previous.map_or("", |i| self.ais[i].name.as_str()))
+                            .show_ui(ui, |ui| {
+                                for i in choices {
+                                    ui.selectable_value(&mut self.extra_ais[index].selected, Some(i), &self.ais[i].name)
+                                        .on_hover_text(self.ais[i].classes.join(", "));
+                                }
+                            });
                     });
+                    if self.extra_ais[index].selected.is_some_and(|i| self.ais[i].task == Task::Classify)
+                        && ui.button("⚙").on_hover_text(self.t(Key::configure_ai)).clicked()
+                    {
+                        self.extra_ais[index].settings.show = true;
+                    }
+                    if ui.button("-").clicked() {
+                        remove = Some(index);
+                    }
+                });
             });
-            if ui.button("-").clicked() {
-                self.show_ai_embed = false;
-                self.ai_embed_selected = None;
-                GlobalBQ::Third.clear();
-            }
-        });
-        if self.ai_embed_selected != previous {
-            if let Some(i) = self.ai_embed_selected {
-                GlobalBQ::Third.clear();
-                if GlobalBQ::Third.set_model(&self.ais_embed_only[i].get_path(), self.ep_selected, None).is_err() {
-                    self.ai_embed_selected = None;
+            if self.extra_ais[index].selected != previous {
+                self.extra_ais[index].settings = AiConfigSlot::default();
+                if self.set_extra_ai(index, self.ep_selected).is_err() {
                     self.push_toast(Message::Error);
                 }
             }
+            if remove != Some(index) {
+                if let Some(selected) = self.extra_ais[index].selected {
+                    self.extra_ais[index].settings.window(ui, &self.lang, EXTRA_AI_SLOTS[index], &self.ais[selected]);
+                }
+            }
+            ui.add_space(8.0);
         }
-        ui.add_space(8.0);
+        if let Some(index) = remove {
+            self.remove_extra_ai(index);
+        }
+    }
+
+    fn set_extra_ai(&mut self, index: usize, ep: Ep) -> Result<()> {
+        let slot = &mut self.extra_ais[index];
+        let target = EXTRA_AI_SLOTS[index];
+        target.clear();
+        if let Some(selected) = slot.selected {
+            let result = target.set_model(&self.ais[selected].get_path(), ep, Some(slot.settings.config.clone()));
+            if result.is_err() {
+                slot.selected = None;
+                slot.settings = AiConfigSlot::default();
+            }
+            result?;
+        }
+        Ok(())
     }
 
     fn set_ai(&mut self, ep: Ep) -> Result <()> {
         if let Some(ai_index) = self.ai_selected {
+            if !self.ais[ai_index].can_add_cls() {
+                self.clear_extra_ais();
+            }
             GlobalBQ::First.clear();
             let result = GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
@@ -706,42 +680,7 @@ impl Gui {
             if result.is_err() {
                 self.ai_selected = None;
                 self.ai.show = false;
-                self.show_ai_cls = false;
-                self.ai_cls_selected = None;
-                self.ai_cls.show = false;
-                GlobalBQ::Second.clear();
-                self.show_ai_embed = false;
-                self.ai_embed_selected = None;
-                GlobalBQ::Third.clear();
-            }
-            result?;
-        }
-        Ok(())
-    }
-
-    fn set_ai_cls(&mut self, ep: Ep) -> Result <()> {
-        if let Some(_ai_cls_index) = self.ai_cls_selected {
-            GlobalBQ::Second.clear();
-            let result = GlobalBQ::Second.set_model(
-                &self.current_ai_cls().get_path(),
-                ep,
-                Some(self.ai_cls.config.clone()),
-            );
-            if result.is_err() {
-                self.ai_cls_selected = None;
-                self.ai_cls.show = false;
-            }
-            result?;
-        }
-        Ok(())
-    }
-
-    fn set_ai_embed(&mut self, ep: Ep) -> Result<()> {
-        if let Some(i) = self.ai_embed_selected {
-            GlobalBQ::Third.clear();
-            let result = GlobalBQ::Third.set_model(&self.ais_embed_only[i].get_path(), ep, None);
-            if result.is_err() {
-                self.ai_embed_selected = None;
+                self.clear_extra_ais();
             }
             result?;
         }
@@ -768,11 +707,10 @@ impl Gui {
                 _ => {
                     match self.set_ai(temp_ep_selected) {
                         Ok(()) => {
-                            if self.set_ai_cls(temp_ep_selected).is_err() {
-                                self.push_toast(Message::Error);
-                            }
-                            if self.set_ai_embed(temp_ep_selected).is_err() {
-                                self.push_toast(Message::Error);
+                            for index in 0..self.extra_ais.len() {
+                                if self.set_extra_ai(index, temp_ep_selected).is_err() {
+                                    self.push_toast(Message::Error);
+                                }
                             }
                             self.ep_selected = temp_ep_selected;
                         }
@@ -1160,8 +1098,7 @@ impl eframe::App for Gui {
                     ui.disable();
                 }
                 self.ai_widget(ui);
-                self.ai_cls_widget(ui);
-                self.ai_embed_widget(ui);
+                self.extra_ai_widgets(ui);
                 self.ep_widget(ui);
 
                 self.api_widget(ui);
