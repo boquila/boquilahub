@@ -412,7 +412,7 @@ impl Gui {
                         plot.model
                     ));
                 }
-                let id = egui::Id::new((
+                let id = egui::Id::unique((
                     "image_embeddings",
                     &files[0].file_path,
                     files.len(),

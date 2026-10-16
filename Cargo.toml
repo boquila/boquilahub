@@ -11,8 +11,8 @@ authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
 [dependencies]
-egui = "0.36.1"
-eframe = { version = "0.36.1", default-features = false, features = [
+egui = { version = "0.37.0", features = ["default_fonts"] }
+eframe = { version = "0.37.0", default-features = false, features = [
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
     "wayland",       # To support Linux (and CI)
@@ -40,7 +40,8 @@ fast_image_resize = { version = "=6.0.0", features = ["image"] }
 ratatui = "0.30.2"
 realfft = "3.5"
 rodio = { version = "0.22.2", default-features = false, features = ["playback"] }
-egui_plot = "0.37.0"
+# egui 0.37 support is upstream but not yet published to crates.io.
+egui_plot = { git = "https://github.com/emilk/egui_plot", rev = "aead78045a529884eac5ad267251caa73bd832aa" }
 half = {version= "2.7.1", features = ["serde"]}
 
 [features]

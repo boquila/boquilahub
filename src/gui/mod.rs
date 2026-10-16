@@ -41,7 +41,7 @@ impl AiConfigSlot {
             return;
         }
         egui::Window::new(translate(Key::configure_ai, lang))
-            .id(egui::Id::new(("ai_config", variant)))
+            .id(egui::Id::unique(("ai_config", variant)))
             .collapsible(false)
             .resizable(false)
             .show(ui, |ui| {
@@ -1083,7 +1083,7 @@ impl eframe::App for Gui {
                     }
                 });
 
-                egui::widgets::global_theme_preference_switch(ui);
+                egui::widgets::global_theme_preference_buttons(ui);
             });
         });
 
