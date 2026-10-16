@@ -41,7 +41,7 @@ impl AiConfigSlot {
             return;
         }
         egui::Window::new(translate(Key::configure_ai, lang))
-            .id(egui::Id::new(("ai_config", variant)))
+            .id(egui::Id::unique(("ai_config", variant)))
             .collapsible(false)
             .resizable(false)
             .show(ui, |ui| {
@@ -311,7 +311,7 @@ enum Message {
 
 impl Message {
     fn ok(msg: impl Into<String>) -> Self {
-        Message::Success(format!("✅ {}", msg.into()))
+        Message::Success(msg.into())
     }
 }
 
@@ -342,6 +342,7 @@ enum OpenDialog {
 impl Gui {
     pub fn run() {
         let native_options = eframe::NativeOptions {
+            system_font_fallback: false,
             viewport: egui::ViewportBuilder::default()
                 .with_inner_size([1100.0, 700.0])
                 .with_min_inner_size([800.0, 520.0])
@@ -362,18 +363,22 @@ impl Gui {
     }
     
     fn setup(ctx: &egui::Context) {
-        let mut fonts = egui::FontDefinitions::default();
+        let mut fonts = egui::FontDefinitions::empty();
 
         fonts.font_data.insert(
             "Noto".to_owned(),
             egui::FontData::from_static(&render::FONT_BYTES).into(),
         );
+        // Four control glyphs absent from Noto: settings, pause, previous, next.
+        fonts.font_data.insert(
+            "Controls".to_owned(),
+            egui::FontData::from_static(include_bytes!("../../assets/control-symbols.ttf")).into(),
+        );
 
-        fonts
-            .families
-            .get_mut(&egui::FontFamily::Proportional)
-            .unwrap()
-            .insert(0, "Noto".to_owned());
+        for family in fonts.families.values_mut() {
+            family.push("Noto".to_owned());
+            family.push("Controls".to_owned());
+        }
 
         ctx.set_fonts(fonts);
     }
@@ -418,6 +423,39 @@ impl Gui {
         translate(key, &self.lang)
     }
 
+    fn theme_button(&self, ui: &mut egui::Ui) {
+        let dark = ui.visuals().dark_mode;
+        let response = ui.add(egui::Button::new("").min_size(egui::vec2(24.0, 20.0)));
+        let visuals = ui.style().interact(&response);
+        let painter = ui.painter();
+        let center = response.rect.center();
+        let color = visuals.fg_stroke.color;
+        if dark {
+            painter.circle_filled(center, 5.5, color);
+            painter.circle_filled(
+                center + egui::vec2(2.0, -1.5),
+                5.0,
+                if visuals.weak_bg_fill == egui::Color32::TRANSPARENT {
+                    ui.visuals().panel_fill
+                } else {
+                    visuals.weak_bg_fill
+                },
+            );
+        } else {
+            let stroke = egui::Stroke::new(1.25, color);
+            painter.circle_filled(center, 3.0, color);
+            for i in 0..8 {
+                let direction = egui::Vec2::angled(i as f32 * std::f32::consts::FRAC_PI_4);
+                painter.line_segment(
+                    [center + direction * 4.5, center + direction * 6.5],
+                    stroke,
+                );
+            }
+        }
+        if response.clicked() {
+            ui.ctx().set_theme(if dark { egui::Theme::Light } else { egui::Theme::Dark });
+        }
+    }
     fn current_ai(&self) -> &AIMetadata {
         return &self.ais[self.ai_selected.unwrap()];
     }
@@ -567,22 +605,22 @@ impl Gui {
 
     // Each detection stores one classification and one embedding. Offer either
     // task in either slot, but never silently overwrite a result with a duplicate.
-    fn extra_ai_choices(&self, slot: usize) -> Vec<usize> {
-        self.ais.iter().enumerate().filter_map(|(index, ai)| {
+    fn extra_ai_choices(&self, slot: usize) -> impl Iterator<Item = usize> + '_ {
+        self.ais.iter().enumerate().filter_map(move |(index, ai)| {
             let available = ai.modality == Modality::Image
                 && matches!(ai.task, Task::Classify | Task::Embed)
                 && !self.extra_ais.iter().enumerate().any(|(other, extra)| {
                     other != slot && extra.selected.is_some_and(|i| self.ais[i].task == ai.task)
                 });
             available.then_some(index)
-        }).collect()
+        })
     }
 
     fn can_add_extra_ai(&self) -> bool {
         self.ai_selected.is_some_and(|i| self.ais[i].can_add_cls())
             && self.extra_ais.len() < EXTRA_AI_SLOTS.len()
             && self.extra_ais.iter().all(|slot| slot.selected.is_some())
-            && !self.extra_ai_choices(self.extra_ais.len()).is_empty()
+            && self.extra_ai_choices(self.extra_ais.len()).next().is_some()
     }
 
     fn clear_extra_ais(&mut self) {
@@ -607,7 +645,6 @@ impl Gui {
         let mut remove = None;
         for index in 0..self.extra_ais.len() {
             let previous = self.extra_ais[index].selected;
-            let choices = self.extra_ai_choices(index);
             ui.label(self.t(if index == 0 { Key::select_2nd_ai } else { Key::select_3rd_ai }));
             ui.push_id(("extra_ai", index), |ui| {
                 ui.horizontal(|ui| {
@@ -617,6 +654,7 @@ impl Gui {
                             .truncate()
                             .selected_text(previous.map_or("", |i| self.ais[i].name.as_str()))
                             .show_ui(ui, |ui| {
+                                let choices: Vec<_> = self.extra_ai_choices(index).collect();
                                 for i in choices {
                                     ui.selectable_value(&mut self.extra_ais[index].selected, Some(i), &self.ais[i].name)
                                         .on_hover_text(self.ais[i].classes.join(", "));
@@ -726,7 +764,7 @@ impl Gui {
 
     fn data_selection_widget(&mut self, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
-            ui.heading(format!("📎 {}", self.t(Key::select_your_data)));
+            ui.heading(self.t(Key::select_your_data));
         });
         ui.separator();
 
@@ -1083,13 +1121,13 @@ impl eframe::App for Gui {
                     }
                 });
 
-                egui::widgets::global_theme_preference_switch(ui);
+                self.theme_button(ui);
             });
         });
 
         egui::Panel::left("left_panel").show(main_ui, |ui| {
             ui.vertical_centered(|ui| {
-                ui.heading(format!("💻 {}", self.t(Key::setup)));
+                ui.heading(self.t(Key::setup));
             });
             ui.separator();
 
