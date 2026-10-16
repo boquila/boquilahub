@@ -605,22 +605,22 @@ impl Gui {
 
     // Each detection stores one classification and one embedding. Offer either
     // task in either slot, but never silently overwrite a result with a duplicate.
-    fn extra_ai_choices(&self, slot: usize) -> Vec<usize> {
-        self.ais.iter().enumerate().filter_map(|(index, ai)| {
+    fn extra_ai_choices(&self, slot: usize) -> impl Iterator<Item = usize> + '_ {
+        self.ais.iter().enumerate().filter_map(move |(index, ai)| {
             let available = ai.modality == Modality::Image
                 && matches!(ai.task, Task::Classify | Task::Embed)
                 && !self.extra_ais.iter().enumerate().any(|(other, extra)| {
                     other != slot && extra.selected.is_some_and(|i| self.ais[i].task == ai.task)
                 });
             available.then_some(index)
-        }).collect()
+        })
     }
 
     fn can_add_extra_ai(&self) -> bool {
         self.ai_selected.is_some_and(|i| self.ais[i].can_add_cls())
             && self.extra_ais.len() < EXTRA_AI_SLOTS.len()
             && self.extra_ais.iter().all(|slot| slot.selected.is_some())
-            && !self.extra_ai_choices(self.extra_ais.len()).is_empty()
+            && self.extra_ai_choices(self.extra_ais.len()).next().is_some()
     }
 
     fn clear_extra_ais(&mut self) {
@@ -645,7 +645,6 @@ impl Gui {
         let mut remove = None;
         for index in 0..self.extra_ais.len() {
             let previous = self.extra_ais[index].selected;
-            let choices = self.extra_ai_choices(index);
             ui.label(self.t(if index == 0 { Key::select_2nd_ai } else { Key::select_3rd_ai }));
             ui.push_id(("extra_ai", index), |ui| {
                 ui.horizontal(|ui| {
@@ -655,6 +654,7 @@ impl Gui {
                             .truncate()
                             .selected_text(previous.map_or("", |i| self.ais[i].name.as_str()))
                             .show_ui(ui, |ui| {
+                                let choices: Vec<_> = self.extra_ai_choices(index).collect();
                                 for i in choices {
                                     ui.selectable_value(&mut self.extra_ais[index].selected, Some(i), &self.ais[i].name)
                                         .on_hover_text(self.ais[i].classes.join(", "));
