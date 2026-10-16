@@ -311,7 +311,7 @@ enum Message {
 
 impl Message {
     fn ok(msg: impl Into<String>) -> Self {
-        Message::Success(format!("✅ {}", msg.into()))
+        Message::Success(msg.into())
     }
 }
 
@@ -342,6 +342,7 @@ enum OpenDialog {
 impl Gui {
     pub fn run() {
         let native_options = eframe::NativeOptions {
+            system_font_fallback: false,
             viewport: egui::ViewportBuilder::default()
                 .with_inner_size([1100.0, 700.0])
                 .with_min_inner_size([800.0, 520.0])
@@ -362,18 +363,22 @@ impl Gui {
     }
     
     fn setup(ctx: &egui::Context) {
-        let mut fonts = egui::FontDefinitions::default();
+        let mut fonts = egui::FontDefinitions::empty();
 
         fonts.font_data.insert(
             "Noto".to_owned(),
             egui::FontData::from_static(&render::FONT_BYTES).into(),
         );
+        // Four control glyphs absent from Noto: settings, pause, previous, next.
+        fonts.font_data.insert(
+            "Controls".to_owned(),
+            egui::FontData::from_static(include_bytes!("../../assets/control-symbols.ttf")).into(),
+        );
 
-        fonts
-            .families
-            .get_mut(&egui::FontFamily::Proportional)
-            .unwrap()
-            .insert(0, "Noto".to_owned());
+        for family in fonts.families.values_mut() {
+            family.push("Noto".to_owned());
+            family.push("Controls".to_owned());
+        }
 
         ctx.set_fonts(fonts);
     }
@@ -418,6 +423,39 @@ impl Gui {
         translate(key, &self.lang)
     }
 
+    fn theme_button(&self, ui: &mut egui::Ui) {
+        let dark = ui.visuals().dark_mode;
+        let response = ui.add(egui::Button::new("").min_size(egui::vec2(24.0, 20.0)));
+        let visuals = ui.style().interact(&response);
+        let painter = ui.painter();
+        let center = response.rect.center();
+        let radius = 7.0;
+        let color = visuals.fg_stroke.color;
+        if dark {
+            painter.circle_filled(center, radius * 0.82, color);
+            painter.circle_filled(
+                center + egui::vec2(radius * 0.45, -radius * 0.32),
+                radius * 0.72,
+                if visuals.weak_bg_fill == egui::Color32::TRANSPARENT {
+                    ui.visuals().panel_fill
+                } else {
+                    visuals.weak_bg_fill
+                },
+            );
+        } else {
+            painter.circle_filled(center, radius * 0.46, color);
+            for i in 0..8 {
+                let direction = egui::Vec2::angled(i as f32 * std::f32::consts::FRAC_PI_4);
+                painter.line_segment(
+                    [center + direction * radius * 0.66, center + direction * radius * 0.98],
+                    egui::Stroke::new(1.5, color),
+                );
+            }
+        }
+        if response.clicked() {
+            ui.ctx().set_theme(if dark { egui::Theme::Light } else { egui::Theme::Dark });
+        }
+    }
     fn current_ai(&self) -> &AIMetadata {
         return &self.ais[self.ai_selected.unwrap()];
     }
@@ -726,7 +764,7 @@ impl Gui {
 
     fn data_selection_widget(&mut self, ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
-            ui.heading(format!("📎 {}", self.t(Key::select_your_data)));
+            ui.heading(self.t(Key::select_your_data));
         });
         ui.separator();
 
@@ -1083,13 +1121,13 @@ impl eframe::App for Gui {
                     }
                 });
 
-                egui::widgets::global_theme_preference_buttons(ui);
+                self.theme_button(ui);
             });
         });
 
         egui::Panel::left("left_panel").show(main_ui, |ui| {
             ui.vertical_centered(|ui| {
-                ui.heading(format!("💻 {}", self.t(Key::setup)));
+                ui.heading(self.t(Key::setup));
             });
             ui.separator();
 

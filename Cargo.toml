@@ -11,7 +11,7 @@ authors = ["José Díaz <jose@boquila.org>"]
 description = "Cross‑platform CLI and GUI tool for local AI‑powered nature monitoring"
 
 [dependencies]
-egui = { version = "0.37.0", features = ["default_fonts"] }
+egui = "0.37.0"
 eframe = { version = "0.37.0", default-features = false, features = [
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
     "persistence",   # Enable restoring app state when restarting the app.
