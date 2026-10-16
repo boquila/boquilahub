@@ -27,6 +27,7 @@ pub struct BQModel;
 pub enum GlobalBQ {
     First,
     Second,
+    Third,
 }
 
 impl GlobalBQ {
@@ -34,6 +35,7 @@ impl GlobalBQ {
         match self {
             GlobalBQ::First => &CURRENT_AI,
             GlobalBQ::Second => &CURRENT_AI2,
+            GlobalBQ::Third => &CURRENT_AI3,
         }
     }
 
@@ -259,6 +261,7 @@ fn analyze_folder(folder_path: &str) -> Result<Vec<AIMetadata>> {
 
 pub static CURRENT_AI: RwLock<Option<Model>> = RwLock::new(None);
 pub static CURRENT_AI2: RwLock<Option<Model>> = RwLock::new(None);
+pub static CURRENT_AI3: RwLock<Option<Model>> = RwLock::new(None);
 pub static GEOFENCE_DATA: LazyLock<HashMap<String, Vec<String>>> = LazyLock::new(|| {
     serde_json::from_slice(include_bytes!("../../assets/geofence.json"))
         .expect("parse embedded geofence data")
@@ -267,7 +270,7 @@ pub static GEOFENCE_DATA: LazyLock<HashMap<String, Vec<String>>> = LazyLock::new
 #[inline(always)]
 pub fn process_imgbuf(img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Result<AIOutputs> {
     let mut outputs = GlobalBQ::First.run(&AIInput::Image(img))?;
-    process_with_ai2(&mut outputs, img);
+    process_with_extras(&mut outputs, img);
     Ok(outputs)
 }
 
@@ -276,34 +279,35 @@ pub fn process_audio(audio: &AudioData) -> Result<AIOutputs> {
     GlobalBQ::First.run(&AIInput::Audio(audio))
 }
 
-fn process_with_ai2(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) -> Option<()> {
-    let ai2 = CURRENT_AI2.read().ok()?;
-    let ai2_ref = ai2.as_ref()?;
-
+fn process_with_extras(outputs: &mut AIOutputs, img: &ImageBuffer<Rgb<u8>, Vec<u8>>) {
+    let ai2 = CURRENT_AI2.read().ok();
+    let ai3 = CURRENT_AI3.read().ok();
+    let models = [ai2.as_ref().and_then(|lock| lock.as_ref()), ai3.as_ref().and_then(|lock| lock.as_ref())];
+    if models.iter().all(Option::is_none) {
+        return;
+    }
+    let mut process_box = |bbox: &mut XYXYc| {
+        let x1 = (bbox.xyxy.x1.max(0.0) as u32).min(img.width());
+        let y1 = (bbox.xyxy.y1.max(0.0) as u32).min(img.height());
+        let x2 = (bbox.xyxy.x2.max(0.0) as u32).min(img.width());
+        let y2 = (bbox.xyxy.y2.max(0.0) as u32).min(img.height());
+        if x2 <= x1 || y2 <= y1 {
+            return;
+        }
+        let crop = slice_image(img, &bbox.xyxy);
+        for model in models.into_iter().flatten() {
+            match model.run(&AIInput::Image(&crop)) {
+                AIOutputs::Classification(probs) => bbox.extra_cls = Some(probs),
+                AIOutputs::Embed(embedding) => bbox.embedding = Some(embedding),
+                _ => {}
+            }
+        }
+    };
     match outputs {
-        AIOutputs::ObjectDetection(detections) => {
-            for xyxyc in detections.iter_mut() {
-                let sliced_img = slice_image(img, &xyxyc.xyxy);
-                let cls_output = ai2_ref.run(&AIInput::Image(&sliced_img));
-                if let AIOutputs::Classification(probs) = cls_output {
-                    xyxyc.extra_cls = Some(probs);
-                }
-            }
-        }
-        AIOutputs::Segmentation(segmentations) => {
-            for segc in segmentations {
-                let xyxyc = &mut segc.bbox;
-                let sliced_img = slice_image(img, &xyxyc.xyxy);
-                let cls_output = ai2_ref.run(&AIInput::Image(&sliced_img));
-                if let AIOutputs::Classification(probs) = cls_output {
-                    xyxyc.extra_cls = Some(probs);
-                }
-            }
-        }
+        AIOutputs::ObjectDetection(boxes) => boxes.iter_mut().for_each(&mut process_box),
+        AIOutputs::Segmentation(segments) => segments.iter_mut().for_each(|seg| process_box(&mut seg.bbox)),
         _ => {}
     }
-
-    Some(())
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -408,7 +412,7 @@ impl AIMetadata {
         format!("models/{}.bq", self.name)
     }
 
-    /// Only boxed image outputs have an `extra_cls` field to refine.
+    /// Only boxed image outputs can carry crop classifications and embeddings.
     pub const fn can_add_cls(&self) -> bool {
         matches!(self.modality, Modality::Image)
             && matches!(self.task, Task::Detect | Task::Segment)

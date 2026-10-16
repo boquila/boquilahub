@@ -64,3 +64,40 @@ async fn image_encoders_produce_embeddings() -> Result<()> {
     assert_image_embedding("dinov3-vitl16").await?;
     Ok(())
 }
+
+#[test]
+#[ignore = "requires local models/dinov3-vits16.bq"]
+fn segment_crops_accept_an_embedding_model_in_either_auxiliary_slot() -> Result<()> {
+    let image = image::open("tests/assets/img.jpg")?.to_rgb8();
+    GlobalBQ::First.set_model("tests/assets/yolo11n-seg.bq", Ep::Cpu, None)?;
+    for slot in [GlobalBQ::Second, GlobalBQ::Third] {
+        slot.set_model("models/dinov3-vits16.bq", Ep::Cpu, None)?;
+        let output = process_imgbuf(&image)?;
+        let AIOutputs::Segmentation(segments) = output else {
+            panic!("expected segmentation output");
+        };
+        assert!(!segments.is_empty());
+        assert!(segments.iter().all(|segment| {
+            segment.bbox.embedding.as_ref().is_some_and(|embedding| {
+                embedding.model == "dinov3-vits16"
+                    && !embedding.values.is_empty()
+                    && embedding.values.iter().all(|value| value.is_finite())
+            })
+        }));
+        slot.clear();
+    }
+    GlobalBQ::Second.set_model("models/SpeciesNetv4.0.0a.bq", Ep::Cpu, None)?;
+    GlobalBQ::Third.set_model("models/dinov3-vits16.bq", Ep::Cpu, None)?;
+    let output = process_imgbuf(&image)?;
+    let AIOutputs::Segmentation(segments) = output else {
+        panic!("expected segmentation output");
+    };
+    assert!(segments.iter().all(|segment| {
+        segment.bbox.extra_cls.as_ref().is_some_and(|classes| !classes.is_empty())
+            && segment.bbox.embedding.is_some()
+    }));
+    GlobalBQ::Second.clear();
+    GlobalBQ::Third.clear();
+    GlobalBQ::First.clear();
+    Ok(())
+}

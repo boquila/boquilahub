@@ -3,6 +3,7 @@ pub mod bq;
 pub mod export;
 pub mod formats;
 pub mod models;
+pub mod ml;
 pub mod processing;
 pub mod render;
 pub mod rest;

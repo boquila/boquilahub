@@ -1,5 +1,7 @@
 mod audio;
 mod browser;
+mod embedding_plot;
+mod embedding_plot_3d;
 mod feed;
 #[path = "image.rs"]
 mod image_view;
@@ -23,8 +25,7 @@ use crate::api::video_file::{PlaybackFrame, VideofileProcessor};
 use crate::gui::feed::FeedFrame;
 use crate::gui::video_file::{AnalysisFrame, ExportProgress};
 
-/// All UI state for one AI model slot's "configure" popup (there are two:
-/// primary and secondary/classification). Bundling show/config/temp here
+/// All UI state for one AI model slot's "configure" popup. Bundling show/config/temp here
 /// replaces three parallel per-slot fields that used to live scattered across
 /// `Gui`, `ShowConfig`, and `Temp`.
 #[derive(Default, Clone)]
@@ -84,9 +85,12 @@ pub struct Gui {
     // Large types first
     ais: Vec<AIMetadata>,
     ais_cls_only: Vec<AIMetadata>,
+    ais_embed_only: Vec<AIMetadata>,
     selected_imgs: Vec<PredImg>,
     selected_audios: Vec<PredAudio>,
     image_browser: browser::Browser,
+    embedding_plot: Option<embedding_plot::EmbeddingPlot>,
+    cloud_renderer: Arc<Mutex<embedding_plot_3d::CloudRenderer>>,
     audio_browser: browser::Browser,
     video_browser: browser::Browser,
     // AudioData is heavy (hours of float samples). We only keep it for the
@@ -156,6 +160,7 @@ pub struct Gui {
     // usize and Option<usize> fields grouped together (8 bytes each on 64-bit)
     ai_selected: Option<usize>,
     ai_cls_selected: Option<usize>,
+    ai_embed_selected: Option<usize>,
     ep_selected: Ep,
     video_step_frame: usize,
     feed_step_frame: usize,
@@ -171,6 +176,7 @@ pub struct Gui {
 
     // bool fields grouped together (1 byte each, but will be padded)
     show_ai_cls: bool,
+    show_ai_embed: bool,
     isapi_deployed: bool,
     save_img_from_feed: bool,
     process_all_imgs: bool,
@@ -376,10 +382,16 @@ impl Gui {
             .filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image)
             .cloned()
             .collect();
+        let embed_ais: Vec<AIMetadata> = ais
+            .iter()
+            .filter(|ai| ai.task == Task::Embed && ai.modality == Modality::Image)
+            .cloned()
+            .collect();
 
         Self {
             ais: ais,
             ais_cls_only: classify_ais,
+            ais_embed_only: embed_ais,
             image_texture_n: 1,
             audio_texture_n: 1,
             video_texture_n: 1,
@@ -545,17 +557,16 @@ impl Gui {
                 }
             }
 
-            // '+' button, select a escond AI
-            if self.ai_selected.is_some() && !self.show_ai_cls && !self.ais_cls_only.is_empty()
-            {
-                if self.current_ai().can_add_cls() {
-                    if ui
-                        .button("+")
-                        .on_hover_text(self.t(Key::add_classification_model_to_complement))
-                        .clicked()
-                    {
-                        self.show_ai_cls = true;
-                    }
+            if self.ai_selected.is_some() && self.current_ai().can_add_cls() {
+                if !self.show_ai_cls && !self.ais_cls_only.is_empty()
+                    && ui.button("+ C").on_hover_text(self.t(Key::add_classification_model_to_complement)).clicked()
+                {
+                    self.show_ai_cls = true;
+                }
+                if !self.show_ai_embed && !self.ais_embed_only.is_empty()
+                    && ui.button("+ E").on_hover_text(self.t(Key::embedding)).clicked()
+                {
+                    self.show_ai_embed = true;
                 }
             }
         });
@@ -564,14 +575,13 @@ impl Gui {
             if !self.current_ai().can_add_cls() {
                 self.show_ai_cls = false;
                 self.ai_cls_selected = None;
+                self.ai_cls.show = false;
                 GlobalBQ::Second.clear();
+                self.show_ai_embed = false;
+                self.ai_embed_selected = None;
+                GlobalBQ::Third.clear();
             }
-            let model_path = self.ais[self.ai_selected.unwrap()].get_path();
-            if GlobalBQ::First.set_model(
-                &model_path,
-                self.ep_selected,
-                Some(self.ai.config.clone()),
-            ).is_err() {
+            if self.set_ai(self.ep_selected).is_err() {
                 self.push_toast(Message::Error);
             }
         }
@@ -618,21 +628,24 @@ impl Gui {
                 {
                     self.ai_cls.show = true;
                 }
-
-                if ui.button("-").clicked() {
-                    self.show_ai_cls = false;
-                    self.ai_cls_selected = None;
-                    GlobalBQ::Second.clear();
-                }
+            }
+            if ui.button("-").clicked() {
+                self.show_ai_cls = false;
+                self.ai_cls_selected = None;
+                self.ai_cls.show = false;
+                GlobalBQ::Second.clear();
             }
         });
         if (self.ai_cls_selected != previous_ai) && (self.ai_cls_selected.is_some()) {
             let model_path = self.ais_cls_only[self.ai_cls_selected.unwrap()].get_path();
+            GlobalBQ::Second.clear();
             if GlobalBQ::Second.set_model(
                 &model_path,
                 self.ep_selected,
                 Some(self.ai_cls.config.clone()),
             ).is_err() {
+                self.ai_cls_selected = None;
+                self.ai_cls.show = false;
                 self.push_toast(Message::Error);
             }
         }
@@ -646,24 +659,91 @@ impl Gui {
         
     }
 
+    fn ai_embed_widget(&mut self, ui: &mut egui::Ui) {
+        if !(self.ep_selected.is_local() && self.show_ai_embed) {
+            return;
+        }
+        let previous = self.ai_embed_selected;
+        ui.label(self.t(Key::embedding));
+        ui.horizontal(|ui| {
+            let combo_width = ui.spacing().combo_width + 32.0;
+            ui.allocate_ui(egui::vec2(combo_width, ui.spacing().interact_size.y), |ui| {
+                egui::ComboBox::from_id_salt("AI_EMBED")
+                    .truncate()
+                    .selected_text(self.ai_embed_selected.map_or("", |i| self.ais_embed_only[i].name.as_str()))
+                    .show_ui(ui, |ui| {
+                        for (i, ai) in self.ais_embed_only.iter().enumerate() {
+                            ui.selectable_value(&mut self.ai_embed_selected, Some(i), &ai.name);
+                        }
+                    });
+            });
+            if ui.button("-").clicked() {
+                self.show_ai_embed = false;
+                self.ai_embed_selected = None;
+                GlobalBQ::Third.clear();
+            }
+        });
+        if self.ai_embed_selected != previous {
+            if let Some(i) = self.ai_embed_selected {
+                GlobalBQ::Third.clear();
+                if GlobalBQ::Third.set_model(&self.ais_embed_only[i].get_path(), self.ep_selected, None).is_err() {
+                    self.ai_embed_selected = None;
+                    self.push_toast(Message::Error);
+                }
+            }
+        }
+        ui.add_space(8.0);
+    }
+
     fn set_ai(&mut self, ep: Ep) -> Result <()> {
         if let Some(ai_index) = self.ai_selected {
-            GlobalBQ::First.set_model(
+            GlobalBQ::First.clear();
+            let result = GlobalBQ::First.set_model(
                 &self.ais[ai_index].get_path(),
                 ep,
                 Some(self.ai.config.clone()),
-            )?;
+            );
+            if result.is_err() {
+                self.ai_selected = None;
+                self.ai.show = false;
+                self.show_ai_cls = false;
+                self.ai_cls_selected = None;
+                self.ai_cls.show = false;
+                GlobalBQ::Second.clear();
+                self.show_ai_embed = false;
+                self.ai_embed_selected = None;
+                GlobalBQ::Third.clear();
+            }
+            result?;
         }
         Ok(())
     }
 
     fn set_ai_cls(&mut self, ep: Ep) -> Result <()> {
         if let Some(_ai_cls_index) = self.ai_cls_selected {
-            GlobalBQ::Second.set_model(
+            GlobalBQ::Second.clear();
+            let result = GlobalBQ::Second.set_model(
                 &self.current_ai_cls().get_path(),
                 ep,
                 Some(self.ai_cls.config.clone()),
-            )?;
+            );
+            if result.is_err() {
+                self.ai_cls_selected = None;
+                self.ai_cls.show = false;
+            }
+            result?;
+        }
+        Ok(())
+    }
+
+    fn set_ai_embed(&mut self, ep: Ep) -> Result<()> {
+        if let Some(i) = self.ai_embed_selected {
+            GlobalBQ::Third.clear();
+            let result = GlobalBQ::Third.set_model(&self.ais_embed_only[i].get_path(), ep, None);
+            if result.is_err() {
+                self.ai_embed_selected = None;
+            }
+            result?;
         }
         Ok(())
     }
@@ -688,7 +768,12 @@ impl Gui {
                 _ => {
                     match self.set_ai(temp_ep_selected) {
                         Ok(()) => {
-                            let _ = self.set_ai_cls(temp_ep_selected);
+                            if self.set_ai_cls(temp_ep_selected).is_err() {
+                                self.push_toast(Message::Error);
+                            }
+                            if self.set_ai_embed(temp_ep_selected).is_err() {
+                                self.push_toast(Message::Error);
+                            }
                             self.ep_selected = temp_ep_selected;
                         }
                         Err(_e) => {
@@ -732,6 +817,7 @@ impl Gui {
 
                                 if !image_files.is_empty() {
                                     self.selected_imgs = image_files.into_preds(PredImg::new_simple);
+                                    self.embedding_plot = None;
                                     self.image_browser = Default::default();
                                     self.image_texture_n = 1;
                                     self.image_view.reset();
@@ -787,6 +873,7 @@ impl Gui {
                         .pick_files()
                     {
                         self.selected_imgs = paths.into_preds(PredImg::new_simple);
+                        self.embedding_plot = None;
                         self.image_browser = Default::default();
                         self.image_texture_n = 1;
                         self.image_view.reset();
@@ -1030,6 +1117,14 @@ impl Gui {
 }
 
 impl eframe::App for Gui {
+    fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
+        if let Some(gl) = gl {
+            if let Ok(mut renderer) = self.cloud_renderer.lock() {
+                renderer.destroy(gl);
+            }
+        }
+    }
+
     fn ui(&mut self, main_ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::Panel::top("top_panel").show(main_ui, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -1066,6 +1161,7 @@ impl eframe::App for Gui {
                 }
                 self.ai_widget(ui);
                 self.ai_cls_widget(ui);
+                self.ai_embed_widget(ui);
                 self.ep_widget(ui);
 
                 self.api_widget(ui);
