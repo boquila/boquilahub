@@ -429,13 +429,12 @@ impl Gui {
         let visuals = ui.style().interact(&response);
         let painter = ui.painter();
         let center = response.rect.center();
-        let radius = 7.0;
         let color = visuals.fg_stroke.color;
         if dark {
-            painter.circle_filled(center, radius * 0.82, color);
+            painter.circle_filled(center, 5.5, color);
             painter.circle_filled(
-                center + egui::vec2(radius * 0.45, -radius * 0.32),
-                radius * 0.72,
+                center + egui::vec2(2.0, -1.5),
+                5.0,
                 if visuals.weak_bg_fill == egui::Color32::TRANSPARENT {
                     ui.visuals().panel_fill
                 } else {
@@ -443,12 +442,13 @@ impl Gui {
                 },
             );
         } else {
-            painter.circle_filled(center, radius * 0.46, color);
+            let stroke = egui::Stroke::new(1.25, color);
+            painter.circle_filled(center, 3.0, color);
             for i in 0..8 {
                 let direction = egui::Vec2::angled(i as f32 * std::f32::consts::FRAC_PI_4);
                 painter.line_segment(
-                    [center + direction * radius * 0.66, center + direction * radius * 0.98],
-                    egui::Stroke::new(1.5, color),
+                    [center + direction * 4.5, center + direction * 6.5],
+                    stroke,
                 );
             }
         }
