@@ -158,6 +158,8 @@ fn load_sidecar_aioutput(file_path: &std::path::Path) -> Option<AIOutputs> {
 /// an image, an audio clip, or a video.
 pub trait Pred {
     fn file_path(&self) -> &std::path::Path;
+    /// Filesystem metadata read when this prediction was loaded; never read from a sidecar.
+    fn metadata(&self) -> Option<&std::fs::Metadata>;
     fn is_processed(&self) -> bool;
 
     /// JSON written to the sidecar `_predictions.json`. Image and audio dump
@@ -204,14 +206,17 @@ impl<T: Pred> PredListSugar for Vec<T> {
 #[derive(Clone)]
 pub struct PredImg {
     pub file_path: std::path::PathBuf,
+    pub metadata: Option<std::fs::Metadata>,
     pub aioutput: Option<AIOutputs>,
     pub wasprocessed: bool,
 }
 
 impl PredImg {
+    /// Load predictions from the sidecar, if present.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         let aioutput = load_sidecar_aioutput(&file_path);
         PredImg {
+            metadata: std::fs::metadata(&file_path).ok(),
             wasprocessed: aioutput.is_some(),
             aioutput,
             file_path,
@@ -226,6 +231,9 @@ impl PredImg {
 impl Pred for PredImg {
     fn file_path(&self) -> &std::path::Path {
         &self.file_path
+    }
+    fn metadata(&self) -> Option<&std::fs::Metadata> {
+        self.metadata.as_ref()
     }
     fn is_processed(&self) -> bool {
         self.wasprocessed
@@ -251,14 +259,17 @@ impl AudioProbSugar for Vec<AudioProb> {
 #[derive(Clone)]
 pub struct PredAudio {
     pub file_path: std::path::PathBuf,
+    pub metadata: Option<std::fs::Metadata>,
     pub aioutput: Option<AIOutputs>,
     pub wasprocessed: bool,
 }
 
 impl PredAudio {
+    /// Load predictions from the sidecar, if present.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
         let aioutput = load_sidecar_aioutput(&file_path);
         PredAudio {
+            metadata: std::fs::metadata(&file_path).ok(),
             wasprocessed: aioutput.is_some(),
             aioutput,
             file_path,
@@ -289,6 +300,9 @@ impl Pred for PredAudio {
     fn file_path(&self) -> &std::path::Path {
         &self.file_path
     }
+    fn metadata(&self) -> Option<&std::fs::Metadata> {
+        self.metadata.as_ref()
+    }
     fn is_processed(&self) -> bool {
         self.wasprocessed
     }
@@ -305,6 +319,8 @@ impl Pred for PredAudio {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PredVideo {
     pub file_path: std::path::PathBuf,
+    #[serde(skip)]
+    pub metadata: Option<std::fs::Metadata>,
     pub width: u32,
     pub height: u32,
     pub fps: f64,
@@ -317,17 +333,19 @@ pub struct PredVideo {
 }
 
 impl PredVideo {
-    /// Cheap constructor: stores the path and loads a sidecar
+    /// Cheap constructor: loads a sidecar
     /// `_predictions.json` if one exists (same shape as `PredImg::new_simple`
     /// / `PredAudio::new_simple`). The ffmpeg probe is deferred to
     /// [`Self::hydrate`] so picking 100 videos doesn't pay a 100x
     /// ffmpeg-init cost upfront.
     pub fn new_simple(file_path: std::path::PathBuf) -> Self {
+        let metadata = std::fs::metadata(&file_path).ok();
         if let Ok(path) = sidecar_predictions_path(&file_path)
             && let Ok(file) = std::fs::File::open(&path)
             && let Ok(mut cached) =
                 serde_json::from_reader::<_, PredVideo>(std::io::BufReader::new(file))
         {
+            cached.metadata = metadata;
             cached.file_path = file_path;
             cached.processed_indices = cached
                 .frames
@@ -338,6 +356,7 @@ impl PredVideo {
             return cached;
         }
         Self {
+            metadata,
             file_path,
             width: 0,
             height: 0,
@@ -434,6 +453,9 @@ impl PredVideo {
 impl Pred for PredVideo {
     fn file_path(&self) -> &std::path::Path {
         &self.file_path
+    }
+    fn metadata(&self) -> Option<&std::fs::Metadata> {
+        self.metadata.as_ref()
     }
     fn is_processed(&self) -> bool {
         self.wasprocessed

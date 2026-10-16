@@ -150,10 +150,31 @@ pub enum Key {
     audio_processing,
     frame_label,
     embedding,
+    sort_by,
+    file_modified,
+    file_created,
+    date_ascending,
+    date_descending,
+    original_order,
+    file_number_hint,
+}
+
+const fn localized(lang: &Lang, labels: [&'static str; 9]) -> &'static str {
+    labels[match lang {
+        Lang::EN => 0, Lang::ES => 1, Lang::FR => 2, Lang::DE => 3,
+        Lang::ZH => 4, Lang::JA => 5, Lang::PT => 6, Lang::VI => 7, Lang::NK => 8,
+    }]
 }
 
 pub fn translate(key: Key, lang: &Lang) -> &'static str {
     match key {
+        Key::sort_by => localized(lang, ["Sort by:", "Ordenar por:", "Trier par :", "Sortieren nach:", "排序方式：", "並べ替え：", "Ordenar por:", "Sắp xếp theo:", "Sortiraj po:"]),
+        Key::file_modified => localized(lang, ["Modified date", "Fecha de modificación", "Date de modification", "Änderungsdatum", "文件修改日期", "更新日時", "Data de modificação", "Ngày sửa đổi tệp", "Datum izmjene"]),
+        Key::file_created => localized(lang, ["Created date", "Fecha de creación", "Date de création", "Erstellungsdatum", "文件创建日期", "作成日時", "Data de criação", "Ngày tạo tệp", "Datum stvaranja"]),
+        Key::date_ascending => localized(lang, ["Ascending (oldest first)", "Ascendente (más antiguos primero)", "Croissant (plus anciens d’abord)", "Aufsteigend (älteste zuerst)", "升序（最早优先）", "昇順（古い順）", "Crescente (mais antigos primeiro)", "Tăng dần (cũ nhất trước)", "Uzlazno (najstarije prvo)"]),
+        Key::date_descending => localized(lang, ["Descending (newest first)", "Descendente (más recientes primero)", "Décroissant (plus récents d’abord)", "Absteigend (neueste zuerst)", "降序（最新优先）", "降順（新しい順）", "Decrescente (mais recentes primeiro)", "Giảm dần (mới nhất trước)", "Silazno (najnovije prvo)"]),
+        Key::original_order => localized(lang, ["Original order", "Orden original", "Ordre d’origine", "Ursprüngliche Reihenfolge", "原始顺序", "元の順序", "Ordem original", "Thứ tự ban đầu", "Izvorni redoslijed"]),
+        Key::file_number_hint => localized(lang, ["Click to enter a file number", "Haz clic para introducir un número de archivo", "Cliquez pour saisir un numéro de fichier", "Klicken, um eine Dateinummer einzugeben", "点击输入文件编号", "クリックしてファイル番号を入力", "Clique para introduzir um número de ficheiro", "Nhấp để nhập số thứ tự tệp", "Klikni za unos broja datoteke"]),
         Key::select_ai => match lang {
             Lang::EN => "AI",
             Lang::ES => "IA",
@@ -817,7 +838,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "(nepoznato)",
         },
         Key::not_analysed => match lang {
-            Lang::EN => "not analysed",
+            Lang::EN => "not analyzed",
             Lang::ES => "sin analizar",
             Lang::FR => "non analysé",
             Lang::DE => "nicht analysiert",
@@ -828,7 +849,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "neanalizirano",
         },
         Key::not_analysed_parens => match lang {
-            Lang::EN => "(not analysed)",
+            Lang::EN => "(not analyzed)",
             Lang::ES => "(sin analizar)",
             Lang::FR => "(non analysé)",
             Lang::DE => "(nicht analysiert)",
@@ -949,7 +970,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "% pouzdanost",
         },
         Key::analysing => match lang {
-            Lang::EN => "analysing…",
+            Lang::EN => "analyzing…",
             Lang::ES => "analizando…",
             Lang::FR => "analyse en cours…",
             Lang::DE => "wird analysiert…",
@@ -1114,7 +1135,7 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
             Lang::NK => "Pusti",
         },
         Key::frames_analysed => match lang {
-            Lang::EN => "frames analysed",
+            Lang::EN => "frames analyzed",
             Lang::ES => "cuadros analizados",
             Lang::FR => "images analysées",
             Lang::DE => "Bilder analysiert",

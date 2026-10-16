@@ -69,6 +69,7 @@ fn subset_font(out_dir: &Path) {
     let mut wanted: BTreeSet<char> = BTreeSet::new();
 
     wanted.extend(std::fs::read_to_string(LOC_SRC).unwrap().chars());
+    wanted.extend("↑↓".chars()); // Sort direction icons aren't localized.
 
     for &(lo, hi) in &[
         (0x0020u32, 0x007E),

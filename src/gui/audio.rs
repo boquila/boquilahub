@@ -501,62 +501,6 @@ impl Gui {
         self.audio_play_start = None;
     }
 
-    fn draw_audio_header(&mut self, ui: &mut egui::Ui, n: usize) {
-        let mut new_index = self.audio_texture_n;
-        let can_analyze = self.is_audio_model() || !self.ep_selected.is_local();
-        let mut analyze_this = false;
-
-        ui.horizontal_wrapped(|ui| {
-            super::nav_prev_next(
-                ui,
-                &mut new_index,
-                n,
-                self.t(Key::prev),
-                self.t(Key::next),
-            );
-            let pred = &self.selected_audios[new_index - 1];
-            let name = pred
-                .file_path
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or(self.t(Key::unknown_file));
-            super::nav_filename(ui, name, new_index, n);
-            if !pred.wasprocessed {
-                ui.separator();
-                ui.label(
-                    egui::RichText::new(self.t(Key::not_analysed))
-                        .weak()
-                        .small(),
-                );
-            }
-            if can_analyze {
-                ui.separator();
-                let resp = ui.add_enabled(
-                    !self.audio_state.is_processing,
-                    egui::Button::new(self.t(Key::analyze)),
-                );
-                if resp.clicked() {
-                    analyze_this = true;
-                }
-            }
-        });
-
-        super::nav_slider(ui, &mut new_index, n);
-
-        if new_index != self.audio_texture_n {
-            self.audio_texture_n = new_index;
-            if self.load_current_audio().is_err() {
-                self.push_toast(super::Message::Error);
-            }
-        }
-
-        if analyze_this {
-            self.start_single_audio_analysis(new_index - 1);
-        }
-
-        ui.add_space(4.0);
-    }
-
     pub(super) fn audio_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.audio_state.drain();
         let current_idx = self.audio_texture_n.saturating_sub(1);
@@ -601,18 +545,11 @@ impl Gui {
     }
 
     pub(super) fn ui_audio(&mut self, ui: &mut egui::Ui) {
+        self.audio_handle_results(ui);
         if self.selected_audios.is_empty() {
             return;
         }
-        let n = self.selected_audios.len();
-        if self.audio_texture_n < 1 {
-            self.audio_texture_n = 1;
-        }
-        if self.audio_texture_n > n {
-            self.audio_texture_n = n;
-        }
-
-        self.draw_audio_header(ui, n);
+        self.file_header(ui);
 
         // Header may have switched files — if the new selection failed to
         // decode (or hasn't loaded yet) we don't have anything to draw.
@@ -909,8 +846,6 @@ impl Gui {
                 }
             }
         }
-
-        self.audio_handle_results(ui);
     }
 }
 
