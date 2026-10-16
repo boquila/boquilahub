@@ -59,17 +59,17 @@ fn ensure_ffmpeg(deps: &Path) {
     if dest.exists() {
         return;
     }
-    println!("xtask: downloading ffmpeg 8.1.1 (windows) ...");
+    println!("xtask: downloading ffmpeg 9.0.2 (windows) ...");
     let archive = deps.join("ffmpeg.7z");
     let z7 = deps.join("7zr.exe");
     // curl.exe + a standalone 7zr.exe, both available without extra tooling.
     run("curl.exe", &["-L", "-o", str(&archive),
-        "https://github.com/GyanD/codexffmpeg/releases/download/8.1.1/ffmpeg-8.1.1-full_build-shared.7z"]);
+        "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-full_build-shared.7z"]);
     run("curl.exe", &["-sL", "-o", str(&z7), "https://www.7-zip.org/a/7zr.exe"]);
     run(str(&z7), &["x", str(&archive), &format!("-o{}", deps.display()), "-y"]);
     let _ = std::fs::remove_file(&archive);
     let _ = std::fs::remove_file(&z7);
-    rename_into(deps, "ffmpeg-8.1.1-full_build-shared", FFMPEG_DIR);
+    rename_into(deps, "ffmpeg-9.0.2-full_build-shared", FFMPEG_DIR);
     assert!(dest.exists(), "ffmpeg setup failed: {} missing", dest.display());
 }
 
@@ -79,13 +79,13 @@ fn ensure_ffmpeg(deps: &Path) {
     if dest.exists() {
         return;
     }
-    println!("xtask: downloading ffmpeg 8.1 (linux, BtbN gpl-shared) ...");
+    println!("xtask: downloading ffmpeg 9.0 (linux, BtbN gpl-shared) ...");
     let archive = deps.join("ffmpeg.tar.xz");
     run("curl", &["-L", "-o", str(&archive),
-        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-shared-8.1.tar.xz"]);
+        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-gpl-shared-9.0.tar.xz"]);
     run("tar", &["xf", str(&archive), "-C", str(deps)]);
     let _ = std::fs::remove_file(&archive);
-    rename_into(deps, "ffmpeg-n8.1-latest-linux64-gpl-shared-8.1", FFMPEG_DIR);
+    rename_into(deps, "ffmpeg-n9.0-latest-linux64-gpl-shared-9.0", FFMPEG_DIR);
     assert!(dest.exists(), "ffmpeg setup failed: {} missing", dest.display());
 }
 
@@ -96,20 +96,20 @@ fn ensure_ffmpeg(deps: &Path) {
         return;
     }
 
-    println!("xtask: linking Homebrew ffmpeg@7 into deps/ffmpeg ...");
+    println!("xtask: linking Homebrew ffmpeg@9 into deps/ffmpeg ...");
     let out = Command::new("brew")
-        .args(["--prefix", "ffmpeg@7"])
+        .args(["--prefix", "ffmpeg@9"])
         .output()
-        .expect("failed to run `brew`; install Homebrew, then `brew install ffmpeg@7`");
+        .expect("failed to run `brew`; install Homebrew, then `brew install ffmpeg@9`");
     assert!(
         out.status.success(),
-        "`brew --prefix ffmpeg@7` failed; run `brew install ffmpeg@7` first"
+        "`brew --prefix ffmpeg@9` failed; run `brew install ffmpeg@9` first"
     );
     let prefix = String::from_utf8(out.stdout).expect("brew output not UTF-8");
     let prefix = Path::new(prefix.trim());
     assert!(
         prefix.join("include").exists() && prefix.join("lib").exists(),
-        "Homebrew ffmpeg@7 at {} lacks include/ or lib/; try `brew reinstall ffmpeg@7`",
+        "Homebrew ffmpeg@9 at {} lacks include/ or lib/; try `brew reinstall ffmpeg@9`",
         prefix.display()
     );
     std::os::unix::fs::symlink(prefix, &dest)

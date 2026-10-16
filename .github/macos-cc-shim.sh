@@ -11,9 +11,9 @@
 # Dropping it is safe: --no-as-needed only changes whether *unused* shared libs
 # are recorded, and the FFmpeg libs here are used.
 #
-# ffmpeg-sys-next 8.1 also unconditionally links QTKit and
+# ffmpeg-sys-next 9.0 also unconditionally links QTKit and
 # VideoDecodeAcceleration for static Apple builds. Modern SDKs no longer ship
-# these frameworks, and FFmpeg 8 does not use them. Keep all other frameworks.
+# these frameworks, and FFmpeg 9 does not use them. Keep all other frameworks.
 set -eu
 response_dir=''
 trap 'if [ -n "$response_dir" ]; then rm -f "$response_dir"/*.rsp; rmdir "$response_dir"; fi' EXIT
