@@ -24,6 +24,7 @@ pub(crate) fn ort_err<E: std::fmt::Display>(e: E) -> anyhow::Error {
 
 pub struct BQModel;
 
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum GlobalBQ {
     First,
     Second,
@@ -68,6 +69,11 @@ impl GlobalBQ {
     pub fn clear(&self) {
         let mut guard = self.get_lock().write().unwrap();
         *guard = None;
+    }
+
+    pub(crate) fn move_model_from(&self, source: Self) {
+        let model = source.get_lock().write().unwrap().take();
+        *self.get_lock().write().unwrap() = model;
     }
 
     pub fn run(&self, input: &AIInput) -> Result<AIOutputs> {
