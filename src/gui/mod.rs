@@ -1,6 +1,5 @@
 mod audio;
 mod browser;
-mod data_selection;
 mod embedding_plot;
 mod embedding_plot_3d;
 mod feed;
@@ -13,13 +12,13 @@ use super::{api::*, localization::*};
 use abstractions::*;
 use crate::api::audio::AudioData;
 use bq::*;
-use data_selection::{MediaFiles, append_files};
 use models::Task;
 use processing::post::PostProcessing;
 use render::*;
 use rest::{get_ipv4_address, Rest};
-use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use crate::api::video_file::{PlaybackFrame, VideofileProcessor};
@@ -1439,4 +1438,88 @@ enum Mode {
     Video,
     Feed,
     Audio,
+}
+
+fn path_key(path: &Path) -> PathBuf {
+    path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Preserve existing predictions and indexes used by active workers.
+fn append_files<T: Pred>(
+    selected: &mut Vec<T>,
+    paths: Vec<PathBuf>,
+    new: impl Fn(PathBuf) -> T,
+) -> bool {
+    if paths.is_empty() {
+        return false;
+    }
+    let mut known: HashSet<_> = selected.iter().map(|file| path_key(file.file_path())).collect();
+    let old_len = selected.len();
+    for path in paths {
+        if known.insert(path_key(&path)) {
+            selected.push(new(path));
+        }
+    }
+    selected.len() != old_len
+}
+
+#[derive(Default)]
+struct MediaFiles {
+    images: Vec<PathBuf>,
+    audios: Vec<PathBuf>,
+    videos: Vec<PathBuf>,
+    had_errors: bool,
+}
+
+impl MediaFiles {
+    fn from_folders(folders: Vec<PathBuf>) -> Self {
+        let mut files = Self::default();
+        let mut pending = folders;
+        pending.reverse();
+        let mut visited = HashSet::new();
+        while let Some(folder) = pending.pop() {
+            // Prevent cycles through directory links and overlapping selections.
+            if !visited.insert(path_key(&folder)) {
+                continue;
+            }
+            let entries = match fs::read_dir(folder) {
+                Ok(entries) => entries,
+                Err(_) => {
+                    files.had_errors = true;
+                    continue;
+                }
+            };
+            let mut children = Vec::new();
+            for entry in entries {
+                let path = match entry {
+                    Ok(entry) => entry.path(),
+                    Err(_) => {
+                        files.had_errors = true;
+                        continue;
+                    }
+                };
+                if path.is_dir() {
+                    children.push(path);
+                } else if path.is_file() {
+                    let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+                        continue;
+                    };
+                    if has_ext(ext, &formats::IMAGE_FORMATS) {
+                        files.images.push(path);
+                    } else if has_ext(ext, &formats::AUDIO_FORMATS) {
+                        files.audios.push(path);
+                    } else if has_ext(ext, &formats::VIDEO_FORMATS) {
+                        files.videos.push(path);
+                    }
+                }
+            }
+            children.reverse();
+            pending.extend(children);
+        }
+        files
+    }
+}
+
+fn has_ext(ext: &str, formats: &[&str]) -> bool {
+    formats.iter().any(|format| ext.eq_ignore_ascii_case(format))
 }
