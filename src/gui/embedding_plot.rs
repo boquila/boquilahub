@@ -38,8 +38,7 @@ pub(super) struct EmbeddingPlot {
 
 impl EmbeddingPlot {
     pub fn new(files: &[PredImg]) -> Self {
-        let has_images = files.iter().any(|file| matches!(&file.aioutput, Some(AIOutputs::Embed(embedding)) if valid_embedding(embedding)));
-        Self::for_kind(files, !has_images)
+        Self::for_kind(files, !embedding_kinds(files).0)
     }
 
     fn for_kind(files: &[PredImg], objects: bool) -> Self {
@@ -227,9 +226,9 @@ impl EmbeddingPlot {
     }
 }
 
-pub(super) fn can_plot(files: &[PredImg]) -> bool {
-    files.iter().any(|file| match file.aioutput.as_ref() {
-        Some(AIOutputs::Embed(embedding)) => valid_embedding(embedding),
+pub(super) fn embedding_kinds(files: &[PredImg]) -> (bool, bool) {
+    let images = files.iter().any(|file| matches!(&file.aioutput, Some(AIOutputs::Embed(embedding)) if valid_embedding(embedding)));
+    let objects = files.iter().any(|file| match file.aioutput.as_ref() {
         Some(AIOutputs::ObjectDetection(boxes)) => boxes
             .iter()
             .any(|bbox| bbox.embedding.as_ref().is_some_and(valid_embedding)),
@@ -237,7 +236,8 @@ pub(super) fn can_plot(files: &[PredImg]) -> bool {
             .iter()
             .any(|segment| segment.bbox.embedding.as_ref().is_some_and(valid_embedding)),
         _ => false,
-    })
+    });
+    (images, objects)
 }
 
 fn valid_embedding(embedding: &Embedding) -> bool {
@@ -276,10 +276,6 @@ fn project(data: &[&Embedding]) -> anyhow::Result<(Vec<PlotPoint>, Vec<[f64; 3]>
 
 impl Gui {
     pub(super) fn show_embedding_plot(&mut self, ui: &egui::Ui) {
-        if !can_plot(&self.selected_imgs) {
-            self.embedding_plot = None;
-            return;
-        }
         let cloud_renderer = self.cloud_renderer.clone();
         let Some(plot) = self.embedding_plot.as_mut() else {
             return;
@@ -293,16 +289,7 @@ impl Gui {
         let mut open = true;
         let mut selected = None;
         let mut next_kind = None;
-        let has_images = files.iter().any(|file| matches!(&file.aioutput, Some(AIOutputs::Embed(embedding)) if valid_embedding(embedding)));
-        let has_objects = files.iter().any(|file| match file.aioutput.as_ref() {
-            Some(AIOutputs::ObjectDetection(boxes)) => boxes
-                .iter()
-                .any(|bbox| bbox.embedding.as_ref().is_some_and(valid_embedding)),
-            Some(AIOutputs::Segmentation(segments)) => segments
-                .iter()
-                .any(|seg| seg.bbox.embedding.as_ref().is_some_and(valid_embedding)),
-            _ => false,
-        });
+        let (has_images, has_objects) = self.embedding_kinds;
         egui::Window::new(translate(Key::embedding_space, lang))
             .open(&mut open)
             .default_size([860.0, 500.0])

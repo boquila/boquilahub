@@ -98,6 +98,7 @@ impl Gui {
 
     pub(super) fn img_handle_results(&mut self, ui: &egui::Ui) {
         let (updates, closed) = self.img_state.drain();
+        let changed = !updates.is_empty();
         for (i, result) in updates {
             match result {
                 Some(aio) => {
@@ -110,6 +111,9 @@ impl Gui {
                 }
                 None => self.push_toast(super::Message::Error),
             }
+        }
+        if changed {
+            self.embedding_kinds = super::embedding_plot::embedding_kinds(&self.selected_imgs);
         }
         if closed {
             self.img_state.finish();

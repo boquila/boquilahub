@@ -98,6 +98,7 @@ pub struct Gui {
     selected_audios: Vec<PredAudio>,
     image_browser: browser::Browser,
     embedding_plot: Option<embedding_plot::EmbeddingPlot>,
+    embedding_kinds: (bool, bool),
     cloud_renderer: Arc<Mutex<embedding_plot_3d::CloudRenderer>>,
     audio_browser: browser::Browser,
     video_browser: browser::Browser,
@@ -868,6 +869,7 @@ impl Gui {
         let was_empty = self.selected_imgs.is_empty();
         if append_files(&mut self.selected_imgs, paths, PredImg::new_simple) {
             self.embedding_plot = None;
+            self.embedding_kinds = embedding_plot::embedding_kinds(&self.selected_imgs);
             self.img_state.progress_bar = self.selected_imgs.get_progress();
             if was_empty {
                 self.image_texture_n = 1;
