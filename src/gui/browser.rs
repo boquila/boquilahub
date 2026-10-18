@@ -139,7 +139,7 @@ impl Browser {
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if files.len() > 1 {
-                            self.sort_menu(ui, files, lang);
+                            self.sort_menu(ui, files, index, lang);
                         }
                         if show_plot {
                             plot_clicked = ui.button(translate(Key::plot, lang)).clicked();
@@ -196,7 +196,13 @@ impl Browser {
         (changed, analyze_clicked, plot_clicked)
     }
 
-    fn sort_menu(&mut self, ui: &mut egui::Ui, files: &[impl Pred], lang: &Lang) {
+    fn sort_menu(
+        &mut self,
+        ui: &mut egui::Ui,
+        files: &[impl Pred],
+        index: &mut usize,
+        lang: &Lang,
+    ) {
         let mut changed = false;
         ui.menu_button("↑↓", |ui| {
             for (field, key) in [
@@ -227,10 +233,15 @@ impl Browser {
         .response
         .on_hover_text(translate(Key::sort_by, lang));
         if changed || self.order.len() != files.len() {
+            let position = self.positions.get(*index - 1).copied().unwrap_or(*index);
             self.sort_by_date(files);
             self.positions.resize(files.len(), 0);
             for (position, &index) in self.order.iter().enumerate() {
                 self.positions[index] = position + 1;
+            }
+            if changed {
+                // A sort changes which file occupies the current browser position.
+                *index = self.order[position - 1] + 1;
             }
         }
     }
