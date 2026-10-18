@@ -227,6 +227,19 @@ impl EmbeddingPlot {
     }
 }
 
+pub(super) fn can_plot(files: &[PredImg]) -> bool {
+    files.iter().any(|file| match file.aioutput.as_ref() {
+        Some(AIOutputs::Embed(embedding)) => valid_embedding(embedding),
+        Some(AIOutputs::ObjectDetection(boxes)) => boxes
+            .iter()
+            .any(|bbox| bbox.embedding.as_ref().is_some_and(valid_embedding)),
+        Some(AIOutputs::Segmentation(segments)) => segments
+            .iter()
+            .any(|segment| segment.bbox.embedding.as_ref().is_some_and(valid_embedding)),
+        _ => false,
+    })
+}
+
 fn valid_embedding(embedding: &Embedding) -> bool {
     !embedding.values.is_empty() && embedding.values.iter().all(|value| value.is_finite())
 }
@@ -263,6 +276,10 @@ fn project(data: &[&Embedding]) -> anyhow::Result<(Vec<PlotPoint>, Vec<[f64; 3]>
 
 impl Gui {
     pub(super) fn show_embedding_plot(&mut self, ui: &egui::Ui) {
+        if !can_plot(&self.selected_imgs) {
+            self.embedding_plot = None;
+            return;
+        }
         let cloud_renderer = self.cloud_renderer.clone();
         let Some(plot) = self.embedding_plot.as_mut() else {
             return;

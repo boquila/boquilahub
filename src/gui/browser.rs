@@ -16,7 +16,7 @@ impl Gui {
                 &mut self.image_texture_n,
                 &self.lang,
                 can_analyze.then_some(!self.img_state.is_processing),
-                true,
+                super::embedding_plot::can_plot(&self.selected_imgs),
             ),
             Mode::Audio => self.audio_browser.show(
                 ui,
@@ -157,13 +157,18 @@ impl Browser {
                         .clicked();
                 }
             });
-            if files.len() > 1 {
+            if files.len() > 1 || show_plot {
                 ui.spacing_mut().interact_size = egui::vec2(28.0, 28.0);
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        self.sort_menu(ui, files, index, lang);
+                        if files.len() > 1 {
+                            self.sort_menu(ui, files, index, lang);
+                        }
                         if show_plot {
                             plot_clicked = ui.button(translate(Key::plot, lang)).clicked();
+                        }
+                        if files.len() == 1 {
+                            return;
                         }
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             let mut position = self
@@ -227,40 +232,39 @@ impl Browser {
         lang: &Lang,
     ) {
         let mut changed = false;
-        if self.field.is_some() {
-            let (icon, key) = if self.descending {
-                ("↓", Key::date_descending)
-            } else {
-                ("↑", Key::date_ascending)
-            };
-            // The row flows right to left, so draw the arrow before Sort.
-            changed = ui
-                .add(egui::Button::new(icon).min_size(egui::Vec2::splat(28.0)))
-                .on_hover_text(translate(key, lang))
-                .clicked();
-            if changed {
-                self.descending = !self.descending;
-            }
-        }
-        egui::ComboBox::from_id_salt("file_sort")
-            .width(0.0)
-            .selected_text(format!(
-                "{} {}",
-                translate(Key::sort_by, lang),
-                self.field
-                    .map(|field| field.label(lang))
-                    .unwrap_or(translate(Key::original_order, lang)),
-            ))
-            .show_ui(ui, |ui| {
+        ui.menu_button("↑↓", |ui| {
+            changed |= ui
+                .selectable_value(&mut self.field, None, translate(Key::original_order, lang))
+                .changed();
+            for field in DateField::ALL {
                 changed |= ui
-                    .selectable_value(&mut self.field, None, translate(Key::original_order, lang))
+                    .selectable_value(&mut self.field, Some(field), field.label(lang))
                     .changed();
-                for field in DateField::ALL {
+            }
+            ui.separator();
+            ui.add_enabled_ui(self.field.is_some(), |ui| {
+                for (descending, icon, key) in [
+                    (false, "↑", Key::date_ascending),
+                    (true, "↓", Key::date_descending),
+                ] {
                     changed |= ui
-                        .selectable_value(&mut self.field, Some(field), field.label(lang))
+                        .selectable_value(
+                            &mut self.descending,
+                            descending,
+                            format!("{icon} {}", translate(key, lang)),
+                        )
                         .changed();
                 }
             });
+        })
+        .response
+        .on_hover_text(format!(
+            "{} {}",
+            translate(Key::sort_by, lang),
+            self.field
+                .map(|field| field.label(lang))
+                .unwrap_or(translate(Key::original_order, lang)),
+        ));
         if changed || self.order.len() != files.len() {
             self.sort_by_date(files);
         }
