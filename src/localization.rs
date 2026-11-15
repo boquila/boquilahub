@@ -200,8 +200,8 @@ pub fn translate(key: Key, lang: &Lang) -> &'static str {
         Key::sort_by => localized(lang, ["Sort by:", "Ordenar por:", "Trier par :", "Sortieren nach:", "排序方式：", "並べ替え：", "Ordenar por:", "Sắp xếp theo:", "Sortiraj po:"]),
         Key::file_modified => localized(lang, ["Modified date", "Fecha de modificación", "Date de modification", "Änderungsdatum", "文件修改日期", "更新日時", "Data de modificação", "Ngày sửa đổi tệp", "Datum izmjene"]),
         Key::file_created => localized(lang, ["Created date", "Fecha de creación", "Date de création", "Erstellungsdatum", "文件创建日期", "作成日時", "Data de criação", "Ngày tạo tệp", "Datum stvaranja"]),
-        Key::date_ascending => localized(lang, ["Ascending (oldest first)", "Ascendente (más antiguos primero)", "Croissant (plus anciens d’abord)", "Aufsteigend (älteste zuerst)", "升序（最早优先）", "昇順（古い順）", "Crescente (mais antigos primeiro)", "Tăng dần (cũ nhất trước)", "Uzlazno (najstarije prvo)"]),
-        Key::date_descending => localized(lang, ["Descending (newest first)", "Descendente (más recientes primero)", "Décroissant (plus récents d’abord)", "Absteigend (neueste zuerst)", "降序（最新优先）", "降順（新しい順）", "Decrescente (mais recentes primeiro)", "Giảm dần (mới nhất trước)", "Silazno (najnovije prvo)"]),
+        Key::date_ascending => localized(lang, ["Ascending", "Ascendente", "Croissant", "Aufsteigend", "升序", "昇順", "Crescente", "Tăng dần", "Uzlazno"]),
+        Key::date_descending => localized(lang, ["Descending", "Descendente", "Décroissant", "Absteigend", "降序", "降順", "Decrescente", "Giảm dần", "Silazno"]),
         Key::original_order => localized(lang, ["Original order", "Orden original", "Ordre d’origine", "Ursprüngliche Reihenfolge", "原始顺序", "元の順序", "Ordem original", "Thứ tự ban đầu", "Izvorni redoslijed"]),
         Key::file_number_hint => localized(lang, ["Click to enter a file number", "Haz clic para introducir un número de archivo", "Cliquez pour saisir un numéro de fichier", "Klicken, um eine Dateinummer einzugeben", "点击输入文件编号", "クリックしてファイル番号を入力", "Clique para introduzir um número de ficheiro", "Nhấp để nhập số thứ tự tệp", "Klikni za unos broja datoteke"]),
         Key::select_ai => match lang {

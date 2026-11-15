@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-run:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       # ffmpeg-sys-next emits a GNU-only linker flag on the FFMPEG_DIR path that
       # Apple's ld rejects; route linking through a shim that drops it.
@@ -21,7 +21,7 @@ jobs:
         run: brew install ffmpeg@9
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2

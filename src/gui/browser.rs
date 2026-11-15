@@ -1,6 +1,5 @@
 use super::{Gui, Message, Mode};
 use crate::{api::abstractions::Pred, localization::*};
-use std::time::SystemTime;
 
 impl Gui {
     pub(super) fn file_header(&mut self, ui: &mut egui::Ui) {
@@ -16,7 +15,7 @@ impl Gui {
                 &mut self.image_texture_n,
                 &self.lang,
                 can_analyze.then_some(!self.img_state.is_processing),
-                true,
+                self.embedding_kinds.0 || self.embedding_kinds.1,
             ),
             Mode::Audio => self.audio_browser.show(
                 ui,
@@ -77,33 +76,11 @@ enum DateField {
     Created,
 }
 
-impl DateField {
-    const ALL: [Self; 2] = [Self::Modified, Self::Created];
-
-    fn label(self, lang: &Lang) -> &'static str {
-        translate(
-            match self {
-                Self::Modified => Key::file_modified,
-                Self::Created => Key::file_created,
-            },
-            lang,
-        )
-    }
-
-    fn read(self, file: &impl Pred) -> Option<SystemTime> {
-        let metadata = file.metadata()?;
-        match self {
-            Self::Modified => metadata.modified(),
-            Self::Created => metadata.created(),
-        }
-        .ok()
-    }
-}
-
 /// Preserve source indexes for workers; sorting changes only navigation order.
 #[derive(Default)]
 pub(super) struct Browser {
     order: Vec<usize>,
+    positions: Vec<usize>,
     field: Option<DateField>,
     descending: bool,
 }
@@ -157,21 +134,21 @@ impl Browser {
                         .clicked();
                 }
             });
-            if files.len() > 1 {
+            if files.len() > 1 || show_plot {
                 ui.spacing_mut().interact_size = egui::vec2(28.0, 28.0);
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        self.sort_menu(ui, files, index, lang);
+                        if files.len() > 1 {
+                            self.sort_menu(ui, files, index, lang);
+                        }
                         if show_plot {
                             plot_clicked = ui.button(translate(Key::plot, lang)).clicked();
                         }
+                        if files.len() == 1 {
+                            return;
+                        }
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            let mut position = self
-                                .order
-                                .iter()
-                                .position(|i| *i + 1 == *index)
-                                .unwrap_or(0)
-                                + 1;
+                            let mut position = self.positions[*index - 1];
                             let button_size = egui::Vec2::splat(28.0);
                             if ui
                                 .add_enabled(
@@ -227,45 +204,45 @@ impl Browser {
         lang: &Lang,
     ) {
         let mut changed = false;
-        if self.field.is_some() {
-            let (icon, key) = if self.descending {
-                ("↓", Key::date_descending)
-            } else {
-                ("↑", Key::date_ascending)
-            };
-            // The row flows right to left, so draw the arrow before Sort.
-            changed = ui
-                .add(egui::Button::new(icon).min_size(egui::Vec2::splat(28.0)))
-                .on_hover_text(translate(key, lang))
-                .clicked();
-            if changed {
-                self.descending = !self.descending;
-            }
-        }
-        egui::ComboBox::from_id_salt("file_sort")
-            .width(0.0)
-            .selected_text(format!(
-                "{} {}",
-                translate(Key::sort_by, lang),
-                self.field
-                    .map(|field| field.label(lang))
-                    .unwrap_or(translate(Key::original_order, lang)),
-            ))
-            .show_ui(ui, |ui| {
+        ui.menu_button("↑↓", |ui| {
+            for (field, key) in [
+                (None, Key::original_order),
+                (Some(DateField::Modified), Key::file_modified),
+                (Some(DateField::Created), Key::file_created),
+            ] {
                 changed |= ui
-                    .selectable_value(&mut self.field, None, translate(Key::original_order, lang))
+                    .selectable_value(&mut self.field, field, translate(key, lang))
                     .changed();
-                for field in DateField::ALL {
+            }
+            ui.separator();
+            ui.add_enabled_ui(self.field.is_some(), |ui| {
+                for (descending, icon, key) in [
+                    (false, "↑", Key::date_ascending),
+                    (true, "↓", Key::date_descending),
+                ] {
                     changed |= ui
-                        .selectable_value(&mut self.field, Some(field), field.label(lang))
+                        .selectable_value(
+                            &mut self.descending,
+                            descending,
+                            format!("{icon} {}", translate(key, lang)),
+                        )
                         .changed();
                 }
             });
+        })
+        .response
+        .on_hover_text(translate(Key::sort_by, lang));
         if changed || self.order.len() != files.len() {
+            let position = self.positions.get(*index - 1).copied().unwrap_or(*index);
             self.sort_by_date(files);
-        }
-        if changed {
-            *index = self.order[0] + 1;
+            self.positions.resize(files.len(), 0);
+            for (position, &index) in self.order.iter().enumerate() {
+                self.positions[index] = position + 1;
+            }
+            if changed {
+                // A sort changes which file occupies the current browser position.
+                *index = self.order[position - 1] + 1;
+            }
         }
     }
 
@@ -274,7 +251,17 @@ impl Browser {
         let Some(field) = self.field else {
             return;
         };
-        let dates: Vec<_> = files.iter().map(|file| field.read(file)).collect();
+        let dates: Vec<_> = files
+            .iter()
+            .map(|file| {
+                let metadata = file.metadata()?;
+                match field {
+                    DateField::Modified => metadata.modified(),
+                    DateField::Created => metadata.created(),
+                }
+                .ok()
+            })
+            .collect();
         self.order.sort_by(|a, b| match (dates[*a], dates[*b]) {
             (Some(a), Some(b)) => {
                 if self.descending {
