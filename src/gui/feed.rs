@@ -746,8 +746,6 @@ fn save_frame_jpeg(jpeg: &[u8], captured_at: SystemTime) {
 }
 
 /// Local wall-clock stamp used in export filenames, e.g. `feed_20261116_143502_123.jpg`.
-/// Unlike chrono's `Local` (used here before), jiff's `TimeZone::system()` also honors the
-/// `TZ` env var on Windows; output is otherwise identical (verified against chrono 0.4.45).
 fn local_stamp(t: SystemTime) -> String {
     let ts = jiff::Timestamp::try_from(t).unwrap_or(jiff::Timestamp::UNIX_EPOCH);
     let zdt = ts.to_zoned_datetime(jiff::tz::TimeZone::system());
