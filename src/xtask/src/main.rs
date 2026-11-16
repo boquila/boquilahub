@@ -1,6 +1,6 @@
 // Workspace tasks. Run via `cargo xtask <cmd>` (alias in .cargo/config.toml).
 //
-//   cargo xtask fetch   Download native deps (ffmpeg + ONNX Runtime) into deps/.
+//   cargo xtask fetch   Download ffmpeg into deps/.
 //
 // This runs as its own cargo invocation, so the deps are on disk *before*
 // `cargo build` compiles ffmpeg-sys-next (which links ffmpeg at build time).
@@ -9,10 +9,9 @@
 // builds. `cargo build --features ffmpeg-static` (release builds; see
 // Cargo.toml) instead compiles ffmpeg from source and links it statically on
 // Linux/macOS, ignoring this fetch for ffmpeg. The macOS release workflow skips
-// this task entirely; ORT is fetched by the `ort` crate on that platform.
+// this task entirely. ONNX Runtime is fetched by `ort` on every platform.
 
-// On macOS only ffmpeg is fetched (ORT comes from the `ort` crate), so the
-// download/extract helpers below go unused there.
+// On macOS the download/extract helpers below go unused.
 #![cfg_attr(target_os = "macos", allow(dead_code))]
 
 use std::path::{Path, PathBuf};
@@ -20,7 +19,6 @@ use std::process::Command;
 
 // Normalized destination dirs, used by boquilahub/build.rs and .cargo/config.toml.
 const FFMPEG_DIR: &str = "ffmpeg";
-const ORT_DIR: &str = "onnxruntime";
 
 fn main() {
     let cmd = std::env::args().nth(1).unwrap_or_else(|| "fetch".into());
@@ -47,7 +45,6 @@ fn fetch() {
     let deps = deps_dir();
     std::fs::create_dir_all(&deps).unwrap();
     ensure_ffmpeg(&deps);
-    ensure_onnxruntime(&deps);
     println!("xtask: deps ready in {}", deps.display());
 }
 
@@ -115,38 +112,6 @@ fn ensure_ffmpeg(deps: &Path) {
     std::os::unix::fs::symlink(prefix, &dest)
         .unwrap_or_else(|e| panic!("symlink {} -> {}: {e}", prefix.display(), dest.display()));
     assert!(dest.exists(), "ffmpeg setup failed: {} missing", dest.display());
-}
-
-// ---- ONNX Runtime --------------------------------------------------------
-#[cfg(target_os = "macos")]
-fn ensure_onnxruntime(_deps: &Path) {}
-
-#[cfg(not(target_os = "macos"))]
-fn ensure_onnxruntime(deps: &Path) {
-    let dest = deps.join(ORT_DIR);
-    if dest.exists() {
-        return;
-    }
-    println!("xtask: downloading ONNX Runtime 1.26.0 (GPU) ...");
-    #[cfg(windows)]
-    {
-        let archive = deps.join("onnxruntime.zip");
-        run("curl.exe", &["-L", "-o", str(&archive),
-            "https://github.com/microsoft/onnxruntime/releases/download/v1.26.0/onnxruntime-win-x64-gpu-1.26.0.zip"]);
-        run("tar.exe", &["-xf", str(&archive), "-C", str(deps)]);
-        let _ = std::fs::remove_file(&archive);
-        rename_into(deps, "onnxruntime-win-x64-gpu-1.26.0", ORT_DIR);
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let archive = deps.join("onnxruntime.tgz");
-        run("curl", &["-L", "-o", str(&archive),
-            "https://github.com/microsoft/onnxruntime/releases/download/v1.26.0/onnxruntime-linux-x64-gpu-1.26.0.tgz"]);
-        run("tar", &["xzf", str(&archive), "-C", str(deps)]);
-        let _ = std::fs::remove_file(&archive);
-        rename_into(deps, "onnxruntime-linux-x64-gpu-1.26.0", ORT_DIR);
-    }
-    assert!(dest.exists(), "ONNX Runtime setup failed: {} missing", dest.display());
 }
 
 // ---- helpers -------------------------------------------------------------

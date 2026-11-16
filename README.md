@@ -50,7 +50,7 @@ Download supported models on [website](https://boquila.org/hub). You can also us
 | Runtime           | Description                                                                        | Requirements  |
 |-------------------|------------------------------------------------------------------------------------|--------------|
 | CPU              | Your average CPU                                                                   | Having a CPU |
-| NVIDIA CUDA      | CUDA execution provider for NVIDIA GPUs (Maxwell 7xx and above)                    | CUDA v12.8 + cuDNN 9.7 |
+| NVIDIA CUDA      | NVIDIA GPUs supported by [ort's prebuilt CUDA runtime](https://github.com/pykeio/ort/blob/v2.0.0-rc.15/docs/content/perf/execution-providers.mdx#cuda) | CUDA 13.2+ + cuDNN 9.23+ on PATH |
 | WebGPU | GPU acceleration via the WebGPU API, runs on most devices that support graphics | Having a modern GPU | 
 | Remote BoquilaHUB | A BoquilaHUB session in your network with a deployed REST API                     | Having the URL | 
 
@@ -65,12 +65,23 @@ cd boquilahub
 
 **Windows / Linux**
 
+On Windows, install Visual Studio 2026 Build Tools with the **Desktop development
+with C++** workload and Windows SDK (tested with MSVC 14.51). The older Visual
+Studio 2022 toolset cannot link the ONNX Runtime binaries used here.
+
 ```shell
 cargo xtask fetch
 cargo build --release
 ```
 
 That's it, really simple.
+
+`fetch` prepares FFmpeg; `cargo build` downloads and bundles the ONNX Runtime
+selected by the pinned `ort` crate (1.31.0 for rc.15). CUDA builds use
+`cargo build --no-default-features --features cuda` and require the NVIDIA
+libraries listed above. The old `deps/onnxruntime` directory is no longer used.
+Run `cargo clean` once when upgrading an existing checkout to remove old runtime
+libraries from build outputs.
 
 Native builds use FFmpeg 9: Windows downloads 9.0.2, Linux downloads the latest
 9.0-branch shared build, and macOS shared builds require `brew install ffmpeg@9`.

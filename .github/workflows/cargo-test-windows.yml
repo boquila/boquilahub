@@ -18,8 +18,10 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ort-rc15-v2
 
-      - name: Fetch native deps (ffmpeg + ONNX Runtime)
+      - name: Fetch FFmpeg
         run: cargo xtask fetch
 
       - name: Test

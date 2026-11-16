@@ -5,13 +5,15 @@ use std::path::{Path, PathBuf};
 
 #[cfg(any(windows, not(feature = "ffmpeg-static")))]
 const FFMPEG_DIR: &str = "deps/ffmpeg";
-#[cfg(feature = "cuda")]
-const ORT_DIR: &str = "deps/onnxruntime";
 
 pub fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     #[allow(unused_variables)] // used only under some platform/feature combos below
-    let target_dir = out_dir.ancestors().nth(3).unwrap().to_path_buf();
+    let target_dir = out_dir.ancestors()
+        .find(|path| path.file_name().is_some_and(|name| name == "build"))
+        .and_then(Path::parent)
+        .expect("Cargo build directory")
+        .to_path_buf();
 
     require_deps();
     validate_geofence();
@@ -25,7 +27,7 @@ pub fn main() {
 
     // `--features ffmpeg-static` (release builds) compiles ffmpeg from source
     // and links it statically instead — no .so to copy for it in that case,
-    // but onnxruntime's .so is still bundled next to the binary, so the rpath
+    // but ORT's provider libraries are still bundled next to the binary, so the rpath
     // is needed either way.
     #[cfg(target_os = "linux")]
     {
@@ -36,9 +38,6 @@ pub fn main() {
 
     #[cfg(target_os = "macos")]
     println!("cargo:rustc-link-arg=-Wl,-rpath,@executable_path");
-
-    #[cfg(feature = "cuda")]
-    copy_onnxruntime_libs(&target_dir);
 }
 
 fn require_deps() {
@@ -47,13 +46,6 @@ fn require_deps() {
         Path::new(FFMPEG_DIR).exists(),
         "missing native deps: `{FFMPEG_DIR}` not found.\n\
          Run `cargo xtask fetch` first to download ffmpeg."
-    );
-
-    #[cfg(feature = "cuda")]
-    assert!(
-        Path::new(ORT_DIR).exists(),
-        "missing native deps: `{ORT_DIR}` not found.\n\
-         Run `cargo xtask fetch` first to download ONNX Runtime."
     );
 }
 
@@ -140,35 +132,6 @@ fn copy_ffmpeg_libs(target_dir: &Path) {
             let dest = target_dir.join(&name);
             if !dest.exists() {
                 std::fs::copy(&path, &dest).unwrap();
-            }
-        }
-    }
-}
-
-#[cfg(feature = "cuda")]
-fn copy_onnxruntime_libs(target_dir: &Path) {
-    #[cfg(windows)]
-    let ext = "dll";
-    #[cfg(target_os = "linux")]
-    let ext = "so";
-
-    let lib_dir = format!("{ORT_DIR}/lib");
-    for entry in std::fs::read_dir(&lib_dir).expect("read onnxruntime lib/") {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-        if !entry.file_type().map(|ft| ft.is_file() || ft.is_symlink()).unwrap_or(false) {
-            continue;
-        }
-        let path = entry.path();
-        let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        if name.contains(ext) && !name.contains("tensorrt") {
-            let dest = target_dir.join(&name);
-            if !dest.exists() {
-                if let Err(e) = std::fs::copy(&path, &dest) {
-                    println!("cargo:warning=failed to copy {}: {}", path.display(), e);
-                }
             }
         }
     }

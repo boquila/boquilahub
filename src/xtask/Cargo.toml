@@ -3,6 +3,6 @@ name = "xtask"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Workspace tasks: downloads native deps (ffmpeg, ONNX Runtime) before build."
+description = "Workspace tasks: downloads ffmpeg before build."
 
 [dependencies]
