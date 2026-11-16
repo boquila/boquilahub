@@ -18,7 +18,7 @@ check="$repo/.github/assert-macos-ffmpeg-static.sh"
 printf '%s\n' 'boquilahub:' \
     '    /usr/lib/libSystem.B.dylib (compatibility version 1.0.0)' \
     '    @executable_path/libx264.164.dylib (compatibility version 0.0.0)' \
-    '    @executable_path/libonnxruntime.1.26.0.dylib (compatibility version 1.0.0)' \
+    '    @executable_path/libonnxruntime.1.31.0.dylib (compatibility version 1.0.0)' \
     > "$OTOOL_FIXTURE"
 sh "$check" boquilahub libx264.164.dylib
 
