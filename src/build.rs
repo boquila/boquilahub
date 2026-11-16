@@ -11,7 +11,11 @@ const ORT_DIR: &str = "deps/onnxruntime";
 pub fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     #[allow(unused_variables)] // used only under some platform/feature combos below
-    let target_dir = out_dir.ancestors().nth(3).unwrap().to_path_buf();
+    let target_dir = out_dir.ancestors()
+        .find(|path| path.file_name().is_some_and(|name| name == "build"))
+        .and_then(Path::parent)
+        .expect("Cargo build directory")
+        .to_path_buf();
 
     require_deps();
     validate_geofence();

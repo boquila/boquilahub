@@ -18,6 +18,9 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::{LazyLock, RwLock};
 
+static ORT_ENVIRONMENT: LazyLock<ort::Result<ort::environment::Environment>> =
+    LazyLock::new(|| ort::init().build());
+
 pub(crate) fn ort_err<E: std::fmt::Display>(e: E) -> anyhow::Error {
     anyhow::anyhow!("{e}")
 }
@@ -101,7 +104,8 @@ fn parse_bq_header(content: &[u8], file_stem: &str) -> Result<(AIMetadata, usize
 
 impl BQModel {
     pub fn session_from_memory(model_data: &[u8], ep: Ep) -> Result<Session> {
-        let mut builder = Session::builder().map_err(ort_err)?;
+        let environment = ORT_ENVIRONMENT.as_ref().map_err(ort_err)?;
+        let mut builder = Session::builder(environment).map_err(ort_err)?;
         builder = builder.with_optimization_level(GraphOptimizationLevel::Level3).map_err(ort_err)?;
         match ep {
             #[cfg(feature = "cuda")]
@@ -191,7 +195,8 @@ impl BQModel {
             None => bail!("No file extension found"),
         };
 
-        let mut builder = Session::builder().map_err(ort_err)?;
+        let environment = ORT_ENVIRONMENT.as_ref().map_err(ort_err)?;
+        let mut builder = Session::builder(environment).map_err(ort_err)?;
         let session = builder.commit_from_memory(&model_data).map_err(ort_err)?;
 
         println!("Inputs:\n{:?}", session.inputs());
