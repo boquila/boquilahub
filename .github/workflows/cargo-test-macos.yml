@@ -9,8 +9,7 @@ jobs:
   build-and-run:
     runs-on: macos-15
     env:
-      # ffmpeg-sys-next emits a GNU-only linker flag on the FFMPEG_DIR path that
-      # Apple's ld rejects; route linking through a shim that drops it.
+      # Use the same linker shim as static release builds.
       CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER: ${{ github.workspace }}/.github/macos-cc-shim.sh
 
     steps:
