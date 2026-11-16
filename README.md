@@ -50,13 +50,15 @@ Download supported models on [website](https://boquila.org/hub). You can also us
 | Runtime           | Description                                                                        | Requirements  |
 |-------------------|------------------------------------------------------------------------------------|--------------|
 | CPU              | Your average CPU                                                                   | Having a CPU |
-| NVIDIA CUDA      | NVIDIA GPUs supported by [ort's prebuilt CUDA runtime](https://github.com/pykeio/ort/blob/v2.0.0-rc.15/docs/content/perf/execution-providers.mdx#cuda) | CUDA 13.2+ + cuDNN 9.23+ on PATH |
+| NVIDIA CUDA      | NVIDIA RTX 20 series or newer, plus GTX 16 series | CUDA 13.2+ and cuDNN 9.23+ on PATH |
 | WebGPU | GPU acceleration via the WebGPU API, runs on most devices that support graphics | Having a modern GPU | 
 | Remote BoquilaHUB | A BoquilaHUB session in your network with a deployed REST API                     | Having the URL | 
 
 And soon more
 
 ## How to compile
+
+Install Rust, then clone the repository.
 
 ```shell
 git clone https://github.com/boquila/boquilahub/
@@ -65,32 +67,18 @@ cd boquilahub
 
 **Windows / Linux**
 
-On Windows, install Visual Studio 2026 Build Tools with the **Desktop development
-with C++** workload and Windows SDK (tested with MSVC 14.51). The older Visual
-Studio 2022 toolset cannot link the ONNX Runtime binaries used here.
+Windows requires Visual Studio 2026 Build Tools with **Desktop development with C++** and Windows SDK.
 
 ```shell
 cargo xtask fetch
 cargo build --release
 ```
 
-That's it, really simple.
+For NVIDIA CUDA, install the libraries listed above and use this build command instead.
 
-`fetch` prepares FFmpeg; `cargo build` downloads and bundles the ONNX Runtime
-selected by the pinned `ort` crate (1.31.0 for rc.15). CUDA builds use
-`cargo build --no-default-features --features cuda` and require the NVIDIA
-libraries listed above. The old `deps/onnxruntime` directory is no longer used.
-Run `cargo clean` once when upgrading an existing checkout to remove old runtime
-libraries from build outputs.
-
-Native builds use FFmpeg 9: Windows downloads 9.0.2, Linux downloads the latest
-9.0-branch shared build, and macOS shared builds require `brew install ffmpeg@9`.
-The `ffmpeg-static` feature builds the `release/9.1` branch via `ffmpeg-sys-next`.
-When upgrading an existing checkout, move the old `deps/ffmpeg` directory aside
-before running `cargo xtask fetch` again, then run `cargo clean -p ffmpeg-sys-next`
-to regenerate the native bindings.
-
-Other options:
+```shell
+cargo build --release --no-default-features --features cuda
+```
 
 **macOS**
 
@@ -108,3 +96,5 @@ cargo build --release --features ffmpeg-static
 sudo apt install pkg-config yasm nasm libx264-dev
 cargo build --release --features ffmpeg-static
 ```
+
+When upgrading, move `deps/ffmpeg` aside, run `cargo clean`, then repeat your platform's build commands.

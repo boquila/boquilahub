@@ -16,6 +16,7 @@ use super::localization::{translate, Key, Lang};
 
 // ── palette ──────────────────────────────────────────────────────────
 const ACCENT: Color = Color::Rgb(51, 218, 114);
+const EXTRA_AI_SLOTS: [GlobalBQ; 2] = [GlobalBQ::Second, GlobalBQ::Third];
 
 fn bold(fg: Color) -> Style { Style::default().fg(fg).add_modifier(Modifier::BOLD) }
 fn dim() -> Style { Style::default().add_modifier(Modifier::DIM) }
@@ -25,8 +26,8 @@ fn centered(span: Span) -> Paragraph { Paragraph::new(span).alignment(Alignment:
 fn at(area: Rect, y: u16) -> Rect { Rect { y, height: 1, ..area } }
 
 // ── types ────────────────────────────────────────────────────────────
-#[derive(Clone, Copy, PartialEq)]
-enum Row { Ai, ClsAi, EmbedAi, Ep, Deploy }
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Row { Ai, ExtraAi(usize), Ep, Deploy }
 
 #[derive(Default)]
 struct Dropdown {
@@ -47,11 +48,7 @@ pub struct Tui {
     open: Option<Row>,  // which dropdown, if any, is currently open
     ais: Vec<AIMetadata>,
     ai: Dropdown,
-    cls_ais: Vec<AIMetadata>,
-    cls_active: bool,
-    cls: Dropdown,
-    embed_ais: Vec<AIMetadata>,
-    embed: Dropdown,
+    extra_ais: Vec<Dropdown>,
     eps: Vec<Ep>,
     ep: Dropdown,
     api_deployed: bool,
@@ -76,14 +73,11 @@ impl Tui {
     
     fn new(lang: Lang) -> Self {
         let ais = BQModel::get_list();
-        let cls_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Classify && ai.modality == Modality::Image).cloned().collect();
-        let embed_ais: Vec<AIMetadata> = ais.iter().filter(|ai| ai.task == Task::Embed && ai.modality == Modality::Image).cloned().collect();
         Self {
             lang,
             row: 0, side_btn: false, open: None,
             ais, ai: Dropdown::default(),
-            cls_ais, cls_active: false, cls: Dropdown::default(),
-            embed_ais, embed: Dropdown::default(),
+            extra_ais: Vec::new(),
             eps: Ep::locals(), ep: Dropdown::default(),
             api_deployed: false,
             host_url: None,
@@ -95,8 +89,7 @@ impl Tui {
     }
     fn rows(&self) -> Vec<Row> {
         let mut v = vec![Row::Ai];
-        if self.cls_active { v.push(Row::ClsAi); }
-        if self.ai.selected.is_some_and(|i| self.ais[i].can_add_cls()) && !self.embed_ais.is_empty() { v.push(Row::EmbedAi); }
+        v.extend((0..self.extra_ais.len()).map(Row::ExtraAi));
         v.push(Row::Ep);
         if self.can_deploy() || self.api_deployed { v.push(Row::Deploy); }
         v
@@ -108,16 +101,40 @@ impl Tui {
     fn can_deploy(&self) -> bool {
         self.ai.selected.is_some() && self.ep.selected.is_some()
     }
-    fn can_add_cls(&self) -> bool {
-        !self.cls_active
-            && !self.cls_ais.is_empty()
-            && self.ai.selected.is_some_and(|i| self.ais[i].can_add_cls())
+    fn extra_ai_choices(&self, slot: usize) -> Vec<usize> {
+        self.ais.iter().enumerate().filter_map(|(index, ai)| {
+            let available = ai.modality == Modality::Image
+                && matches!(ai.task, Task::Classify | Task::Embed)
+                && !self.extra_ais.iter().enumerate().any(|(other, extra)| {
+                    other != slot && extra.selected.is_some_and(|i| self.ais[i].task == ai.task)
+                });
+            available.then_some(index)
+        }).collect()
+    }
+    fn can_add_extra_ai(&self) -> bool {
+        self.ai.selected.is_some_and(|i| self.ais[i].can_add_cls())
+            && self.extra_ais.len() < EXTRA_AI_SLOTS.len()
+            && self.extra_ais.iter().all(|slot| slot.selected.is_some())
+            && !self.extra_ai_choices(self.extra_ais.len()).is_empty()
+    }
+    fn clear_extra_ais(&mut self) {
+        self.extra_ais.clear();
+        for slot in EXTRA_AI_SLOTS { slot.clear(); }
+        self.clamp();
+    }
+    fn remove_extra_ai(&mut self, index: usize) {
+        self.extra_ais.remove(index);
+        EXTRA_AI_SLOTS[index].clear();
+        if index < self.extra_ais.len() {
+            GlobalBQ::Second.move_model_from(GlobalBQ::Third);
+        }
+        self.side_btn = false;
+        self.clamp();
     }
     fn has_side_btn(&self) -> bool {
         match self.cur_row() {
-            Row::Ai => self.can_add_cls(),
-            Row::ClsAi => true,
-            Row::EmbedAi => self.embed.selected.is_some(),
+            Row::Ai => self.can_add_extra_ai(),
+            Row::ExtraAi(_) => true,
             _ => false,
         }
     }
@@ -135,10 +152,9 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
 
     if let Some(which) = app.open {
         let changed = match which {
-            Row::Ai => handle_dropdown(code, app.ais.len(), &mut app.ai),
-            Row::ClsAi => handle_dropdown(code, app.cls_ais.len(), &mut app.cls),
-            Row::EmbedAi => handle_dropdown(code, app.embed_ais.len(), &mut app.embed),
-            Row::Ep => handle_dropdown(code, app.eps.len(), &mut app.ep),
+            Row::Ai => handle_dropdown(code, 0..app.ais.len(), &mut app.ai),
+            Row::ExtraAi(index) => handle_dropdown(code, app.extra_ai_choices(index).into_iter(), &mut app.extra_ais[index]),
+            Row::Ep => handle_dropdown(code, 0..app.eps.len(), &mut app.ep),
             Row::Deploy => None,
         };
         if let Some(changed) = changed {
@@ -147,13 +163,13 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
                 app.status_msg = None;
                 match which {
                     Row::Ai => load_ai_model(app),
-                    Row::ClsAi => load_cls_model(app),
-                    Row::EmbedAi => load_embed_model(app),
+                    Row::ExtraAi(index) => load_extra_ai_model(app, index),
                     Row::Ep => {
                         load_ai_model(app);
                         if app.ai.selected.is_some() {
-                            load_cls_model(app);
-                            load_embed_model(app);
+                            for index in 0..app.extra_ais.len() {
+                                load_extra_ai_model(app, index);
+                            }
                         }
                     }
                     Row::Deploy => {}
@@ -172,9 +188,12 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
         KeyCode::Enter => {
             if app.side_btn {
                 match app.cur_row() {
-                    Row::Ai => { app.cls_active = true; app.side_btn = false; app.row = 1; }
-                    Row::ClsAi => { app.cls_active = false; app.cls.selected = None; GlobalBQ::Second.clear(); app.side_btn = false; app.clamp(); }
-                    Row::EmbedAi => { app.embed.selected = None; GlobalBQ::Third.clear(); app.side_btn = false; }
+                    Row::Ai if app.can_add_extra_ai() => {
+                        app.extra_ais.push(Dropdown::default());
+                        app.side_btn = false;
+                        app.row = app.extra_ais.len();
+                    }
+                    Row::ExtraAi(index) => app.remove_extra_ai(index),
                     _ => {}
                 }
             } else {
@@ -186,8 +205,10 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
                 } else {
                     match row {
                         Row::Ai => app.ai.reset_cursor(),
-                        Row::ClsAi => app.cls.reset_cursor(),
-                        Row::EmbedAi => app.embed.reset_cursor(),
+                        Row::ExtraAi(index) => {
+                            app.extra_ais[index].cursor = app.extra_ai_choices(index).iter()
+                                .position(|&i| Some(i) == app.extra_ais[index].selected).unwrap_or(0);
+                        }
                         Row::Ep => app.ep.reset_cursor(),
                         Row::Deploy => unreachable!(),
                     }
@@ -200,13 +221,14 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
     false
 }
 
-fn handle_dropdown(code: KeyCode, len: usize, dd: &mut Dropdown) -> Option<bool> {
+fn handle_dropdown(code: KeyCode, mut choices: impl ExactSizeIterator<Item = usize>, dd: &mut Dropdown) -> Option<bool> {
     match code {
         KeyCode::Up => { dd.cursor = dd.cursor.saturating_sub(1); None }
-        KeyCode::Down => { dd.cursor = (dd.cursor + 1).min(len.saturating_sub(1)); None }
+        KeyCode::Down => { dd.cursor = (dd.cursor + 1).min(choices.len().saturating_sub(1)); None }
         KeyCode::Enter => {
-            let changed = dd.selected != Some(dd.cursor);
-            dd.selected = Some(dd.cursor);
+            let Some(selected) = choices.nth(dd.cursor) else { return Some(false); };
+            let changed = dd.selected != Some(selected);
+            dd.selected = Some(selected);
             Some(changed)
         }
         KeyCode::Esc => Some(false),
@@ -217,12 +239,7 @@ fn handle_dropdown(code: KeyCode, len: usize, dd: &mut Dropdown) -> Option<bool>
 fn load_ai_model(app: &mut Tui) {
     if let Some(ai_idx) = app.ai.selected {
         if !app.ais[ai_idx].can_add_cls() {
-            app.cls_active = false;
-            app.cls.selected = None;
-            GlobalBQ::Second.clear();
-            app.embed.selected = None;
-            GlobalBQ::Third.clear();
-            app.clamp();
+            app.clear_extra_ais();
         }
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
         let model_path = app.ais[ai_idx].get_path();
@@ -231,37 +248,20 @@ fn load_ai_model(app: &mut Tui) {
             let error = format!("{}: {}", app.t(Key::error_ocurred), e);
             app.status_msg.get_or_insert(error);
             app.ai.selected = None;
-            app.cls_active = false;
-            app.cls.selected = None;
-            GlobalBQ::Second.clear();
-            app.embed.selected = None;
-            GlobalBQ::Third.clear();
-            app.clamp();
+            app.clear_extra_ais();
         }
     }
 }
 
-fn load_embed_model(app: &mut Tui) {
-    if let Some(index) = app.embed.selected {
+fn load_extra_ai_model(app: &mut Tui, index: usize) {
+    if let Some(selected) = app.extra_ais[index].selected {
         let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
-        GlobalBQ::Third.clear();
-        if let Err(e) = GlobalBQ::Third.set_model(&app.embed_ais[index].get_path(), ep, None) {
+        let target = EXTRA_AI_SLOTS[index];
+        target.clear();
+        if let Err(e) = target.set_model(&app.ais[selected].get_path(), ep, None) {
             let error = format!("{}: {}", app.t(Key::error_ocurred), e);
             app.status_msg.get_or_insert(error);
-            app.embed.selected = None;
-        }
-    }
-}
-
-fn load_cls_model(app: &mut Tui) {
-    if let Some(cls_idx) = app.cls.selected {
-        let ep = app.ep.selected.map_or(Ep::Cpu, |i| app.eps[i]);
-        let model_path = app.cls_ais[cls_idx].get_path();
-        GlobalBQ::Second.clear();
-        if let Err(e) = GlobalBQ::Second.set_model(&model_path, ep, None) {
-            let error = format!("{}: {}", app.t(Key::error_ocurred), e);
-            app.status_msg.get_or_insert(error);
-            app.cls.selected = None;
+            app.extra_ais[index].selected = None;
         }
     }
 }
@@ -305,10 +305,10 @@ fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect, 
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let cls_rows: u16 = if app.cls_active { 3 } else { 0 };
-    let embed_rows: u16 = if app.rows().contains(&Row::EmbedAi) { 3 } else { 0 };
-    let [head, ai, cls_area, embed_area, ep, _gap, btn, _rest, hints] = Layout::vertical([
-        Constraint::Length(3), Constraint::Length(3), Constraint::Length(cls_rows), Constraint::Length(embed_rows), Constraint::Length(3),
+    let second_rows: u16 = if !app.extra_ais.is_empty() { 3 } else { 0 };
+    let third_rows: u16 = if app.extra_ais.len() > 1 { 3 } else { 0 };
+    let [head, ai, second_area, third_area, ep, _gap, btn, _rest, hints] = Layout::vertical([
+        Constraint::Length(3), Constraint::Length(3), Constraint::Length(second_rows), Constraint::Length(third_rows), Constraint::Length(3),
         Constraint::Length(2), Constraint::Length(3), Constraint::Min(0), Constraint::Length(2),
     ]).areas(inner);
 
@@ -322,23 +322,17 @@ fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect, 
     draw_combo(frame, ai, app.t(Key::select_ai), &app.ais, app.ai.selected, app.cur_row() == Row::Ai && !app.side_btn);
 
     // [+] button to the right of the Model combo
-    if app.can_add_cls() {
+    if app.can_add_extra_ai() {
         let focused = app.cur_row() == Row::Ai && app.side_btn;
         draw_side_btn(frame, ai, "+", focused);
     }
 
-    // classification AI section
-    if app.cls_active {
-        draw_combo(frame, cls_area, app.t(Key::select_2nd_ai), &app.cls_ais, app.cls.selected, app.cur_row() == Row::ClsAi && !app.side_btn);
-        let focused = app.cur_row() == Row::ClsAi && app.side_btn;
-        draw_side_btn(frame, cls_area, "-", focused);
-    }
-
-    if embed_rows > 0 {
-        draw_combo(frame, embed_area, app.t(Key::embedding), &app.embed_ais, app.embed.selected, app.cur_row() == Row::EmbedAi && !app.side_btn);
-        if app.embed.selected.is_some() {
-            draw_side_btn(frame, embed_area, "-", app.cur_row() == Row::EmbedAi && app.side_btn);
-        }
+    for (index, slot) in app.extra_ais.iter().enumerate() {
+        let area = [second_area, third_area][index];
+        let label = app.t(if index == 0 { Key::select_2nd_ai } else { Key::select_3rd_ai });
+        let focused = app.cur_row() == Row::ExtraAi(index);
+        draw_combo(frame, area, label, &app.ais, slot.selected, focused && !app.side_btn);
+        draw_side_btn(frame, area, "-", focused && app.side_btn);
     }
 
     draw_combo(frame, ep, app.t(Key::select_ep), &app.eps, app.ep.selected, app.cur_row() == Row::Ep);
@@ -368,7 +362,7 @@ fn draw_sidebar(frame: &mut Frame, app: &Tui, area: Rect) -> (Rect, Rect, Rect, 
         at(hints, hints.y + 1),
     );
 
-    (ai, cls_area, embed_area, ep)
+    (ai, second_area, third_area, ep)
 }
 
 fn draw_side_btn(frame: &mut Frame, row_area: Rect, symbol: &str, focused: bool) {
@@ -434,8 +428,12 @@ fn draw_status_bar(frame: &mut Frame, app: &Tui, area: Rect) {
 fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, Rect, Rect, Rect)) {
     let (names, dd, title, row_area): (Vec<&str>, &Dropdown, &str, Rect) = match which {
         Row::Ai => (app.ais.iter().map(|a| a.name.as_str()).collect(), &app.ai, app.t(Key::select_ai), rows.0),
-        Row::ClsAi => (app.cls_ais.iter().map(|a| a.name.as_str()).collect(), &app.cls, app.t(Key::select_2nd_ai), rows.1),
-        Row::EmbedAi => (app.embed_ais.iter().map(|a| a.name.as_str()).collect(), &app.embed, app.t(Key::embedding), rows.2),
+        Row::ExtraAi(index) => (
+            app.extra_ai_choices(index).iter().map(|&i| app.ais[i].name.as_str()).collect(),
+            &app.extra_ais[index],
+            app.t(if index == 0 { Key::select_2nd_ai } else { Key::select_3rd_ai }),
+            if index == 0 { rows.1 } else { rows.2 },
+        ),
         Row::Ep => (app.eps.iter().map(|e| e.name()).collect(), &app.ep, app.t(Key::select_ep), rows.3),
         Row::Deploy => return,
     };
@@ -449,9 +447,14 @@ fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, 
     let popup = Rect { x: row_area.x + 2, y, width: 24, height: popup_h };
     frame.render_widget(Clear, popup);
 
+    let selected = if let Row::ExtraAi(index) = which {
+        app.extra_ai_choices(index).iter().position(|&i| Some(i) == dd.selected)
+    } else {
+        dd.selected
+    };
     let items: Vec<ListItem> = names.iter().enumerate().skip(scroll).map(|(i, name)| {
         let cur = i == dd.cursor;
-        let sel = dd.selected == Some(i);
+        let sel = selected == Some(i);
         let base = if cur { focus_bar() } else { Style::default() };
         ListItem::new(Line::from(vec![
             Span::styled(if sel { "● " } else { "  " }, if sel { base.fg(ACCENT) } else { base }),
@@ -468,4 +471,75 @@ fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, 
             ]))
             .border_style(accent()),
     ), popup);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn app() -> Tui {
+        let ais = [
+            ("Detector", Task::Detect, Modality::Image),
+            ("Classifier", Task::Classify, Modality::Image),
+            ("Embedding", Task::Embed, Modality::Image),
+            ("Other classifier", Task::Classify, Modality::Image),
+            ("Audio classifier", Task::Classify, Modality::Audio),
+        ].into_iter().map(|(name, task, modality)| AIMetadata {
+            name: name.into(), task, modality,
+            architecture: String::new(), post_processing: vec![], classes: vec![], audio_config: None,
+        }).collect();
+        Tui {
+            lang: Lang::EN, row: 0, side_btn: false, open: None,
+            ais, ai: Dropdown { selected: Some(0), cursor: 0 }, extra_ais: vec![],
+            eps: vec![Ep::Cpu], ep: Dropdown::default(),
+            api_deployed: false, host_url: None, status_msg: None,
+        }
+    }
+
+    fn press(app: &mut Tui, code: KeyCode) {
+        assert!(!handle_input(app, code, KeyModifiers::NONE));
+    }
+
+    fn add_slot(app: &mut Tui) {
+        app.row = 0;
+        press(app, KeyCode::Right);
+        press(app, KeyCode::Enter);
+    }
+
+    #[test]
+    fn either_type_can_come_first_and_third_slot_offers_only_the_other_type() {
+        for (second, third, remaining) in [(1, 2, vec![2]), (2, 3, vec![1, 3])] {
+            let mut app = app();
+            assert_eq!(app.rows(), vec![Row::Ai, Row::Ep]);
+            add_slot(&mut app);
+            assert_eq!(app.extra_ai_choices(0), vec![1, 2, 3]);
+            assert!(!app.can_add_extra_ai());
+            // Supply a successful selection without loading an ONNX model in this UI test.
+            app.extra_ais[0].selected = Some(second);
+            assert!(app.can_add_extra_ai());
+            add_slot(&mut app);
+            assert_eq!(app.cur_row(), Row::ExtraAi(1));
+            assert_eq!(app.extra_ai_choices(1), remaining);
+            app.extra_ais[1].selected = Some(third);
+            assert!(!app.can_add_extra_ai());
+            assert!(app.extra_ai_choices(0).iter().all(|&i| app.ais[i].task != app.ais[third].task));
+
+            // Reopening uses the filtered index; confirming the same model must not reload it.
+            press(&mut app, KeyCode::Enter);
+            assert_eq!(app.extra_ais[1].cursor, remaining.iter().position(|&i| i == third).unwrap());
+            press(&mut app, KeyCode::Enter);
+            assert_eq!(app.extra_ais[1].selected, Some(third));
+            assert!(app.status_msg.is_none());
+
+            app.row = 1;
+            press(&mut app, KeyCode::Right);
+            press(&mut app, KeyCode::Enter);
+            assert_eq!(app.extra_ais.len(), 1);
+            assert_eq!(app.extra_ais[0].selected, Some(third));
+            assert!(app.can_add_extra_ai());
+            press(&mut app, KeyCode::Right);
+            press(&mut app, KeyCode::Enter);
+            assert_eq!(app.rows(), vec![Row::Ai, Row::Ep]);
+        }
+    }
 }

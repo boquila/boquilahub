@@ -572,6 +572,13 @@ impl Gui {
                     });
             });
 
+            if self.can_add_extra_ai()
+                && ui.add_sized(ui.spacing().interact_size, egui::Button::new("+"))
+                    .on_hover_text(self.t(Key::add_ai)).clicked()
+            {
+                self.extra_ais.push(ExtraAiSlot::default());
+            }
+
             if self.ai_selected.is_some() {
                 if ui
                     .button("⚙")
@@ -582,11 +589,6 @@ impl Gui {
                 }
             }
 
-            if self.can_add_extra_ai()
-                && ui.button("+").on_hover_text(self.t(Key::add_ai)).clicked()
-            {
-                self.extra_ais.push(ExtraAiSlot::default());
-            }
         });
 
         if (self.ai_selected != previous_ai) && (self.ai_selected.is_some()) {
@@ -662,13 +664,13 @@ impl Gui {
                                 }
                             });
                     });
+                    if ui.add_sized(ui.spacing().interact_size, egui::Button::new("-")).clicked() {
+                        remove = Some(index);
+                    }
                     if self.extra_ais[index].selected.is_some_and(|i| self.ais[i].task == Task::Classify)
                         && ui.button("⚙").on_hover_text(self.t(Key::configure_ai)).clicked()
                     {
                         self.extra_ais[index].settings.show = true;
-                    }
-                    if ui.button("-").clicked() {
-                        remove = Some(index);
                     }
                 });
             });
