@@ -85,7 +85,7 @@ libraries from build outputs.
 
 Native builds use FFmpeg 9: Windows downloads 9.0.2, Linux downloads the latest
 9.0-branch shared build, and macOS shared builds require `brew install ffmpeg@9`.
-The `ffmpeg-static` feature builds the `release/9.0` branch via `ffmpeg-sys-next`.
+The `ffmpeg-static` feature builds the `release/9.1` branch via `ffmpeg-sys-next`.
 When upgrading an existing checkout, move the old `deps/ffmpeg` directory aside
 before running `cargo xtask fetch` again, then run `cargo clean -p ffmpeg-sys-next`
 to regenerate the native bindings.

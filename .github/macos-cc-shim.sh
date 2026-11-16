@@ -1,7 +1,7 @@
 #!/bin/sh
 # macOS linker shim.
 #
-# ffmpeg-sys-next adds the GNU-only flag `-Wl,--no-as-needed` whenever it links
+# Older ffmpeg-sys-next releases add the GNU-only flag `-Wl,--no-as-needed` when linking
 # FFmpeg through the FFMPEG_DIR env var (which .cargo/config.toml sets on every
 # platform). Apple's `ld` rejects that flag, so a plain macOS link fails.
 #
@@ -11,7 +11,7 @@
 # Dropping it is safe: --no-as-needed only changes whether *unused* shared libs
 # are recorded, and the FFmpeg libs here are used.
 #
-# ffmpeg-sys-next 9.0 also unconditionally links QTKit and
+# ffmpeg-sys-next still unconditionally links QTKit and
 # VideoDecodeAcceleration for static Apple builds. Modern SDKs no longer ship
 # these frameworks, and FFmpeg 9 does not use them. Keep all other frameworks.
 set -eu
