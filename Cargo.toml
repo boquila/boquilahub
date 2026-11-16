@@ -40,8 +40,7 @@ fast_image_resize = { version = "=6.0.0", features = ["image"] }
 ratatui = "0.30.2"
 realfft = "3.5"
 rodio = { version = "0.22.2", default-features = false, features = ["playback"] }
-# egui 0.37 support is upstream but not yet published to crates.io.
-egui_plot = { git = "https://github.com/emilk/egui_plot", rev = "aead78045a529884eac5ad267251caa73bd832aa" }
+egui_plot = "=0.38.0"
 half = {version= "2.7.1", features = ["serde"]}
 
 [features]
