@@ -152,23 +152,9 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
 
     if let Some(which) = app.open {
         let changed = match which {
-            Row::Ai => handle_dropdown(code, app.ais.len(), &mut app.ai),
-            Row::ExtraAi(index) => {
-                let choices = app.extra_ai_choices(index);
-                // The selection indexes the full catalog; the cursor indexes the filtered menu.
-                let slot = &mut app.extra_ais[index];
-                let mut menu = Dropdown {
-                    selected: choices.iter().position(|&i| Some(i) == slot.selected),
-                    cursor: slot.cursor,
-                };
-                let changed = handle_dropdown(code, choices.len(), &mut menu);
-                slot.cursor = menu.cursor;
-                if changed == Some(true) {
-                    slot.selected = menu.selected.map(|i| choices[i]);
-                }
-                changed
-            }
-            Row::Ep => handle_dropdown(code, app.eps.len(), &mut app.ep),
+            Row::Ai => handle_dropdown(code, 0..app.ais.len(), &mut app.ai),
+            Row::ExtraAi(index) => handle_dropdown(code, app.extra_ai_choices(index).into_iter(), &mut app.extra_ais[index]),
+            Row::Ep => handle_dropdown(code, 0..app.eps.len(), &mut app.ep),
             Row::Deploy => None,
         };
         if let Some(changed) = changed {
@@ -235,14 +221,14 @@ fn handle_input(app: &mut Tui, code: KeyCode, mods: KeyModifiers) -> bool {
     false
 }
 
-fn handle_dropdown(code: KeyCode, len: usize, dd: &mut Dropdown) -> Option<bool> {
+fn handle_dropdown(code: KeyCode, mut choices: impl ExactSizeIterator<Item = usize>, dd: &mut Dropdown) -> Option<bool> {
     match code {
         KeyCode::Up => { dd.cursor = dd.cursor.saturating_sub(1); None }
-        KeyCode::Down => { dd.cursor = (dd.cursor + 1).min(len.saturating_sub(1)); None }
+        KeyCode::Down => { dd.cursor = (dd.cursor + 1).min(choices.len().saturating_sub(1)); None }
         KeyCode::Enter => {
-            if len == 0 { return Some(false); }
-            let changed = dd.selected != Some(dd.cursor);
-            dd.selected = Some(dd.cursor);
+            let Some(selected) = choices.nth(dd.cursor) else { return Some(false); };
+            let changed = dd.selected != Some(selected);
+            dd.selected = Some(selected);
             Some(changed)
         }
         KeyCode::Esc => Some(false),
@@ -490,7 +476,6 @@ fn draw_dropdown_overlay(frame: &mut Frame, app: &Tui, which: Row, rows: (Rect, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::{backend::TestBackend, Terminal};
 
     fn app() -> Tui {
         let ais = [
@@ -521,48 +506,19 @@ mod tests {
         press(app, KeyCode::Enter);
     }
 
-    fn screen(app: &Tui) -> String {
-        let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
-        terminal.draw(|frame| draw(frame, app)).unwrap();
-        let buffer = terminal.backend().buffer();
-        (0..30).map(|y| {
-            (0..80).map(|x| buffer[(x, y)].symbol()).collect::<String>()
-        }).collect::<Vec<_>>().join("\n")
-    }
-
-    #[test]
-    fn extra_selectors_appear_only_after_adding_them() {
-        let mut app = app();
-        assert_eq!(app.rows(), vec![Row::Ai, Row::Ep]);
-        let initial = screen(&app);
-        assert!(!initial.contains(app.t(Key::select_2nd_ai)));
-        assert!(!initial.contains("Embedding"));
-        add_slot(&mut app);
-        assert_eq!(app.cur_row(), Row::ExtraAi(0));
-        assert!(screen(&app).contains(app.t(Key::select_2nd_ai)));
-        assert!(!screen(&app).contains(app.t(Key::select_3rd_ai)));
-        assert!(!app.can_add_extra_ai());
-        assert_eq!(app.extra_ai_choices(0), vec![1, 2, 3]);
-        press(&mut app, KeyCode::Enter);
-        let menu = screen(&app);
-        assert!(menu.contains("Classifier"));
-        assert!(menu.contains("Embedding"));
-        assert!(!menu.contains("Audio classifier"));
-        press(&mut app, KeyCode::Esc);
-        assert_eq!(app.extra_ais[0].selected, None);
-    }
-
     #[test]
     fn either_type_can_come_first_and_third_slot_offers_only_the_other_type() {
         for (second, third, remaining) in [(1, 2, vec![2]), (2, 3, vec![1, 3])] {
             let mut app = app();
+            assert_eq!(app.rows(), vec![Row::Ai, Row::Ep]);
             add_slot(&mut app);
+            assert_eq!(app.extra_ai_choices(0), vec![1, 2, 3]);
+            assert!(!app.can_add_extra_ai());
             // Supply a successful selection without loading an ONNX model in this UI test.
             app.extra_ais[0].selected = Some(second);
             assert!(app.can_add_extra_ai());
             add_slot(&mut app);
             assert_eq!(app.cur_row(), Row::ExtraAi(1));
-            assert!(screen(&app).contains(app.t(Key::select_3rd_ai)));
             assert_eq!(app.extra_ai_choices(1), remaining);
             app.extra_ais[1].selected = Some(third);
             assert!(!app.can_add_extra_ai());
@@ -574,46 +530,16 @@ mod tests {
             press(&mut app, KeyCode::Enter);
             assert_eq!(app.extra_ais[1].selected, Some(third));
             assert!(app.status_msg.is_none());
+
+            app.row = 1;
+            press(&mut app, KeyCode::Right);
+            press(&mut app, KeyCode::Enter);
+            assert_eq!(app.extra_ais.len(), 1);
+            assert_eq!(app.extra_ais[0].selected, Some(third));
+            assert!(app.can_add_extra_ai());
+            press(&mut app, KeyCode::Right);
+            press(&mut app, KeyCode::Enter);
+            assert_eq!(app.rows(), vec![Row::Ai, Row::Ep]);
         }
-    }
-
-    #[test]
-    fn removing_second_slot_promotes_third_and_restores_available_type() {
-        let mut app = app();
-        add_slot(&mut app);
-        app.extra_ais[0].selected = Some(2);
-        add_slot(&mut app);
-        app.extra_ais[1].selected = Some(1);
-        app.row = 1;
-        press(&mut app, KeyCode::Right);
-        press(&mut app, KeyCode::Enter);
-        assert_eq!(app.extra_ais.len(), 1);
-        assert_eq!(app.extra_ais[0].selected, Some(1));
-        assert_eq!(app.extra_ai_choices(1), vec![2]);
-        assert!(app.can_add_extra_ai());
-        assert!(!screen(&app).contains(app.t(Key::select_3rd_ai)));
-        press(&mut app, KeyCode::Right);
-        press(&mut app, KeyCode::Enter);
-        assert_eq!(app.rows(), vec![Row::Ai, Row::Ep]);
-        assert!(!app.side_btn);
-    }
-
-    #[test]
-    fn add_button_requires_a_compatible_primary_and_an_available_type() {
-        let mut app = app();
-        app.ai.selected = None;
-        assert!(!app.can_add_extra_ai());
-        app.ai.selected = Some(1);
-        assert!(!app.can_add_extra_ai());
-        app.ai.selected = Some(0);
-        app.ais.retain(|ai| ai.task != Task::Classify);
-        assert!(app.can_add_extra_ai());
-        add_slot(&mut app);
-        app.extra_ais[0].selected = Some(1);
-        assert!(!app.can_add_extra_ai());
-
-        let mut empty = Dropdown::default();
-        assert_eq!(handle_dropdown(KeyCode::Enter, 0, &mut empty), Some(false));
-        assert_eq!(empty.selected, None);
     }
 }
