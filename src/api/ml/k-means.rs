@@ -67,7 +67,7 @@ fn nearest(point: &[f64], centers: &[Vec<f64>], previous: usize) -> usize {
     best
 }
 
-fn seed_centers(points: &[Vec<f64>], count: usize) -> Vec<Vec<f64>> {
+pub(super) fn seed_centers(points: &[Vec<f64>], count: usize) -> Vec<Vec<f64>> {
     let mut centers = vec![points[0].clone()];
     let mut distances = vec![f64::INFINITY; points.len()];
     while centers.len() < count {

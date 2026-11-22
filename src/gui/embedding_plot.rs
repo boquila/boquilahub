@@ -1,12 +1,27 @@
 use super::Gui;
 use crate::api::abstractions::{AIOutputs, Embedding, PredImg, XYXY};
-use crate::api::ml::{KMeans, Pca};
+use crate::api::ml::{EMeans, KMeans, Pca};
 use crate::localization::{Key, translate};
 use egui_plot::{Plot, PlotPoint, Points};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ClusterMethod {
+    EMeans,
+    KMeans,
+}
+
+impl ClusterMethod {
+    fn name(self) -> &'static str {
+        match self {
+            Self::EMeans => "E-means",
+            Self::KMeans => "K-means",
+        }
+    }
+}
 
 pub(super) struct EmbeddingPlot {
     pub open: bool,
@@ -21,6 +36,8 @@ pub(super) struct EmbeddingPlot {
     objects: bool,
     model: String,
     color_clusters: bool,
+    method: ClusterMethod,
+    cluster_time: Option<Duration>,
     cluster_count: usize,
     computed_cluster_count: usize,
     error: Option<String>,
@@ -149,6 +166,8 @@ impl EmbeddingPlot {
             objects,
             model,
             color_clusters: false,
+            method: ClusterMethod::EMeans,
+            cluster_time: None,
             cluster_count: 8,
             computed_cluster_count: 0,
             error,
@@ -204,7 +223,14 @@ impl EmbeddingPlot {
         } else {
             self.points.iter().map(|p| vec![p.x, p.y]).collect()
         };
-        let fit = match KMeans::fit(&points, self.cluster_count) {
+        self.cluster_time = None;
+        let started = Instant::now();
+        let result = match self.method {
+            ClusterMethod::EMeans => EMeans::fit(&points, self.cluster_count).map(|fit| fit.labels),
+            ClusterMethod::KMeans => KMeans::fit(&points, self.cluster_count).map(|fit| fit.labels),
+        };
+        let elapsed = started.elapsed();
+        let labels = match result {
             Ok(fit) => fit,
             Err(err) => {
                 self.error = Some(err.to_string());
@@ -215,7 +241,8 @@ impl EmbeddingPlot {
             }
         };
         self.error = None;
-        self.cluster_ids = fit.labels;
+        self.cluster_time = Some(elapsed);
+        self.cluster_ids = labels;
         self.clusters = vec![Vec::new(); self.cluster_ids.iter().max().map_or(0, |id| id + 1)];
         for (&point, &cluster) in self.points.iter().zip(&self.cluster_ids) {
             self.clusters[cluster].push(point);
@@ -384,17 +411,29 @@ impl Gui {
                         }
                     }
                 });
-                if was_3d != plot.view_3d && plot.color_clusters {
-                    plot.recluster();
-                }
-                ui.horizontal(|ui| {
-                    if ui.checkbox(&mut plot.color_clusters, "K-means").changed()
-                        && plot.color_clusters
-                        && plot.clusters.is_empty()
-                    {
-                        plot.recluster();
+                ui.horizontal_wrapped(|ui| {
+                    let enabled = ui
+                        .checkbox(
+                            &mut plot.color_clusters,
+                            translate(Key::cluster_points, lang),
+                        )
+                        .changed();
+                    if plot.color_clusters {
+                        let previous = plot.method;
+                        egui::ComboBox::from_id_salt("clustering_method")
+                            .selected_text(plot.method.name())
+                            .width(85.0)
+                            .show_ui(ui, |ui| {
+                                for method in [ClusterMethod::EMeans, ClusterMethod::KMeans] {
+                                    ui.selectable_value(&mut plot.method, method, method.name());
+                                }
+                            });
+                        if previous != plot.method || enabled || was_3d != plot.view_3d {
+                            plot.recluster();
+                        }
                     }
                     if plot.color_clusters {
+                        ui.spacing_mut().slider_width = 64.0;
                         let slider = ui.add(
                             egui::Slider::new(&mut plot.cluster_count, 2..=20)
                                 .text(translate(Key::groups, lang)),
@@ -406,16 +445,28 @@ impl Gui {
                         }
                     }
                 });
-                if plot.objects {
-                    ui.label(format!("{} · {}", plot.points.len(), plot.model));
-                } else {
-                    ui.label(format!(
-                        "{} / {} · {}",
-                        plot.points.len(),
-                        files.len(),
-                        plot.model
-                    ));
-                }
+                ui.horizontal(|ui| {
+                    if plot.objects {
+                        ui.label(format!("{} · {}", plot.points.len(), plot.model));
+                    } else {
+                        ui.label(format!(
+                            "{} / {} · {}",
+                            plot.points.len(),
+                            files.len(),
+                            plot.model
+                        ));
+                    }
+                    if plot.color_clusters
+                        && let Some(elapsed) = plot.cluster_time
+                    {
+                        let ms = elapsed.as_secs_f64() * 1000.0;
+                        ui.weak(if ms < 0.1 {
+                            "<0.1 ms".into()
+                        } else {
+                            format!("{ms:.1} ms")
+                        });
+                    }
+                });
                 let id = egui::Id::unique((
                     "image_embeddings",
                     &files[0].file_path,
@@ -598,6 +649,7 @@ impl Gui {
             let mut replacement = EmbeddingPlot::for_kind(files, objects);
             replacement.color_clusters = plot.color_clusters;
             replacement.cluster_count = plot.cluster_count;
+            replacement.method = plot.method;
             replacement.highlight_selection = plot.highlight_selection;
             replacement.view_3d = plot.view_3d;
             replacement.view_3d_options = plot.view_3d_options;
@@ -627,46 +679,160 @@ mod tests {
     use crate::api::abstractions::XYXYc;
 
     #[test]
+    fn clustering_controls_are_explicit_and_fit_a_narrow_window() {
+        for method in [ClusterMethod::EMeans, ClusterMethod::KMeans] {
+            for enabled in [false, true] {
+                for (lang, _) in crate::localization::LANGUAGES {
+                    let mut gui = Gui::default();
+                    gui.lang = lang;
+                    for values in [[1.0, 0.0], [0.0, 1.0]] {
+                        let mut file = PredImg::new_simple("missing-layout-test.jpg".into());
+                        file.aioutput = Some(AIOutputs::Embed(Embedding::from_raw(
+                            &values,
+                            "test".into(),
+                        )));
+                        gui.selected_imgs.push(file);
+                    }
+                    let mut plot = EmbeddingPlot::new(&gui.selected_imgs);
+                    plot.method = method;
+                    plot.color_clusters = enabled;
+                    plot.recluster();
+                    plot.cluster_time = Some(Duration::from_millis(200));
+                    gui.embedding_plot = Some(plot);
+                    let ctx = egui::Context::default();
+                    let mut texts = Vec::new();
+                    for _ in 0..3 {
+                        let mut output = ctx.run_ui(
+                            egui::RawInput {
+                                screen_rect: Some(egui::Rect::from_min_size(
+                                    egui::Pos2::ZERO,
+                                    egui::vec2(440.0, 600.0),
+                                )),
+                                ..Default::default()
+                            },
+                            |ctx| {
+                                egui::CentralPanel::default()
+                                    .show(ctx, |ui| gui.show_embedding_plot(ui));
+                            },
+                        );
+                        texts.clear();
+                        fn collect(
+                            shape: &egui::epaint::Shape,
+                            texts: &mut Vec<(String, egui::Rect)>,
+                        ) {
+                            match shape {
+                                egui::epaint::Shape::Text(text) => texts.push((
+                                    text.galley.text().to_owned(),
+                                    text.visual_bounding_rect(),
+                                )),
+                                egui::epaint::Shape::Vec(shapes) => {
+                                    for shape in shapes {
+                                        collect(shape, texts);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        for shape in &output.shapes {
+                            collect(&shape.shape, &mut texts);
+                        }
+                        output.textures_delta.clear();
+                    }
+                    let rect =
+                        |label: &str| texts.iter().find(|(text, _)| text == label).unwrap().1;
+                    let toggle_rect = rect(translate(Key::cluster_points, &gui.lang));
+                    if !enabled {
+                        assert!(!texts.iter().any(|(text, _)| text == "E-means"
+                            || text == "K-means"
+                            || text == "200.0 ms"));
+                        continue;
+                    }
+                    let method_rect = rect(method.name());
+                    let time_rect = rect("200.0 ms");
+                    assert!((toggle_rect.center().y - method_rect.center().y).abs() < 4.0);
+                    let count_rect = rect("2 / 2 · test");
+                    let groups_rect = rect(translate(Key::groups, &gui.lang));
+                    assert!((count_rect.center().y - time_rect.center().y).abs() < 4.0);
+                    assert!(
+                        groups_rect.right() <= 440.0,
+                        "groups clipped: {groups_rect:?}"
+                    );
+                    assert!(time_rect.right() <= 440.0, "timing clipped: {time_rect:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn reclustering_uses_the_current_view_dimensions() {
-        let mut plot = EmbeddingPlot::new(&[]);
-        plot.points_3d = vec![
-            [-0.1, 0.0, -1.0],
-            [0.1, 0.0, -1.0],
-            [-0.1, 0.0, 1.0],
-            [0.1, 0.0, 1.0],
-        ];
-        plot.points = plot
-            .points_3d
-            .iter()
-            .map(|p| PlotPoint::new(p[0], p[1]))
-            .collect();
-        plot.cluster_count = 2;
-        plot.recluster();
-        let labels_2d = plot.cluster_ids.clone();
-        assert_eq!(labels_2d[0], labels_2d[2]);
-        assert_ne!(labels_2d[0], labels_2d[1]);
-        plot.view_3d = true;
-        plot.recluster();
-        assert_eq!(plot.cluster_ids[0], plot.cluster_ids[1]);
-        assert_ne!(plot.cluster_ids[0], plot.cluster_ids[2]);
-        plot.view_3d = false;
-        plot.recluster();
-        assert_eq!(plot.cluster_ids, labels_2d);
+        for method in [ClusterMethod::EMeans, ClusterMethod::KMeans] {
+            let mut plot = EmbeddingPlot::new(&[]);
+            assert!(plot.method == ClusterMethod::EMeans);
+            plot.method = method;
+            plot.points_3d = vec![
+                [-0.1, 0.0, -1.0],
+                [0.1, 0.0, -1.0],
+                [-0.1, 0.0, 1.0],
+                [0.1, 0.0, 1.0],
+            ];
+            plot.points = plot
+                .points_3d
+                .iter()
+                .map(|p| PlotPoint::new(p[0], p[1]))
+                .collect();
+            plot.cluster_count = 2;
+            plot.recluster();
+            let labels_2d = plot.cluster_ids.clone();
+            assert_eq!(labels_2d[0], labels_2d[2]);
+            assert_ne!(labels_2d[0], labels_2d[1]);
+            plot.view_3d = true;
+            plot.recluster();
+            assert_eq!(plot.cluster_ids[0], plot.cluster_ids[1]);
+            assert_ne!(plot.cluster_ids[0], plot.cluster_ids[2]);
+            plot.view_3d = false;
+            plot.recluster();
+            assert_eq!(plot.cluster_ids, labels_2d);
+            assert!(plot.cluster_time.is_some());
+        }
     }
 
     #[test]
     fn clustering_keeps_precision_before_rendering() {
-        let mut plot = EmbeddingPlot::new(&[]);
-        plot.points_3d = vec![[1.0, 0.0, 0.0], [1.0 + 1e-10, 0.0, 0.0]];
-        plot.points = plot
-            .points_3d
-            .iter()
-            .map(|p| PlotPoint::new(p[0], p[1]))
-            .collect();
-        plot.view_3d = true;
-        plot.cluster_count = 2;
-        plot.recluster();
-        assert_ne!(plot.cluster_ids[0], plot.cluster_ids[1]);
+        for method in [ClusterMethod::EMeans, ClusterMethod::KMeans] {
+            let mut plot = EmbeddingPlot::new(&[]);
+            assert!(plot.method == ClusterMethod::EMeans);
+            plot.method = method;
+            plot.points_3d = vec![[1.0, 0.0, 0.0], [1.0 + 1e-10, 0.0, 0.0]];
+            plot.points = plot
+                .points_3d
+                .iter()
+                .map(|p| PlotPoint::new(p[0], p[1]))
+                .collect();
+            plot.view_3d = true;
+            plot.cluster_count = 2;
+            plot.recluster();
+            assert_ne!(plot.cluster_ids[0], plot.cluster_ids[1]);
+            assert!(plot.cluster_time.is_some());
+        }
+    }
+
+    #[test]
+    fn clustering_error_clears_timing_and_colors() {
+        for method in [ClusterMethod::EMeans, ClusterMethod::KMeans] {
+            let mut plot = EmbeddingPlot::new(&[]);
+            plot.points = vec![PlotPoint::new(1.0, 2.0)];
+            plot.method = method;
+            plot.color_clusters = true;
+            plot.recluster();
+            assert!(plot.cluster_time.is_some());
+            plot.cluster_count = 0;
+            plot.recluster();
+            assert!(plot.error.is_some());
+            assert!(!plot.color_clusters);
+            assert!(plot.cluster_time.is_none());
+            assert!(plot.cluster_ids.is_empty());
+            assert!(plot.clusters.is_empty());
+        }
     }
 
     #[test]

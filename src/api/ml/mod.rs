@@ -1,9 +1,12 @@
 //! Small, CPU-only methods. Rows are observations; columns are features.
 
+#[path = "e-means.rs"]
+pub mod e_means;
 #[path = "k-means.rs"]
 pub mod k_means;
 pub mod pca;
 
+pub use e_means::EMeans;
 pub use k_means::KMeans;
 pub use pca::Pca;
 
